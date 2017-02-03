@@ -80,11 +80,13 @@ DPDK_20.0.1 {
 	efx_rx_init;
 	efx_rx_qcreate;
 	efx_rx_qcreate_es_super_buffer;
+	efx_rx_qcreate_packed_stream;
 	efx_rx_qdestroy;
 	efx_rx_qenable;
 	efx_rx_qflush;
 	efx_rx_qpost;
 	efx_rx_qpush;
+	efx_rx_qpush_ps_credits;
 	efx_rx_scale_context_alloc;
 	efx_rx_scale_context_free;
 	efx_rx_scale_default_support_get;
