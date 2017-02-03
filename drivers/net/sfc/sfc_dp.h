@@ -21,6 +21,8 @@
 extern "C" {
 #endif
 
+#define SFC_P2_ROUND_UP(x, align)	(-(-(x) & -(align)))
+
 #define SFC_DIV_ROUND_UP(a, b) \
 	__extension__ ({		\
 		typeof(a) _a = (a);	\
@@ -81,6 +83,7 @@ struct sfc_dp {
 	unsigned int			hw_fw_caps;
 #define SFC_DP_HW_FW_CAP_EF10				0x1
 #define SFC_DP_HW_FW_CAP_RX_ES_SUPER_BUFFER		0x2
+#define SFC_DP_HW_FW_CAP_RX_PACKED_STREAM_64K		0x4
 };
 
 /** List of datapath variants */

@@ -1872,6 +1872,9 @@ sfc_eth_dev_set_ops(struct rte_eth_dev *dev)
 	encp = efx_nic_cfg_get(sa->nic);
 	if (encp->enc_rx_es_super_buffer_supported)
 		avail_caps |= SFC_DP_HW_FW_CAP_RX_ES_SUPER_BUFFER;
+	/* 64k buffers can be supported only */
+	if (encp->enc_rx_var_packed_stream_supported)
+		avail_caps |= SFC_DP_HW_FW_CAP_RX_PACKED_STREAM_64K;
 
 	rc = sfc_kvargs_process(sa, SFC_KVARG_RX_DATAPATH,
 				sfc_kvarg_string_handler, &rx_name);
@@ -2094,6 +2097,7 @@ sfc_register_dp(void)
 	if (TAILQ_EMPTY(&sfc_dp_head)) {
 		/* Prefer EF10 datapath */
 		sfc_dp_register(&sfc_dp_head, &sfc_ef10_essb_rx.dp);
+		sfc_dp_register(&sfc_dp_head, &sfc_ef10_ps_rx.dp);
 		sfc_dp_register(&sfc_dp_head, &sfc_ef10_rx.dp);
 		sfc_dp_register(&sfc_dp_head, &sfc_efx_rx.dp);
 

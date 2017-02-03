@@ -792,6 +792,12 @@ sfc_rx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 			evq->common, &rxq->common);
 		break;
 	}
+	case EFX_RXQ_TYPE_PACKED_STREAM:
+		rc = efx_rx_qcreate_packed_stream(sa->nic, rxq->hw_index, 0,
+			EFX_RXQ_PACKED_STREAM_BUF_SIZE_64K,
+			&rxq->mem, rxq_info->entries,
+			evq->common, &rxq->common);
+		break;
 	default:
 		rc = ENOTSUP;
 	}
@@ -805,6 +811,9 @@ sfc_rx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 		goto fail_dp_qstart;
 
 	rxq_info->state |= SFC_RXQ_STARTED;
+
+	if (rxq_info->type == EFX_RXQ_TYPE_PACKED_STREAM)
+		efx_rx_qpush_ps_credits(rxq->common);
 
 	if (sw_index == 0 && !sfc_sa2shared(sa)->isolated) {
 		rc = sfc_rx_default_rxq_set_filter(sa, rxq);
@@ -1097,6 +1106,9 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 
 	if (sa->priv.dp_rx->dp.hw_fw_caps & SFC_DP_HW_FW_CAP_RX_ES_SUPER_BUFFER)
 		rxq_info->type = EFX_RXQ_TYPE_ES_SUPER_BUFFER;
+	else if (sa->priv.dp_rx->dp.hw_fw_caps &
+		 SFC_DP_HW_FW_CAP_RX_PACKED_STREAM_64K)
+		rxq_info->type = EFX_RXQ_TYPE_PACKED_STREAM;
 	else
 		rxq_info->type = EFX_RXQ_TYPE_DEFAULT;
 
@@ -1116,7 +1128,8 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 
 	rxq = &sa->rxq_ctrl[sw_index];
 	rxq->evq = evq;
-	rxq->hw_index = sw_index;
+	/* Packed stream RxQ HW index must be equal to the EvQ HW index */
+	rxq->hw_index = sfc_evq_index_by_rxq_sw_index(sa, sw_index);
 	/*
 	 * If Rx refill threshold is specified (its value is non zero) in
 	 * Rx configuration, use specified value. Otherwise use 1/8 of
