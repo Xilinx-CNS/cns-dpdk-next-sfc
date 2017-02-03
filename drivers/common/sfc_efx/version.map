@@ -189,11 +189,14 @@ INTERNAL {
 	efx_rx_prefix_layout_check;
 	efx_rx_qcreate;
 	efx_rx_qcreate_es_super_buffer;
+	efx_rx_qcreate_packed_stream;
 	efx_rx_qdestroy;
 	efx_rx_qenable;
 	efx_rx_qflush;
 	efx_rx_qpost;
+	efx_rx_qps_packet_info;
 	efx_rx_qpush;
+	efx_rx_qpush_ps_credits;
 	efx_rx_scale_context_alloc;
 	efx_rx_scale_context_free;
 	efx_rx_scale_default_support_get;
@@ -201,6 +204,7 @@ INTERNAL {
 	efx_rx_scale_key_set;
 	efx_rx_scale_mode_set;
 	efx_rx_scale_tbl_set;
+	efx_rx_qpush_ps_credits;
 	efx_rxq_nbufs;
 	efx_rxq_size;
 

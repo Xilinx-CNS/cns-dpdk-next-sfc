@@ -69,6 +69,7 @@ sources = files(
 	'sfc_flow.c',
 	'sfc_dp.c',
 	'sfc_ef10_rx.c',
+	'sfc_ef10_ps_rx.c',
 	'sfc_ef10_essb_rx.c',
 	'sfc_ef10_tx.c',
 	'sfc_ef100_rx.c',

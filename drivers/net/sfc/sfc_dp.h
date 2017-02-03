@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+#define SFC_P2_ROUND_UP(x, align)	(-(-(x) & -(align)))
+
 #define SFC_DIV_ROUND_UP(a, b) \
 	__extension__ ({		\
 		typeof(a) _a = (a);	\
@@ -100,6 +102,7 @@ struct sfc_dp {
 #define SFC_DP_HW_FW_CAP_RX_EFX				0x4
 #define SFC_DP_HW_FW_CAP_TX_EFX				0x8
 #define SFC_DP_HW_FW_CAP_EF100				0x10
+#define SFC_DP_HW_FW_CAP_RX_PACKED_STREAM_64K		0x20
 };
 
 /** List of datapath variants */
