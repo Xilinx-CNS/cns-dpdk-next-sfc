@@ -119,6 +119,23 @@ block of objects and provide mempool info API to get the block size.
 Another limitation of a equal stride super-buffer mode, imposed by the
 firmware, is that it allows for a single RSS context.
 
+Packed stream mode
+~~~~~~~~~~~~~~~~~~
+
+When the receive queue is in packed stream mode, the driver handles mbufs
+differently.
+The mbufs that are handed over to the application are always indirect mbufs.
+The contents of mbufs may be freely modified by the application, with an
+important constraint: the indirect mbufs does not have any reserved "head room"
+before the actual contents (or rather it is used by PMD internally),
+so the usual practice of prepending an extra header through manipulating
+the head room **will not** work and would result in corrupted packets.
+If one needs to prepend data to a packet, one should first create a copy of
+mbuf.
+
+Another limitation of a packed stream mode, imposed by the firmware, is that
+it allows for a single RSS context.
+
 
 Tunnels support
 ---------------
@@ -389,7 +406,7 @@ boolean parameters value.
   It is a standard parameter whose format is described in
   :ref:`ethernet_device_standard_device_arguments`.
 
-- ``rx_datapath`` [auto|efx|ef10|ef10_essb] (default **auto**)
+- ``rx_datapath`` [auto|efx|ef10|ef10_essb|ef10_packed] (default **auto**)
 
   Choose receive datapath implementation.
   **auto** allows the driver itself to make a choice based on firmware
@@ -401,6 +418,9 @@ boolean parameters value.
   classification.
   **ef10_essb** chooses SFNX2xxx equal stride super-buffer datapath
   which may be used on DPDK firmware variant only
+  (see notes about its limitations above).
+  **ef10_packed** chooses EF10 (SFN7xxx, SFN8xxx, X2xxx) packed stream
+  datapath which may be used on capture packed stream firmware variant only
   (see notes about its limitations above).
   **ef100** chooses EF100 native datapath which is the only supported
   Rx datapath for EF100 architecture based NICs.

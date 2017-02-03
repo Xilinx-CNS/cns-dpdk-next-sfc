@@ -44,6 +44,7 @@ extern "C" {
 #define SFC_KVARG_DATAPATH_EF10		"ef10"
 #define SFC_KVARG_DATAPATH_EF10_SIMPLE	"ef10_simple"
 #define SFC_KVARG_DATAPATH_EF10_ESSB	"ef10_essb"
+#define SFC_KVARG_DATAPATH_EF10_PACKED	"ef10_packed"
 #define SFC_KVARG_DATAPATH_EF100	"ef100"
 
 #define SFC_KVARG_RX_DATAPATH		"rx_datapath"
@@ -51,6 +52,7 @@ extern "C" {
 	"[" SFC_KVARG_DATAPATH_EFX "|" \
 	    SFC_KVARG_DATAPATH_EF10 "|" \
 	    SFC_KVARG_DATAPATH_EF10_ESSB "|" \
+	    SFC_KVARG_DATAPATH_EF10_PACKED "|" \
 	    SFC_KVARG_DATAPATH_EF100 "]"
 
 #define SFC_KVARG_TX_DATAPATH		"tx_datapath"
