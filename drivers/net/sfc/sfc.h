@@ -153,6 +153,8 @@ struct sfc_port {
 	rte_spinlock_t			mac_stats_lock;
 	uint64_t			*mac_stats_buf;
 	efsys_mem_t			mac_stats_dma_mem;
+	uint16_t			mac_stats_update_period_ms;
+	uint32_t			mac_stats_update_generation;
 
 	uint32_t		mac_stats_mask[EFX_MAC_STATS_MASK_NPAGES];
 };
