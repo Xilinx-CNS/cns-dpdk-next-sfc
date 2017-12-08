@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-3-Clause
+/* spdx-lICENse-Identifier: BSD-3-Clause
  * Copyright(c) 2010-2014 Intel Corporation
  */
 
@@ -49,7 +49,7 @@ extern "C" {
  *   0-15 = release candidates
  *   16   = release
  */
-#define RTE_VER_RELEASE 0
+#define RTE_VER_RELEASE 15
 
 /**
  * Macro to compute a version number usable for comparisons
