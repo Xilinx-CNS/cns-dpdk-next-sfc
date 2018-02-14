@@ -912,6 +912,15 @@ priv_flow_convert_finalise(struct priv *priv, struct mlx5_flow_parse *parser)
 	unsigned int i;
 
 	(void)priv;
+	/* Remove any other flow not matching the pattern. */
+	if (parser->queues_n == 1) {
+		for (i = 0; i != hash_rxq_init_n; ++i) {
+			if (i == parser->layer || !parser->queue[i].ibv_attr)
+				continue;
+			rte_free(parser->queue[i].ibv_attr);
+			parser->queue[i].ibv_attr = NULL;
+		}
+	}
 	if (parser->layer == HASH_RXQ_ETH) {
 		goto fill;
 	} else {
