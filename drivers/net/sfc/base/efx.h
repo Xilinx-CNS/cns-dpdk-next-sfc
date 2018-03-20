@@ -1241,6 +1241,7 @@ typedef struct efx_nic_cfg_s {
 	/* Datapath firmware vadapter/vport/vswitch support */
 	boolean_t		enc_datapath_cap_evb;
 	boolean_t		enc_rx_disable_scatter_supported;
+	boolean_t		enc_rx_include_fcs_supported;
 	boolean_t		enc_allow_set_mac_with_installed_filters;
 	boolean_t		enc_enhanced_set_mac_supported;
 	boolean_t		enc_init_evq_v2_supported;
