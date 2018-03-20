@@ -224,6 +224,8 @@ sfc_efx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 	unsigned int done_pkts = 0;
 	boolean_t discard_next = B_FALSE;
 	struct rte_mbuf *scatter_pkt = NULL;
+	const boolean_t include_fcs =
+		((rxq->flags & SFC_EFX_RXQ_FLAG_INCLUDE_FCS) != 0);
 
 	if (unlikely((rxq->flags & SFC_EFX_RXQ_FLAG_RUNNING) == 0))
 		return 0;
@@ -298,6 +300,11 @@ sfc_efx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		sfc_efx_rx_set_rss_hash(rxq, desc_flags, m);
 
 		m->data_off += prefix_size;
+
+		if (include_fcs) {
+			if (rte_pktmbuf_trim(m, ETHER_CRC_LEN) != 0)
+				goto discard;
+		}
 
 		*rx_pkts++ = m;
 		done_pkts++;
@@ -433,6 +440,8 @@ sfc_efx_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 	rxq->evq = sfc_rxq_by_dp_rxq(&rxq->dp)->evq;
 	if (info->flags & SFC_RXQ_FLAG_RSS_HASH)
 		rxq->flags |= SFC_EFX_RXQ_FLAG_RSS_HASH;
+	if (info->flags & SFC_RXQ_FLAG_INCLUDE_FCS)
+		rxq->flags |= SFC_EFX_RXQ_FLAG_INCLUDE_FCS;
 	rxq->ptr_mask = info->rxq_entries - 1;
 	rxq->batch_max = info->batch_max;
 	rxq->prefix_size = info->prefix_size;
@@ -1087,6 +1096,8 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	info.hw_index = rxq->hw_index;
 	info.mem_bar = sa->mem_bar.esb_base;
 	info.vi_window_shift = encp->enc_vi_window_shift;
+	if (~rx_conf->offloads & DEV_RX_OFFLOAD_CRC_STRIP)
+		info.flags |= SFC_RXQ_FLAG_INCLUDE_FCS;
 
 	rc = sa->dp_rx->qcreate(sa->eth_dev->data->port_id, sw_index,
 				&RTE_ETH_DEV_TO_PCI(sa->eth_dev)->addr,
@@ -1303,6 +1314,7 @@ sfc_rx_check_mode(struct sfc_adapter *sa, struct rte_eth_rxmode *rxmode)
 	uint64_t offloads_supported = sfc_rx_get_dev_offload_caps(sa) |
 				      sfc_rx_get_queue_offload_caps(sa);
 	uint64_t offloads_rejected = rxmode->offloads & ~offloads_supported;
+	const efx_nic_cfg_t *encp;
 	int rc = 0;
 
 	switch (rxmode->mq_mode) {
@@ -1329,7 +1341,9 @@ sfc_rx_check_mode(struct sfc_adapter *sa, struct rte_eth_rxmode *rxmode)
 		rc = EINVAL;
 	}
 
-	if (~rxmode->offloads & DEV_RX_OFFLOAD_CRC_STRIP) {
+	encp = efx_nic_cfg_get(sa->nic);
+	if ((~rxmode->offloads & DEV_RX_OFFLOAD_CRC_STRIP) &&
+	    !encp->enc_rx_include_fcs_supported) {
 		sfc_warn(sa, "FCS stripping cannot be disabled - always on");
 		rxmode->offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
 		rxmode->hw_strip_crc = 1;

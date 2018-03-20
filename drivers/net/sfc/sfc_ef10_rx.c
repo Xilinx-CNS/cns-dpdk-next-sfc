@@ -59,6 +59,7 @@ struct sfc_ef10_rxq {
 #define SFC_EF10_RXQ_NOT_RUNNING	0x2
 #define SFC_EF10_RXQ_EXCEPTION		0x4
 #define SFC_EF10_RXQ_RSS_HASH		0x8
+#define SFC_EF10_RXQ_INCLUDE_FCS	0x10
 	unsigned int			ptr_mask;
 	unsigned int			prepared;
 	unsigned int			completed;
@@ -391,6 +392,8 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 	uint16_t n_rx_pkts;
 	const uint8_t *pseudo_hdr;
 	uint16_t pkt_len;
+	const uint16_t fcs_len =
+		(rxq->flags & SFC_EF10_RXQ_INCLUDE_FCS) ? ETHER_CRC_LEN : 0;
 
 	ready = (EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_DSC_PTR_LBITS) - completed) &
 		EFX_MASK32(ESF_DZ_RX_DSC_PTR_LBITS);
@@ -441,7 +444,8 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 			rxq->prefix_size;
 	else
 		pkt_len = sfc_ef10_rx_pseudo_hdr_get_len(pseudo_hdr);
-	SFC_ASSERT(pkt_len > 0);
+	SFC_ASSERT(pkt_len > fcs_len);
+	pkt_len -= fcs_len;
 	rte_pktmbuf_data_len(m) = pkt_len;
 	rte_pktmbuf_pkt_len(m) = pkt_len;
 
@@ -478,7 +482,8 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 		m->hash.rss = sfc_ef10_rx_pseudo_hdr_get_hash(pseudo_hdr);
 
 		pkt_len = sfc_ef10_rx_pseudo_hdr_get_len(pseudo_hdr);
-		SFC_ASSERT(pkt_len > 0);
+		SFC_ASSERT(pkt_len > fcs_len);
+		pkt_len -= fcs_len;
 		rte_pktmbuf_data_len(m) = pkt_len;
 		rte_pktmbuf_pkt_len(m) = pkt_len;
 
@@ -714,6 +719,8 @@ sfc_ef10_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 	rxq->flags |= SFC_EF10_RXQ_NOT_RUNNING;
 	if (info->flags & SFC_RXQ_FLAG_RSS_HASH)
 		rxq->flags |= SFC_EF10_RXQ_RSS_HASH;
+	if (info->flags & SFC_RXQ_FLAG_INCLUDE_FCS)
+		rxq->flags |= SFC_EF10_RXQ_INCLUDE_FCS;
 	rxq->ptr_mask = info->rxq_entries - 1;
 	rxq->evq_hw_ring = info->evq_hw_ring;
 	rxq->max_fill_level = info->max_fill_level;

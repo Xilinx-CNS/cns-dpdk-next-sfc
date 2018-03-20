@@ -165,6 +165,11 @@ sfc_port_start(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mac_pdu_set;
 
+	sfc_log_init(sa, "set include FCS=%u", port->include_fcs);
+	rc = efx_mac_include_fcs_set(sa->nic, port->include_fcs);
+	if (rc != 0)
+		goto fail_include_fcs_set;
+
 	if (!port->isolated) {
 		struct ether_addr *addr = &port->default_mac_addr;
 
@@ -257,6 +262,7 @@ fail_port_init_dev_link:
 	(void)efx_mac_drain(sa->nic, B_TRUE);
 
 fail_mac_drain:
+fail_include_fcs_set:
 fail_mac_stats_upload:
 	(void)efx_mac_stats_periodic(sa->nic, &port->mac_stats_dma_mem,
 				     0, B_FALSE);
@@ -307,6 +313,11 @@ sfc_port_configure(struct sfc_adapter *sa)
 		port->pdu = rxmode->max_rx_pkt_len;
 	else
 		port->pdu = EFX_MAC_PDU(dev_data->mtu);
+
+	if (rxmode->offloads & DEV_RX_OFFLOAD_CRC_STRIP)
+		port->include_fcs = B_FALSE;
+	else
+		port->include_fcs = B_TRUE;
 
 	return 0;
 }
