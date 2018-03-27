@@ -812,10 +812,11 @@ static boolean_t
 sfc_rx_queue_offloads_mismatch(struct sfc_adapter *sa, uint64_t requested)
 {
 	uint64_t mandatory = sa->eth_dev->data->dev_conf.rxmode.offloads;
-	uint64_t supported = sfc_rx_get_dev_offload_caps(sa) |
-			     sfc_rx_get_queue_offload_caps(sa);
+	uint64_t queue_supported = sfc_rx_get_queue_offload_caps(sa);
+	uint64_t supported = sfc_rx_get_dev_offload_caps(sa) | queue_supported;
 	uint64_t rejected = requested & ~supported;
 	uint64_t missing = (requested & mandatory) ^ mandatory;
+	uint64_t queue_rejected = ~mandatory & requested & ~queue_supported;
 	boolean_t mismatch = B_FALSE;
 
 	if (rejected) {
@@ -825,6 +826,12 @@ sfc_rx_queue_offloads_mismatch(struct sfc_adapter *sa, uint64_t requested)
 
 	if (missing) {
 		sfc_rx_log_offloads(sa, "queue", "must be set", missing);
+		mismatch = B_TRUE;
+	}
+
+	if (queue_rejected) {
+		sfc_rx_log_offloads(sa, "device", "is unsupported per queue",
+				    queue_rejected);
 		mismatch = B_TRUE;
 	}
 
