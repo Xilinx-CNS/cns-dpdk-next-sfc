@@ -1188,10 +1188,13 @@ ef10_get_datapath_caps(
 		encp->enc_rx_disable_scatter_supported = B_FALSE;
 
 	/* Check if the firmware supports include FCS on RX */
-	if (CAP_FLAGS1(req, RX_INCLUDE_FCS))
+	if (CAP_FLAGS1(req, RX_INCLUDE_FCS)) {
 		encp->enc_rx_include_fcs_supported = B_TRUE;
-	else
+		printf("\n enc_rx_include_fcs_supported TRUE\n");
+	} else {
 		encp->enc_rx_include_fcs_supported = B_FALSE;
+		printf("\n enc_rx_include_fcs_supported FALSE\n");
+	}
 
 	/* Check if the firmware supports packed stream mode */
 	if (CAP_FLAGS1(req, RX_PACKED_STREAM))
@@ -1810,6 +1813,9 @@ ef10_nic_board_cfg(
 	/* Check capabilities of running datapath firmware */
 	if ((rc = ef10_get_datapath_caps(enp)) != 0)
 		goto fail8;
+
+	printf("qqq enc_hw_pf_on_port_count %u\n", encp->enc_hw_pf_on_port_count);
+	printf("qqq enc_max_vf_count %u\n", encp->enc_max_vf_count);
 
 	/* Alignment for WPTR updates */
 	encp->enc_rx_push_align = EF10_RX_WPTR_ALIGN;

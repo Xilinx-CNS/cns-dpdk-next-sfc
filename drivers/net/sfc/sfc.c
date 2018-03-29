@@ -261,7 +261,7 @@ sfc_set_drv_limits(struct sfc_adapter *sa)
 static int
 sfc_try_start(struct sfc_adapter *sa)
 {
-	const efx_nic_cfg_t *encp;
+	//const efx_nic_cfg_t *encp;
 	int rc;
 
 	sfc_log_init(sa, "entry");
@@ -279,13 +279,13 @@ sfc_try_start(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_nic_init;
 
-	encp = efx_nic_cfg_get(sa->nic);
+/*	encp = efx_nic_cfg_get(sa->nic);
 	if (encp->enc_tunnel_encapsulations_supported != 0) {
 		sfc_log_init(sa, "apply tunnel config");
 		rc = efx_tunnel_reconfigure(sa->nic);
 		if (rc != 0)
 			goto fail_tunnel_reconfigure;
-	}
+	}*/
 
 	rc = sfc_intr_start(sa);
 	if (rc != 0)
@@ -330,7 +330,7 @@ fail_ev_start:
 	sfc_intr_stop(sa);
 
 fail_intr_start:
-fail_tunnel_reconfigure:
+//fail_tunnel_reconfigure:
 	efx_nic_fini(sa->nic);
 
 fail_nic_init:

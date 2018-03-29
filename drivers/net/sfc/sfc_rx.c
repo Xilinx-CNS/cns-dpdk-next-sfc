@@ -224,8 +224,8 @@ sfc_efx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 	unsigned int done_pkts = 0;
 	boolean_t discard_next = B_FALSE;
 	struct rte_mbuf *scatter_pkt = NULL;
-	const boolean_t include_fcs =
-		((rxq->flags & SFC_EFX_RXQ_FLAG_INCLUDE_FCS) != 0);
+	/*const boolean_t include_fcs =
+		((rxq->flags & SFC_EFX_RXQ_FLAG_INCLUDE_FCS) != 0);*/
 
 	if (unlikely((rxq->flags & SFC_EFX_RXQ_FLAG_RUNNING) == 0))
 		return 0;
@@ -301,10 +301,10 @@ sfc_efx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 
 		m->data_off += prefix_size;
 
-		if (include_fcs) {
+		/*if (include_fcs) {
 			if (rte_pktmbuf_trim(m, ETHER_CRC_LEN) != 0)
 				goto discard;
-		}
+		}*/
 
 		*rx_pkts++ = m;
 		done_pkts++;

@@ -1726,6 +1726,7 @@ cmd_config_rx_mode_flag_parsed(void *parsed_result,
 {
 	struct cmd_config_rx_mode_flag *res = parsed_result;
 	portid_t pid;
+	int flag_crc = 1;
 
 	if (!all_ports_stopped()) {
 		printf("Please stop all ports first\n");
@@ -1739,14 +1740,17 @@ cmd_config_rx_mode_flag_parsed(void *parsed_result,
 		port = &ports[pid];
 		rx_offloads = port->dev_conf.rxmode.offloads;
 		if (!strcmp(res->name, "crc-strip")) {
-			if (!strcmp(res->value, "on"))
-				rx_offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
-			else if (!strcmp(res->value, "off"))
-				rx_offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
-			else {
-				printf("Unknown parameter\n");
-				return;
+			if (flag_crc) {
+				if (!strcmp(res->value, "on"))
+					rx_offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
+				else if (!strcmp(res->value, "off"))
+					rx_offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
+				else {
+					printf("Unknown parameter\n");
+					return;
+				}
 			}
+			flag_crc = 0;
 		} else if (!strcmp(res->name, "scatter")) {
 			if (!strcmp(res->value, "on")) {
 				rx_offloads |= DEV_RX_OFFLOAD_SCATTER;
@@ -1859,6 +1863,66 @@ cmdline_parse_inst_t cmd_config_rx_mode_flag = {
 		(void *)&cmd_config_rx_mode_flag_all,
 		(void *)&cmd_config_rx_mode_flag_name,
 		(void *)&cmd_config_rx_mode_flag_value,
+		NULL,
+	},
+};
+
+/* *** configure rx mode *** */
+struct cmd_config_fcs_include_flag {
+	cmdline_fixed_string_t port;
+	portid_t port_id;
+	cmdline_fixed_string_t keyword;
+	cmdline_fixed_string_t enabled;
+};
+
+static void
+cmd_config_fcs_include_flag_parsed(void *parsed_result,
+				   __attribute__((unused)) struct cmdline *cl,
+				   __attribute__((unused)) void *data)
+{
+	struct cmd_config_fcs_include_flag *res = parsed_result;
+	struct rte_port *port;
+	uint64_t rx_offloads;
+
+	port = &ports[res->port_id];
+	rx_offloads = port->dev_conf.rxmode.offloads;
+
+	if (!strcmp(res->enabled, "off"))
+		rx_offloads |= DEV_RX_OFFLOAD_CRC_STRIP;
+	else if (!strcmp(res->enabled, "on"))
+		rx_offloads &= ~DEV_RX_OFFLOAD_CRC_STRIP;
+	else {
+		printf("Unknown parameter\n");
+		return;
+	}
+
+	port->dev_conf.rxmode.offloads = rx_offloads;
+
+	init_port_config();
+
+	cmd_reconfig_device_queue(res->port_id, 1, 1);
+}
+
+cmdline_parse_token_string_t cmd_config_fcs_include_flag_port =
+	TOKEN_STRING_INITIALIZER(struct cmd_config_fcs_include_flag, port, "port");
+cmdline_parse_token_num_t cmd_config_fcs_include_flag_port_id =
+	TOKEN_NUM_INITIALIZER(struct cmd_config_fcs_include_flag, port_id, UINT16);
+cmdline_parse_token_string_t cmd_config_fcs_include_flag_keyword =
+	TOKEN_STRING_INITIALIZER(struct cmd_config_fcs_include_flag, keyword,
+								"fcs_include");
+cmdline_parse_token_string_t cmd_config_fcs_include_flag_enabled =
+	TOKEN_STRING_INITIALIZER(struct cmd_config_fcs_include_flag, enabled,
+							"on#off");
+
+cmdline_parse_inst_t cmd_config_fcs_include_flag = {
+	.f = cmd_config_fcs_include_flag_parsed,
+	.data = NULL,
+	.help_str = "port [id] fcs_include on|off",
+	.tokens = {
+		(void *)&cmd_config_fcs_include_flag_port,
+		(void *)&cmd_config_fcs_include_flag_port_id,
+		(void *)&cmd_config_fcs_include_flag_keyword,
+		(void *)&cmd_config_fcs_include_flag_enabled,
 		NULL,
 	},
 };
@@ -16272,6 +16336,7 @@ cmdline_parse_ctx_t main_ctx[] = {
 	(cmdline_parse_inst_t *)&cmd_del_port_tm_node,
 	(cmdline_parse_inst_t *)&cmd_set_port_tm_node_parent,
 	(cmdline_parse_inst_t *)&cmd_port_tm_hierarchy_commit,
+	(cmdline_parse_inst_t *)&cmd_config_fcs_include_flag,
 	NULL,
 };
 

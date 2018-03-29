@@ -393,7 +393,7 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 	const uint8_t *pseudo_hdr;
 	uint16_t pkt_len;
 	const uint16_t fcs_len =
-		(rxq->flags & SFC_EF10_RXQ_INCLUDE_FCS) ? ETHER_CRC_LEN : 0;
+		(rxq->flags & SFC_EF10_RXQ_INCLUDE_FCS) ? 0 : 0;
 
 	ready = (EFX_QWORD_FIELD(rx_ev, ESF_DZ_RX_DSC_PTR_LBITS) - completed) &
 		EFX_MASK32(ESF_DZ_RX_DSC_PTR_LBITS);

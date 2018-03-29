@@ -525,8 +525,12 @@ efx_mac_include_fcs_set(
 	epp->ep_include_fcs = enabled;
 
 	rc = emop->emo_reconfigure(enp);
-	if (rc != 0)
+	if (rc != 0) {
+		printf("\nINCLUDE FCS SET ERROR %d\n", rc);
 		goto fail3;
+	} else {
+		printf("\nINCLUDE FCS SET OK\n");
+	}
 
 	return (0);
 
