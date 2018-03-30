@@ -89,6 +89,9 @@ siena_board_cfg(
 	 */
 	encp->enc_hw_pf_count = 1;
 
+	/* The Siena SRIOV is not supported by libefx */
+	encp->enc_max_vf_count = 0;
+
 	/* Additional capabilities */
 	encp->enc_clk_mult = 1;
 	if (EFX_DWORD_FIELD(capabilities, MC_CMD_CAPABILITIES_TURBO)) {

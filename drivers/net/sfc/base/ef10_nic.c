@@ -990,6 +990,48 @@ fail1:
 }
 
 static	__checkReturn	efx_rc_t
+ef10_mcdi_get_max_vf_count(
+	__in		efx_nic_t *enp,
+	__out		uint32_t *max_vf_countp)
+{
+	efx_mcdi_req_t req;
+	uint8_t payload[MAX(MC_CMD_GET_SRIOV_CFG_IN_LEN,
+			    MC_CMD_GET_SRIOV_CFG_OUT_LEN)];
+	efx_rc_t rc;
+
+	(void) memset(payload, 0, sizeof (payload));
+	req.emr_cmd = MC_CMD_GET_SRIOV_CFG;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_GET_SRIOV_CFG_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_GET_SRIOV_CFG_OUT_LEN;
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (req.emr_out_length_used < MC_CMD_GET_SRIOV_CFG_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
+	*max_vf_countp = *MCDI_OUT(req, uint32_t,
+	    MC_CMD_GET_SRIOV_CFG_OUT_VF_MAX_OFST);
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
 ef10_get_datapath_caps(
 	__in		efx_nic_t *enp)
 {
@@ -1001,6 +1043,15 @@ ef10_get_datapath_caps(
 
 	if ((rc = ef10_mcdi_get_pf_count(enp, &encp->enc_hw_pf_count)) != 0)
 		goto fail1;
+
+	if (EFX_PCI_FUNCTION_IS_VF(encp)) {
+		encp->enc_max_vf_count = EFX_PCI_MAX_VF_COUNT_UNKNOWN;
+	} else {
+		/* Get SRIOV config can be only for PF */
+		rc = ef10_mcdi_get_max_vf_count(enp, &encp->enc_max_vf_count);
+		if (rc != 0)
+			goto fail2;
+	}
 
 
 	(void) memset(payload, 0, sizeof (payload));
@@ -1014,12 +1065,12 @@ ef10_get_datapath_caps(
 
 	if (req.emr_rc != 0) {
 		rc = req.emr_rc;
-		goto fail2;
+		goto fail3;
 	}
 
 	if (req.emr_out_length_used < MC_CMD_GET_CAPABILITIES_OUT_LEN) {
 		rc = EMSGSIZE;
-		goto fail3;
+		goto fail4;
 	}
 
 #define	CAP_FLAGS1(_req, _flag)						\
@@ -1037,7 +1088,7 @@ ef10_get_datapath_caps(
 	 */
 	if (CAP_FLAGS1(req, RX_PREFIX_LEN_14) == 0) {
 		rc = ENOTSUP;
-		goto fail4;
+		goto fail5;
 	}
 	encp->enc_rx_prefix_size = 14;
 
@@ -1238,6 +1289,8 @@ ef10_get_datapath_caps(
 
 	return (0);
 
+fail5:
+	EFSYS_PROBE(fail5);
 fail4:
 	EFSYS_PROBE(fail4);
 fail3:

@@ -1238,6 +1238,8 @@ typedef struct efx_nic_cfg_s {
 	boolean_t		enc_hw_tx_insert_vlan_enabled;
 	/* Number of PFs on the NIC */
 	uint32_t		enc_hw_pf_count;
+	/* Max number of VFs on the PF */
+	uint32_t		enc_max_vf_count;
 	/* Datapath firmware vadapter/vport/vswitch support */
 	boolean_t		enc_datapath_cap_evb;
 	boolean_t		enc_rx_disable_scatter_supported;
@@ -1277,6 +1279,8 @@ typedef struct efx_nic_cfg_s {
 	(EFX_PCI_FUNCTION_IS_PF(_encp) ? (_encp)->enc_pf : (_encp)->enc_vf)
 
 #define	EFX_PCI_VF_PARENT(_encp)	((_encp)->enc_pf)
+
+#define	EFX_PCI_MAX_VF_COUNT_UNKNOWN	(0xffffffff)
 
 extern			const efx_nic_cfg_t *
 efx_nic_cfg_get(
