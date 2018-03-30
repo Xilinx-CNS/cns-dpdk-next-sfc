@@ -1032,6 +1032,49 @@ fail1:
 }
 
 static	__checkReturn	efx_rc_t
+ef10_get_hw_pf_on_port_count(
+	__inout		efx_nic_cfg_t *encp,
+	__in		const efx_mcdi_req_t *req)
+{
+#define	CAP_PFS_TO_PORTS_ASSIGNMENT(_name)				\
+	MC_CMD_GET_CAPABILITIES_V2_OUT_PFS_TO_PORTS_ASSIGNMENT_ ## _name
+
+	unsigned int i;
+	uint8_t pfs_to_ports[CAP_PFS_TO_PORTS_ASSIGNMENT(NUM)];
+	uint8_t port;
+
+	EFSYS_ASSERT(encp->enc_pf < CAP_PFS_TO_PORTS_ASSIGNMENT(NUM));
+	EFSYS_ASSERT(encp->enc_hw_pf_count <= CAP_PFS_TO_PORTS_ASSIGNMENT(NUM));
+
+	for (i = 0; i < CAP_PFS_TO_PORTS_ASSIGNMENT(NUM); i++) {
+		pfs_to_ports[i] = EFX_BYTE_FIELD(*MCDI_OUT(*req,
+		    efx_byte_t, CAP_PFS_TO_PORTS_ASSIGNMENT(OFST) + i),
+		    EFX_BYTE_0);
+	}
+
+	/*
+	 * Count how many functions are assigned to the same external
+	 * port. Unprivileged functions can only know their own port,
+	 * so it's impossible to calculate the exact number for them,
+	 * so 'enc_hw_pf_on_port_count' is set to 0.
+	 */
+	port = pfs_to_ports[encp->enc_pf];
+	for (i = 0; i < encp->enc_hw_pf_count; i++) {
+		if (pfs_to_ports[i] ==
+		    MC_CMD_GET_CAPABILITIES_V2_OUT_ACCESS_NOT_PERMITTED) {
+			encp->enc_hw_pf_on_port_count = 0;
+			break;
+		} else if (pfs_to_ports[i] == port) {
+			encp->enc_hw_pf_on_port_count++;
+		}
+	}
+
+#undef CAP_PFS_TO_PORTS_ASSIGNMENT
+
+	return (0);
+}
+
+static	__checkReturn	efx_rc_t
 ef10_get_datapath_caps(
 	__in		efx_nic_t *enp)
 {
@@ -1284,11 +1327,22 @@ ef10_get_datapath_caps(
 	else
 		encp->enc_fec_counters = B_FALSE;
 
+	if (req.emr_out_length_used >= MC_CMD_GET_CAPABILITIES_V2_OUT_LEN) {
+		rc = ef10_get_hw_pf_on_port_count(encp, &req);
+		if (rc != 0)
+			goto fail6;
+	} else {
+		/* FW version is too old and does not provide the information */
+		encp->enc_hw_pf_on_port_count = 0;
+	}
+
 #undef CAP_FLAGS1
 #undef CAP_FLAGS2
 
 	return (0);
 
+fail6:
+	EFSYS_PROBE(fail6);
 fail5:
 	EFSYS_PROBE(fail5);
 fail4:

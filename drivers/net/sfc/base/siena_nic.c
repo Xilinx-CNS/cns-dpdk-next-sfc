@@ -88,6 +88,7 @@ siena_board_cfg(
 	 * value based on the board type, so 'enc_hw_pf_count' is set to 1
 	 */
 	encp->enc_hw_pf_count = 1;
+	encp->enc_hw_pf_on_port_count = 1;
 
 	/* The Siena SRIOV is not supported by libefx */
 	encp->enc_max_vf_count = 0;

@@ -1238,6 +1238,8 @@ typedef struct efx_nic_cfg_s {
 	boolean_t		enc_hw_tx_insert_vlan_enabled;
 	/* Number of PFs on the NIC */
 	uint32_t		enc_hw_pf_count;
+	/* Number of PFs on the port */
+	uint32_t		enc_hw_pf_on_port_count;
 	/* Max number of VFs on the PF */
 	uint32_t		enc_max_vf_count;
 	/* Datapath firmware vadapter/vport/vswitch support */
