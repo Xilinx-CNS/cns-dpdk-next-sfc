@@ -12,6 +12,8 @@
 
 #include <rte_debug.h>
 
+#define RTE_DEBUG_COMMON_SFC_EFX	1
+
 #ifndef RTE_DEBUG_COMMON_SFC_EFX
 #define RTE_DEBUG_COMMON_SFC_EFX	0
 #endif
