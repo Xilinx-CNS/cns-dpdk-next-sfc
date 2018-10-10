@@ -739,6 +739,41 @@ sfc_ef10_simple_tx_reap(struct sfc_ef10_txq *txq)
 			   txq->evq_read_ptr);
 }
 
+static uint16_t
+sfc_ef10_simple_prepare_pkts(__rte_unused void *tx_queue,
+			     struct rte_mbuf **tx_pkts,
+			     uint16_t nb_pkts)
+{
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+	uint16_t i;
+
+	for (i = 0; i < nb_pkts; i++) {
+		struct rte_mempool *pool = tx_pkts[0]->pool;
+		struct rte_mbuf *m = tx_pkts[i];
+		int ret;
+
+		ret = rte_validate_tx_offload(m);
+		if (ret != 0) {
+			rte_errno = -ret;
+			break;
+		}
+
+		if (unlikely((m->ol_flags & PKT_TX_TCP_SEG) |
+			     (m->ol_flags & PKT_TX_VLAN_PKT) |
+			     (m->nb_segs != 1) |
+			     (rte_mbuf_refcnt_read(m) != 1) |
+			     (m->pool != pool)))
+			rte_errno = ENOTSUP;
+			break;
+		}
+	}
+	return i;
+#else /* RTE_LIBRTE_ETHDEV_DEBUG */
+	(void)tx_pkts;
+
+	return nb_pkts;
+#endif
+}
 
 static uint16_t
 sfc_ef10_simple_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
@@ -1057,5 +1092,6 @@ struct sfc_dp_tx sfc_ef10_simple_tx = {
 	.qstop			= sfc_ef10_tx_qstop,
 	.qreap			= sfc_ef10_tx_qreap,
 	.qdesc_status		= sfc_ef10_tx_qdesc_status,
+	.pkt_prepare		= sfc_ef10_simple_prepare_pkts,
 	.pkt_burst		= sfc_ef10_simple_xmit_pkts,
 };
