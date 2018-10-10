@@ -319,6 +319,42 @@ sfc_ef10_try_reap(struct sfc_ef10_txq * const txq, unsigned int added,
 	return (needed_desc <= *dma_desc_space);
 }
 
+static uint16_t
+sfc_ef10_prepare_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+		      uint16_t nb_pkts)
+{
+	struct sfc_ef10_txq * const txq = sfc_ef10_txq_by_dp_txq(tx_queue);
+	uint16_t i;
+
+	for (i = 0; i < nb_pkts; i++) {
+		int ret;
+		struct rte_mbuf *m = tx_pkts[i];
+
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+		if (!(m->ol_flags & PKT_TX_TCP_SEG)) {
+			struct rte_mbuf *m_seg;
+
+			for (m_seg = m; m_seg != NULL; m_seg = m_seg->next) {
+				if (m_seg->data_len >
+				    SFC_EF10_TX_DMA_DESC_LEN_MAX) {
+					rte_errno = EINVAL;
+					break;
+				}
+			}
+		}
+#endif
+		ret = sfc_dp_tx_prepare_pkt(m, txq->max_fill_level,
+					    txq->tso_tcp_header_offset_limit,
+					    false);
+		if (unlikely(ret != 0)) {
+			rte_errno = ret;
+			break;
+		}
+	}
+
+	return i;
+}
+
 static int
 sfc_ef10_xmit_tso_pkt(struct sfc_ef10_txq * const txq, struct rte_mbuf *m_seg,
 		      unsigned int *added, unsigned int *dma_desc_space,
@@ -1002,6 +1038,7 @@ struct sfc_dp_tx sfc_ef10_tx = {
 	.qstop			= sfc_ef10_tx_qstop,
 	.qreap			= sfc_ef10_tx_qreap,
 	.qdesc_status		= sfc_ef10_tx_qdesc_status,
+	.pkt_prepare		= sfc_ef10_prepare_pkts,
 	.pkt_burst		= sfc_ef10_xmit_pkts,
 };
 
