@@ -1804,6 +1804,7 @@ sfc_eth_dev_set_ops(struct rte_eth_dev *dev)
 
 	sfc_notice(sa, "use %s Tx datapath", sa->dp_tx_name);
 
+	dev->tx_pkt_prepare = sa->dp_tx->pkt_prepare;
 	dev->tx_pkt_burst = sa->dp_tx->pkt_burst;
 
 	dev->dev_ops = &sfc_eth_dev_ops;
@@ -1834,6 +1835,7 @@ sfc_eth_dev_clear_ops(struct rte_eth_dev *dev)
 	struct sfc_adapter *sa = dev->data->dev_private;
 
 	dev->dev_ops = NULL;
+	dev->tx_pkt_prepare = NULL;
 	dev->rx_pkt_burst = NULL;
 	dev->tx_pkt_burst = NULL;
 
@@ -1891,6 +1893,7 @@ sfc_eth_dev_secondary_set_ops(struct rte_eth_dev *dev)
 	}
 
 	dev->rx_pkt_burst = dp_rx->pkt_burst;
+	dev->tx_pkt_prepare = dp_tx->pkt_prepare;
 	dev->tx_pkt_burst = dp_tx->pkt_burst;
 	dev->dev_ops = &sfc_eth_dev_secondary_ops;
 
@@ -1907,6 +1910,7 @@ static void
 sfc_eth_dev_secondary_clear_ops(struct rte_eth_dev *dev)
 {
 	dev->dev_ops = NULL;
+	dev->tx_pkt_prepare = NULL;
 	dev->tx_pkt_burst = NULL;
 	dev->rx_pkt_burst = NULL;
 }

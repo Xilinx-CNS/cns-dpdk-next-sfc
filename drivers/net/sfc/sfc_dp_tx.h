@@ -13,6 +13,7 @@
 #include <rte_ethdev_driver.h>
 
 #include "sfc_dp.h"
+#include "sfc_tso.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -170,6 +171,7 @@ struct sfc_dp_tx {
 	sfc_dp_tx_qtx_ev_t		*qtx_ev;
 	sfc_dp_tx_qreap_t		*qreap;
 	sfc_dp_tx_qdesc_status_t	*qdesc_status;
+	eth_tx_prep_t			pkt_prepare;
 	eth_tx_burst_t			pkt_burst;
 };
 
@@ -187,6 +189,76 @@ sfc_dp_find_tx_by_caps(struct sfc_dp_list *head, unsigned int avail_caps)
 	struct sfc_dp *p = sfc_dp_find_by_caps(head, SFC_DP_TX, avail_caps);
 
 	return (p == NULL) ? NULL : container_of(p, struct sfc_dp_tx, dp);
+}
+
+static inline int
+sfc_dp_tx_tso_check_limits(const struct rte_mbuf *m, unsigned int header_len,
+			   uint32_t tso_tcp_header_offset_limit)
+{
+	unsigned int tcph_off = m->l2_len + m->l3_len;
+
+	/*
+	 * Reject packet if:
+	 * 1) The header is too big;
+	 * 2) Its header is scattered across several segments;
+	 * 3) The TCP header starts at more than 208 bytes into the frame.
+	 *    In this case the NIC won't realise it's a TCP packet and TSO
+	 *    edits won't be applied;
+	 * Every check may be done, so use bit OR to have only one branching.
+	 */
+	if (unlikely((header_len > SFC_TSOH_STD_LEN) |
+		     (header_len > rte_pktmbuf_data_len(m)) |
+		     (tcph_off > tso_tcp_header_offset_limit)))
+		return EINVAL;
+
+	return 0;
+}
+
+static inline int
+sfc_dp_tx_prepare_pkt(struct rte_mbuf *m, unsigned int max_fill_level,
+		      uint32_t tso_tcp_header_offset_limit, bool support_vlan)
+{
+	int ret;
+	unsigned int extra_descriptors = 0;
+
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+	ret = rte_validate_tx_offload(m);
+	if (ret != 0)
+		return -ret;
+#endif
+
+	if (m->ol_flags & PKT_TX_TCP_SEG) {
+		unsigned int header_len = m->l2_len + m->l3_len + m->l4_len;
+
+		ret = sfc_dp_tx_tso_check_limits(m, header_len,
+						 tso_tcp_header_offset_limit);
+		if (ret != 0)
+			return ret;
+
+		extra_descriptors += SFC_TSO_OPT_DESCS_NUM;
+		if (header_len != rte_pktmbuf_data_len(m))
+			extra_descriptors += SFC_TSO_HDR_DESCS_NUM;
+	}
+
+	if (m->ol_flags & PKT_TX_VLAN_PKT) {
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+		if (!support_vlan)
+			return ENOTSUP;
+#else
+		(void)support_vlan;
+#endif /* RTE_LIBRTE_ETHDEV_DEBUG */
+
+		extra_descriptors++;
+	}
+
+	/*
+	 * Max fill level must be sufficient to hold all required descriptors
+	 * to send the packet entirely
+	 */
+	if (m->nb_segs + extra_descriptors > max_fill_level)
+		return ENOBUFS;
+
+	return 0;
 }
 
 extern struct sfc_dp_tx sfc_efx_tx;
