@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2007-2018 Solarflare Communications Inc.
+ * Copyright (c) 2007-2019 Solarflare Communications Inc.
  * All rights reserved.
  */
 
@@ -10,6 +10,7 @@
 #include "efx.h"
 #include "efx_regs.h"
 #include "efx_regs_ef10.h"
+#include "efx_regs_ef100.h"
 #if EFSYS_OPT_MCDI
 #include "efx_mcdi.h"
 #endif	/* EFSYS_OPT_MCDI */
