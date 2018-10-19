@@ -10,6 +10,9 @@
 #include "efx.h"
 #include "efx_regs.h"
 #include "efx_regs_ef10.h"
+#if EFSYS_OPT_RIVERHEAD
+#include "efx_regs_ef100.h"
+#endif	/* EFSYS_OPT_RIVERHEAD */
 
 /* FIXME: Add definition for driver generated software events */
 #ifndef	ESE_DZ_EV_CODE_DRV_GEN_EV
