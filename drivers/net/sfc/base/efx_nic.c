@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2007-2018 Solarflare Communications Inc.
- * All rights reserved.
+ * Copyright(c) 2007-2019 Solarflare Communications Inc. All rights reserved.
+ * Copyright(c) 2019 Xilinx, Inc. All rights reserved.
  */
 
 #include "efx.h"
@@ -80,6 +80,20 @@ efx_family(
 #endif /* EFSYS_OPT_MEDFORD2 */
 
 		case EFX_PCI_DEVID_FALCON:	/* Obsolete, not supported */
+		default:
+			break;
+		}
+	}
+
+	if (venid == EFX_PCI_VENID_XILINX) {
+		switch (devid) {
+#if EFSYS_OPT_RIVERHEAD
+		case EFX_PCI_DEVID_RIVERHEAD:
+		case EFX_PCI_DEVID_RIVERHEAD_VF:
+			*efp = EFX_FAMILY_RIVERHEAD;
+			*membarp = EFX_MEM_BAR_RIVERHEAD;
+			return (0);
+#endif /* EFSYS_OPT_RIVERHEAD */
 		default:
 			break;
 		}

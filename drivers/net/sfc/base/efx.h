@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2006-2018 Solarflare Communications Inc.
- * All rights reserved.
+ * Copyright(c) 2006-2019 Solarflare Communications Inc. All rights reserved.
+ * Copyright(c) 2019 Xilinx, Inc. All rights reserved.
  */
 
 #ifndef	_SYS_EFX_H
@@ -55,6 +55,7 @@ typedef enum efx_family_e {
 	EFX_FAMILY_HUNTINGTON,
 	EFX_FAMILY_MEDFORD,
 	EFX_FAMILY_MEDFORD2,
+	EFX_FAMILY_RIVERHEAD,
 	EFX_FAMILY_NTYPES
 } efx_family_t;
 
@@ -67,6 +68,7 @@ efx_family(
 
 
 #define	EFX_PCI_VENID_SFC			0x1924
+#define	EFX_PCI_VENID_XILINX			0x10EE
 
 #define	EFX_PCI_DEVID_FALCON			0x0710	/* SFC4000 */
 
@@ -89,6 +91,8 @@ efx_family(
 #define	EFX_PCI_DEVID_MEDFORD2			0x0B03	/* SFC9250 PF */
 #define	EFX_PCI_DEVID_MEDFORD2_VF		0x1B03	/* SFC9250 VF */
 
+#define	EFX_PCI_DEVID_RIVERHEAD			0x0100
+#define	EFX_PCI_DEVID_RIVERHEAD_VF		0x1100
 
 #define	EFX_MEM_BAR_SIENA			2
 
@@ -99,6 +103,9 @@ efx_family(
 #define	EFX_MEM_BAR_MEDFORD_VF			0
 
 #define	EFX_MEM_BAR_MEDFORD2			0
+
+/* FIXME Fix it when memory bar is fixed in FPGA image. It must be 0. */
+#define	EFX_MEM_BAR_RIVERHEAD			2
 
 
 /* Error codes */
