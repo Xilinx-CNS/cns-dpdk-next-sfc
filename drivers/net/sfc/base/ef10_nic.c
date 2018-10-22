@@ -255,6 +255,8 @@ efx_mcdi_vadaptor_alloc(
 	efx_mcdi_execute(enp, &req);
 
 	if (req.emr_rc != 0) {
+		if (enp->en_family == EFX_FAMILY_RIVERHEAD)
+			return (0);
 		rc = req.emr_rc;
 		goto fail1;
 	}
