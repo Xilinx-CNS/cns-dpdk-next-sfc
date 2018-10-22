@@ -108,5 +108,6 @@ SRCS-y += ef10_vpd.c
 SRCS-y += hunt_nic.c
 SRCS-y += medford_nic.c
 SRCS-y += medford2_nic.c
+SRCS-y += rhead_nic.c
 
 include $(RTE_SDK)/mk/rte.lib.mk
