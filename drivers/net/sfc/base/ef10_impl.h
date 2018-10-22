@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2015-2018 Solarflare Communications Inc.
+ * Copyright (c) 2015-2019 Solarflare Communications Inc.
  * All rights reserved.
  */
 
@@ -1241,10 +1241,31 @@ efx_mcdi_get_vector_cfg(
 	__out_opt	uint32_t *pf_nvecp,
 	__out_opt	uint32_t *vf_nvecp);
 
+extern	__checkReturn	efx_rc_t
+efx_mcdi_alloc_vis(
+	__in		efx_nic_t *enp,
+	__in		uint32_t min_vi_count,
+	__in		uint32_t max_vi_count,
+	__out		uint32_t *vi_basep,
+	__out		uint32_t *vi_countp,
+	__out		uint32_t *vi_shiftp);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_free_vis(
+	__in		efx_nic_t *enp);
+
 extern	__checkReturn		efx_rc_t
 ef10_get_privilege_mask(
 	__in			efx_nic_t *enp,
 	__out			uint32_t *maskp);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_nic_board_cfg(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_entity_reset(
+	__in		efx_nic_t *enp);
 
 #if EFSYS_OPT_FW_SUBVARIANT_AWARE
 
