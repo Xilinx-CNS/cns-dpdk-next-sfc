@@ -2407,6 +2407,11 @@ ef10_nic_hw_unavailable(
 	if (enp->en_reset_flags & EFX_RESET_HW_UNAVAIL)
 		return (B_TRUE);
 
+#if EFSYS_OPT_RIVERHEAD
+	EFX_STATIC_ASSERT(ER_DZ_BIU_MC_SFT_STATUS_REG_OFST ==
+	    ER_GZ_MC_SFT_STATUS_OFST);
+#endif
+
 	EFX_BAR_READD(enp, ER_DZ_BIU_MC_SFT_STATUS_REG, &dword, B_FALSE);
 	if (EFX_DWORD_FIELD(dword, EFX_DWORD_0) == 0xffffffff)
 		goto unavail;
