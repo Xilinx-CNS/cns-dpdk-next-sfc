@@ -10,7 +10,7 @@
 #include "mcdi_mon.h"
 #endif
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 
 #include "ef10_tlv_layout.h"
 
@@ -26,7 +26,8 @@ efx_mcdi_get_port_assignment(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	req.emr_cmd = MC_CMD_GET_PORT_ASSIGNMENT;
 	req.emr_in_buf = payload;
@@ -72,7 +73,8 @@ efx_mcdi_get_port_modes(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	req.emr_cmd = MC_CMD_GET_PORT_MODES;
 	req.emr_in_buf = payload;
@@ -310,7 +312,8 @@ efx_mcdi_get_mac_address_pf(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	req.emr_cmd = MC_CMD_GET_MAC_ADDRESSES;
 	req.emr_in_buf = payload;
@@ -368,7 +371,8 @@ efx_mcdi_get_mac_address_vf(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	req.emr_cmd = MC_CMD_VPORT_GET_MAC_ADDRESSES;
 	req.emr_in_buf = payload;
@@ -432,7 +436,8 @@ efx_mcdi_get_clock(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	req.emr_cmd = MC_CMD_GET_CLOCK;
 	req.emr_in_buf = payload;
@@ -894,7 +899,8 @@ ef10_nic_pio_alloc(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 	EFSYS_ASSERT(bufnump);
 	EFSYS_ASSERT(handlep);
 	EFSYS_ASSERT(blknump);
@@ -1966,7 +1972,8 @@ ef10_nic_probe(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	/* Read and clear any assertion state */
 	if ((rc = efx_mcdi_read_assertion(enp)) != 0)
@@ -2180,7 +2187,8 @@ ef10_nic_init(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	/* Enable reporting of some events (e.g. link change) */
 	if ((rc = efx_mcdi_log_ctrl(enp)) != 0)
@@ -2343,7 +2351,8 @@ ef10_nic_get_vi_pool(
 {
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	/*
 	 * Report VIs that the client driver can use.
@@ -2365,7 +2374,8 @@ ef10_nic_get_bar_region(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	/*
 	 * TODO: Specify host memory mapping alignment and granularity
@@ -2577,4 +2587,4 @@ fail1:
 
 #endif	/* EFSYS_OPT_FW_SUBVARIANT_AWARE */
 
-#endif	/* EFSYS_OPT_EF10 */
+#endif	/* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */

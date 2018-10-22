@@ -37,6 +37,10 @@
 #include "medford2_impl.h"
 #endif	/* EFSYS_OPT_MEDFORD2 */
 
+#if EFSYS_OPT_RIVERHEAD
+#include "rhead_impl.h"
+#endif	/* EFSYS_OPT_RIVERHEAD */
+
 #if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 #include "ef10_impl.h"
 #endif	/* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
@@ -723,7 +727,7 @@ struct efx_nic_s {
 #endif	/* EFSYS_OPT_SIENA */
 		int	enu_unused;
 	} en_u;
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 	union en_arch {
 		struct {
 			int			ena_vi_base;
@@ -744,7 +748,7 @@ struct efx_nic_s {
 			size_t			ena_wc_mem_map_size;
 		} ef10;
 	} en_arch;
-#endif	/* EFSYS_OPT_EF10 */
+#endif	/* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
 };
 
 
