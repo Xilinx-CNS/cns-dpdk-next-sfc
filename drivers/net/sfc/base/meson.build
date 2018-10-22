@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2016-2018 Solarflare Communications Inc.
-# All rights reserved.
+# Copyright(c) 2016-2019 Solarflare Communications Inc. All rights reserved.
+# Copyright(c) 2019 Xilinx, Inc. All rights reserved.
 #
 # This software was jointly developed between OKTET Labs (under contract
 # for Solarflare) and Solarflare Communications, Inc.
@@ -51,7 +51,8 @@ sources = [
 	'ef10_vpd.c',
 	'hunt_nic.c',
 	'medford_nic.c',
-	'medford2_nic.c'
+	'medford2_nic.c',
+	'rhead_nic.c',
 ]
 
 extra_flags = [

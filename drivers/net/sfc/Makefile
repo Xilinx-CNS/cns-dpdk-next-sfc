@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# Copyright (c) 2016-2018 Solarflare Communications Inc.
-# All rights reserved.
+# Copyright(c) 2016-2019 Solarflare Communications Inc. All rights reserved.
+# Copyright(c) 2019 Xilinx, Inc. All rights reserved.
 #
 # This software was jointly developed between OKTET Labs (under contract
 # for Solarflare) and Solarflare Communications, Inc.
@@ -130,5 +130,6 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_vpd.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += hunt_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += medford_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += medford2_nic.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_nic.c
 
 include $(RTE_SDK)/mk/rte.lib.mk
