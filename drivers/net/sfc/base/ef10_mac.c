@@ -8,7 +8,7 @@
 #include "efx_impl.h"
 
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 
 	__checkReturn	efx_rc_t
 ef10_mac_poll(
@@ -353,7 +353,8 @@ ef10_mac_multicast_list_set(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	if ((rc = emop->emo_reconfigure(enp)) != 0)
 		goto fail1;
@@ -1041,4 +1042,4 @@ fail1:
 
 #endif	/* EFSYS_OPT_MAC_STATS */
 
-#endif	/* EFSYS_OPT_EF10 */
+#endif	/* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
