@@ -1090,6 +1090,7 @@ ef10_get_datapath_caps(
 	 */
 	if (CAP_FLAGS1(req, RX_PREFIX_LEN_14) == 0) {
 		rc = ENOTSUP;
+		if (enp->en_family != EFX_FAMILY_RIVERHEAD)
 		goto fail4;
 	}
 	encp->enc_rx_prefix_size = 14;

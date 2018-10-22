@@ -71,6 +71,8 @@ rhead_board_cfg(
 	/* Checksums for TSO sends should always be correct on Riverhead. */
 	encp->enc_bug61297_workaround = B_FALSE;
 
+	encp->enc_rx_prefix_size = 22;
+
 	/* Get clock frequencies (in MHz). */
 	if ((rc = efx_mcdi_get_clock(enp, &sss_clk, &slice_clk)) != 0)
 		goto fail1;
