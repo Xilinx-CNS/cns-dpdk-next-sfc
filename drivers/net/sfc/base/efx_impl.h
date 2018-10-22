@@ -1260,7 +1260,7 @@ efx_mcdi_get_workarounds(
 	__out_opt		uint32_t *implementedp,
 	__out_opt		uint32_t *enabledp);
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 
 extern	__checkReturn	efx_rc_t
 efx_mcdi_init_rxq(
@@ -1298,7 +1298,7 @@ efx_mcdi_fini_txq(
 	__in		efx_nic_t *enp,
 	__in		uint32_t instance);
 
-#endif /* EFSYS_OPT_EF10 */
+#endif /* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
 
 #endif /* EFSYS_OPT_MCDI */
 

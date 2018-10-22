@@ -2393,7 +2393,7 @@ fail1:
 	return (rc);
 }
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 
 	__checkReturn	efx_rc_t
 efx_mcdi_init_rxq(
@@ -2705,6 +2705,6 @@ fail1:
 	return (rc);
 }
 
-#endif	/* EFSYS_OPT_EF10 */
+#endif	/* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
 
 #endif	/* EFSYS_OPT_MCDI */

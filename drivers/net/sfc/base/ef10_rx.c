@@ -8,7 +8,7 @@
 #include "efx_impl.h"
 
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 
 #if EFSYS_OPT_RX_SCALE
 static	__checkReturn	efx_rc_t
@@ -345,7 +345,6 @@ fail1:
 }
 #endif /* EFSYS_OPT_RX_SCALE */
 
-
 	__checkReturn	efx_rc_t
 ef10_rx_init(
 	__in		efx_nic_t *enp)
@@ -375,6 +374,8 @@ ef10_rx_init(
 	return (0);
 }
 
+#if EFSYS_OPT_EF10
+
 #if EFSYS_OPT_RX_SCATTER
 	__checkReturn	efx_rc_t
 ef10_rx_scatter_enable(
@@ -385,6 +386,8 @@ ef10_rx_scatter_enable(
 	return (0);
 }
 #endif	/* EFSYS_OPT_RX_SCATTER */
+
+#endif	/* EFSYS_OPT_EF10 */
 
 #if EFSYS_OPT_RX_SCALE
 	__checkReturn	efx_rc_t
@@ -542,6 +545,7 @@ fail1:
 }
 #endif /* EFSYS_OPT_RX_SCALE */
 
+#if EFSYS_OPT_EF10
 
 /*
  * EF10 RX pseudo-header
@@ -1027,6 +1031,8 @@ ef10_rx_qdestroy(
 	EFSYS_KMEM_FREE(enp->en_esip, sizeof (efx_rxq_t), erp);
 }
 
+#endif /* EFSYS_OPT_EF10 */
+
 		void
 ef10_rx_fini(
 	__in	efx_nic_t *enp)
@@ -1041,4 +1047,4 @@ ef10_rx_fini(
 #endif /* EFSYS_OPT_RX_SCALE */
 }
 
-#endif /* EFSYS_OPT_EF10 */
+#endif /* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
