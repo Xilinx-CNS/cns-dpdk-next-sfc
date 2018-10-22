@@ -111,5 +111,6 @@ SRCS-y += medford2_nic.c
 SRCS-y += rhead_ev.c
 SRCS-y += rhead_intr.c
 SRCS-y += rhead_nic.c
+SRCS-y += rhead_rx.c
 
 include $(RTE_SDK)/mk/rte.lib.mk
