@@ -2813,10 +2813,6 @@ fail1:
 	return (rc);
 }
 
-#endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
-
-#if EFX_OPTS_EF10()
-
 	__checkReturn	efx_rc_t
 efx_mcdi_init_txq(
 	__in		efx_nic_t *enp,
@@ -2949,6 +2945,6 @@ fail1:
 	return (rc);
 }
 
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
 
 #endif	/* EFSYS_OPT_MCDI */
