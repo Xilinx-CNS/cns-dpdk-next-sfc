@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2012-2018 Solarflare Communications Inc.
+ * Copyright (c) 2012-2019 Solarflare Communications Inc.
  * All rights reserved.
  */
 
 #include "efx.h"
 #include "efx_impl.h"
 
-#if EFX_OPTS_EF10()
+#if EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10()
 
 static			void
 mcdi_phy_decode_cap(
@@ -755,4 +755,4 @@ ef10_bist_stop(
 
 #endif	/* EFSYS_OPT_BIST */
 
-#endif	/* EFX_OPTS_EF10() */
+#endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
