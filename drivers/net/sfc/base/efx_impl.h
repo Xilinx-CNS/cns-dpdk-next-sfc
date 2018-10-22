@@ -776,6 +776,7 @@ struct efx_evq_s {
 	efx_nic_t			*ee_enp;
 	unsigned int			ee_index;
 	unsigned int			ee_mask;
+	unsigned int			ee_size_log2;
 	efsys_mem_t			*ee_esmp;
 #if EFSYS_OPT_QSTATS
 	uint32_t			ee_stat[EV_NQSTATS];

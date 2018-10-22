@@ -119,6 +119,22 @@ static const efx_ev_ops_t	__efx_ev_ef10_ops = {
 };
 #endif /* EFSYS_OPT_EF10 */
 
+#if EFSYS_OPT_RIVERHEAD
+static const efx_ev_ops_t	__efx_ev_rhead_ops = {
+	rhead_ev_init,				/* eevo_init */
+	rhead_ev_fini,				/* eevo_fini */
+	rhead_ev_qcreate,			/* eevo_qcreate */
+	rhead_ev_qdestroy,			/* eevo_qdestroy */
+	rhead_ev_qprime,			/* eevo_qprime */
+	rhead_ev_qpost,				/* eevo_qpost */
+	rhead_ev_qpoll,				/* eevo_qpoll */
+	rhead_ev_qmoderate,			/* eevo_qmoderate */
+#if EFSYS_OPT_QSTATS
+	rhead_ev_qstats_update,			/* eevo_qstats_update */
+#endif
+};
+#endif /* EFSYS_OPT_RIVERHEAD */
+
 
 	__checkReturn	efx_rc_t
 efx_ev_init(
@@ -159,6 +175,12 @@ efx_ev_init(
 		eevop = &__efx_ev_ef10_ops;
 		break;
 #endif /* EFSYS_OPT_MEDFORD2 */
+
+#if EFSYS_OPT_RIVERHEAD
+	case EFX_FAMILY_RIVERHEAD:
+		eevop = &__efx_ev_rhead_ops;
+		break;
+#endif /* EFSYS_OPT_RIVERHEAD */
 
 	default:
 		EFSYS_ASSERT(0);
@@ -281,6 +303,7 @@ efx_ev_qcreate(
 	eep->ee_enp = enp;
 	eep->ee_index = index;
 	eep->ee_mask = ndescs - 1;
+	eep->ee_size_log2 = EFSYS_BSF32(ndescs);
 	eep->ee_flags = flags;
 	eep->ee_esmp = esmp;
 
