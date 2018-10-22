@@ -1684,6 +1684,19 @@ static struct ef10_external_port_map_s {
 		(1U << TLV_PORT_MODE_NA_1x2),			/* mode 11 */
 		{ EFX_EXT_PORT_NA, 0, EFX_EXT_PORT_NA, EFX_EXT_PORT_NA }
 	},
+	/*
+	 * Modes that on Riverhead allocate each port number to a separate
+	 * cage.
+	 *	port 0 -> cage 1
+	 *	port 1 -> cage 2
+	 */
+	{
+		EFX_FAMILY_RIVERHEAD,
+		(1U << TLV_PORT_MODE_1x1_NA) |			/* mode 0 */
+		(1U << TLV_PORT_MODE_1x4_NA) |			/* mode 1 */
+		(1U << TLV_PORT_MODE_1x1_1x1),			/* mode 2 */
+		{ 0, 1, EFX_EXT_PORT_NA, EFX_EXT_PORT_NA }
+	},
 };
 
 static	__checkReturn	efx_rc_t
