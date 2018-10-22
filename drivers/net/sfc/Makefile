@@ -128,6 +128,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += ef10_vpd.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += hunt_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += medford_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += medford2_nic.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_intr.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_nic.c
 
 include $(RTE_SDK)/mk/rte.lib.mk
