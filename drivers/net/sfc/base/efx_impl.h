@@ -1302,10 +1302,6 @@ efx_mcdi_fini_evq(
 	__in		efx_nic_t *enp,
 	__in		uint32_t instance);
 
-#endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
-
-#if EFX_OPTS_EF10()
-
 extern	__checkReturn	efx_rc_t
 efx_mcdi_init_rxq(
 	__in		efx_nic_t *enp,
@@ -1327,6 +1323,10 @@ extern	__checkReturn	efx_rc_t
 efx_mcdi_fini_rxq(
 	__in		efx_nic_t *enp,
 	__in		uint32_t instance);
+
+#endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
+
+#if EFX_OPTS_EF10()
 
 extern	__checkReturn	efx_rc_t
 efx_mcdi_init_txq(
