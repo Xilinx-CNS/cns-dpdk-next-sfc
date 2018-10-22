@@ -441,9 +441,9 @@ typedef struct efx_filter_s {
 #if EFSYS_OPT_SIENA
 	siena_filter_t		*ef_siena_filter;
 #endif /* EFSYS_OPT_SIENA */
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 	ef10_filter_table_t	*ef_ef10_filter_table;
-#endif /* EFSYS_OPT_EF10 */
+#endif /* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
 } efx_filter_t;
 
 #if EFSYS_OPT_SIENA

@@ -7,7 +7,7 @@
 #include "efx.h"
 #include "efx_impl.h"
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 
 #if EFSYS_OPT_FILTER
 
@@ -96,7 +96,8 @@ ef10_filter_init(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 #define	MATCH_MASK(match) (EFX_MASK32(match) << EFX_LOW_BIT(match))
 	EFX_STATIC_ASSERT(EFX_FILTER_MATCH_REM_HOST ==
@@ -156,7 +157,8 @@ ef10_filter_fini(
 {
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	if (enp->en_filter.ef_ef10_filter_table != NULL) {
 		EFSYS_KMEM_FREE(enp->en_esip, sizeof (ef10_filter_table_t),
@@ -547,7 +549,8 @@ ef10_filter_restore(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	for (tbl_id = 0; tbl_id < EFX_EF10_FILTER_TBL_ROWS; tbl_id++) {
 
@@ -623,7 +626,8 @@ ef10_filter_add_internal(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	hash = ef10_filter_hash(spec);
 
@@ -896,7 +900,8 @@ ef10_filter_delete(
 
 	EFSYS_ASSERT(enp->en_family == EFX_FAMILY_HUNTINGTON ||
 	    enp->en_family == EFX_FAMILY_MEDFORD ||
-	    enp->en_family == EFX_FAMILY_MEDFORD2);
+	    enp->en_family == EFX_FAMILY_MEDFORD2 ||
+	    enp->en_family == EFX_FAMILY_RIVERHEAD);
 
 	hash = ef10_filter_hash(spec);
 
@@ -1773,4 +1778,4 @@ ef10_filter_default_rxq_clear(
 
 #endif /* EFSYS_OPT_FILTER */
 
-#endif /* EFSYS_OPT_EF10 */
+#endif /* EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD */
