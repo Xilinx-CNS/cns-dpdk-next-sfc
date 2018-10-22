@@ -870,6 +870,10 @@ struct efx_txq_s {
 			rev = 'F';					\
 			break;						\
 									\
+		case EFX_FAMILY_RIVERHEAD:				\
+			rev = 'G';					\
+			break;						\
+									\
 		default:						\
 			rev = '?';					\
 			break;						\
