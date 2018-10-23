@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2015-2018 Solarflare Communications Inc.
+ * Copyright (c) 2015-2019 Solarflare Communications Inc.
  * All rights reserved.
  */
 
@@ -41,6 +41,12 @@ medford_board_cfg(
 	uint32_t end_padding;
 	uint32_t bandwidth;
 	efx_rc_t rc;
+
+	/*
+	 * Event queue creation is complete when an
+	 * EVQ_INIT_DONE_EV event is received.
+	 */
+	encp->enc_evq_init_done_ev_supported = B_TRUE;
 
 	/*
 	 * Enable firmware workarounds for hardware errata.

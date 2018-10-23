@@ -1341,6 +1341,7 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_vf;
 	uint32_t		enc_privilege_mask;
 #endif /* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
+	boolean_t		enc_evq_init_done_ev_supported;
 	boolean_t		enc_bug26807_workaround;
 	boolean_t		enc_bug35388_workaround;
 	boolean_t		enc_bug41750_workaround;
@@ -2249,6 +2250,12 @@ efx_ev_qprefetch(
 	__in		unsigned int count);
 
 #endif	/* EFSYS_OPT_EV_PREFETCH */
+
+extern			void
+efx_ev_qcreate_check_init_done(
+	__in		efx_evq_t *eep,
+	__in		const efx_ev_callbacks_t *eecp,
+	__in_opt	void *arg);
 
 extern			void
 efx_ev_qpoll(
