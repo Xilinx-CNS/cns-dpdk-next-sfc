@@ -240,6 +240,7 @@ sfc_dp_find_rx_by_caps(struct sfc_dp_list *head, unsigned int avail_caps)
 extern struct sfc_dp_rx sfc_efx_rx;
 extern struct sfc_dp_rx sfc_ef10_rx;
 extern struct sfc_dp_rx sfc_ef10_essb_rx;
+extern struct sfc_dp_rx sfc_ef100_rx;
 
 #ifdef __cplusplus
 }
