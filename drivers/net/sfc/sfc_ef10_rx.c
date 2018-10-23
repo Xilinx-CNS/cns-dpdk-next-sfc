@@ -32,6 +32,9 @@
 #define sfc_ef10_rx_err(dpq, ...) \
 	SFC_DP_LOG(SFC_KVARG_DATAPATH_EF10, ERR, dpq, __VA_ARGS__)
 
+#define sfc_ef10_rx_info(dpq, ...) \
+	SFC_DP_LOG(SFC_KVARG_DATAPATH_EF10, INFO, dpq, __VA_ARGS__)
+
 /**
  * Maximum number of descriptors/buffers in the Rx ring.
  * It should guarantee that corresponding event queue never overfill.
@@ -653,6 +656,8 @@ sfc_ef10_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 	rxq->doorbell = (volatile uint8_t *)info->mem_bar +
 			ER_DZ_RX_DESC_UPD_REG_OFST +
 			(info->hw_index << info->vi_window_shift);
+
+	sfc_ef10_rx_info(&rxq->dp.dpq, "RxQ doorbell is %p", rxq->doorbell);
 
 	*dp_rxqp = &rxq->dp;
 	return 0;
