@@ -176,14 +176,11 @@ rhead_rx_qcreate(
 	efx_rc_t rc;
 	boolean_t disable_scatter;
 
-	_NOTE(ARGUNUSED(id, erp, type_data))
+	_NOTE(ARGUNUSED(id))
 
 	EFX_STATIC_ASSERT(EFX_EV_RX_NLABELS == (1 << ESF_DZ_RX_QLABEL_WIDTH));
 	EFSYS_ASSERT3U(label, <, EFX_EV_RX_NLABELS);
 	EFSYS_ASSERT3U(enp->en_rx_qcount + 1, <, encp->enc_rxq_limit);
-
-	EFSYS_ASSERT(ISP2(encp->enc_rxq_max_ndescs));
-	EFSYS_ASSERT(ISP2(encp->enc_rxq_min_ndescs));
 
 	if (index >= encp->enc_rxq_limit) {
 		rc = EINVAL;
@@ -192,10 +189,15 @@ rhead_rx_qcreate(
 
 	switch (type) {
 	case EFX_RXQ_TYPE_DEFAULT:
+		if (type_data == NULL) {
+			rc = EINVAL;
+			goto fail2;
+		}
+		erp->er_buf_size = type_data->ertd_default.ed_buf_size;
 		break;
 	default:
 		rc = ENOTSUP;
-		goto fail2;
+		goto fail3;
 	}
 
 	/* Scatter can only be disabled if the firmware supports doing so */
@@ -207,8 +209,9 @@ rhead_rx_qcreate(
 	/* Ignore EFX_RXQ_FLAG_INNER_CLASSES */
 
 	if ((rc = efx_mcdi_init_rxq(enp, ndescs, eep, label, index,
-		    esmp, disable_scatter, 0, 0, 0, 0, 0, 0)) != 0)
-		goto fail3;
+		    esmp, disable_scatter, 0, 0, 0, erp->er_buf_size,
+		    0, 0)) != 0)
+		goto fail4;
 
 	erp->er_eep = eep;
 	erp->er_label = label;
@@ -219,6 +222,8 @@ rhead_rx_qcreate(
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:

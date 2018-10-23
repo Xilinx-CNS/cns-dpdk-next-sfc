@@ -2413,8 +2413,8 @@ efx_mcdi_init_rxq(
 {
 	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
 	efx_mcdi_req_t req;
-	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_INIT_RXQ_V3_IN_LEN,
-		MC_CMD_INIT_RXQ_V3_OUT_LEN);
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_INIT_RXQ_V4_IN_LEN,
+		MC_CMD_INIT_RXQ_V4_OUT_LEN);
 	int npages = efx_rxq_nbufs(enp, ndescs);
 	int i;
 	efx_qword_t *dma_addr;
@@ -2468,9 +2468,9 @@ efx_mcdi_init_rxq(
 
 	req.emr_cmd = MC_CMD_INIT_RXQ;
 	req.emr_in_buf = payload;
-	req.emr_in_length = MC_CMD_INIT_RXQ_V3_IN_LEN;
+	req.emr_in_length = MC_CMD_INIT_RXQ_V4_IN_LEN;
 	req.emr_out_buf = payload;
-	req.emr_out_length = MC_CMD_INIT_RXQ_V3_OUT_LEN;
+	req.emr_out_length = MC_CMD_INIT_RXQ_V4_OUT_LEN;
 
 	MCDI_IN_SET_DWORD(req, INIT_RXQ_EXT_IN_SIZE, ndescs);
 	MCDI_IN_SET_DWORD(req, INIT_RXQ_EXT_IN_TARGET_EVQ, eep->ee_index);
@@ -2503,6 +2503,9 @@ efx_mcdi_init_rxq(
 		    INIT_RXQ_V3_IN_ES_HEAD_OF_LINE_BLOCK_TIMEOUT,
 		    hol_block_timeout);
 	}
+
+	MCDI_IN_SET_DWORD(req, INIT_RXQ_V4_IN_BUFFER_SIZE_BYTES,
+	    es_max_dma_len);
 
 	dma_addr = MCDI_IN2(req, efx_qword_t, INIT_RXQ_IN_DMA_ADDR);
 	addr = EFSYS_MEM_ADDR(esmp);
