@@ -88,6 +88,8 @@ typedef bool boolean_t;
 #define ISP2(x)			rte_is_power_of_2(x)
 #endif
 
+#define EFSYS_BSF32(x)		(rte_bsf32(x))
+
 #define ENOTACTIVE	ENOTCONN
 
 static inline void
