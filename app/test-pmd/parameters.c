@@ -127,6 +127,7 @@ usage(char* progname)
 	printf("  --disable-rss: disable rss.\n");
 	printf("  --port-topology=<paired|chained|loop>: set port topology (paired "
 	       "is default).\n");
+	printf("  --loopback-mode=N: set loopback mode for all ports\n");
 	printf("  --forward-mode=N: set forwarding mode (N: %s).\n",
 	       list_pkt_forwarding_modes());
 	printf("  --forward-mode=5tswap: set forwarding mode to "
@@ -646,6 +647,7 @@ launch_args_parse(int argc, char** argv)
 		{ "enable-drop-en",            0, 0, 0 },
 		{ "disable-rss",                0, 0, 0 },
 		{ "port-topology",              1, 0, 0 },
+		{ "loopback-mode",		1, 0, 0 },
 		{ "forward-mode",               1, 0, 0 },
 		{ "rss-ip",			0, 0, 0 },
 		{ "rss-udp",			0, 0, 0 },
@@ -1093,6 +1095,22 @@ launch_args_parse(int argc, char** argv)
 					rte_exit(EXIT_FAILURE, "port-topology %s invalid -"
 						 " must be: paired, chained or loop\n",
 						 optarg);
+			}
+			if (!strcmp(lgopts[opt_idx].name, "loopback-mode")) {
+				char *end = NULL;
+				unsigned int mode;
+
+				errno = 0;
+				mode = strtoul(optarg, &end, 0);
+
+				if (errno != 0 || (optarg[0] == '\0') ||
+				    (end == NULL) || (*end != '\0')) {
+					rte_exit(EXIT_FAILURE,
+						"Loopback mode: %s invalid\n",
+						optarg);
+				}
+				RTE_ETH_FOREACH_DEV(pid)
+					ports[pid].dev_conf.lpbk_mode = mode;
 			}
 			if (!strcmp(lgopts[opt_idx].name, "forward-mode"))
 				set_pkt_forwarding_mode(optarg);
