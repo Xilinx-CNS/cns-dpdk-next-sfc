@@ -623,6 +623,11 @@ sfc_ev_qstart(struct sfc_evq *evq, unsigned int hw_index)
 		evq->callbacks = &sfc_ev_callbacks;
 	}
 
+	if (1) {
+		evq->init_state = SFC_EVQ_STARTED;
+		goto done;
+	}
+
 	evq->init_state = SFC_EVQ_STARTING;
 
 	/* Wait for the initialization event */
