@@ -76,6 +76,17 @@ siena_ev_qstats_update(
 
 #endif /* EFSYS_OPT_SIENA */
 
+#if EFSYS_OPT_SIENA || EFSYS_OPT_EF10
+
+static			void
+siena_ef10_ev_qpoll(
+	__in		efx_evq_t *eep,
+	__inout		unsigned int *countp,
+	__in		const efx_ev_callbacks_t *eecp,
+	__in_opt	void *arg);
+
+#endif	/* EFSYS_OPT_SIENA || EFSYS_OPT_EF10 */
+
 #if EFSYS_OPT_SIENA
 static const efx_ev_ops_t	__efx_ev_siena_ops = {
 	siena_ev_init,				/* eevo_init */
@@ -84,6 +95,7 @@ static const efx_ev_ops_t	__efx_ev_siena_ops = {
 	siena_ev_qdestroy,			/* eevo_qdestroy */
 	siena_ev_qprime,			/* eevo_qprime */
 	siena_ev_qpost,				/* eevo_qpost */
+	siena_ef10_ev_qpoll,			/* eevo_qpoll */
 	siena_ev_qmoderate,			/* eevo_qmoderate */
 #if EFSYS_OPT_QSTATS
 	siena_ev_qstats_update,			/* eevo_qstats_update */
@@ -99,6 +111,7 @@ static const efx_ev_ops_t	__efx_ev_ef10_ops = {
 	ef10_ev_qdestroy,			/* eevo_qdestroy */
 	ef10_ev_qprime,				/* eevo_qprime */
 	ef10_ev_qpost,				/* eevo_qpost */
+	siena_ef10_ev_qpoll,			/* eevo_qpoll */
 	ef10_ev_qmoderate,			/* eevo_qmoderate */
 #if EFSYS_OPT_QSTATS
 	ef10_ev_qstats_update,			/* eevo_qstats_update */
@@ -386,8 +399,10 @@ efx_ev_qprefetch(
 
 #define	EFX_EV_BATCH	8
 
-			void
-efx_ev_qpoll(
+#if EFSYS_OPT_SIENA || EFSYS_OPT_EF10
+
+static			void
+siena_ef10_ev_qpoll(
 	__in		efx_evq_t *eep,
 	__inout		unsigned int *countp,
 	__in		const efx_ev_callbacks_t *eecp,
@@ -540,6 +555,26 @@ efx_ev_qpoll(
 	} while (total == batch);
 
 	*countp = count;
+}
+
+#endif	/* EFSYS_OPT_SIENA || EFSYS_OPT_EF10 */
+
+			void
+efx_ev_qpoll(
+	__in		efx_evq_t *eep,
+	__inout		unsigned int *countp,
+	__in		const efx_ev_callbacks_t *eecp,
+	__in_opt	void *arg)
+{
+	efx_nic_t *enp = eep->ee_enp;
+	const efx_ev_ops_t *eevop = enp->en_eevop;
+
+	EFSYS_ASSERT3U(eep->ee_magic, ==, EFX_EVQ_MAGIC);
+
+	EFSYS_ASSERT(eevop != NULL &&
+	    eevop->eevo_qpoll != NULL);
+
+	eevop->eevo_qpoll(eep, countp, eecp, arg);
 }
 
 			void
