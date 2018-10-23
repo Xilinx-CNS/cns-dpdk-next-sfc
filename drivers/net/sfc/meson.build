@@ -57,6 +57,7 @@ sources = files(
 	'sfc_ef10_essb_rx.c',
 	'sfc_ef10_tx.c',
 	'sfc_ef100_rx.c',
+	'sfc_ef100_tx.c',
 )
 
 includes += include_directories('base')
