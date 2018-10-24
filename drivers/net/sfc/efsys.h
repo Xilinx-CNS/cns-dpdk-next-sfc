@@ -159,7 +159,7 @@ prefetch_read_once(const volatile void *addr)
 
 #define EFSYS_OPT_LICENSING 0
 
-#define EFSYS_OPT_ALLOW_UNCONFIGURED_NIC 0
+#define EFSYS_OPT_ALLOW_UNCONFIGURED_NIC 1
 
 #define EFSYS_OPT_RX_PACKED_STREAM 0
 
