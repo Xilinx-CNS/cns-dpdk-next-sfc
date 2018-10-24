@@ -1146,7 +1146,7 @@ struct sfc_dp_tx sfc_efx_tx = {
 	.dp = {
 		.name		= SFC_KVARG_DATAPATH_EFX,
 		.type		= SFC_DP_TX,
-		.hw_fw_caps	= 0,
+		.hw_fw_caps	= SFC_DP_HW_FW_CAP_TX_EFX,
 	},
 	.features		= SFC_DP_TX_FEAT_VLAN_INSERT |
 				  SFC_DP_TX_FEAT_TSO |
