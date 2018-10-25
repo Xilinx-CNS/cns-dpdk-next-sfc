@@ -172,7 +172,7 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	txq_info->txq = txq;
 
 	txq->sw_index = sw_index;
-	txq->hw_index = sw_index;
+	txq->hw_index = sfc_evq_index_by_txq_sw_index(sa, sw_index);
 	txq->evq = evq;
 	txq->free_thresh =
 		(tx_conf->tx_free_thresh) ? tx_conf->tx_free_thresh :

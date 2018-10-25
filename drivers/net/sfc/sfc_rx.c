@@ -1043,7 +1043,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 
 	rxq->evq = evq;
 	rxq->sw_index = sw_index;
-	rxq->hw_index = sw_index;
+	rxq->hw_index = sfc_evq_index_by_rxq_sw_index(sa, sw_index);
 	rxq->refill_threshold =
 		RTE_MAX(rx_conf->rx_free_thresh, SFC_RX_REFILL_BULK);
 	rxq->refill_mb_pool = mb_pool;
