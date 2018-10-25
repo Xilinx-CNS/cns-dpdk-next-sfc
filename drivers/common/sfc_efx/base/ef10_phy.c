@@ -475,7 +475,7 @@ ef10_phy_reconfigure(
 
 	efx_mcdi_execute(enp, &req);
 
-	if (req.emr_rc != 0) {
+	if (req.emr_rc != 0 && enp->en_family != EFX_FAMILY_RIVERHEAD) {
 		rc = req.emr_rc;
 		goto fail3;
 	}
