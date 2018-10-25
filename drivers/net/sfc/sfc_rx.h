@@ -57,6 +57,7 @@ struct sfc_rxq {
 	struct sfc_evq		*evq;
 	efx_rxq_t		*common;
 	efsys_mem_t		mem;
+	unsigned int		sw_index;
 	unsigned int		hw_index;
 	unsigned int		refill_threshold;
 	struct rte_mempool	*refill_mb_pool;
@@ -64,18 +65,6 @@ struct sfc_rxq {
 	struct sfc_dp_rxq	*dp;
 	unsigned int		state;
 };
-
-static inline unsigned int
-sfc_rxq_sw_index_by_hw_index(unsigned int hw_index)
-{
-	return hw_index;
-}
-
-static inline unsigned int
-sfc_rxq_sw_index(const struct sfc_rxq *rxq)
-{
-	return sfc_rxq_sw_index_by_hw_index(rxq->hw_index);
-}
 
 struct sfc_rxq *sfc_rxq_by_dp_rxq(const struct sfc_dp_rxq *dp_rxq);
 
