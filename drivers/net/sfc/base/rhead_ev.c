@@ -43,6 +43,13 @@ rhead_ev_tx_completion(
 	__in		const efx_ev_callbacks_t *eecp,
 	__in_opt	void *arg);
 
+static	__checkReturn	boolean_t
+rhead_ev_mcdi(
+	__in		efx_evq_t *eep,
+	__in		efx_qword_t *eqp,
+	__in		const efx_ev_callbacks_t *eecp,
+	__in_opt	void *arg);
+
 
 static	__checkReturn	efx_rc_t
 efx_mcdi_init_evq(
@@ -396,6 +403,7 @@ rhead_ev_qcreate(
 	/* Set up the handler table */
 	eep->ee_rx	= rhead_ev_rx_pkts;
 	eep->ee_tx	= rhead_ev_tx_completion;
+	eep->ee_mcdi	= rhead_ev_mcdi;
 
 	/* Set up the event queue */
 	/* INIT_EVQ expects function-relative vector number */
@@ -618,6 +626,30 @@ rhead_ev_qpoll(
 				should_abort = eep->ee_tx(eep,
 				    &(ev[index]), eecp, arg);
 				break;
+			case ESE_GZ_EF100_EV_MCDI: {
+				efx_qword_t ef10_mcdi_ev;
+
+				/* Recode EF100 MCDI event to EF10 */
+				EFX_POPULATE_QWORD_5(ef10_mcdi_ev,
+				    MCDI_EVENT_DATA,
+				    EFX_QWORD_FIELD(ev[index],
+						    EF100_MCDI_EVENT_DATA),
+				    MCDI_EVENT_CONT,
+				    EFX_QWORD_FIELD(ev[index],
+						    EF100_MCDI_EVENT_CONT),
+				    MCDI_EVENT_LEVEL,
+				    EFX_QWORD_FIELD(ev[index],
+						    EF100_MCDI_EVENT_LEVEL),
+				    MCDI_EVENT_SRC,
+				    EFX_QWORD_FIELD(ev[index],
+						    EF100_MCDI_EVENT_PTP_DATA),
+				    MCDI_EVENT_CODE,
+				    EFX_QWORD_FIELD(ev[index],
+						    EF100_MCDI_EVENT_CODE));
+				should_abort = eep->ee_mcdi(eep,
+				    &ef10_mcdi_ev, eecp, arg);
+				break;
+			}
 			default:
 				EFSYS_PROBE3(bad_event,
 				    unsigned int, eep->ee_index,
@@ -746,6 +778,206 @@ rhead_ev_tx_completion(
 
 	EFSYS_ASSERT(eecp->eec_tx != NULL);
 	should_abort = eecp->eec_tx(arg, label, num_descs_lbits);
+
+	return (should_abort);
+}
+
+static	__checkReturn	boolean_t
+rhead_ev_mcdi(
+	__in		efx_evq_t *eep,
+	__in		efx_qword_t *eqp,
+	__in		const efx_ev_callbacks_t *eecp,
+	__in_opt	void *arg)
+{
+	efx_nic_t *enp = eep->ee_enp;
+	unsigned int code;
+	boolean_t should_abort = B_FALSE;
+
+	EFX_EV_QSTAT_INCR(eep, EV_MCDI_RESPONSE);
+
+	code = EFX_QWORD_FIELD(*eqp, MCDI_EVENT_CODE);
+	switch (code) {
+	case MCDI_EVENT_CODE_BADSSERT:
+		efx_mcdi_ev_death(enp, EINTR);
+		break;
+
+	case MCDI_EVENT_CODE_CMDDONE:
+		efx_mcdi_ev_cpl(enp,
+		    MCDI_EV_FIELD(eqp, CMDDONE_SEQ),
+		    MCDI_EV_FIELD(eqp, CMDDONE_DATALEN),
+		    MCDI_EV_FIELD(eqp, CMDDONE_ERRNO));
+		break;
+
+#if EFSYS_OPT_MCDI_PROXY_AUTH
+	case MCDI_EVENT_CODE_PROXY_RESPONSE:
+		/*
+		 * This event notifies a function that an authorization request
+		 * has been processed. If the request was authorized then the
+		 * function can now re-send the original MCDI request.
+		 * See SF-113652-SW "SR-IOV Proxied Network Access Control".
+		 */
+		efx_mcdi_ev_proxy_response(enp,
+		    MCDI_EV_FIELD(eqp, PROXY_RESPONSE_HANDLE),
+		    MCDI_EV_FIELD(eqp, PROXY_RESPONSE_RC));
+		break;
+#endif /* EFSYS_OPT_MCDI_PROXY_AUTH */
+
+	case MCDI_EVENT_CODE_LINKCHANGE: {
+		efx_link_mode_t link_mode;
+
+		ef10_phy_link_ev(enp, eqp, &link_mode);
+		should_abort = eecp->eec_link_change(arg, link_mode);
+		break;
+	}
+
+	case MCDI_EVENT_CODE_SENSOREVT: {
+#if EFSYS_OPT_MON_STATS
+		efx_mon_stat_t id;
+		efx_mon_stat_value_t value;
+		efx_rc_t rc;
+
+		/* Decode monitor stat for MCDI sensor (if supported) */
+		if ((rc = mcdi_mon_ev(enp, eqp, &id, &value)) == 0) {
+			/* Report monitor stat change */
+			should_abort = eecp->eec_monitor(arg, id, value);
+		} else if (rc == ENOTSUP) {
+			should_abort = eecp->eec_exception(arg,
+				EFX_EXCEPTION_UNKNOWN_SENSOREVT,
+				MCDI_EV_FIELD(eqp, DATA));
+		} else {
+			EFSYS_ASSERT(rc == ENODEV);	/* Wrong port */
+		}
+#endif
+		break;
+	}
+
+	case MCDI_EVENT_CODE_SCHEDERR:
+		/* Informational only */
+		break;
+
+	case MCDI_EVENT_CODE_REBOOT:
+		/* Falcon/Siena only (should not been seen with Huntington). */
+		efx_mcdi_ev_death(enp, EIO);
+		break;
+
+	case MCDI_EVENT_CODE_MC_REBOOT:
+		/* MC_REBOOT event is used for Huntington (EF10) and later. */
+		efx_mcdi_ev_death(enp, EIO);
+		break;
+
+	case MCDI_EVENT_CODE_MAC_STATS_DMA:
+#if EFSYS_OPT_MAC_STATS
+		if (eecp->eec_mac_stats != NULL) {
+			eecp->eec_mac_stats(arg,
+			    MCDI_EV_FIELD(eqp, MAC_STATS_DMA_GENERATION));
+		}
+#endif
+		break;
+
+	case MCDI_EVENT_CODE_FWALERT: {
+		uint32_t reason = MCDI_EV_FIELD(eqp, FWALERT_REASON);
+
+		if (reason == MCDI_EVENT_FWALERT_REASON_SRAM_ACCESS)
+			should_abort = eecp->eec_exception(arg,
+				EFX_EXCEPTION_FWALERT_SRAM,
+				MCDI_EV_FIELD(eqp, FWALERT_DATA));
+		else
+			should_abort = eecp->eec_exception(arg,
+				EFX_EXCEPTION_UNKNOWN_FWALERT,
+				MCDI_EV_FIELD(eqp, DATA));
+		break;
+	}
+
+	case MCDI_EVENT_CODE_TX_ERR: {
+		/*
+		 * After a TXQ error is detected, firmware sends a TX_ERR event.
+		 * This may be followed by TX completions (which we discard),
+		 * and then finally by a TX_FLUSH event. Firmware destroys the
+		 * TXQ automatically after sending the TX_FLUSH event.
+		 */
+		enp->en_reset_flags |= EFX_RESET_TXQ_ERR;
+
+		EFSYS_PROBE2(tx_descq_err,
+			    uint32_t, EFX_QWORD_FIELD(*eqp, EFX_DWORD_1),
+			    uint32_t, EFX_QWORD_FIELD(*eqp, EFX_DWORD_0));
+
+		/* Inform the driver that a reset is required. */
+		eecp->eec_exception(arg, EFX_EXCEPTION_TX_ERROR,
+		    MCDI_EV_FIELD(eqp, TX_ERR_DATA));
+		break;
+	}
+
+	case MCDI_EVENT_CODE_TX_FLUSH: {
+		uint32_t txq_index = MCDI_EV_FIELD(eqp, TX_FLUSH_TXQ);
+
+		/*
+		 * EF10 firmware sends two TX_FLUSH events: one to the txq's
+		 * event queue, and one to evq 0 (with TX_FLUSH_TO_DRIVER set).
+		 * We want to wait for all completions, so ignore the events
+		 * with TX_FLUSH_TO_DRIVER.
+		 */
+		if (MCDI_EV_FIELD(eqp, TX_FLUSH_TO_DRIVER) != 0) {
+			should_abort = B_FALSE;
+			break;
+		}
+
+		EFX_EV_QSTAT_INCR(eep, EV_DRIVER_TX_DESCQ_FLS_DONE);
+
+		EFSYS_PROBE1(tx_descq_fls_done, uint32_t, txq_index);
+
+		EFSYS_ASSERT(eecp->eec_txq_flush_done != NULL);
+		should_abort = eecp->eec_txq_flush_done(arg, txq_index);
+		break;
+	}
+
+	case MCDI_EVENT_CODE_RX_ERR: {
+		/*
+		 * After an RXQ error is detected, firmware sends an RX_ERR
+		 * event. This may be followed by RX events (which we discard),
+		 * and then finally by an RX_FLUSH event. Firmware destroys the
+		 * RXQ automatically after sending the RX_FLUSH event.
+		 */
+		enp->en_reset_flags |= EFX_RESET_RXQ_ERR;
+
+		EFSYS_PROBE2(rx_descq_err,
+			    uint32_t, EFX_QWORD_FIELD(*eqp, EFX_DWORD_1),
+			    uint32_t, EFX_QWORD_FIELD(*eqp, EFX_DWORD_0));
+
+		/* Inform the driver that a reset is required. */
+		eecp->eec_exception(arg, EFX_EXCEPTION_RX_ERROR,
+		    MCDI_EV_FIELD(eqp, RX_ERR_DATA));
+		break;
+	}
+
+	case MCDI_EVENT_CODE_RX_FLUSH: {
+		uint32_t rxq_index = MCDI_EV_FIELD(eqp, RX_FLUSH_RXQ);
+
+		/*
+		 * EF10 firmware sends two RX_FLUSH events: one to the rxq's
+		 * event queue, and one to evq 0 (with RX_FLUSH_TO_DRIVER set).
+		 * We want to wait for all completions, so ignore the events
+		 * with RX_FLUSH_TO_DRIVER.
+		 */
+		if (MCDI_EV_FIELD(eqp, RX_FLUSH_TO_DRIVER) != 0) {
+			should_abort = B_FALSE;
+			break;
+		}
+
+		EFX_EV_QSTAT_INCR(eep, EV_DRIVER_RX_DESCQ_FLS_DONE);
+
+		EFSYS_PROBE1(rx_descq_fls_done, uint32_t, rxq_index);
+
+		EFSYS_ASSERT(eecp->eec_rxq_flush_done != NULL);
+		should_abort = eecp->eec_rxq_flush_done(arg, rxq_index);
+		break;
+	}
+
+	default:
+		EFSYS_PROBE3(bad_event, unsigned int, eep->ee_index,
+		    uint32_t, EFX_QWORD_FIELD(*eqp, EFX_DWORD_1),
+		    uint32_t, EFX_QWORD_FIELD(*eqp, EFX_DWORD_0));
+		break;
+	}
 
 	return (should_abort);
 }
