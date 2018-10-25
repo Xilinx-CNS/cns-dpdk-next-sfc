@@ -52,6 +52,7 @@ enum sfc_txq_state_bit {
  */
 struct sfc_txq {
 	unsigned int			state;
+	unsigned int			sw_index;
 	unsigned int			hw_index;
 	struct sfc_evq			*evq;
 	efsys_mem_t			mem;
@@ -60,18 +61,6 @@ struct sfc_txq {
 	unsigned int			free_thresh;
 	uint64_t			offloads;
 };
-
-static inline unsigned int
-sfc_txq_sw_index_by_hw_index(unsigned int hw_index)
-{
-	return hw_index;
-}
-
-static inline unsigned int
-sfc_txq_sw_index(const struct sfc_txq *txq)
-{
-	return sfc_txq_sw_index_by_hw_index(txq->hw_index);
-}
 
 struct sfc_txq *sfc_txq_by_dp_txq(const struct sfc_dp_txq *dp_txq);
 

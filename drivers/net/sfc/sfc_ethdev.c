@@ -489,7 +489,7 @@ sfc_tx_queue_release(void *queue)
 		return;
 
 	txq = sfc_txq_by_dp_txq(dp_txq);
-	sw_index = sfc_txq_sw_index(txq);
+	sw_index = txq->sw_index;
 
 	SFC_ASSERT(txq->evq != NULL);
 	sa = txq->evq->sa;
