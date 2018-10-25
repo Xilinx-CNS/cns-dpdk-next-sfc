@@ -148,6 +148,13 @@ ef10_ev_rxlabel_fini(
 	__in		efx_evq_t *eep,
 	__in		unsigned int label);
 
+	__checkReturn	boolean_t
+ef10_ev_mcdi(
+	__in		efx_evq_t *eep,
+	__in		efx_qword_t *eqp,
+	__in		const efx_ev_callbacks_t *eecp,
+	__in_opt	void *arg);
+
 /* INTR */
 
 	__checkReturn	efx_rc_t
