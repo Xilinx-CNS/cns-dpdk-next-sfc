@@ -7,7 +7,7 @@
 #include "efx.h"
 #include "efx_impl.h"
 
-#if EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2
+#if EFSYS_OPT_EF10
 
 static			void
 mcdi_phy_decode_cap(
@@ -755,4 +755,4 @@ ef10_bist_stop(
 
 #endif	/* EFSYS_OPT_BIST */
 
-#endif	/* EFSYS_OPT_HUNTINGTON || EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 */
+#endif	/* EFSYS_OPT_EF10 */
