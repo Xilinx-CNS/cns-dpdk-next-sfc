@@ -1328,6 +1328,21 @@ efx_mcdi_fini_rxq(
 	__in		efx_nic_t *enp,
 	__in		uint32_t instance);
 
+extern	__checkReturn	efx_rc_t
+efx_mcdi_init_txq(
+	__in		efx_nic_t *enp,
+	__in		uint32_t ndescs,
+	__in		uint32_t target_evq,
+	__in		uint32_t label,
+	__in		uint32_t instance,
+	__in		uint16_t flags,
+	__in		efsys_mem_t *esmp);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_fini_txq(
+	__in		efx_nic_t *enp,
+	__in		uint32_t instance);
+
 #endif	/* EFX_OPTS_EF10() */
 
 #endif /* EFSYS_OPT_MCDI */
