@@ -1260,6 +1260,31 @@ efx_mcdi_get_workarounds(
 	__out_opt		uint32_t *implementedp,
 	__out_opt		uint32_t *enabledp);
 
+#if EFSYS_OPT_EF10
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_init_rxq(
+	__in		efx_nic_t *enp,
+	__in		uint32_t ndescs,
+	__in		efx_evq_t *eep,
+	__in		uint32_t label,
+	__in		uint32_t instance,
+	__in		efsys_mem_t *esmp,
+	__in		boolean_t disable_scatter,
+	__in		boolean_t want_inner_classes,
+	__in		uint32_t ps_bufsize,
+	__in		uint32_t es_bufs_per_desc,
+	__in		uint32_t es_max_dma_len,
+	__in		uint32_t es_buf_stride,
+	__in		uint32_t hol_block_timeout);
+
+extern	__checkReturn	efx_rc_t
+efx_mcdi_fini_rxq(
+	__in		efx_nic_t *enp,
+	__in		uint32_t instance);
+
+#endif /* EFSYS_OPT_EF10 */
+
 #endif /* EFSYS_OPT_MCDI */
 
 #if EFSYS_OPT_MAC_STATS
