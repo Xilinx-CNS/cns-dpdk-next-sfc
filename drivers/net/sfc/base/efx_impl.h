@@ -13,6 +13,7 @@
 #if EFSYS_OPT_RIVERHEAD
 #include "efx_regs_ef100.h"
 #endif	/* EFSYS_OPT_RIVERHEAD */
+#include "efx_mcdi.h"
 
 /* FIXME: Add definition for driver generated software events */
 #ifndef	ESE_DZ_EV_CODE_DRV_GEN_EV
