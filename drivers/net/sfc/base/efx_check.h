@@ -34,8 +34,8 @@
 
 #if EFSYS_OPT_CHECK_REG
 /* Verify chip implements accessed registers */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "CHECK_REG requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "CHECK_REG requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_CHECK_REG */
 
@@ -66,21 +66,21 @@
 
 #if EFSYS_OPT_FILTER
 /* Support hardware packet filters */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "FILTER requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "FILTER requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_FILTER */
 
-#if EFSYS_OPT_EF10
+#if EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD
 # if !EFSYS_OPT_FILTER
-#  error "HUNTINGTON or MEDFORD or MEDFORD2 requires FILTER"
+#  error "HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD requires FILTER"
 # endif
 #endif /* EFSYS_OPT_EF10 */
 
 #if EFSYS_OPT_LOOPBACK
 /* Support hardware loopback modes */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "LOOPBACK requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "LOOPBACK requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_LOOPBACK */
 
@@ -94,21 +94,21 @@
 
 #if EFSYS_OPT_MAC_STATS
 /* Support MAC statistics */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "MAC_STATS requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "MAC_STATS requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_MAC_STATS */
 
 #if EFSYS_OPT_MCDI
 /* Support management controller messages */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "MCDI requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "MCDI requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_MCDI */
 
-#if (EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
+#if (EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
 # if !EFSYS_OPT_MCDI
-#  error "SIENA or HUNTINGTON or MEDFORD or MEDFORD2 requires MCDI"
+#  error "SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD requires MCDI"
 # endif
 #endif
 
@@ -268,15 +268,15 @@
 
 #if EFSYS_OPT_RX_SCALE
 /* Support receive scaling (RSS) */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "RX_SCALE requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "RX_SCALE requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_RX_SCALE */
 
 #if EFSYS_OPT_RX_SCATTER
 /* Support receive scatter DMA */
-# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10)
-#  error "RX_SCATTER requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_SIENA || EFSYS_OPT_EF10 || EFSYS_OPT_RIVERHEAD)
+#  error "RX_SCATTER requires SIENA or HUNTINGTON or MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_RX_SCATTER */
 
@@ -318,8 +318,8 @@
 
 #if EFSYS_OPT_ALLOW_UNCONFIGURED_NIC
 /* Support adapters with missing static config (for factory use only) */
-# if !(EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
-#  error "ALLOW_UNCONFIGURED_NIC requires MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 || EFSYS_OPT_RIVERHEAD)
+#  error "ALLOW_UNCONFIGURED_NIC requires MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_ALLOW_UNCONFIGURED_NIC */
 
@@ -339,8 +339,8 @@
 
 /* Support hardware assistance for tunnels */
 #if EFSYS_OPT_TUNNEL
-# if !(EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2)
-#  error "TUNNEL requires MEDFORD or MEDFORD2"
+# if !(EFSYS_OPT_MEDFORD || EFSYS_OPT_MEDFORD2 || EFSYS_OPT_RIVERHEAD)
+#  error "TUNNEL requires MEDFORD or MEDFORD2 or RIVERHEAD"
 # endif
 #endif /* EFSYS_OPT_TUNNEL */
 
