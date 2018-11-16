@@ -40,9 +40,9 @@ sfc_evq_type2str(enum sfc_evq_type type)
 	case SFC_EVQ_TYPE_MGMT:
 		return "mgmt-evq";
 	case SFC_EVQ_TYPE_RX:
-		return "rx-evq";
+		return "rx_ring";
 	case SFC_EVQ_TYPE_TX:
-		return "tx-evq";
+		return "tx_ring";
 	default:
 		SFC_ASSERT(B_FALSE);
 		return NULL;
