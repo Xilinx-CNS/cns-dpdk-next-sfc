@@ -397,8 +397,10 @@ sfc_port_attach(struct sfc_adapter *sa)
 	efx_phy_adv_cap_get(sa->nic, EFX_PHY_CAP_PERM, &port->phy_adv_cap_mask);
 
 	/* Enable flow control by default */
+#if 0
 	port->flow_ctrl = EFX_FCNTL_RESPOND | EFX_FCNTL_GENERATE;
 	port->flow_ctrl_autoneg = B_TRUE;
+#endif
 
 	RTE_BUILD_BUG_ON(sizeof(encp->enc_mac_addr) != sizeof(*from));
 	from = (const struct ether_addr *)(encp->enc_mac_addr);
