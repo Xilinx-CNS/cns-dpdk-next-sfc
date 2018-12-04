@@ -142,8 +142,10 @@ sfc_ef100_rx_qrefill(struct sfc_ef100_rxq *rxq)
 	SFC_ASSERT(bulks > 0);
 
 	do {
-		unsigned int id;
+		unsigned int id = added & ptr_mask;
 		unsigned int i;
+
+		rte_prefetch0(&rxq->sw_ring[id]);
 
 		if (unlikely(rte_mempool_get_bulk(rxq->refill_mb_pool, objs,
 						  RTE_DIM(objs)) < 0)) {
@@ -162,9 +164,7 @@ sfc_ef100_rx_qrefill(struct sfc_ef100_rxq *rxq)
 			break;
 		}
 
-		for (i = 0, id = added & ptr_mask;
-		     i < RTE_DIM(objs);
-		     ++i, ++id) {
+		for (i = 0; i < RTE_DIM(objs); ++i, ++id) {
 			struct rte_mbuf *m = objs[i];
 			struct sfc_ef100_rx_sw_desc *rxd;
 			rte_iova_t phys_addr;
