@@ -566,6 +566,10 @@ sfc_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 			mac_stats[EFX_MAC_RX_ALIGN_ERRORS] +
 			mac_stats[EFX_MAC_RX_JABBER_PKTS];
 		/* no oerrors counters supported on EF10 */
+
+		/* Exclude missed, errors and pauses from Rx packets */
+		stats->ipackets -= stats->imissed + stats->ierrors +
+			mac_stats[EFX_MAC_RX_PAUSE_PKTS];
 	}
 
 unlock:
