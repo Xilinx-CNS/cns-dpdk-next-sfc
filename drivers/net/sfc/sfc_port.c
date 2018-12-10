@@ -200,6 +200,7 @@ sfc_port_start(struct sfc_adapter *sa)
 	phy_adv_cap |= port->phy_adv_cap_mask &
 		(1u << EFX_PHY_CAP_BASER_FEC |
 		 1u << EFX_PHY_CAP_RS_FEC |
+		 1u << EFX_PHY_CAP_RS_FEC_REQUESTED |
 		 1u << EFX_PHY_CAP_25G_BASER_FEC);
 
 	sfc_log_init(sa, "set phy adv caps to %#x", phy_adv_cap);
