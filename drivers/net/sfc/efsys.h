@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2016-2018 Solarflare Communications Inc.
- * All rights reserved.
+ * Copyright(c) 2016-2019 Solarflare Communications Inc. All rights reserved.
+ * Copyright(c) 2019 Xilinx, Inc. All rights reserved.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
@@ -100,6 +100,9 @@ prefetch_read_once(const volatile void *addr)
 #define EFSYS_OPT_MEDFORD 1
 /* Enable SFN2xxx support */
 #define EFSYS_OPT_MEDFORD2 1
+/* Disable Riverhead support */
+#define EFSYS_OPT_RIVERHEAD 0
+
 #ifdef RTE_LIBRTE_SFC_EFX_DEBUG
 #define EFSYS_OPT_CHECK_REG 1
 #else
