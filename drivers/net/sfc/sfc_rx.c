@@ -1069,6 +1069,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	info.rxq_hw_ring = rxq->mem.esm_base;
 	info.evq_entries = evq_entries;
 	info.evq_hw_ring = evq->mem.esm_base;
+	info.evq_hw_index = sfc_evq_index_by_rxq_sw_index(sa, sw_index);
 	info.hw_index = rxq->hw_index;
 	info.mem_bar = sa->mem_bar.esb_base;
 	info.vi_window_shift = encp->enc_vi_window_shift;

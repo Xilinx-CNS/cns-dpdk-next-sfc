@@ -79,6 +79,8 @@ struct sfc_dp_rx_qcreate_info {
 	/** Hardware event ring */
 	void			*evq_hw_ring;
 
+	/** Associated event queue HW index to prime it */
+	unsigned int		evq_hw_index;
 	/** The queue index in hardware (required to push right doorbell) */
 	unsigned int		hw_index;
 	/**
