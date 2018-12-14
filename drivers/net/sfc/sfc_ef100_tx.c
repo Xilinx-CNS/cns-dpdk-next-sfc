@@ -602,8 +602,7 @@ struct sfc_dp_tx sfc_ef100_tx = {
 		.type		= SFC_DP_TX,
 		.hw_fw_caps	= SFC_DP_HW_FW_CAP_EF100,
 	},
-	.features		= SFC_DP_TX_FEAT_MULTI_SEG |
-				  SFC_DP_TX_FEAT_MULTI_POOL |
+	.features		= SFC_DP_TX_FEAT_MULTI_POOL |
 				  SFC_DP_TX_FEAT_REFCNT |
 				  SFC_DP_TX_FEAT_MULTI_PROCESS,
 	.get_dev_info		= sfc_ef100_get_dev_info,
