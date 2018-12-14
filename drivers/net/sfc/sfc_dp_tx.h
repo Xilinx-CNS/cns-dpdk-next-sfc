@@ -58,6 +58,8 @@ struct sfc_dp_tx_qcreate_info {
 	unsigned int		evq_entries;
 	/** Hardware event ring */
 	void			*evq_hw_ring;
+	/** Associated event queue HW index to prime it */
+	unsigned int		evq_hw_index;
 	/** The queue index in hardware (required to push right doorbell) */
 	unsigned int		hw_index;
 	/** Virtual address of the memory-mapped BAR to push Tx doorbell */
