@@ -37,6 +37,10 @@
 #define SFC_EF100_TX_SEND_DESC_LEN_MAX \
 	((1u << ESF_GZ_TX_SEND_LEN_WIDTH) - 1)
 
+/** Maximum length of the segment descriptor data */
+#define SFC_EF100_TX_SEG_DESC_LEN_MAX \
+	((1u << ESF_GZ_TX_SEG_LEN_WIDTH) - 1)
+
 /**
  * Maximum number of descriptors/buffers in the Tx ring.
  * It should guarantee that corresponding event queue never overfill.
@@ -194,6 +198,15 @@ sfc_ef100_tx_qdesc_send_create(rte_iova_t addr, uint16_t len, uint16_t num_segs,
 			     ESF_GZ_TX_SEND_NUM_SEGS, num_segs);
 }
 
+static void
+sfc_ef100_tx_qdesc_seg_create(rte_iova_t addr, uint16_t len,
+			      efx_oword_t *tx_desc)
+{
+	EFX_POPULATE_OWORD_2(*tx_desc,
+			     ESF_GZ_TX_SEG_ADDR, addr,
+			     ESF_GZ_TX_SEG_LEN, len);
+}
+
 static inline void
 sfc_ef100_tx_qpush(struct sfc_ef100_txq *txq, unsigned int added)
 {
@@ -219,9 +232,48 @@ sfc_ef100_tx_qpush(struct sfc_ef100_txq *txq, unsigned int added)
 static unsigned int
 sfc_ef100_tx_pkt_descs_max(const struct rte_mbuf *m)
 {
-	SFC_ASSERT(SFC_EF100_TX_SEND_DESC_LEN_MAX >= EFX_MAC_PDU_MAX);
-	SFC_ASSERT(m->nb_segs == 1);
-	return 1;
+	unsigned int extra_descs_per_seg;
+	unsigned int extra_descs_per_pkt;
+
+	/*
+	 * VLAN offload is not supported yet, so no extra descriptors
+	 * are required for VLAN option descriptor.
+	 */
+
+/** Maximum length of the mbuf segment data */
+#define SFC_MBUF_SEG_LEN_MAX		UINT16_MAX
+	RTE_BUILD_BUG_ON(sizeof(m->data_len) != 2);
+
+	/*
+	 * Each segment is already counted once below.  So, calculate
+	 * how many extra DMA descriptors may be required per segment in
+	 * the worst case because of maximum DMA descriptor length limit.
+	 * If maximum segment length is less or equal to maximum DMA
+	 * descriptor length, no extra DMA descriptors are required.
+	 */
+	extra_descs_per_seg =
+		(SFC_MBUF_SEG_LEN_MAX - 1) / SFC_EF100_TX_SEG_DESC_LEN_MAX;
+
+/** Maximum length of the packet */
+#define SFC_MBUF_PKT_LEN_MAX		UINT32_MAX
+	RTE_BUILD_BUG_ON(sizeof(m->pkt_len) != 4);
+
+	/*
+	 * One more limitation on maximum number of extra DMA descriptors
+	 * comes from slicing entire packet because of DMA descriptor length
+	 * limit taking into account that there is at least one segment
+	 * which is already counted below (so division of the maximum
+	 * packet length minus one with round down).
+	 * TSO is not supported yet, so packet length is limited by
+	 * maximum PDU size.
+	 */
+	extra_descs_per_pkt =
+		(RTE_MIN((unsigned int)EFX_MAC_PDU_MAX,
+			 SFC_MBUF_PKT_LEN_MAX) - 1) /
+		SFC_EF100_TX_SEG_DESC_LEN_MAX;
+
+	return m->nb_segs + RTE_MIN(m->nb_segs * extra_descs_per_seg,
+				    extra_descs_per_pkt);
 }
 
 static uint16_t
@@ -278,7 +330,8 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		id = added++ & txq->ptr_mask;
 		sfc_ef100_tx_qdesc_send_create(rte_mbuf_data_iova(m_seg),
 					       rte_pktmbuf_data_len(m_seg),
-					       1, &txq->txq_hw_ring[id]);
+					       m_seg->nb_segs,
+					       &txq->txq_hw_ring[id]);
 
 		/*
 		 * rte_pktmbuf_free() is commonly used in DPDK for
@@ -296,6 +349,19 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		 * is sufficient on reap to inspect all the buffers
 		 */
 		txq->sw_ring[id].mbuf = m_seg;
+
+		while ((m_seg = m_seg->next) != 0) {
+
+			RTE_BUILD_BUG_ON(SFC_MBUF_SEG_LEN_MAX >
+					 SFC_EF100_TX_SEG_DESC_LEN_MAX);
+
+			id = added++ & txq->ptr_mask;
+			sfc_ef100_tx_qdesc_seg_create(
+				rte_mbuf_data_iova(m_seg),
+				rte_pktmbuf_data_len(m_seg),
+				&txq->txq_hw_ring[id]);
+			txq->sw_ring[id].mbuf = m_seg;
+		}
 
 		dma_desc_space -= (added - pkt_start);
 	}
@@ -531,7 +597,8 @@ struct sfc_dp_tx sfc_ef100_tx = {
 		.type		= SFC_DP_TX,
 		.hw_fw_caps	= SFC_DP_HW_FW_CAP_EF100,
 	},
-	.features		= SFC_DP_TX_FEAT_MULTI_POOL |
+	.features		= SFC_DP_TX_FEAT_MULTI_SEG |
+				  SFC_DP_TX_FEAT_MULTI_POOL |
 				  SFC_DP_TX_FEAT_REFCNT |
 				  SFC_DP_TX_FEAT_MULTI_PROCESS,
 	.get_dev_info		= sfc_ef100_get_dev_info,
