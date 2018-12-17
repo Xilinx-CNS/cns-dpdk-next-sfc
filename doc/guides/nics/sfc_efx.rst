@@ -345,8 +345,8 @@ boolean parameters value.
   **ef10_simple** chooses EF10 (SFN7xxx, SFN8xxx, X2xxx) native datapath which
   is even more faster then **ef10** but does not support multi-segment
   mbufs, disallows multiple mempools and neglects mbuf reference counters.
-  **ef100** chooses EF100 native datapath which does not support multi-segment
-  mbufs and any Tx offloads.
+  **ef100** chooses EF100 native datapath which does not support
+  any Tx offloads.
 
 - ``perf_profile`` [auto|throughput|low-latency] (default **throughput**)
 
