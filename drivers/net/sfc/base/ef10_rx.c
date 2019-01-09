@@ -844,16 +844,11 @@ ef10_rx_qcreate(
 	EFX_STATIC_ASSERT(EFX_EV_RX_NLABELS == (1 << ESF_DZ_RX_QLABEL_WIDTH));
 	EFSYS_ASSERT3U(label, <, EFX_EV_RX_NLABELS);
 
-	if (index >= encp->enc_rxq_limit) {
-		rc = EINVAL;
-		goto fail1;
-	}
-
 	switch (type) {
 	case EFX_RXQ_TYPE_DEFAULT:
 		if (type_data == NULL) {
 			rc = EINVAL;
-			goto fail2;
+			goto fail1;
 		}
 		erp->er_buf_size = type_data->ertd_default.ed_buf_size;
 		ps_buf_size = 0;
@@ -862,7 +857,7 @@ ef10_rx_qcreate(
 	case EFX_RXQ_TYPE_PACKED_STREAM:
 		if (type_data == NULL) {
 			rc = EINVAL;
-			goto fail3;
+			goto fail2;
 		}
 		switch (type_data->ertd_packed_stream.eps_buf_size) {
 		case EFX_RXQ_PACKED_STREAM_BUF_SIZE_1M:
@@ -882,7 +877,7 @@ ef10_rx_qcreate(
 			break;
 		default:
 			rc = ENOTSUP;
-			goto fail4;
+			goto fail3;
 		}
 		erp->er_buf_size = type_data->ertd_packed_stream.eps_buf_size;
 		break;
@@ -891,7 +886,7 @@ ef10_rx_qcreate(
 	case EFX_RXQ_TYPE_ES_SUPER_BUFFER:
 		if (type_data == NULL) {
 			rc = EINVAL;
-			goto fail5;
+			goto fail4;
 		}
 		ps_buf_size = 0;
 		es_bufs_per_desc =
@@ -906,7 +901,7 @@ ef10_rx_qcreate(
 #endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
 	default:
 		rc = ENOTSUP;
-		goto fail6;
+		goto fail5;
 	}
 
 #if EFSYS_OPT_RX_PACKED_STREAM
@@ -914,13 +909,13 @@ ef10_rx_qcreate(
 		/* Check if datapath firmware supports packed stream mode */
 		if (encp->enc_rx_packed_stream_supported == B_FALSE) {
 			rc = ENOTSUP;
-			goto fail7;
+			goto fail6;
 		}
 		/* Check if packed stream allows configurable buffer sizes */
 		if ((ps_buf_size != MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_1M) &&
 		    (encp->enc_rx_var_packed_stream_supported == B_FALSE)) {
 			rc = ENOTSUP;
-			goto fail8;
+			goto fail7;
 		}
 	}
 #else /* EFSYS_OPT_RX_PACKED_STREAM */
@@ -931,17 +926,17 @@ ef10_rx_qcreate(
 	if (es_bufs_per_desc > 0) {
 		if (encp->enc_rx_es_super_buffer_supported == B_FALSE) {
 			rc = ENOTSUP;
-			goto fail9;
+			goto fail8;
 		}
 		if (!IS_P2ALIGNED(es_max_dma_len,
 			    EFX_RX_ES_SUPER_BUFFER_BUF_ALIGNMENT)) {
 			rc = EINVAL;
-			goto fail10;
+			goto fail9;
 		}
 		if (!IS_P2ALIGNED(es_buf_stride,
 			    EFX_RX_ES_SUPER_BUFFER_BUF_ALIGNMENT)) {
 			rc = EINVAL;
-			goto fail11;
+			goto fail10;
 		}
 	}
 #else /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
@@ -963,7 +958,7 @@ ef10_rx_qcreate(
 		    esmp, disable_scatter, want_inner_classes, erp->er_buf_size,
 		    ps_buf_size, es_bufs_per_desc, es_max_dma_len,
 		    es_buf_stride, hol_block_timeout)) != 0)
-		goto fail12;
+		goto fail11;
 
 	erp->er_eep = eep;
 	erp->er_label = label;
@@ -974,36 +969,34 @@ ef10_rx_qcreate(
 
 	return (0);
 
-fail12:
-	EFSYS_PROBE(fail12);
-#if EFSYS_OPT_RX_ES_SUPER_BUFFER
 fail11:
 	EFSYS_PROBE(fail11);
+#if EFSYS_OPT_RX_ES_SUPER_BUFFER
 fail10:
 	EFSYS_PROBE(fail10);
 fail9:
 	EFSYS_PROBE(fail9);
-#endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
-#if EFSYS_OPT_RX_PACKED_STREAM
 fail8:
 	EFSYS_PROBE(fail8);
-fail7:
-	EFSYS_PROBE(fail7);
-#endif /* EFSYS_OPT_RX_PACKED_STREAM */
-fail6:
-	EFSYS_PROBE(fail6);
-#if EFSYS_OPT_RX_ES_SUPER_BUFFER
-fail5:
-	EFSYS_PROBE(fail5);
 #endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
 #if EFSYS_OPT_RX_PACKED_STREAM
+fail7:
+	EFSYS_PROBE(fail7);
+fail6:
+	EFSYS_PROBE(fail6);
+#endif /* EFSYS_OPT_RX_PACKED_STREAM */
+fail5:
+	EFSYS_PROBE(fail5);
+#if EFSYS_OPT_RX_ES_SUPER_BUFFER
 fail4:
 	EFSYS_PROBE(fail4);
+#endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
+#if EFSYS_OPT_RX_PACKED_STREAM
 fail3:
 	EFSYS_PROBE(fail3);
-#endif /* EFSYS_OPT_RX_PACKED_STREAM */
 fail2:
 	EFSYS_PROBE(fail2);
+#endif /* EFSYS_OPT_RX_PACKED_STREAM */
 fail1:
 	EFSYS_PROBE1(fail1, efx_rc_t, rc);
 
