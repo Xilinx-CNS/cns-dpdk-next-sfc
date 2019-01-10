@@ -99,10 +99,22 @@ rhead_tx_qpush(
 	__in		unsigned int added,
 	__in		unsigned int pushed)
 {
-	_NOTE(ARGUNUSED(etp, added, pushed))
+	efx_nic_t *enp = etp->et_enp;
+	unsigned int wptr;
+	unsigned int id;
+	efx_dword_t dword;
 
-	/* FIXME Implement the method for Riverhead */
-	EFSYS_ASSERT(B_FALSE);
+	wptr = added & etp->et_mask;
+	id = pushed & etp->et_mask;
+
+	EFX_POPULATE_DWORD_1(dword, ERF_GZ_TX_RING_PIDX, wptr);
+
+	/* Ensure ordering of memory (descriptors) and PIO (doorbell) */
+	EFX_DMA_SYNC_QUEUE_FOR_DEVICE(etp->et_esmp, etp->et_mask + 1,
+	    RHEAD_TXQ_DESC_SIZE, wptr, id);
+	EFSYS_PIO_WRITE_BARRIER();
+	EFX_BAR_VI_WRITED(enp, ER_GZ_TX_RING_DOORBELL,
+	    etp->et_index, &dword, B_FALSE);
 }
 
 	__checkReturn	efx_rc_t
