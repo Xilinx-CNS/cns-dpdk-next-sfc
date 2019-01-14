@@ -1772,6 +1772,7 @@ sfc_eth_dev_set_ops(struct rte_eth_dev *dev)
 		break;
 	case EFX_FAMILY_RIVERHEAD:
 		avail_caps |= SFC_DP_HW_FW_CAP_EF100;
+		avail_caps |= SFC_DP_HW_FW_CAP_RX_EFX;
 		break;
 	default:
 		break;
