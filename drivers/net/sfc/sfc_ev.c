@@ -271,6 +271,31 @@ sfc_ev_dp_tx(void *arg, __rte_unused uint32_t label, uint32_t id)
 }
 
 static boolean_t
+sfc_ev_nop_tx_ndescs(void *arg, uint32_t label, unsigned int ndescs)
+{
+	struct sfc_evq *evq = arg;
+
+	sfc_err(evq->sa, "EVQ %u unexpected Tx event label=%u ndescs=%#x",
+		evq->evq_index, label, ndescs);
+	return B_TRUE;
+}
+
+static boolean_t
+sfc_ev_dp_tx_ndescs(void *arg, __rte_unused uint32_t label,
+		      unsigned int ndescs)
+{
+	struct sfc_evq *evq = arg;
+	struct sfc_dp_txq *dp_txq;
+
+	dp_txq = evq->dp_txq;
+	SFC_ASSERT(dp_txq != NULL);
+
+	SFC_ASSERT(evq->sa->priv.dp_tx->qtx_ev != NULL);
+	/* FIXME */
+	return evq->sa->priv.dp_tx->qtx_ev(dp_txq, ndescs);
+}
+
+static boolean_t
 sfc_ev_exception(void *arg, uint32_t code, __rte_unused uint32_t data)
 {
 	struct sfc_evq *evq = arg;
@@ -459,6 +484,7 @@ static const efx_ev_callbacks_t sfc_ev_callbacks = {
 	.eec_rx_packets		= sfc_ev_nop_rx_packets,
 	.eec_rx_ps		= sfc_ev_nop_rx_ps,
 	.eec_tx			= sfc_ev_nop_tx,
+	.eec_tx_ndescs		= sfc_ev_nop_tx_ndescs,
 	.eec_exception		= sfc_ev_exception,
 	.eec_rxq_flush_done	= sfc_ev_nop_rxq_flush_done,
 	.eec_rxq_flush_failed	= sfc_ev_nop_rxq_flush_failed,
@@ -476,6 +502,7 @@ static const efx_ev_callbacks_t sfc_ev_callbacks_efx_rx = {
 	.eec_rx_packets		= sfc_ev_nop_rx_packets,
 	.eec_rx_ps		= sfc_ev_nop_rx_ps,
 	.eec_tx			= sfc_ev_nop_tx,
+	.eec_tx_ndescs		= sfc_ev_nop_tx_ndescs,
 	.eec_exception		= sfc_ev_exception,
 	.eec_rxq_flush_done	= sfc_ev_rxq_flush_done,
 	.eec_rxq_flush_failed	= sfc_ev_rxq_flush_failed,
@@ -493,6 +520,7 @@ static const efx_ev_callbacks_t sfc_ev_callbacks_dp_rx = {
 	.eec_rx_packets		= sfc_ev_dp_rx_packets,
 	.eec_rx_ps		= sfc_ev_dp_rx_ps,
 	.eec_tx			= sfc_ev_nop_tx,
+	.eec_tx_ndescs		= sfc_ev_nop_tx_ndescs,
 	.eec_exception		= sfc_ev_exception,
 	.eec_rxq_flush_done	= sfc_ev_rxq_flush_done,
 	.eec_rxq_flush_failed	= sfc_ev_rxq_flush_failed,
@@ -510,6 +538,7 @@ static const efx_ev_callbacks_t sfc_ev_callbacks_efx_tx = {
 	.eec_rx_packets		= sfc_ev_nop_rx_packets,
 	.eec_rx_ps		= sfc_ev_nop_rx_ps,
 	.eec_tx			= sfc_ev_tx,
+	.eec_tx_ndescs		= sfc_ev_nop_tx_ndescs,
 	.eec_exception		= sfc_ev_exception,
 	.eec_rxq_flush_done	= sfc_ev_nop_rxq_flush_done,
 	.eec_rxq_flush_failed	= sfc_ev_nop_rxq_flush_failed,
@@ -527,6 +556,7 @@ static const efx_ev_callbacks_t sfc_ev_callbacks_dp_tx = {
 	.eec_rx_packets		= sfc_ev_nop_rx_packets,
 	.eec_rx_ps		= sfc_ev_nop_rx_ps,
 	.eec_tx			= sfc_ev_dp_tx,
+	.eec_tx_ndescs		= sfc_ev_dp_tx_ndescs,
 	.eec_exception		= sfc_ev_exception,
 	.eec_rxq_flush_done	= sfc_ev_nop_rxq_flush_done,
 	.eec_rxq_flush_failed	= sfc_ev_nop_rxq_flush_failed,
