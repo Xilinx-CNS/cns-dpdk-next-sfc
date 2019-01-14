@@ -153,11 +153,21 @@ rhead_rx_prefix_hash(
 	__in		efx_rx_hash_alg_t func,
 	__in		uint8_t *buffer)
 {
-	_NOTE(ARGUNUSED(enp, func, buffer))
+	const efx_oword_t *rx_prefix = (const efx_oword_t *)buffer;
 
-	/* FIXME implement the method for Riverhead */
+	_NOTE(ARGUNUSED(enp))
 
-	return (ENOTSUP);
+	switch (func) {
+	case EFX_RX_HASHALG_TOEPLITZ:
+		if (EFX_TEST_OWORD_BIT(rx_prefix[0], ESF_GZ_RSS_HSH_VALID_LBN))
+			return (EFX_OWORD_FIELD(rx_prefix[0], ESF_GZ_RSS_HASH));
+		else
+			return (0);
+
+	default:
+		EFSYS_ASSERT(0);
+		return (0);
+	}
 }
 
 #endif /* EFSYS_OPT_RX_SCALE */
@@ -168,11 +178,12 @@ rhead_rx_prefix_pktlen(
 	__in		uint8_t *buffer,
 	__out		uint16_t *lengthp)
 {
-	_NOTE(ARGUNUSED(enp, buffer, lengthp))
+	const efx_oword_t *rx_prefix = (const efx_oword_t *)buffer;
 
-	/* FIXME implement the method for Riverhead */
+	_NOTE(ARGUNUSED(enp))
 
-	return (ENOTSUP);
+	*lengthp = EFX_OWORD_FIELD(rx_prefix[0], ESF_GZ_LEN);
+	return (0);
 }
 
 				void
@@ -184,11 +195,32 @@ rhead_rx_qpost(
 	__in			unsigned int completed,
 	__in			unsigned int added)
 {
-	_NOTE(ARGUNUSED(erp, addrp, size, ndescs, completed, added))
+	efx_qword_t qword;
+	unsigned int i;
+	unsigned int offset;
+	unsigned int id;
 
-	/* FIXME implement the method for Riverhead */
+	_NOTE(ARGUNUSED(size))
+	_NOTE(ARGUNUSED(completed))
 
-	EFSYS_ASSERT(B_FALSE);
+	/* The client driver must not overfill the queue */
+	EFSYS_ASSERT3U(added - completed + ndescs, <=,
+	    EFX_RXQ_LIMIT(erp->er_mask + 1));
+
+	id = added & erp->er_mask;
+	for (i = 0; i < ndescs; i++) {
+		EFSYS_PROBE4(rx_post, unsigned int, erp->er_index,
+		    unsigned int, id, efsys_dma_addr_t, addrp[i],
+		    size_t, size);
+
+		EFX_STATIC_ASSERT(sizeof (qword) == RHEAD_RXQ_DESC_SIZE);
+		EFX_POPULATE_QWORD_1(qword, ESF_GZ_RX_BUF_ADDR, addrp[i]);
+
+		offset = id * RHEAD_RXQ_DESC_SIZE;
+		EFSYS_MEM_WRITEQ(erp->er_esmp, offset, &qword);
+
+		id = (id + 1) & (erp->er_mask);
+	}
 }
 
 			void
@@ -197,11 +229,25 @@ rhead_rx_qpush(
 	__in	unsigned int added,
 	__inout	unsigned int *pushedp)
 {
-	_NOTE(ARGUNUSED(erp, added, pushedp))
+	efx_nic_t *enp = erp->er_enp;
+	unsigned int pushed = *pushedp;
+	uint32_t wptr;
+	efx_dword_t dword;
 
-	/* FIXME implement the method for Riverhead */
+	/* Hardware has no restriction for WPTR alignment */
 
-	EFSYS_ASSERT(B_FALSE);
+	*pushedp = added;
+
+	/* Push the populated descriptors out */
+	wptr = added & erp->er_mask;
+	EFX_POPULATE_DWORD_1(dword, ERF_GZ_RX_RING_PIDX, wptr);
+
+	/* Guarantee ordering of memory (descriptors) and PIO (doorbell) */
+	EFX_DMA_SYNC_QUEUE_FOR_DEVICE(erp->er_esmp, erp->er_mask + 1,
+	    RHEAD_RXQ_DESC_SIZE, wptr, pushed & erp->er_mask);
+	EFSYS_PIO_WRITE_BARRIER();
+	EFX_BAR_VI_WRITED(enp, ER_GZ_RX_RING_DOORBELL,
+	    erp->er_index, &dword, B_FALSE);
 }
 
 	__checkReturn	efx_rc_t
