@@ -175,6 +175,40 @@ sfc_ev_nop_rx_packets(void *arg, uint32_t label, unsigned int num_packets,
 }
 
 static boolean_t
+sfc_ev_efx_rx_packets(void *arg, __rte_unused uint32_t label,
+		      unsigned int num_packets, uint32_t flags)
+{
+	struct sfc_evq *evq = arg;
+	struct sfc_efx_rxq *rxq;
+	unsigned int i;
+	struct sfc_efx_rx_sw_desc *rxd;
+
+	if (unlikely(evq->exception))
+		goto done;
+
+	rxq = sfc_efx_rxq_by_dp_rxq(evq->dp_rxq);
+
+	SFC_ASSERT(rxq != NULL);
+	SFC_ASSERT(rxq->evq == evq);
+	SFC_ASSERT(rxq->flags & SFC_EFX_RXQ_FLAG_STARTED);
+
+	for (i = rxq->pending; i != rxq->pending + num_packets; ++i) {
+		rxd = &rxq->sw_desc[i & rxq->ptr_mask];
+
+		rxd->flags = flags;
+	}
+
+	/*
+	 * If scatter is disabled, number of packets is equal to
+	 * number of Rx descriptors.
+	 */
+	rxq->pending += num_packets;
+
+done:
+	return B_FALSE;
+}
+
+static boolean_t
 sfc_ev_dp_rx_packets(void *arg, __rte_unused uint32_t label,
 		     unsigned int num_packets, __rte_unused uint32_t flags)
 {
@@ -499,7 +533,7 @@ static const efx_ev_callbacks_t sfc_ev_callbacks = {
 static const efx_ev_callbacks_t sfc_ev_callbacks_efx_rx = {
 	.eec_initialized	= sfc_ev_initialized,
 	.eec_rx			= sfc_ev_efx_rx,
-	.eec_rx_packets		= sfc_ev_nop_rx_packets,
+	.eec_rx_packets		= sfc_ev_efx_rx_packets,
 	.eec_rx_ps		= sfc_ev_nop_rx_ps,
 	.eec_tx			= sfc_ev_nop_tx,
 	.eec_tx_ndescs		= sfc_ev_nop_tx_ndescs,
