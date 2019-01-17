@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright (c) 2012-2018 Solarflare Communications Inc.
+ * Copyright (c) 2012-2019 Solarflare Communications Inc.
  * All rights reserved.
  */
 
@@ -1064,15 +1064,11 @@ ef10_get_datapath_caps(
 	    (MCDI_OUT_DWORD((_req), GET_CAPABILITIES_V2_OUT_FLAGS2) &	\
 	    (1u << (MC_CMD_GET_CAPABILITIES_V2_OUT_ ## _flag ## _LBN))))
 
-	/*
-	 * Huntington RXDP firmware inserts a 0 or 14 byte prefix.
-	 * We only support the 14 byte prefix here.
-	 */
-	if (CAP_FLAGS1(req, RX_PREFIX_LEN_14) == 0) {
-		rc = ENOTSUP;
-		goto fail4;
-	}
-	encp->enc_rx_prefix_size = 14;
+	/* Check if RXDP firmware inserts 14 byte prefix */
+	if (CAP_FLAGS1(req, RX_PREFIX_LEN_14))
+		encp->enc_rx_prefix_size = 14;
+	else
+		encp->enc_rx_prefix_size = 0;
 
 #if EFSYS_OPT_RX_SCALE
 	/* Check if the firmware supports additional RSS modes */
@@ -1339,7 +1335,7 @@ ef10_get_datapath_caps(
 
 		default:
 			rc = EINVAL;
-			goto fail5;
+			goto fail4;
 		}
 
 		/* Port numbers cannot contribute to the hash value */
@@ -1388,11 +1384,9 @@ ef10_get_datapath_caps(
 	return (0);
 
 #if EFSYS_OPT_RX_SCALE
-fail5:
-	EFSYS_PROBE(fail5);
-#endif /* EFSYS_OPT_RX_SCALE */
 fail4:
 	EFSYS_PROBE(fail4);
+#endif /* EFSYS_OPT_RX_SCALE */
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
@@ -1871,6 +1865,15 @@ ef10_nic_board_cfg(
 	if ((rc = ef10_get_datapath_caps(enp)) != 0)
 		goto fail8;
 
+	/*
+	 * Huntington RXDP firmware inserts a 0 or 14 byte prefix.
+	 * We only support the 14 byte prefix here.
+	 */
+	if (encp->enc_rx_prefix_size != 14) {
+		rc = ENOTSUP;
+		goto fail9;
+	}
+
 	/* Alignment for WPTR updates */
 	encp->enc_rx_push_align = EF10_RX_WPTR_ALIGN;
 
@@ -1899,7 +1902,7 @@ ef10_nic_board_cfg(
 	/* Get interrupt vector limits */
 	if ((rc = efx_mcdi_get_vector_cfg(enp, &base, &nvec, NULL)) != 0) {
 		if (EFX_PCI_FUNCTION_IS_PF(encp))
-			goto fail9;
+			goto fail10;
 
 		/* Ignore error (cannot query vector limits from a VF). */
 		base = 0;
@@ -1915,16 +1918,18 @@ ef10_nic_board_cfg(
 	 * can result in time-of-check/time-of-use bugs.
 	 */
 	if ((rc = ef10_get_privilege_mask(enp, &mask)) != 0)
-		goto fail10;
+		goto fail11;
 	encp->enc_privilege_mask = mask;
 
 	/* Get remaining controller-specific board config */
 	if ((rc = enop->eno_board_cfg(enp)) != 0)
 		if (rc != EACCES)
-			goto fail11;
+			goto fail12;
 
 	return (0);
 
+fail12:
+	EFSYS_PROBE(fail12);
 fail11:
 	EFSYS_PROBE(fail11);
 fail10:
