@@ -135,16 +135,11 @@ sfc_ef100_tx_get_event(struct sfc_ef100_txq *txq, efx_qword_t *ev)
 static unsigned int
 sfc_ef100_tx_process_events(struct sfc_ef100_txq *txq)
 {
-	const unsigned int old_evq_read_ptr = txq->evq_read_ptr;
 	unsigned int num_descs = 0;
 	efx_qword_t tx_ev;
 
 	while (sfc_ef100_tx_get_event(txq, &tx_ev))
 		num_descs += EFX_QWORD_FIELD(tx_ev, ESF_GZ_EV_NUM_DESCS);
-
-	if (txq->evq_read_ptr != old_evq_read_ptr)
-		sfc_ef100_evq_prime(txq->evq_prime, txq->evq_hw_index,
-				    txq->evq_read_ptr & txq->ptr_mask);
 
 	return num_descs;
 }
