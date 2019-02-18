@@ -355,7 +355,6 @@ static uint16_t
 sfc_ef100_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_ef100_rxq *rxq = sfc_ef100_rxq_by_dp_rxq(rx_queue);
-	const unsigned int old_evq_read_ptr = rxq->evq_read_ptr;
 	struct rte_mbuf ** const rx_pkts_end = &rx_pkts[nb_pkts];
 	efx_qword_t rx_ev;
 
@@ -370,10 +369,6 @@ sfc_ef100_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		rx_pkts = sfc_ef100_rx_process_ready_pkts(rxq, rx_pkts,
 							  rx_pkts_end);
 	}
-
-	if (rxq->evq_read_ptr != old_evq_read_ptr)
-		sfc_ef100_evq_prime(rxq->evq_prime, rxq->evq_hw_index,
-				    rxq->evq_read_ptr & rxq->ptr_mask);
 
 	/* It is not a problem if we refill in the case of exception */
 	sfc_ef100_rx_qrefill(rxq);
