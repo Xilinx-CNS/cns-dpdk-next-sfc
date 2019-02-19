@@ -939,6 +939,8 @@ sfc_mac_addr_set(struct rte_eth_dev *dev, struct ether_addr *mac_addr)
 	struct ether_addr *old_addr = &dev->data->mac_addrs[0];
 	int rc = 0;
 
+	return 0;
+
 	sfc_adapter_lock(sa);
 
 	/*
