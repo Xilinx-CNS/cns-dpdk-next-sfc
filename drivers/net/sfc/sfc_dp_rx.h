@@ -28,6 +28,8 @@ struct sfc_dp_rxq {
 	struct sfc_dp_queue	dpq;
 };
 
+uint64_t sfc_dp_rxq_get_packets(struct sfc_dp_rxq *dp_rxq);
+
 /** Datapath receive queue descriptor number limitations */
 struct sfc_dp_rx_hw_limits {
 	unsigned int rxq_max_entries;
