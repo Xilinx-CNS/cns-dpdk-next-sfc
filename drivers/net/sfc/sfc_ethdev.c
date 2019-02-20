@@ -509,6 +509,7 @@ sfc_tx_queue_release(void *queue)
 	sfc_adapter_unlock(sa);
 }
 
+#if 0
 /*
  * Some statistics are computed as A - B where A and B each increase
  * monotonically with some hardware counter(s) and the counters are read
@@ -531,6 +532,7 @@ sfc_update_diff_stat(uint64_t *stat, uint64_t newval)
 	if ((int64_t)(newval - *stat) > 0 || newval == 0)
 		*stat = newval;
 }
+#endif
 
 static int
 sfc_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
@@ -595,12 +597,23 @@ sfc_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 			mac_stats[EFX_MAC_RX_JABBER_PKTS];
 		/* no oerrors counters supported on EF10 */
 
+#if 0
 		/* Exclude missed, errors and pauses from Rx packets */
 		sfc_update_diff_stat(&port->ipackets,
 			mac_stats[EFX_MAC_RX_PKTS] -
 			mac_stats[EFX_MAC_RX_PAUSE_PKTS] -
 			stats->imissed - stats->ierrors);
 		stats->ipackets = port->ipackets;
+#else
+		{
+			unsigned int q;
+
+			for (q = 0; q < sa->priv.shared->rxq_count; ++q) {
+				stats->ipackets +=
+					sfc_dp_rxq_get_packets(sa->priv.shared->rxq_info[q].dp);
+			}
+		}
+#endif
 	}
 
 unlock:

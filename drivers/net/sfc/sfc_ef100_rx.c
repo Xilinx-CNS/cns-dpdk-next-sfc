@@ -75,6 +75,8 @@ struct sfc_ef100_rxq {
 	unsigned int			evq_hw_index;
 	volatile void			*evq_prime;
 
+	uint64_t			packets;
+
 	/* Used on refill */
 	unsigned int			added;
 	unsigned int			max_fill_level;
@@ -91,6 +93,14 @@ static inline struct sfc_ef100_rxq *
 sfc_ef100_rxq_by_dp_rxq(struct sfc_dp_rxq *dp_rxq)
 {
 	return container_of(dp_rxq, struct sfc_ef100_rxq, dp);
+}
+
+uint64_t
+sfc_dp_rxq_get_packets(struct sfc_dp_rxq *dp_rxq)
+{
+	struct sfc_ef100_rxq *rxq = sfc_ef100_rxq_by_dp_rxq(dp_rxq);
+
+	return rxq->packets;
 }
 
 static void
@@ -580,6 +590,7 @@ sfc_ef100_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 	struct sfc_ef100_rxq *rxq = sfc_ef100_rxq_by_dp_rxq(rx_queue);
 	struct rte_mbuf ** const rx_pkts_end = &rx_pkts[nb_pkts];
 	efx_qword_t rx_ev;
+	unsigned int num;
 
 	rx_pkts = sfc_ef100_rx_process_ready_pkts(rxq, rx_pkts, rx_pkts_end);
 
@@ -601,7 +612,9 @@ sfc_ef100_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		sfc_ef100_rx_qprime(rxq);
 
 done:
-	return nb_pkts - (rx_pkts_end - rx_pkts);
+	num = nb_pkts - (rx_pkts_end - rx_pkts);
+	rxq->packets += num;
+	return num;
 }
 
 static const uint32_t *
