@@ -34,8 +34,13 @@ extern "C" {
 
 #define EFSYS_HAS_UINT64 1
 #define EFSYS_USE_UINT64 1
+#ifdef __SSE2__
 #define EFSYS_HAS_UINT128 1
 typedef __m128i efsys_uint128_t;
+#elif defined(__SIZEOF_INT128__)
+#define EFSYS_HAS_UINT128 1
+typedef __uint128_t efsys_uint128_t;
+#endif
 
 #if RTE_BYTE_ORDER == RTE_BIG_ENDIAN
 #define EFSYS_IS_BIG_ENDIAN 1
@@ -260,6 +265,8 @@ typedef struct efsys_mem_s {
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
 
+#if EFSYS_HAS_UINT128
+
 #define EFSYS_MEM_READO(_esmp, _offset, _eop)				\
 	do {								\
 		volatile uint8_t *_base = (_esmp)->esm_base;		\
@@ -280,6 +287,31 @@ typedef struct efsys_mem_s {
 									\
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
+
+#else
+
+#define EFSYS_MEM_READO(_esmp, _offset, _eop)				\
+	do {								\
+		volatile uint8_t *_base = (_esmp)->esm_base;		\
+		volatile uint64_t *_addr;				\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		SFC_ASSERT(IS_P2ALIGNED(_offset, sizeof(efx_oword_t)));	\
+									\
+		_addr = (volatile uint64_t *)(_base + (_offset));	\
+		(_eop)->eq_u64[0] = _addr[0];				\
+		(_eop)->eq_u64[1] = _addr[1];				\
+									\
+		EFSYS_PROBE5(mem_reado, unsigned int, (_offset),	\
+					 uint32_t, (_eop)->eo_u32[3],	\
+					 uint32_t, (_eop)->eo_u32[2],	\
+					 uint32_t, (_eop)->eo_u32[1],	\
+					 uint32_t, (_eop)->eo_u32[0]);	\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+	} while (B_FALSE)
+
+#endif
 
 
 #define EFSYS_MEM_WRITED(_esmp, _offset, _edp)				\
@@ -319,6 +351,8 @@ typedef struct efsys_mem_s {
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
 
+#if EFSYS_HAS_UINT128
+
 #define EFSYS_MEM_WRITEO(_esmp, _offset, _eop)				\
 	do {								\
 		volatile uint8_t *_base = (_esmp)->esm_base;		\
@@ -341,6 +375,31 @@ typedef struct efsys_mem_s {
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
 
+#else
+
+#define EFSYS_MEM_WRITEO(_esmp, _offset, _eop)				\
+	do {								\
+		volatile uint8_t *_base = (_esmp)->esm_base;		\
+		volatile uint64_t *_addr;				\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		SFC_ASSERT(IS_P2ALIGNED(_offset, sizeof(efx_oword_t)));	\
+									\
+									\
+		EFSYS_PROBE5(mem_writeo, unsigned int, (_offset),	\
+					 uint32_t, (_eop)->eo_u32[3],	\
+					 uint32_t, (_eop)->eo_u32[2],	\
+					 uint32_t, (_eop)->eo_u32[1],	\
+					 uint32_t, (_eop)->eo_u32[0]);	\
+									\
+		_addr = (volatile uint64_t *)(_base + (_offset));	\
+		_addr[0] = (_eop)->eq_u64[0];				\
+		_addr[1] = (_eop)->eq_u64[1];				\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+	} while (B_FALSE)
+
+#endif
 
 #define	EFSYS_MEM_SIZE(_esmp)						\
 	((_esmp)->esm_mz->len)
@@ -433,6 +492,8 @@ typedef struct efsys_bar_s {
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
 
+#if EFSYS_HAS_UINT128
+
 #define EFSYS_BAR_READO(_esbp, _offset, _eop, _lock)			\
 	do {								\
 		volatile uint8_t *_base = (_esbp)->esb_base;		\
@@ -463,6 +524,38 @@ typedef struct efsys_bar_s {
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
 
+#else
+
+#define EFSYS_BAR_READO(_esbp, _offset, _eop, _lock)			\
+	do {								\
+		volatile uint8_t *_base = (_esbp)->esb_base;		\
+		volatile uint64_t *_addr;				\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		SFC_ASSERT(IS_P2ALIGNED(_offset, sizeof(efx_oword_t)));	\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		if (_lock)						\
+			SFC_BAR_LOCK(_esbp);				\
+									\
+		_addr = (volatile uint64_t *)(_base + (_offset));	\
+		rte_rmb();						\
+		(_eop)->eq_u64[0] = rte_read64_relaxed(_addr);		\
+		(_eop)->eq_u64[1] = rte_read64_relaxed(_addr + 1);	\
+									\
+		EFSYS_PROBE5(bar_reado, unsigned int, (_offset),	\
+					 uint32_t, (_eop)->eo_u32[3],	\
+					 uint32_t, (_eop)->eo_u32[2],	\
+					 uint32_t, (_eop)->eo_u32[1],	\
+					 uint32_t, (_eop)->eo_u32[0]);	\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		if (_lock)						\
+			SFC_BAR_UNLOCK(_esbp);				\
+		_NOTE(CONSTANTCONDITION);				\
+	} while (B_FALSE)
+
+#endif
 
 #define EFSYS_BAR_WRITED(_esbp, _offset, _edp, _lock)			\
 	do {								\
@@ -525,6 +618,8 @@ typedef struct efsys_bar_s {
 		rte_panic("Write-combined BAR access not supported");	\
 	} while (B_FALSE)
 
+#if EFSYS_HAS_UINT128
+
 #define EFSYS_BAR_WRITEO(_esbp, _offset, _eop, _lock)			\
 	do {								\
 		volatile uint8_t *_base = (_esbp)->esb_base;		\
@@ -554,6 +649,39 @@ typedef struct efsys_bar_s {
 			SFC_BAR_UNLOCK(_esbp);				\
 		_NOTE(CONSTANTCONDITION);				\
 	} while (B_FALSE)
+
+#else
+
+#define EFSYS_BAR_WRITEO(_esbp, _offset, _eop, _lock)			\
+	do {								\
+		volatile uint8_t *_base = (_esbp)->esb_base;		\
+		volatile uint64_t *_addr;				\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		SFC_ASSERT(IS_P2ALIGNED(_offset, sizeof(efx_oword_t)));	\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		if (_lock)						\
+			SFC_BAR_LOCK(_esbp);				\
+									\
+		EFSYS_PROBE5(bar_writeo, unsigned int, (_offset),	\
+					 uint32_t, (_eop)->eo_u32[3],	\
+					 uint32_t, (_eop)->eo_u32[2],	\
+					 uint32_t, (_eop)->eo_u32[1],	\
+					 uint32_t, (_eop)->eo_u32[0]);	\
+									\
+		_addr = (volatile uint64_t *)(_base + (_offset));	\
+		rte_write64_relaxed((_eop)->eo_u64[0], _addr);		\
+		rte_write64_relaxed((_eop)->eo_u64[1], _addr + 1);	\
+		rte_wmb();						\
+									\
+		_NOTE(CONSTANTCONDITION);				\
+		if (_lock)						\
+			SFC_BAR_UNLOCK(_esbp);				\
+		_NOTE(CONSTANTCONDITION);				\
+	} while (B_FALSE)
+
+#endif
 
 /* Use the standard octo-word write for doorbell writes */
 #define EFSYS_BAR_DOORBELL_WRITEO(_esbp, _offset, _eop)			\
