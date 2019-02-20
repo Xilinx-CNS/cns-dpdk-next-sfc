@@ -20,6 +20,10 @@ extern "C" {
 
 #define SFC_EF10_EV_QCLEAR_MASK		(~(SFC_EF10_EV_PER_CACHE_LINE - 1))
 
+#if !EFSYS_HAS_SSE2_M128
+#define SFC_EF10_EV_QCLEAR_USE_EFX
+#endif
+
 #if defined(SFC_EF10_EV_QCLEAR_USE_EFX)
 static inline void
 sfc_ef10_ev_qclear_cache_line(void *ptr)

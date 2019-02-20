@@ -38,7 +38,6 @@ flags_common_default = [
 	#	['RTE_ARM64_MEMCPY_STRICT_ALIGN', false],
 
 	['RTE_LIBRTE_FM10K_PMD', false],
-	['RTE_LIBRTE_SFC_EFX_PMD', false],
 	['RTE_LIBRTE_AVP_PMD', false],
 
 	['RTE_SCHED_VECTOR', false],
