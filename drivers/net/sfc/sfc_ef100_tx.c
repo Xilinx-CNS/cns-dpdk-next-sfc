@@ -71,6 +71,7 @@ struct sfc_ef100_txq {
 	struct sfc_ef100_tx_sw_desc	*sw_ring;
 	efx_oword_t			*txq_hw_ring;
 	volatile void			*doorbell;
+	uint64_t			packets;
 
 	/* Completion/reap */
 	unsigned int			evq_read_ptr;
@@ -376,7 +377,9 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		sfc_ef100_tx_reap(txq);
 #endif
 
-	return pktp - &tx_pkts[0];
+	nb_pkts = pktp - &tx_pkts[0];
+	txq->packets += nb_pkts;
+	return nb_pkts;
 }
 
 static sfc_dp_tx_get_dev_info_t sfc_ef100_get_dev_info;
@@ -508,6 +511,9 @@ sfc_ef100_tx_qstop(struct sfc_dp_txq *dp_txq, unsigned int *evq_read_ptr)
 	txq->flags |= SFC_EF100_TXQ_NOT_RUNNING;
 
 	*evq_read_ptr = txq->evq_read_ptr;
+	if (txq->evq_read_ptr != 0)
+		printf("Tx packets per event %f\n",
+		       (double)txq->packets / txq->evq_read_ptr);
 }
 
 static sfc_dp_tx_qtx_ev_t sfc_ef100_tx_qtx_ev;
