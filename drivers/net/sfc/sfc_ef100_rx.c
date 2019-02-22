@@ -575,7 +575,9 @@ sfc_ef100_rx_qstop(struct sfc_dp_rxq *dp_rxq, unsigned int *evq_read_ptr)
 	rxq->flags |= SFC_EF100_RXQ_NOT_RUNNING;
 
 	*evq_read_ptr = rxq->evq_read_ptr;
-	printf("EvQ read %u\n", rxq->evq_read_ptr);
+	if (rxq->evq_read_ptr != 0)
+		printf("Packets per event %f\n",
+		       (double)rxq->packets / rxq->evq_read_ptr);
 }
 
 static sfc_dp_rx_qrx_ev_t sfc_ef100_rx_qrx_ev;
