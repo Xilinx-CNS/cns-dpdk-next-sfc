@@ -13,6 +13,8 @@
 #include <rte_io.h>
 #include <rte_ip.h>
 #include <rte_tcp.h>
+#include <rte_udp.h>
+#include <rte_net.h>
 
 #include "efx.h"
 #include "efx_types.h"
@@ -106,6 +108,12 @@ sfc_ef100_tx_prepare_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		if (m->nb_segs > EFX_MASK32(ESF_GZ_TX_SEND_NUM_SEGS)) {
 			rte_errno = EINVAL;
+			break;
+		}
+
+		ret = rte_net_intel_cksum_prepare(m);
+		if (unlikely(ret != 0)) {
+			rte_errno = -ret;
 			break;
 		}
 	}
@@ -216,13 +224,35 @@ sfc_ef100_tx_reap(struct sfc_ef100_txq *txq)
 
 static void
 sfc_ef100_tx_qdesc_send_create(rte_iova_t addr, uint16_t len, uint16_t num_segs,
+			       uint64_t l4_cksum_flag, size_t l4_offset,
 			       efx_oword_t *tx_desc)
 {
-	EFX_POPULATE_OWORD_4(*tx_desc,
+	uint8_t partial_en;
+	uint16_t partial_cksum;
+
+	switch (l4_cksum_flag) {
+	case PKT_TX_UDP_CKSUM:
+		partial_en = 1;
+		partial_cksum = offsetof(struct udp_hdr, dgram_cksum);
+		break;
+	case PKT_TX_TCP_CKSUM:
+		partial_en = 1;
+		partial_cksum = offsetof(struct tcp_hdr, cksum);
+		break;
+	default:
+		partial_en = 0;
+		partial_cksum = 0;
+		break;
+	}
+
+	EFX_POPULATE_OWORD_7(*tx_desc,
 			     ESF_GZ_TX_SEND_TYPE, ESE_GZ_TX_SEND_DESC,
 			     ESF_GZ_TX_SEND_BUF_ADDR, addr,
 			     ESF_GZ_TX_SEND_LEN, len,
-			     ESF_GZ_TX_SEND_NUM_SEGS, num_segs);
+			     ESF_GZ_TX_SEND_NUM_SEGS, num_segs,
+			     ESF_GZ_TX_SEND_CSO_PARTIAL_START, l4_offset,
+			     ESF_GZ_TX_SEND_CSO_PARTIAL_CSUM, partial_cksum,
+			     ESF_GZ_TX_SEND_CSO_PARTIAL_EN, partial_en);
 }
 
 static void
@@ -341,6 +371,8 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		sfc_ef100_tx_qdesc_send_create(rte_mbuf_data_iova(m_seg),
 					       rte_pktmbuf_data_len(m_seg),
 					       m_seg->nb_segs,
+					       m_seg->ol_flags & PKT_TX_L4_MASK,
+					       m_seg->l2_len + m_seg->l3_len,
 					       &txq->txq_hw_ring[id]);
 
 		/*
@@ -599,7 +631,9 @@ struct sfc_dp_tx sfc_ef100_tx = {
 	},
 	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS,
 	.dev_offload_capa	= 0,
-	.queue_offload_capa	= DEV_TX_OFFLOAD_MULTI_SEGS,
+	.queue_offload_capa	= DEV_TX_OFFLOAD_UDP_CKSUM |
+				  DEV_TX_OFFLOAD_TCP_CKSUM |
+				  DEV_TX_OFFLOAD_MULTI_SEGS,
 	.get_dev_info		= sfc_ef100_get_dev_info,
 	.qsize_up_rings		= sfc_ef100_tx_qsize_up_rings,
 	.qcreate		= sfc_ef100_tx_qcreate,
