@@ -206,6 +206,7 @@ sfc_ef100_rx_prefix_to_offloads(const efx_oword_t *rx_prefix,
 
 	l2_ptype = RTE_PTYPE_L2_ETHER;
 
+#if 0
 	if (EFX_TEST_OWORD_BIT(rx_prefix[0], ESF_GZ_RSS_HSH_VALID_LBN)) {
 		ol_flags |= PKT_RX_RSS_HASH;
 		/* EFX_OWORD_FIELD converts little-endian to CPU */
@@ -218,6 +219,7 @@ sfc_ef100_rx_prefix_to_offloads(const efx_oword_t *rx_prefix,
 		m->hash.fdir.hi =
 			EFX_OWORD_FIELD(rx_prefix[0], ESF_GZ_USR_MARK);
 	}
+#endif
 
 	SFC_ASSERT(l2_ptype != 0);
 

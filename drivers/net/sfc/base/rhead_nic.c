@@ -104,8 +104,12 @@ rhead_board_cfg(
 	/* No required alignment for WPTR updates */
 	encp->enc_rx_push_align = 1;
 
+#if 0
 	/* Riverhead supports a single Rx prefix size. */
 	encp->enc_rx_prefix_size = 22;
+#else
+	encp->enc_rx_prefix_size = 4;
+#endif
 
 	/* Alignment for receive packet DMA buffers. */
 	encp->enc_rx_buf_align_start = 1;
