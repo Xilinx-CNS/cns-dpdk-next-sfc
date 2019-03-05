@@ -119,9 +119,9 @@ struct fwd_stream {
 	unsigned int retry_enabled;
 
 	/* "read-write" results */
-	unsigned int rx_packets;  /**< received packets */
-	unsigned int tx_packets;  /**< received packets transmitted */
-	unsigned int fwd_dropped; /**< received packets not forwarded */
+	uint64_t rx_packets;  /**< received packets */
+	uint64_t tx_packets;  /**< received packets transmitted */
+	uint64_t fwd_dropped; /**< received packets not forwarded */
 	unsigned int rx_bad_ip_csum ; /**< received packets has bad ip checksum */
 	unsigned int rx_bad_l4_csum ; /**< received packets has bad l4 checksum */
 	unsigned int rx_bad_outer_l4_csum;
