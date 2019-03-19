@@ -169,9 +169,16 @@ rhead_nic_probe(
 	const efx_nic_ops_t *enop = enp->en_enop;
 	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
 	efx_drv_cfg_t *edcp = &(enp->en_drv_cfg);
+	efx_dword_t hw_rev_id;
+	efx_dword_t nic_rev_id;
 	efx_rc_t rc;
 
 	EFSYS_ASSERT(EFX_FAMILY_IS_EF100(enp));
+
+	EFX_BAR_FCW_READD(enp, ER_GZ_HW_REV_ID_REG, &hw_rev_id);
+	EFX_BAR_FCW_READD(enp, ER_GZ_NIC_REV_ID, &nic_rev_id);
+	printf("HW revision: %#x, NIC revision: %#x\n",
+	       hw_rev_id.ed_u32[0], nic_rev_id.ed_u32[0]);
 
 	/* Read and clear any assertion state */
 	if ((rc = efx_mcdi_read_assertion(enp)) != 0)
