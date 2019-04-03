@@ -1295,6 +1295,7 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_ev_desc_size;
 	uint32_t		enc_rx_desc_size;
 	uint32_t		enc_tx_desc_size;
+	/* Maximum Rx prefix size if many Rx prefixes are supported */
 	uint32_t		enc_rx_prefix_size;
 	uint32_t		enc_rx_buf_align_start;
 	uint32_t		enc_rx_buf_align_end;
@@ -2559,6 +2560,11 @@ efx_rxq_nbufs(
 	__in	unsigned int ndescs);
 
 #define	EFX_RXQ_LIMIT(_ndescs)		((_ndescs) - 16)
+
+extern	__checkReturn	efx_rc_t
+efx_rx_prefix_get_layout(
+	__in		const efx_rxq_t *erp,
+	__out		efx_rx_prefix_layout_t *erplp);
 
 typedef enum efx_rxq_type_e {
 	EFX_RXQ_TYPE_DEFAULT,
