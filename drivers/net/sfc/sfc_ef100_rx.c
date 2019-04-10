@@ -26,6 +26,7 @@
 #include "sfc_kvargs.h"
 #include "sfc_ef100.h"
 
+#define SFC_EF100_RX_BUG85943 1
 
 #define sfc_ef100_rx_err(_rxq, ...) \
 	SFC_DP_LOG(SFC_KVARG_DATAPATH_EF100, ERR, &(_rxq)->dp.dpq, __VA_ARGS__)
@@ -214,6 +215,32 @@ sfc_ef100_rx_class_decode(const efx_word_t class, uint64_t *ol_flags)
 	default:
 		ptype = RTE_PTYPE_L2_ETHER_QINQ;
 		break;
+	}
+
+	if (SFC_EF100_RX_BUG85943) {
+		/* See Solarflare Bug 85943 comment #9 for details */
+		SFC_ASSERT(EFX_WORD_FIELD(class,
+					  ESF_GZ_RX_PREFIX_TUNNEL_CLASS) == 0);
+		SFC_ASSERT(EFX_WORD_FIELD(class,
+				ESF_GZ_RX_PREFIX_NT_OR_INNER_L3_CLASS) ==
+			   ESE_GZ_L3_CLASS_OTHER);
+		/*
+		 * We're mainly interested in L4 checksum offload here.
+		 * So, report offloads if IPv4 or IPv6 is detected and
+		 * TCP or UDP is detected (i.e. both TUN_OUTER_L3_CLASS
+		 * bits are set (== ESE_GZ_L4_CLASS_OTHER)).
+		 */
+		if (EFX_WORD_FIELD(class,
+				   ESF_GZ_RX_PREFIX_TUN_OUTER_L3_CLASS) ==
+		    ESE_GZ_L4_CLASS_OTHER) {
+			/*
+			 * We have indication that it is either IPv4 or
+			 * IPv6 and L3 valid flag is set for IPv6 as
+			 * well, so we can't provide IPv4 checksum offload.
+			 */
+			*ol_flags |= sfc_ef100_rx_nt_or_inner_l4_csum(class);
+		}
+		return ptype;
 	}
 
 	switch (EFX_WORD_FIELD(class, ESF_GZ_RX_PREFIX_TUNNEL_CLASS)) {
@@ -556,6 +583,14 @@ sfc_ef100_supported_ptypes_get(__rte_unused uint32_t tunnel_encaps)
 		RTE_PTYPE_INNER_L4_FRAG,
 		RTE_PTYPE_UNKNOWN
 	};
+	static const uint32_t ef100_r1_native_ptypes[] = {
+		RTE_PTYPE_L2_ETHER,
+		RTE_PTYPE_L2_ETHER_VLAN,
+		RTE_PTYPE_UNKNOWN
+	};
+
+	if (SFC_EF100_RX_BUG85943)
+		return ef100_r1_native_ptypes;
 
 	return ef100_native_ptypes;
 }
@@ -775,9 +810,14 @@ struct sfc_dp_rx sfc_ef100_rx = {
 		.hw_fw_caps	= SFC_DP_HW_FW_CAP_EF100,
 	},
 	.features		= SFC_DP_RX_FEAT_MULTI_PROCESS,
+#if SFC_EF100_RX_BUG85943
+	.dev_offload_capa	= DEV_RX_OFFLOAD_UDP_CKSUM |
+				  DEV_RX_OFFLOAD_TCP_CKSUM,
+#else
 	.dev_offload_capa	= DEV_RX_OFFLOAD_CHECKSUM |
 				  DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM |
 				  DEV_RX_OFFLOAD_OUTER_UDP_CKSUM,
+#endif
 	.queue_offload_capa	= DEV_RX_OFFLOAD_SCATTER,
 	.get_dev_info		= sfc_ef100_rx_get_dev_info,
 	.qsize_up_rings		= sfc_ef100_rx_qsize_up_rings,
