@@ -700,7 +700,12 @@ struct rte_mbuf {
 			uint64_t tso_segsz:RTE_MBUF_TSO_SEGSZ_BITS;
 			/**< TCP TSO segment size */
 
-			/* fields for TX offloading of tunnels */
+			/*
+			 * Fields for Tx offloading of tunnels.
+			 * These fields must be equal to zero in the case
+			 * when (ol_flags & PKT_TX_TUNNEL_MASK) == 0,
+			 * i.e. for all non-tunnel packets.
+			 */
 			uint64_t outer_l3_len:RTE_MBUF_OUTL3_LEN_BITS;
 			/**< Outer L3 (IP) Hdr Length. */
 			uint64_t outer_l2_len:RTE_MBUF_OUTL2_LEN_BITS;
@@ -2372,6 +2377,11 @@ rte_validate_tx_offload(const struct rte_mbuf *m)
 	/* PKT_TX_OUTER_IP_CKSUM set for non outer IPv4 packet. */
 	if ((ol_flags & PKT_TX_OUTER_IP_CKSUM) &&
 			!(ol_flags & PKT_TX_OUTER_IPV4))
+		return -EINVAL;
+
+	/* Outer L2/L3 offsets must be equal to zero for non-tunnel packets. */
+	if ((ol_flags & PKT_TX_TUNNEL_MASK) == 0 &&
+	    m->outer_l2_len + m->outer_l3_len != 0)
 		return -EINVAL;
 
 	return 0;
