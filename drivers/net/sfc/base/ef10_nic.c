@@ -2016,6 +2016,27 @@ ef10_nic_board_cfg(
 	 */
 	encp->enc_tx_tso_tcp_header_offset_limit = EF10_TCP_HEADER_OFFSET_LIMIT;
 
+	/* EF10 TSO engine demands that packet header be contiguous. */
+	encp->enc_tx_tso_max_header_ndescs = 1;
+
+	/* The overall TSO header length is not limited. */
+	encp->enc_tx_tso_max_header_length = -1;
+
+	/*
+	 * There are no specific limitations on the number of
+	 * TSO payload descriptors.
+	 */
+	encp->enc_tx_tso_max_payload_ndescs = -1;
+
+	/* TSO superframe payload length is not limited. */
+	encp->enc_tx_tso_max_payload_length = -1;
+
+	/*
+	 * Limitation on the maximum number of outgoing packets per
+	 * TSO transaction described in SF-108452-SW.
+	 */
+	encp->enc_tx_tso_max_nframes = 32767;
+
 	/*
 	 * Set resource limits for MC_CMD_ALLOC_VIS. Note that we cannot use
 	 * MC_CMD_GET_RESOURCE_LIMITS here as that reports the available
