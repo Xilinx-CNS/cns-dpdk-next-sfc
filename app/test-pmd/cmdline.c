@@ -1513,19 +1513,19 @@ parse_and_check_speed_duplex(char *speedstr, char *duplexstr, uint32_t *speed)
 			return -1;
 		}
 		if (!strcmp(speedstr, "1000")) {
-			*speed = RTE_ETH_LINK_SPEED_1G;
+			*speed = RTE_ETH_LINK_SPEED_1G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "10000")) {
-			*speed = RTE_ETH_LINK_SPEED_10G;
+			*speed = RTE_ETH_LINK_SPEED_10G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "25000")) {
-			*speed = RTE_ETH_LINK_SPEED_25G;
+			*speed = RTE_ETH_LINK_SPEED_25G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "40000")) {
-			*speed = RTE_ETH_LINK_SPEED_40G;
+			*speed = RTE_ETH_LINK_SPEED_40G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "50000")) {
-			*speed = RTE_ETH_LINK_SPEED_50G;
+			*speed = RTE_ETH_LINK_SPEED_50G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "100000")) {
-			*speed = RTE_ETH_LINK_SPEED_100G;
+			*speed = RTE_ETH_LINK_SPEED_100G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "200000")) {
-			*speed = RTE_ETH_LINK_SPEED_200G;
+			*speed = RTE_ETH_LINK_SPEED_200G | RTE_ETH_LINK_SPEED_FIXED;
 		} else if (!strcmp(speedstr, "auto")) {
 			*speed = RTE_ETH_LINK_SPEED_AUTONEG;
 		} else {
