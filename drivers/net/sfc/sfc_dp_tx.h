@@ -206,14 +206,37 @@ sfc_dp_tx_offload_capa(const struct sfc_dp_tx *dp_tx)
 	return dp_tx->dev_offload_capa | dp_tx->queue_offload_capa;
 }
 
+static inline unsigned int
+sfc_dp_tx_pkt_extra_hdr_segs(struct rte_mbuf **m_seg,
+			     unsigned int *header_len_remaining)
+{
+	unsigned int nb_extra_header_segs = 0;
+
+	while (rte_pktmbuf_data_len(*m_seg) < *header_len_remaining) {
+		*header_len_remaining -= rte_pktmbuf_data_len(*m_seg);
+		*m_seg = (*m_seg)->next;
+		++nb_extra_header_segs;
+	}
+
+	return nb_extra_header_segs;
+}
+
 static inline int
 sfc_dp_tx_prepare_pkt(struct rte_mbuf *m,
+			   unsigned int max_nb_header_segs,
+			   unsigned int tso_bounce_buffer_len,
 			   uint32_t tso_tcp_header_offset_limit,
 			   unsigned int max_fill_level,
 			   unsigned int nb_tso_descs,
 			   unsigned int nb_vlan_descs)
 {
 	unsigned int descs_required = m->nb_segs;
+	unsigned int tcph_off = m->outer_l2_len + m->outer_l3_len +
+				m->l2_len + m->l3_len;
+	unsigned int header_len = tcph_off + m->l4_len;
+	unsigned int header_len_remaining = header_len;
+	unsigned int nb_header_segs = 1;
+	struct rte_mbuf *m_seg = m;
 
 #ifdef RTE_LIBRTE_SFC_EFX_DEBUG
 	int ret;
@@ -229,10 +252,29 @@ sfc_dp_tx_prepare_pkt(struct rte_mbuf *m,
 	}
 #endif
 
-	if (m->ol_flags & PKT_TX_TCP_SEG) {
-		unsigned int tcph_off = m->l2_len + m->l3_len;
-		unsigned int header_len;
+	if (max_nb_header_segs != 0) {
+		/* There is a limit on the number of header segments. */
 
+		nb_header_segs +=
+		    sfc_dp_tx_pkt_extra_hdr_segs(&m_seg,
+						 &header_len_remaining);
+
+		if (unlikely(nb_header_segs > max_nb_header_segs)) {
+			/*
+			 * The number of header segments is too large.
+			 *
+			 * If TSO is requested and if the datapath supports
+			 * linearisation of TSO headers, allow the packet
+			 * to proceed with additional checks below.
+			 * Otherwise, throw an error.
+			 */
+			if ((m->ol_flags & PKT_TX_TCP_SEG) == 0 ||
+			    tso_bounce_buffer_len == 0)
+				return EINVAL;
+		}
+	}
+
+	if (m->ol_flags & PKT_TX_TCP_SEG) {
 		switch (m->ol_flags & PKT_TX_TUNNEL_MASK) {
 		case 0:
 			break;
@@ -242,30 +284,33 @@ sfc_dp_tx_prepare_pkt(struct rte_mbuf *m,
 			if (!(m->ol_flags &
 			      (PKT_TX_OUTER_IPV4 | PKT_TX_OUTER_IPV6)))
 				return EINVAL;
-
-			tcph_off += m->outer_l2_len + m->outer_l3_len;
 		}
-
-		header_len = tcph_off + m->l4_len;
 
 		if (unlikely(tcph_off > tso_tcp_header_offset_limit))
 			return EINVAL;
 
 		descs_required += nb_tso_descs;
 
+		nb_header_segs +=
+		    sfc_dp_tx_pkt_extra_hdr_segs(&m_seg,
+						 &header_len_remaining);
+
 		/*
-		 * Extra descriptor that is required when a packet header
-		 * is separated from remaining content of the first segment.
+		 * Extra descriptor which is required when (a part of) payload
+		 * shares the same segment with (a part of) the header.
 		 */
-		if (rte_pktmbuf_data_len(m) > header_len) {
+		if (rte_pktmbuf_data_len(m_seg) > header_len_remaining)
 			descs_required++;
-		} else if (rte_pktmbuf_data_len(m) < header_len &&
-			 unlikely(header_len > SFC_TSOH_STD_LEN)) {
-			/*
-			 * Header linearization is required and
-			 * the header is too big to be linearized
-			 */
-			return EINVAL;
+
+		if (tso_bounce_buffer_len != 0) {
+			if (nb_header_segs > 1 &&
+			    unlikely(header_len > tso_bounce_buffer_len)) {
+				/*
+				 * Header linearization is required and
+				 * the header is too big to be linearized
+				 */
+				return EINVAL;
+			}
 		}
 	}
 
