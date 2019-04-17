@@ -35,6 +35,14 @@
 		   __VA_ARGS__)
 
 
+/**
+ * Offload mask which is used to enforce contiguous header
+ * for packets which request certain offloads.
+ */
+#define SFC_EF100_TX_MBUF_OL_MASK (	\
+		PKT_TX_IP_CKSUM |	\
+		PKT_TX_L4_MASK)
+
 /** Maximum length of the send descriptor data */
 #define SFC_EF100_TX_SEND_DESC_LEN_MAX \
 	((1u << ESF_GZ_TX_SEND_LEN_WIDTH) - 1)
@@ -98,9 +106,22 @@ sfc_ef100_tx_prepare_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 	for (i = 0; i < nb_pkts; i++) {
 		struct rte_mbuf *m = tx_pkts[i];
+		unsigned int max_nb_header_segs;
 		int ret;
 
-		ret = sfc_dp_tx_prepare_pkt(m, 0, txq->max_fill_level, 0, 0);
+		/*
+		 * All offload processing here demands that packet header be
+		 * contiguous. However, rte_net_intel_cksum_prepare() checks
+		 * this internally in debug builds only. Conduct an explicit
+		 * check in sfc_dp_tx_prepare_pkt().
+		 */
+		if (m->ol_flags & SFC_EF100_TX_MBUF_OL_MASK)
+			max_nb_header_segs = 1;
+		else
+			max_nb_header_segs = 0;
+
+		ret = sfc_dp_tx_prepare_pkt(m, max_nb_header_segs, 0,
+					    0, txq->max_fill_level, 0, 0);
 		if (unlikely(ret != 0)) {
 			rte_errno = ret;
 			break;
