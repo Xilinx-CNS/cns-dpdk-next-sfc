@@ -40,6 +40,7 @@
  * for packets which request certain offloads.
  */
 #define SFC_EF100_TX_MBUF_OL_MASK (	\
+		PKT_TX_OUTER_IP_CKSUM |	\
 		PKT_TX_IP_CKSUM |	\
 		PKT_TX_L4_MASK)
 
@@ -138,14 +139,29 @@ sfc_ef100_tx_prepare_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 			break;
 		}
 
+		if ((m->ol_flags &
+		     (PKT_TX_OUTER_IPV4 | PKT_TX_OUTER_IP_CKSUM)) ==
+		    (PKT_TX_OUTER_IPV4 | PKT_TX_OUTER_IP_CKSUM)) {
+			struct rte_ipv4_hdr *outer_iph;
+
+			SFC_ASSERT(rte_pktmbuf_data_len(m) >=
+				   m->outer_l2_len + m->outer_l3_len);
+			outer_iph = rte_pktmbuf_mtod_offset(m,
+					struct rte_ipv4_hdr *, m->outer_l2_len);
+			outer_iph->hdr_checksum = 0;
+			outer_iph->hdr_checksum = rte_ipv4_cksum(outer_iph);
+		}
+
 		if ((m->ol_flags & (PKT_TX_IPV4 | PKT_TX_IP_CKSUM)) ==
 		    (PKT_TX_IPV4 | PKT_TX_IP_CKSUM)) {
 			struct rte_ipv4_hdr *iph;
+			uint16_t l3_off = m->l2_len +
+				((m->ol_flags & PKT_TX_TUNNEL_MASK) ?
+				 m->outer_l2_len + m->outer_l3_len : 0);
 
-			SFC_ASSERT(rte_pktmbuf_data_len(m) >=
-				   m->l2_len + m->l3_len);
+			SFC_ASSERT(rte_pktmbuf_data_len(m) >= l3_off);
 			iph = rte_pktmbuf_mtod_offset(m, struct rte_ipv4_hdr *,
-						      m->l2_len);
+						      l3_off);
 			/*
 			 * hdr_checksum is already set to 0 in
 			 * rte_net_intel_cksum_prepare()
@@ -408,6 +424,8 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 			rte_pktmbuf_data_len(m_seg),
 			m_seg->nb_segs,
 			m_seg->ol_flags & PKT_TX_L4_MASK,
+			((m_seg->ol_flags & PKT_TX_TUNNEL_MASK) ?
+			 m_seg->outer_l2_len + m_seg->outer_l3_len : 0) +
 			m_seg->l2_len + m_seg->l3_len,
 			&txq->txq_hw_ring[id]);
 
@@ -668,6 +686,7 @@ struct sfc_dp_tx sfc_ef100_tx = {
 	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS,
 	.dev_offload_capa	= 0,
 	.queue_offload_capa	= DEV_TX_OFFLOAD_IPV4_CKSUM |
+				  DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
 				  DEV_TX_OFFLOAD_UDP_CKSUM |
 				  DEV_TX_OFFLOAD_TCP_CKSUM |
 				  DEV_TX_OFFLOAD_MULTI_SEGS,
