@@ -70,6 +70,17 @@ struct sfc_dp_tx_qcreate_info {
 	 * the hardware to apply TSO packet edits.
 	 */
 	uint16_t		tso_tcp_header_offset_limit;
+	/** Maximum header length acceptable by TSOv3 transaction */
+	uint16_t		tso_max_header_len;
+	/**
+	 * Maximum number of payload DMA descriptors per
+	 * TSOv3 transaction
+	 */
+	uint16_t		tso_max_nb_payload_descs;
+	/** Maximum payload length per TSOv3 transaction */
+	uint32_t		tso_max_payload_len;
+	/** Maximum number of frames to be generated per TSOv3 transaction */
+	uint32_t		tso_max_nb_outgoing_frames;
 };
 
 /**
