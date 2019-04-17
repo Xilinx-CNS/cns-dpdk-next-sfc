@@ -109,10 +109,24 @@ static int
 sfc_ef100_tx_prepare_pkt_tso(struct sfc_ef100_txq * const txq,
 			     struct rte_mbuf *m)
 {
-	size_t header_len = m->l2_len + m->l3_len + m->l4_len;
+	size_t header_len = m->outer_l2_len + m->outer_l3_len +
+			    m->l2_len + m->l3_len + m->l4_len;
 	size_t payload_len = m->pkt_len - header_len;
 	unsigned long mss_conformant_max_payload_len;
 	unsigned int nb_payload_descs;
+
+#ifdef RTE_LIBRTE_SFC_EFX_DEBUG
+	switch (m->ol_flags & PKT_TX_TUNNEL_MASK) {
+	case 0:
+		/* FALLTHROUGH */
+	case PKT_TX_TUNNEL_VXLAN:
+		/* FALLTHROUGH */
+	case PKT_TX_TUNNEL_GENEVE:
+		break;
+	default:
+		return ENOTSUP;
+	}
+#endif
 
 	mss_conformant_max_payload_len =
 		m->tso_segsz * txq->tso_max_nb_outgoing_frames;
@@ -201,6 +215,33 @@ sfc_ef100_tx_prepare_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 							    m->outer_l2_len);
 			outer_iph->hdr_checksum = 0;
 			outer_iph->hdr_checksum = rte_ipv4_cksum(outer_iph);
+		}
+
+		if ((m->ol_flags & PKT_TX_TUNNEL_MASK) &&
+		    (m->ol_flags & PKT_TX_TCP_SEG)) {
+			struct udp_hdr *udph;
+
+			/*
+			 * UDP header access is legitimate since only
+			 * VXLAN and Geneve support is available, and
+			 * other tunnel types have already been ruled
+			 * out above, in sfc_ef100_tx_prepare_pkt_tso().
+			 */
+			SFC_ASSERT(rte_pktmbuf_data_len(m) >=
+				   m->outer_l2_len + m->outer_l3_len +
+				   sizeof(*udph));
+			udph = rte_pktmbuf_mtod_offset(m, struct udp_hdr *,
+						       m->outer_l2_len +
+						       m->outer_l3_len);
+
+			/*
+			 * Outer UDP checksum offload is unsupported.
+			 * According to RFC 7348, RFC 6935 and Geneve draft,
+			 * it's acceptable to set this field to zero.
+			 */
+			SFC_ASSERT((m->ol_flags &
+				    PKT_TX_OUTER_UDP_CKSUM) == 0);
+			udph->dgram_cksum = 0;
 		}
 
 		if ((m->ol_flags & (PKT_TX_IPV4 | PKT_TX_IP_CKSUM)) ==
@@ -371,11 +412,16 @@ sfc_ef100_tx_qdesc_seg_create(rte_iova_t addr, uint16_t len,
 
 static void
 sfc_ef100_tx_qdesc_tso_create(size_t tcph_off, size_t iph_off,
+			      size_t outer_udph_off, size_t outer_iph_off,
 			      size_t payload_len, size_t header_len,
 			      uint16_t nb_payload_descs, uint16_t tcp_mss,
 			      efx_oword_t *tx_desc)
 {
 	efx_oword_t tx_desc_extra_fields;
+	int ed_outer_udp_len = (outer_udph_off != 0) ? 1 : 0;
+	int ed_outer_ip_len = (outer_iph_off != 0) ? 1 : 0;
+	int ed_outer_ip_id = (outer_iph_off != 0) ?
+		ESE_GZ_TX_TSO_ED_IP4_ID_INC_MOD16 : 0;
 	int ed_inner_ip_id = ESE_GZ_TX_TSO_ED_IP4_ID_INC_MOD16;
 
 	EFX_POPULATE_OWORD_10(*tx_desc,
@@ -383,14 +429,19 @@ sfc_ef100_tx_qdesc_tso_create(size_t tcph_off, size_t iph_off,
 			      ESF_GZ_TX_TSO_CSO_INNER_L4, 1,
 			      ESF_GZ_TX_TSO_INNER_L4_OFF_W, tcph_off >> 1,
 			      ESF_GZ_TX_TSO_INNER_L3_OFF_W, iph_off >> 1,
+			      ESF_GZ_TX_TSO_OUTER_L4_OFF_W, outer_udph_off >> 1,
+			      ESF_GZ_TX_TSO_OUTER_L3_OFF_W, outer_iph_off >> 1,
 			      ESF_GZ_TX_TSO_PAYLOAD_LEN, payload_len,
 			      ESF_GZ_TX_TSO_HDR_LEN_W, header_len >> 1,
-			      ESF_GZ_TX_TSO_ED_INNER_IP_LEN, 1,
-			      ESF_GZ_TX_TSO_ED_INNER_IP4_ID, ed_inner_ip_id,
-			      ESF_GZ_TX_TSO_PAYLOAD_NUM_SEGS, nb_payload_descs,
-			      ESF_GZ_TX_TSO_HDR_NUM_SEGS, 1);
+			      ESF_GZ_TX_TSO_ED_OUTER_UDP_LEN, ed_outer_udp_len,
+			      ESF_GZ_TX_TSO_ED_INNER_IP_LEN, 1);
 
-	EFX_POPULATE_OWORD_1(tx_desc_extra_fields,
+	EFX_POPULATE_OWORD_6(tx_desc_extra_fields,
+			     ESF_GZ_TX_TSO_ED_OUTER_IP_LEN, ed_outer_ip_len,
+			     ESF_GZ_TX_TSO_ED_INNER_IP4_ID, ed_inner_ip_id,
+			     ESF_GZ_TX_TSO_ED_OUTER_IP4_ID, ed_outer_ip_id,
+			     ESF_GZ_TX_TSO_PAYLOAD_NUM_SEGS, nb_payload_descs,
+			     ESF_GZ_TX_TSO_HDR_NUM_SEGS, 1,
 			     ESF_GZ_TX_TSO_MSS, tcp_mss);
 
 	(*tx_desc).eo_u64[0] |= tx_desc_extra_fields.eo_u64[0];
@@ -462,7 +513,9 @@ static void
 sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 		       struct rte_mbuf *m, unsigned int *added)
 {
-	size_t iph_off = m->l2_len;
+	size_t outer_iph_off = m->outer_l2_len;
+	size_t outer_udph_off = outer_iph_off + m->outer_l3_len;
+	size_t iph_off = outer_udph_off + m->l2_len;
 	size_t tcph_off = iph_off + m->l3_len;
 	size_t header_len = tcph_off + m->l4_len;
 	unsigned int nb_payload_descs = m->nb_segs;
@@ -476,6 +529,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 
 	id = (*added)++ & txq->ptr_mask;
 	sfc_ef100_tx_qdesc_tso_create(tcph_off, iph_off,
+				      outer_udph_off, outer_iph_off,
 				      rte_pktmbuf_pkt_len(m) - header_len,
 				      header_len, nb_payload_descs,
 				      m->tso_segsz, &txq->txq_hw_ring[id]);
@@ -830,7 +884,9 @@ struct sfc_dp_tx sfc_ef100_tx = {
 				  DEV_TX_OFFLOAD_UDP_CKSUM |
 				  DEV_TX_OFFLOAD_TCP_CKSUM |
 				  DEV_TX_OFFLOAD_MULTI_SEGS |
-				  DEV_TX_OFFLOAD_TCP_TSO,
+				  DEV_TX_OFFLOAD_TCP_TSO |
+				  DEV_TX_OFFLOAD_VXLAN_TNL_TSO |
+				  DEV_TX_OFFLOAD_GENEVE_TNL_TSO,
 	.get_dev_info		= sfc_ef100_get_dev_info,
 	.qsize_up_rings		= sfc_ef100_tx_qsize_up_rings,
 	.qcreate		= sfc_ef100_tx_qcreate,
