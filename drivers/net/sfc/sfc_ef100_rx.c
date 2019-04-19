@@ -57,6 +57,8 @@ struct sfc_ef100_rxq {
 #define SFC_EF100_RXQ_STARTED		0x1
 #define SFC_EF100_RXQ_NOT_RUNNING	0x2
 #define SFC_EF100_RXQ_EXCEPTION		0x4
+#define SFC_EF100_RXQ_RSS_HASH		0x10
+#define SFC_EF100_RXQ_USER_MARK		0x20
 	unsigned int			ptr_mask;
 	unsigned int			evq_phase_bit_shift;
 	unsigned int			ready_pkts;
@@ -363,8 +365,30 @@ sfc_ef100_rx_class_decode(const efx_word_t class, uint64_t *ol_flags)
 	return ptype;
 }
 
+/*
+ * Below function relies on the following fields in Rx prefix.
+ * Some fields are mandatory, some fields are optional.
+ * See sfc_ef100_rx_qstart() below.
+ */
+static const efx_rx_prefix_layout_t sfc_ef100_rx_prefix_layout = {
+	.erpl_fields	= {
+#define	SFC_EF100_RX_PREFIX_FIELD(_name, _big_endian) \
+	EFX_RX_PREFIX_FIELD(_name, ESF_GZ_ ## _name, _big_endian)
+
+		SFC_EF100_RX_PREFIX_FIELD(LENGTH, B_FALSE),
+		SFC_EF100_RX_PREFIX_FIELD(RSS_HASH_VALID, B_FALSE),
+		SFC_EF100_RX_PREFIX_FIELD(USER_FLAG, B_FALSE),
+		SFC_EF100_RX_PREFIX_FIELD(CLASS, B_FALSE),
+		SFC_EF100_RX_PREFIX_FIELD(RSS_HASH, B_FALSE),
+		SFC_EF100_RX_PREFIX_FIELD(USER_MARK, B_FALSE),
+
+#undef	SFC_EF100_RX_PREFIX_FIELD
+	}
+};
+
 static void
-sfc_ef100_rx_prefix_to_offloads(const efx_oword_t *rx_prefix,
+sfc_ef100_rx_prefix_to_offloads(const struct sfc_ef100_rxq *rxq,
+				const efx_oword_t *rx_prefix,
 				struct rte_mbuf *m)
 {
 	const efx_word_t *class;
@@ -382,13 +406,15 @@ sfc_ef100_rx_prefix_to_offloads(const efx_oword_t *rx_prefix,
 
 	packet_type = sfc_ef100_rx_class_decode(*class, &ol_flags);
 
-	if (EFX_TEST_OWORD_BIT(rx_prefix[0], ESF_GZ_RSS_HASH_VALID_LBN)) {
+	if ((rxq->flags & SFC_EF100_RXQ_RSS_HASH) &&
+	    EFX_TEST_OWORD_BIT(rx_prefix[0], ESF_GZ_RSS_HASH_VALID_LBN)) {
 		ol_flags |= PKT_RX_RSS_HASH;
 		/* EFX_OWORD_FIELD converts little-endian to CPU */
 		m->hash.rss = EFX_OWORD_FIELD(rx_prefix[0], ESF_GZ_RSS_HASH);
 	}
 
-	if (EFX_TEST_OWORD_BIT(rx_prefix[0], ESF_GZ_USER_FLAG_LBN)) {
+	if ((rxq->flags & SFC_EF100_RXQ_USER_MARK) &&
+	    EFX_TEST_OWORD_BIT(rx_prefix[0], ESF_GZ_USER_FLAG_LBN)) {
 		ol_flags |= PKT_RX_FDIR_ID;
 		/* EFX_OWORD_FIELD converts little-endian to CPU */
 		m->hash.fdir.hi =
@@ -480,7 +506,7 @@ sfc_ef100_rx_process_ready_pkts(struct sfc_ef100_rxq *rxq,
 		seg_len = RTE_MIN(pkt_len, rxq->buf_size - rxq->prefix_size);
 		rte_pktmbuf_data_len(pkt) = seg_len;
 
-		sfc_ef100_rx_prefix_to_offloads(rx_prefix, pkt);
+		sfc_ef100_rx_prefix_to_offloads(rxq, rx_prefix, pkt);
 
 		while ((pkt_len -= seg_len) > 0) {
 			seg = sfc_ef100_rx_next_mbuf(rxq);
@@ -704,8 +730,6 @@ sfc_ef100_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 	rxq->evq_hw_ring = info->evq_hw_ring;
 	rxq->max_fill_level = info->max_fill_level;
 	rxq->refill_threshold = info->refill_threshold;
-	rxq->rearm_data =
-		sfc_ef100_mk_mbuf_rearm_data(port_id, info->prefix_size);
 	rxq->prefix_size = info->prefix_size;
 	rxq->buf_size = info->buf_size;
 	rxq->refill_mb_pool = info->refill_mb_pool;
@@ -739,12 +763,46 @@ sfc_ef100_rx_qdestroy(struct sfc_dp_rxq *dp_rxq)
 
 static sfc_dp_rx_qstart_t sfc_ef100_rx_qstart;
 static int
-sfc_ef100_rx_qstart(struct sfc_dp_rxq *dp_rxq, unsigned int evq_read_ptr)
+sfc_ef100_rx_qstart(struct sfc_dp_rxq *dp_rxq, unsigned int evq_read_ptr,
+		    const efx_rx_prefix_layout_t *pinfo)
 {
 	struct sfc_ef100_rxq *rxq = sfc_ef100_rxq_by_dp_rxq(dp_rxq);
+	uint32_t unsup_rx_prefix_fields;
 
 	SFC_ASSERT(rxq->completed == 0);
 	SFC_ASSERT(rxq->added == 0);
+
+	unsup_rx_prefix_fields =
+		efx_rx_prefix_layout_check(pinfo, &sfc_ef100_rx_prefix_layout);
+
+	/*
+	 * Prefix must be less or equal to the maximum space we have
+	 * reserved in Rx buffer.
+	 * LENGTH and CLASS fields are used unconditionally and must present.
+	 */
+	if (pinfo->erpl_length > rxq->prefix_size ||
+	    (unsup_rx_prefix_fields &
+	     ((1U << EFX_RX_PREFIX_FIELD_LENGTH) |
+	      (1U << EFX_RX_PREFIX_FIELD_CLASS))) != 0)
+		return ENOTSUP;
+
+	if ((unsup_rx_prefix_fields &
+	     ((1U << EFX_RX_PREFIX_FIELD_RSS_HASH_VALID) |
+	      (1U << EFX_RX_PREFIX_FIELD_RSS_HASH))) == 0)
+		rxq->flags |= SFC_EF100_RXQ_RSS_HASH;
+	else
+		rxq->flags &= ~SFC_EF100_RXQ_RSS_HASH;
+
+	if ((unsup_rx_prefix_fields &
+	     ((1U << EFX_RX_PREFIX_FIELD_USER_FLAG) |
+	      (1U << EFX_RX_PREFIX_FIELD_USER_MARK))) == 0)
+		rxq->flags |= SFC_EF100_RXQ_USER_MARK;
+	else
+		rxq->flags &= ~SFC_EF100_RXQ_USER_MARK;
+
+	rxq->prefix_size = pinfo->erpl_length;
+	rxq->rearm_data = sfc_ef100_mk_mbuf_rearm_data(rxq->dp.dpq.port_id,
+						       rxq->prefix_size);
 
 	sfc_ef100_rx_qrefill(rxq);
 
