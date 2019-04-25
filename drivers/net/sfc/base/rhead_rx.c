@@ -280,13 +280,15 @@ rhead_rx_qcreate(
 	__in		efx_rxq_t *erp)
 {
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_mcdi_init_rxq_params_t params;
 	efx_rc_t rc;
-	boolean_t disable_scatter;
 
 	_NOTE(ARGUNUSED(id))
 
 	EFX_STATIC_ASSERT(EFX_EV_RX_NLABELS <= (1 << ESF_GZ_EV_Q_LABEL_WIDTH));
 	EFSYS_ASSERT3U(label, <, EFX_EV_RX_NLABELS);
+
+	memset(&params, 0, sizeof (params));
 
 	switch (type) {
 	case EFX_RXQ_TYPE_DEFAULT:
@@ -294,7 +296,7 @@ rhead_rx_qcreate(
 			rc = EINVAL;
 			goto fail1;
 		}
-		erp->er_buf_size = type_data->ertd_default.ed_buf_size;
+		params.buf_size = type_data->ertd_default.ed_buf_size;
 		break;
 	default:
 		rc = ENOTSUP;
@@ -303,9 +305,9 @@ rhead_rx_qcreate(
 
 	/* Scatter can only be disabled if the firmware supports doing so */
 	if (flags & EFX_RXQ_FLAG_SCATTER)
-		disable_scatter = B_FALSE;
+		params.disable_scatter = B_FALSE;
 	else
-		disable_scatter = encp->enc_rx_disable_scatter_supported;
+		params.disable_scatter = encp->enc_rx_disable_scatter_supported;
 
 	/*
 	 * Ignore EFX_RXQ_FLAG_INNER_CLASSES since in accordance with
@@ -314,12 +316,12 @@ rhead_rx_qcreate(
 	 */
 
 	if ((rc = efx_mcdi_init_rxq(enp, ndescs, eep, label, index,
-		    esmp, disable_scatter, B_FALSE, erp->er_buf_size,
-		    0, 0, 0, 0, 0)) != 0)
+		    esmp, &params)) != 0)
 		goto fail3;
 
 	erp->er_eep = eep;
 	erp->er_label = label;
+	erp->er_buf_size = params.buf_size;
 	erp->er_prefix_layout = rhead_default_rx_prefix_layout;
 
 	return (0);
