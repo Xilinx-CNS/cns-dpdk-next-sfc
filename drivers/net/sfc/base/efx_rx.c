@@ -1784,3 +1784,25 @@ siena_rx_fini(
 }
 
 #endif /* EFSYS_OPT_SIENA */
+
+	__checkReturn	uint32_t
+efx_rx_prefix_layout_check(
+	__in		const efx_rx_prefix_layout_t *available,
+	__in		const efx_rx_prefix_layout_t *used)
+{
+	uint32_t result = 0;
+	unsigned int i;
+
+	for (i = 0; i < EFX_RX_PREFIX_NFIELDS; ++i) {
+		if (used->erpl_fields[i].erpfi_width_bits > 0 &&
+		    (available->erpl_fields[i].erpfi_offset_bits !=
+		     used->erpl_fields[i].erpfi_offset_bits ||
+		     available->erpl_fields[i].erpfi_width_bits !=
+		     used->erpl_fields[i].erpfi_width_bits ||
+		     available->erpl_fields[i].erpfi_big_endian !=
+		     used->erpl_fields[i].erpfi_big_endian))
+			result |= (1U << i);
+	}
+
+	return (result);
+}
