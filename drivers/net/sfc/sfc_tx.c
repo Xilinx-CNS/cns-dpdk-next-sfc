@@ -43,8 +43,10 @@ sfc_tx_get_offload_mask(struct sfc_adapter *sa)
 	if (!encp->enc_hw_tx_insert_vlan_enabled)
 		no_caps |= DEV_TX_OFFLOAD_VLAN_INSERT;
 
+#if 0
 	if (!encp->enc_tunnel_encapsulations_supported)
 		no_caps |= DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM;
+#endif
 
 	if (!sa->tso)
 		no_caps |= DEV_TX_OFFLOAD_TCP_TSO;
