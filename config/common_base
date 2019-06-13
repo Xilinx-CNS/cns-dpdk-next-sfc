@@ -387,8 +387,14 @@ CONFIG_RTE_LIBRTE_QEDE_FW=""
 #
 # Compile burst-oriented Solarflare libefx-based PMD
 #
-CONFIG_RTE_LIBRTE_SFC_EFX_PMD=y
+CONFIG_RTE_LIBRTE_SFC_EFX_PMD=n
 CONFIG_RTE_LIBRTE_SFC_EFX_DEBUG=n
+
+#
+# Compile Solarflare libefx-based VDPA PMD
+#
+CONFIG_RTE_LIBRTE_SFC_VDPA_PMD=y
+CONFIG_RTE_LIBRTE_SFC_VDPA_DEBUG=n
 
 #
 # Compile software PMD backed by SZEDATA2 device
