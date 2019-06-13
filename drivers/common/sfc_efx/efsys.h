@@ -34,7 +34,8 @@ extern "C" {
 
 #define EFSYS_HAS_UINT64 1
 #define EFSYS_USE_UINT64 1
-#define EFSYS_HAS_SSE2_M128 1
+#define EFSYS_HAS_UINT128 1
+typedef __m128i efsys_uint128_t;
 
 #if RTE_BYTE_ORDER == RTE_BIG_ENDIAN
 #define EFSYS_IS_BIG_ENDIAN 1
@@ -267,13 +268,13 @@ typedef struct efsys_mem_s {
 #define EFSYS_MEM_READO(_esmp, _offset, _eop)				\
 	do {								\
 		volatile uint8_t *_base = (_esmp)->esm_base;		\
-		volatile __m128i *_addr;				\
+		volatile efsys_uint128_t *_addr;			\
 									\
 		_NOTE(CONSTANTCONDITION);				\
 		SFC_EFX_ASSERT(EFX_IS_P2ALIGNED(size_t, _offset,	\
 						sizeof(efx_oword_t)));	\
 									\
-		_addr = (volatile __m128i *)(_base + (_offset));	\
+		_addr = (volatile efsys_uint128_t *)(_base + (_offset));\
 		(_eop)->eo_u128[0] = _addr[0];				\
 									\
 		EFSYS_PROBE5(mem_reado, unsigned int, (_offset),	\
@@ -326,7 +327,7 @@ typedef struct efsys_mem_s {
 #define EFSYS_MEM_WRITEO(_esmp, _offset, _eop)				\
 	do {								\
 		volatile uint8_t *_base = (_esmp)->esm_base;		\
-		volatile __m128i *_addr;				\
+		volatile efsys_uint128_t *_addr;			\
 									\
 		_NOTE(CONSTANTCONDITION);				\
 		SFC_EFX_ASSERT(EFX_IS_P2ALIGNED(size_t, _offset,	\
@@ -339,7 +340,7 @@ typedef struct efsys_mem_s {
 					 uint32_t, (_eop)->eo_u32[1],	\
 					 uint32_t, (_eop)->eo_u32[0]);	\
 									\
-		_addr = (volatile __m128i *)(_base + (_offset));	\
+		_addr = (volatile efsys_uint128_t *)(_base + (_offset));\
 		_addr[0] = (_eop)->eo_u128[0];				\
 									\
 		_NOTE(CONSTANTCONDITION);				\
@@ -440,7 +441,7 @@ typedef struct efsys_bar_s {
 #define EFSYS_BAR_READO(_esbp, _offset, _eop, _lock)			\
 	do {								\
 		volatile uint8_t *_base = (_esbp)->esb_base;		\
-		volatile __m128i *_addr;				\
+		volatile efsys_uint128_t *_addr;			\
 									\
 		_NOTE(CONSTANTCONDITION);				\
 		SFC_EFX_ASSERT(EFX_IS_P2ALIGNED(size_t, _offset,	\
@@ -450,7 +451,7 @@ typedef struct efsys_bar_s {
 		if (_lock)						\
 			SFC_BAR_LOCK(_esbp);				\
 									\
-		_addr = (volatile __m128i *)(_base + (_offset));	\
+		_addr = (volatile efsys_uint128_t *)(_base + (_offset));\
 		rte_rmb();						\
 		/* There is no rte_read128_relaxed() yet */		\
 		(_eop)->eo_u128[0] = _addr[0];				\
@@ -532,7 +533,7 @@ typedef struct efsys_bar_s {
 #define EFSYS_BAR_WRITEO(_esbp, _offset, _eop, _lock)			\
 	do {								\
 		volatile uint8_t *_base = (_esbp)->esb_base;		\
-		volatile __m128i *_addr;				\
+		volatile efsys_uint128_t *_addr;			\
 									\
 		_NOTE(CONSTANTCONDITION);				\
 		SFC_EFX_ASSERT(EFX_IS_P2ALIGNED(size_t, _offset,	\
@@ -548,7 +549,7 @@ typedef struct efsys_bar_s {
 					 uint32_t, (_eop)->eo_u32[1],	\
 					 uint32_t, (_eop)->eo_u32[0]);	\
 									\
-		_addr = (volatile __m128i *)(_base + (_offset));	\
+		_addr = (volatile efsys_uint128_t *)(_base + (_offset));\
 		/* There is no rte_write128_relaxed() yet */		\
 		_addr[0] = (_eop)->eo_u128[0];				\
 		rte_wmb();						\
