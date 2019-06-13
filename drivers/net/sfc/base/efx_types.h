@@ -208,8 +208,8 @@ typedef union efx_oword_u {
 	efx_word_t eo_word[8];
 	efx_dword_t eo_dword[4];
 	efx_qword_t eo_qword[2];
-#if EFSYS_HAS_SSE2_M128
-	__m128i eo_u128[1];
+#if EFSYS_HAS_UINT128
+	efsys_uint128_t eo_u128[1];
 #endif
 #if EFSYS_HAS_UINT64
 	uint64_t eo_u64[2];
