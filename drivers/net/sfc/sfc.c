@@ -726,6 +726,10 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_nic_reset;
 
+	rc = sfc_sriov_attach(sa);
+	if (rc != 0)
+		goto fail_sriov_attach;
+
 	/*
 	 * Probed NIC is sufficient for tunnel init.
 	 * Initialize tunnel support to be able to use libefx
@@ -831,7 +835,9 @@ fail_intr_attach:
 fail_estimate_rsrc_limits:
 fail_tunnel_init:
 	efx_tunnel_fini(sa->nic);
+	sfc_sriov_detach(sa);
 
+fail_sriov_attach:
 fail_nic_reset:
 
 	sfc_log_init(sa, "failed %d", rc);
@@ -853,6 +859,7 @@ sfc_detach(struct sfc_adapter *sa)
 	sfc_ev_detach(sa);
 	sfc_intr_detach(sa);
 	efx_tunnel_fini(sa->nic);
+	sfc_sriov_detach(sa);
 
 	sa->state = SFC_ADAPTER_UNINITIALIZED;
 }
