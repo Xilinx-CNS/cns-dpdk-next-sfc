@@ -22,6 +22,7 @@
 #include "efx.h"
 
 #include "sfc_filter.h"
+#include "sfc_sriov.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -238,6 +239,7 @@ struct sfc_adapter {
 	rte_atomic32_t			restart_required;
 
 	struct sfc_mcdi			mcdi;
+	struct sfc_sriov		sriov;
 	struct sfc_intr			intr;
 	struct sfc_port			port;
 	struct sfc_filter		filter;
