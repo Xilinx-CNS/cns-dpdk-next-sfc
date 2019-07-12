@@ -25,12 +25,12 @@
 /* Log PMD message, automatically add prefix and \n */
 #define sfc_panic(sa, fmt, args...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
-		rte_panic("sfc " PCI_PRI_FMT " #%" PRIu8 ": " fmt "\n",	\
+		rte_panic("sfc " PCI_PRI_FMT ": " fmt "\n",		\
 			  _sa->pci_addr.domain, _sa->pci_addr.bus,	\
 			  _sa->pci_addr.devid, _sa->pci_addr.function,	\
-			  _sa->port_id, ##args);			\
+			  ##args);					\
 	} while (0)
 
 #endif /* _SFC_DEBUG_H_ */

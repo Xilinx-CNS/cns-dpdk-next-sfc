@@ -832,6 +832,7 @@ struct efx_rxq_s {
 	size_t				er_buf_size;
 	efsys_mem_t			*er_esmp;
 	efx_evq_rxq_state_t		*er_ev_qstate;
+	efx_rx_prefix_layout_t		er_prefix_layout;
 };
 
 #define	EFX_RXQ_MAGIC	0x15022005
@@ -1303,6 +1304,18 @@ efx_mcdi_fini_evq(
 	__in		efx_nic_t *enp,
 	__in		uint32_t instance);
 
+typedef struct efx_mcdi_init_rxq_params_s {
+	boolean_t	disable_scatter;
+	boolean_t	want_inner_classes;
+	uint32_t	buf_size;
+	uint32_t	ps_buf_size;
+	uint32_t	es_bufs_per_desc;
+	uint32_t	es_max_dma_len;
+	uint32_t	es_buf_stride;
+	uint32_t	hol_block_timeout;
+	uint32_t	prefix_id;
+} efx_mcdi_init_rxq_params_t;
+
 extern	__checkReturn	efx_rc_t
 efx_mcdi_init_rxq(
 	__in		efx_nic_t *enp,
@@ -1311,14 +1324,7 @@ efx_mcdi_init_rxq(
 	__in		uint32_t label,
 	__in		uint32_t instance,
 	__in		efsys_mem_t *esmp,
-	__in		boolean_t disable_scatter,
-	__in		boolean_t want_inner_classes,
-	__in		uint32_t buf_size,
-	__in		uint32_t ps_bufsize,
-	__in		uint32_t es_bufs_per_desc,
-	__in		uint32_t es_max_dma_len,
-	__in		uint32_t es_buf_stride,
-	__in		uint32_t hol_block_timeout);
+	__in		const efx_mcdi_init_rxq_params_t *params);
 
 extern	__checkReturn	efx_rc_t
 efx_mcdi_fini_rxq(

@@ -549,8 +549,8 @@ fail1:
 #if EFX_OPTS_EF10()
 
 /*
- * EF10 RX pseudo-header
- * ---------------------
+ * EF10 RX pseudo-header (aka Rx prefix)
+ * -------------------------------------
  *
  * Receive packets are prefixed by an (optional) 14 byte pseudo-header:
  *
@@ -566,7 +566,77 @@ fail1:
  *       (32bit little-endian)
  *
  * See "The RX Pseudo-header" in SF-109306-TC.
+ *
+ * EF10 does not support Rx prefix choice using MC_CMD_GET_RX_PREFIX_ID
+ * and query its layout using MC_CMD_QUERY_RX_PREFIX_ID.
  */
+static const efx_rx_prefix_layout_t ef10_default_rx_prefix_layout = {
+	.erpl_id	= 0,
+	.erpl_length	= 14,
+	.erpl_fields	= {
+		[EFX_RX_PREFIX_FIELD_RSS_HASH]			=
+		    { 0,  32, B_FALSE },
+		[EFX_RX_PREFIX_FIELD_VLAN_STRIP_TCI]		=
+		    { 32, 16, B_TRUE },
+		[EFX_RX_PREFIX_FIELD_INNER_VLAN_STRIP_TCI]	=
+		    { 48, 16, B_TRUE },
+		[EFX_RX_PREFIX_FIELD_LENGTH]			=
+		    { 64, 16, B_FALSE },
+		[EFX_RX_PREFIX_FIELD_PARTIAL_TSTAMP]		=
+		    { 80, 32, B_FALSE },
+	}
+};
+
+#if EFSYS_OPT_RX_PACKED_STREAM
+
+/*
+ * EF10 packed stream Rx prefix layout.
+ *
+ * See SF-112241-TC Full speed capture for Huntington and Medford section 4.5.
+ */
+static const efx_rx_prefix_layout_t ef10_packed_stream_rx_prefix_layout = {
+	.erpl_id	= 0,
+	.erpl_length	= 8,
+	.erpl_fields	= {
+#define	EF10_PS_RX_PREFIX_FIELD(_efx, _ef10) \
+	EFX_RX_PREFIX_FIELD(_efx, ES_DZ_PS_RX_PREFIX_ ## _ef10, B_FALSE)
+
+		EF10_PS_RX_PREFIX_FIELD(PARTIAL_TSTAMP, TSTAMP),
+		EF10_PS_RX_PREFIX_FIELD(LENGTH, CAP_LEN),
+		EF10_PS_RX_PREFIX_FIELD(ORIG_LENGTH, ORIG_LEN),
+
+#undef	EF10_PS_RX_PREFIX_FIELD
+	}
+};
+
+#endif /* EFSYS_OPT_RX_PACKED_STREAM */
+
+#if EFSYS_OPT_RX_ES_SUPER_BUFFER
+
+/*
+ * EF10 equal stride super-buffer Rx prefix layout.
+ *
+ * See SF-119419-TC DPDK Firmware Driver Interface section 3.4.
+ */
+static const efx_rx_prefix_layout_t ef10_essb_rx_prefix_layout = {
+	.erpl_id	= 0,
+	.erpl_length	= ES_EZ_ESSB_RX_PREFIX_LEN,
+	.erpl_fields	= {
+#define	EF10_ESSB_RX_PREFIX_FIELD(_efx, _ef10) \
+	EFX_RX_PREFIX_FIELD(_efx, ES_EZ_ESSB_RX_PREFIX_ ## _ef10, B_FALSE)
+
+		EF10_ESSB_RX_PREFIX_FIELD(LENGTH, DATA_LEN),
+		EF10_ESSB_RX_PREFIX_FIELD(USER_MARK, MARK),
+		EF10_ESSB_RX_PREFIX_FIELD(RSS_HASH_VALID, HASH_VALID),
+		EF10_ESSB_RX_PREFIX_FIELD(USER_MARK_VALID, MARK_VALID),
+		EF10_ESSB_RX_PREFIX_FIELD(USER_FLAG, MATCH_FLAG),
+		EF10_ESSB_RX_PREFIX_FIELD(RSS_HASH, HASH),
+
+#undef	EF10_ESSB_RX_PREFIX_FIELD
+	}
+};
+
+#endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
 
 	__checkReturn	efx_rc_t
 ef10_rx_prefix_pktlen(
@@ -835,50 +905,49 @@ ef10_rx_qcreate(
 	__in		efx_rxq_t *erp)
 {
 	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
+	efx_mcdi_init_rxq_params_t params;
+	const efx_rx_prefix_layout_t *erpl;
 	efx_rc_t rc;
-	boolean_t disable_scatter;
-	boolean_t want_inner_classes;
-	unsigned int ps_buf_size;
-	uint32_t es_bufs_per_desc = 0;
-	uint32_t es_max_dma_len = 0;
-	uint32_t es_buf_stride = 0;
-	uint32_t hol_block_timeout = 0;
 
 	_NOTE(ARGUNUSED(id, erp))
 
 	EFX_STATIC_ASSERT(EFX_EV_RX_NLABELS == (1 << ESF_DZ_RX_QLABEL_WIDTH));
 	EFSYS_ASSERT3U(label, <, EFX_EV_RX_NLABELS);
 
+	memset(&params, 0, sizeof (params));
+	params.buf_size = erp->er_buf_size;
+
 	switch (type) {
 	case EFX_RXQ_TYPE_DEFAULT:
+		erpl = &ef10_default_rx_prefix_layout;
 		if (type_data == NULL) {
 			rc = EINVAL;
 			goto fail1;
 		}
 		erp->er_buf_size = type_data->ertd_default.ed_buf_size;
-		ps_buf_size = 0;
 		break;
 #if EFSYS_OPT_RX_PACKED_STREAM
 	case EFX_RXQ_TYPE_PACKED_STREAM:
+		erpl = &ef10_packed_stream_rx_prefix_layout;
 		if (type_data == NULL) {
 			rc = EINVAL;
 			goto fail2;
 		}
 		switch (type_data->ertd_packed_stream.eps_buf_size) {
 		case EFX_RXQ_PACKED_STREAM_BUF_SIZE_1M:
-			ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_1M;
+			params.ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_1M;
 			break;
 		case EFX_RXQ_PACKED_STREAM_BUF_SIZE_512K:
-			ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_512K;
+			params.ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_512K;
 			break;
 		case EFX_RXQ_PACKED_STREAM_BUF_SIZE_256K:
-			ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_256K;
+			params.ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_256K;
 			break;
 		case EFX_RXQ_PACKED_STREAM_BUF_SIZE_128K:
-			ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_128K;
+			params.ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_128K;
 			break;
 		case EFX_RXQ_PACKED_STREAM_BUF_SIZE_64K:
-			ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_64K;
+			params.ps_buf_size = MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_64K;
 			break;
 		default:
 			rc = ENOTSUP;
@@ -889,18 +958,18 @@ ef10_rx_qcreate(
 #endif /* EFSYS_OPT_RX_PACKED_STREAM */
 #if EFSYS_OPT_RX_ES_SUPER_BUFFER
 	case EFX_RXQ_TYPE_ES_SUPER_BUFFER:
+		erpl = &ef10_essb_rx_prefix_layout;
 		if (type_data == NULL) {
 			rc = EINVAL;
 			goto fail4;
 		}
-		ps_buf_size = 0;
-		es_bufs_per_desc =
+		params.es_bufs_per_desc =
 		    type_data->ertd_es_super_buffer.eessb_bufs_per_desc;
-		es_max_dma_len =
+		params.es_max_dma_len =
 		    type_data->ertd_es_super_buffer.eessb_max_dma_len;
-		es_buf_stride =
+		params.es_buf_stride =
 		    type_data->ertd_es_super_buffer.eessb_buf_stride;
-		hol_block_timeout =
+		params.hol_block_timeout =
 		    type_data->ertd_es_super_buffer.eessb_hol_block_timeout;
 		break;
 #endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
@@ -910,59 +979,57 @@ ef10_rx_qcreate(
 	}
 
 #if EFSYS_OPT_RX_PACKED_STREAM
-	if (ps_buf_size != 0) {
+	if (params.ps_buf_size != 0) {
 		/* Check if datapath firmware supports packed stream mode */
 		if (encp->enc_rx_packed_stream_supported == B_FALSE) {
 			rc = ENOTSUP;
 			goto fail6;
 		}
 		/* Check if packed stream allows configurable buffer sizes */
-		if ((ps_buf_size != MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_1M) &&
+		if ((params.ps_buf_size != MC_CMD_INIT_RXQ_EXT_IN_PS_BUFF_1M) &&
 		    (encp->enc_rx_var_packed_stream_supported == B_FALSE)) {
 			rc = ENOTSUP;
 			goto fail7;
 		}
 	}
 #else /* EFSYS_OPT_RX_PACKED_STREAM */
-	EFSYS_ASSERT(ps_buf_size == 0);
+	EFSYS_ASSERT(params.ps_buf_size == 0);
 #endif /* EFSYS_OPT_RX_PACKED_STREAM */
 
 #if EFSYS_OPT_RX_ES_SUPER_BUFFER
-	if (es_bufs_per_desc > 0) {
+	if (params.es_bufs_per_desc > 0) {
 		if (encp->enc_rx_es_super_buffer_supported == B_FALSE) {
 			rc = ENOTSUP;
 			goto fail8;
 		}
-		if (!IS_P2ALIGNED(es_max_dma_len,
+		if (!IS_P2ALIGNED(params.es_max_dma_len,
 			    EFX_RX_ES_SUPER_BUFFER_BUF_ALIGNMENT)) {
 			rc = EINVAL;
 			goto fail9;
 		}
-		if (!IS_P2ALIGNED(es_buf_stride,
+		if (!IS_P2ALIGNED(params.es_buf_stride,
 			    EFX_RX_ES_SUPER_BUFFER_BUF_ALIGNMENT)) {
 			rc = EINVAL;
 			goto fail10;
 		}
 	}
 #else /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
-	EFSYS_ASSERT(es_bufs_per_desc == 0);
+	EFSYS_ASSERT(params.es_bufs_per_desc == 0);
 #endif /* EFSYS_OPT_RX_ES_SUPER_BUFFER */
 
 	/* Scatter can only be disabled if the firmware supports doing so */
 	if (flags & EFX_RXQ_FLAG_SCATTER)
-		disable_scatter = B_FALSE;
+		params.disable_scatter = B_FALSE;
 	else
-		disable_scatter = encp->enc_rx_disable_scatter_supported;
+		params.disable_scatter = encp->enc_rx_disable_scatter_supported;
 
 	if (flags & EFX_RXQ_FLAG_INNER_CLASSES)
-		want_inner_classes = B_TRUE;
+		params.want_inner_classes = B_TRUE;
 	else
-		want_inner_classes = B_FALSE;
+		params.want_inner_classes = B_FALSE;
 
 	if ((rc = efx_mcdi_init_rxq(enp, ndescs, eep, label, index,
-		    esmp, disable_scatter, want_inner_classes, erp->er_buf_size,
-		    ps_buf_size, es_bufs_per_desc, es_max_dma_len,
-		    es_buf_stride, hol_block_timeout)) != 0)
+		    esmp, &params)) != 0)
 		goto fail11;
 
 	erp->er_eep = eep;
@@ -971,6 +1038,8 @@ ef10_rx_qcreate(
 	ef10_ev_rxlabel_init(eep, erp, label, type);
 
 	erp->er_ev_qstate = &erp->er_eep->ee_rxq_state[label];
+
+	erp->er_prefix_layout = *erpl;
 
 	return (0);
 

@@ -124,7 +124,6 @@ rhead_board_cfg(
 
 	/* Alignment for receive packet DMA buffers. */
 	encp->enc_rx_buf_align_start = 1;
-
 	/* Get the RX DMA end padding alignment configuration. */
 	if ((rc = efx_mcdi_get_rxdp_config(enp, &end_padding)) != 0) {
 		if (rc != EACCES)
@@ -134,6 +133,9 @@ rhead_board_cfg(
 		end_padding = 128;
 	}
 	encp->enc_rx_buf_align_end = end_padding;
+
+	/* FIXME: It should be extracted from design parameters (Bug 86844) */
+	encp->enc_rx_scatter_max = 7;
 
 	/*
 	 * Riverhead stores a single global copy of VPD, not per-PF as on
@@ -178,7 +180,6 @@ rhead_nic_probe(
 	if ((rc = efx_mcdi_exit_assertion_handler(enp)) != 0)
 		if (rc != EACCES)
 			goto fail2;
-
 	if ((rc = efx_mcdi_drv_attach(enp, B_TRUE)) != 0)
 		goto fail3;
 

@@ -1627,6 +1627,73 @@ extern int fix_lint;
 #define	EFX_AND_QWORD		EFX_AND_QWORD32
 #endif
 
+
+/*
+ * libefx representation of the Rx prefix layout information.
+ *
+ * The information may be used inside libefx to implement Rx prefix fields
+ * accessors and by drivers which process Rx prefix itself.
+ */
+
+/*
+ * All known Rx prefix fields.
+ *
+ * An Rx prefix may have a subset of these fields.
+ */
+typedef enum efx_rx_prefix_field_e {
+	EFX_RX_PREFIX_FIELD_LENGTH = 0,
+	EFX_RX_PREFIX_FIELD_ORIG_LENGTH,
+	EFX_RX_PREFIX_FIELD_CLASS,
+	EFX_RX_PREFIX_FIELD_RSS_HASH,
+	EFX_RX_PREFIX_FIELD_RSS_HASH_VALID,
+	EFX_RX_PREFIX_FIELD_PARTIAL_TSTAMP,
+	EFX_RX_PREFIX_FIELD_VLAN_STRIP_TCI,
+	EFX_RX_PREFIX_FIELD_INNER_VLAN_STRIP_TCI,
+	EFX_RX_PREFIX_FIELD_USER_FLAG,
+	EFX_RX_PREFIX_FIELD_USER_MARK,
+	EFX_RX_PREFIX_FIELD_USER_MARK_VALID,
+	EFX_RX_PREFIX_FIELD_CSUM_FRAME,
+	EFX_RX_PREFIX_FIELD_INGRESS_VPORT,
+	EFX_RX_PREFIX_NFIELDS
+} efx_rx_prefix_field_t;
+
+/*
+ * Location and endianess of a field in Rx prefix.
+ *
+ * If width is zero, the field is not present.
+ */
+typedef struct efx_rx_prefix_field_info_s {
+	uint16_t			erpfi_offset_bits;
+	uint8_t				erpfi_width_bits;
+	//boolean_t			erpfi_big_endian;
+	uint32_t			erpfi_big_endian;
+} efx_rx_prefix_field_info_t;
+
+/* Helper macro to define Rx prefix fields */
+#define	EFX_RX_PREFIX_FIELD(_efx, _field, _big_endian)		\
+	[EFX_RX_PREFIX_FIELD_ ## _efx] = {			\
+		.erpfi_offset_bits	= EFX_LOW_BIT(_field),	\
+		.erpfi_width_bits	= EFX_WIDTH(_field),	\
+		.erpfi_big_endian	= (_big_endian),	\
+	}
+
+typedef struct efx_rx_prefix_layout_s {
+	uint32_t			erpl_id;
+	uint8_t				erpl_length;
+	efx_rx_prefix_field_info_t	erpl_fields[EFX_RX_PREFIX_NFIELDS];
+} efx_rx_prefix_layout_t;
+
+/*
+ * Helper function to find out a bit mask of used  but not available
+ * Rx prefix fields.
+ *
+ * A field is considered as not available if any parameter mismatch.
+ */
+extern	__checkReturn	uint32_t
+efx_rx_prefix_layout_check(
+	__in		const efx_rx_prefix_layout_t *available,
+	__in		const efx_rx_prefix_layout_t *used);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -68,6 +68,8 @@ LIBABIVER := 1
 # all source are stored in SRCS-y
 #
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_VDPA_PMD) += sfc_vdpa.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_VDPA_PMD) += sfc_mcdi.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_VDPA_PMD) += sfc_hw.c
 
 VPATH += $(SRCDIR)/base
 

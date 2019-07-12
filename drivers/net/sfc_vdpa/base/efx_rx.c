@@ -1059,6 +1059,18 @@ efx_pseudo_hdr_hash_get(
 }
 #endif	/* EFSYS_OPT_RX_SCALE */
 
+	__checkReturn	efx_rc_t
+efx_rx_prefix_get_layout(
+	__in		const efx_rxq_t *erp,
+	__out		efx_rx_prefix_layout_t *erplp)
+{
+	EFSYS_ASSERT3U(erp->er_magic, ==, EFX_RXQ_MAGIC);
+
+	*erplp = erp->er_prefix_layout;
+
+	return (0);
+}
+
 #if EFSYS_OPT_SIENA
 
 static	__checkReturn	efx_rc_t
@@ -1477,6 +1489,21 @@ fail1:
  *   LL.LL         LFSR hash     (16-bit big-endian)
  */
 
+/*
+ * Provide Rx prefix layout with Toeplitz hash only since LSFR is
+ * used by no supported drivers.
+ *
+ * Siena does not support Rx prefix choice via MC_CMD_GET_RX_PREFIX_ID
+ * and query its layout using MC_CMD_QUERY_RX_PREFIX_ID.
+ */
+static const efx_rx_prefix_layout_t siena_toeplitz_rx_prefix_layout = {
+	.erpl_id	= 0,
+	.erpl_length	= 16,
+	.erpl_fields	= {
+		[EFX_RX_PREFIX_FIELD_RSS_HASH] = { 12 * 8, 32, B_TRUE },
+	}
+};
+
 #if EFSYS_OPT_RX_SCALE
 static	__checkReturn	uint32_t
 siena_rx_prefix_hash(
@@ -1719,6 +1746,8 @@ siena_rx_qcreate(
 	EFX_BAR_TBL_WRITEO(enp, FR_AZ_RX_DESC_PTR_TBL,
 			    erp->er_index, &oword, B_TRUE);
 
+	erp->er_prefix_layout = siena_toeplitz_rx_prefix_layout;
+
 	return (0);
 
 #if !EFSYS_OPT_RX_SCATTER
@@ -1755,3 +1784,25 @@ siena_rx_fini(
 }
 
 #endif /* EFSYS_OPT_SIENA */
+
+	__checkReturn	uint32_t
+efx_rx_prefix_layout_check(
+	__in		const efx_rx_prefix_layout_t *available,
+	__in		const efx_rx_prefix_layout_t *used)
+{
+	uint32_t result = 0;
+	unsigned int i;
+
+	for (i = 0; i < EFX_RX_PREFIX_NFIELDS; ++i) {
+		if (used->erpl_fields[i].erpfi_width_bits > 0 &&
+		    (available->erpl_fields[i].erpfi_offset_bits !=
+		     used->erpl_fields[i].erpfi_offset_bits ||
+		     available->erpl_fields[i].erpfi_width_bits !=
+		     used->erpl_fields[i].erpfi_width_bits ||
+		     available->erpl_fields[i].erpfi_big_endian !=
+		     used->erpl_fields[i].erpfi_big_endian))
+			result |= (1U << i);
+	}
+
+	return (result);
+}

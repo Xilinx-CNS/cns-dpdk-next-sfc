@@ -34,22 +34,21 @@ extern uint32_t sfc_logtype_driver;
 /* Log PMD message, automatically add prefix and \n */
 #define SFC_LOG(sa, level, type, ...) \
 	do {								\
-		const struct sfc_adapter *__sa = (sa);			\
+		const struct sfc_vdpa_adapter *__sa = (sa);		\
 									\
 		rte_log(level, type,					\
-			RTE_FMT("PMD: sfc_efx " PCI_PRI_FMT " #%" PRIu8	\
+			RTE_FMT("PMD: sfc_vdpa_efx " PCI_PRI_FMT 	\
 				": " RTE_FMT_HEAD(__VA_ARGS__ ,) "\n",	\
 				__sa->pci_addr.domain,			\
 				__sa->pci_addr.bus,			\
 				__sa->pci_addr.devid,			\
 				__sa->pci_addr.function,		\
-				__sa->port_id,				\
 				RTE_FMT_TAIL(__VA_ARGS__,)));		\
 	} while (0)
 
 #define sfc_err(sa, ...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
 		SFC_LOG(_sa, RTE_LOG_ERR, _sa->logtype_main,		\
 			__VA_ARGS__);					\
@@ -57,7 +56,7 @@ extern uint32_t sfc_logtype_driver;
 
 #define sfc_warn(sa, ...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
 		SFC_LOG(_sa, RTE_LOG_WARNING, _sa->logtype_main,	\
 			__VA_ARGS__);					\
@@ -65,7 +64,7 @@ extern uint32_t sfc_logtype_driver;
 
 #define sfc_notice(sa, ...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
 		SFC_LOG(_sa, RTE_LOG_NOTICE, _sa->logtype_main,		\
 			__VA_ARGS__);					\
@@ -73,7 +72,7 @@ extern uint32_t sfc_logtype_driver;
 
 #define sfc_info(sa, ...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
 		SFC_LOG(_sa, RTE_LOG_INFO, _sa->logtype_main,		\
 			__VA_ARGS__);					\
@@ -81,7 +80,7 @@ extern uint32_t sfc_logtype_driver;
 
 #define sfc_log_init(sa, ...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
 		SFC_LOG(_sa, RTE_LOG_INFO, _sa->logtype_main,		\
 			RTE_FMT("%s(): "				\
@@ -92,7 +91,7 @@ extern uint32_t sfc_logtype_driver;
 
 #define sfc_log_mcdi(sa, ...) \
 	do {								\
-		const struct sfc_adapter *_sa = (sa);			\
+		const struct sfc_vdpa_adapter *_sa = (sa);		\
 									\
 		SFC_LOG(_sa, SFC_LOG_LEVEL_MCDI, _sa->mcdi.logtype,	\
 			__VA_ARGS__);					\
