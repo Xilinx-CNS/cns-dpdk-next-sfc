@@ -567,23 +567,23 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *adapter)
 
 	rte_pci_device_name(&dev->addr, dev_name, RTE_DEV_NAME_MAX_LEN);
 
-//	adapter->vfio_container_fd = rte_vfio_container_create();
-//	if (adapter->vfio_container_fd < 0)
-//		return -1;
+	adapter->vfio_container_fd = rte_vfio_container_create();
+	if (adapter->vfio_container_fd < 0)
+		return -1;
 
 	rte_vfio_get_group_num(rte_pci_get_sysfs_path(), dev_name,
 			&iommu_group_num);
 
-//	adapter->vfio_group_fd = rte_vfio_container_group_bind(
-//			adapter->vfio_container_fd, iommu_group_num);
-//	if (adapter->vfio_group_fd < 0)
-//		goto err;
+	adapter->vfio_group_fd = rte_vfio_container_group_bind(
+			adapter->vfio_container_fd, iommu_group_num);
+	if (adapter->vfio_group_fd < 0)
+		goto err;
 
-//	if (rte_pci_map_device(dev))
-//		goto err;
+	if (rte_pci_map_device(dev))
+		goto err;
 
 	adapter->vfio_dev_fd = dev->intr_handle.vfio_dev_fd;
-
+#if 0
         adapter->vfio_container_fd = vfio_get_default_container_fd();
 	if (adapter->vfio_container_fd < 0)
 		return -1;
@@ -591,7 +591,7 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *adapter)
 	adapter->vfio_group_fd = rte_vfio_get_group_fd(iommu_group_num);
 	if (adapter->vfio_group_fd < 0)
 		goto err;
-
+#endif
 	return 0;
 
 err:
