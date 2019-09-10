@@ -388,6 +388,12 @@ rhead_pci_nic_membar_lookup(
 
 #endif /* EFSYS_OPT_PCI */
 
+extern	__checkReturn			efx_rc_t
+rhead_nic_xilinx_cap_tbl_read_ef100_locator(
+	__in				efsys_bar_t *esbp,
+	__in				size_t offset,
+	__out				efx_bar_region_t *ebrp);
+
 #ifdef	__cplusplus
 }
 #endif
