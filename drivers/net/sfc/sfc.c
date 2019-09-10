@@ -616,6 +616,29 @@ sfc_close(struct sfc_adapter *sa)
 	sfc_log_init(sa, "done");
 }
 
+int
+sfc_find_mem_bar(efsys_pci_config_t *configp, int bar_index,
+		 efsys_bar_t *barp)
+{
+	efsys_bar_t result;
+	struct rte_pci_device *dev;
+
+	memset(&result, 0, sizeof(result));
+
+	if (bar_index < 0 || bar_index >= PCI_MAX_RESOURCE)
+		return EINVAL;
+
+	dev = configp->espc_dev;
+
+	result.esb_rid = bar_index;
+	result.esb_dev = dev;
+	result.esb_base = dev->mem_resource[bar_index].addr;
+
+	*barp = result;
+
+	return 0;
+}
+
 static int
 sfc_mem_bar_init(struct sfc_adapter *sa, const efx_bar_region_t *mem_ebrp)
 {

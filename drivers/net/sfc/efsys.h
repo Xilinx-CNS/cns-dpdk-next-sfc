@@ -761,6 +761,27 @@ typedef struct efsys_pci_config_s {
 			_rc != sizeof(efx_dword_t)) ? EIO : 0;		\
 	} while (B_FALSE)
 
+extern int
+sfc_find_mem_bar(efsys_pci_config_t *configp, int bar_index,
+		 efsys_bar_t *barp);
+
+/*
+ * Macro for finding PCIe memory bar handle by its index from a PCIe device
+ * handle. The found memory bar is available in read-only mode.
+ *
+ * Arguments:
+ * _configp	System-specific PCIe device handle;
+ * _index	Memory bar index;
+ * _memp	Pointer to the found memory bar handle;
+ * _retp	Pointer to return code that must be set to 0 if the search
+ *		succeeded, or to any other value to indicate an error;
+ */
+#define EFSYS_PCI_FIND_MEM_BAR(_configp, _index, _memp, _retp)		\
+	do {								\
+		*(_retp) = sfc_find_mem_bar((_configp), (_index),	\
+					    (_memp));			\
+	} while (B_FALSE)
+
 #ifdef __cplusplus
 }
 #endif
