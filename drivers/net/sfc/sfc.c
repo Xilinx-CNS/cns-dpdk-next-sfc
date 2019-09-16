@@ -628,6 +628,9 @@ sfc_mem_bar_init(struct sfc_adapter *sa, unsigned int membar)
 	ebp->esb_rid = membar;
 	ebp->esb_dev = pci_dev;
 	ebp->esb_base = res->addr;
+
+	sa->fcw_offset = 0;
+
 	return 0;
 }
 
