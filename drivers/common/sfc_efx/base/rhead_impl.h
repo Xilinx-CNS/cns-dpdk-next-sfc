@@ -375,6 +375,18 @@ rhead_tx_qstats_update(
 
 #endif /* EFSYS_OPT_QSTATS */
 
+#if EFSYS_OPT_PCI
+
+/*
+ * Perform discovery of function control window by looking for a
+ * EF100 locator in Xilinx capabilities tables.
+ */
+extern	__checkReturn			efx_rc_t
+rhead_pci_nic_membar_lookup(
+	__in				efsys_pci_config_t *espcp,
+	__out				efx_bar_region_t *ebrp);
+
+#endif /* EFSYS_OPT_PCI */
 
 #ifdef	__cplusplus
 }

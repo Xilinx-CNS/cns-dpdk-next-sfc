@@ -75,6 +75,7 @@ SRCS-y += efx_mcdi.c
 SRCS-y += efx_mon.c
 SRCS-y += efx_nic.c
 SRCS-y += efx_nvram.c
+SRCS-y += efx_pci.c
 SRCS-y += efx_phy.c
 SRCS-y += efx_port.c
 SRCS-y += efx_proxy.c
@@ -111,6 +112,7 @@ SRCS-y += medford2_nic.c
 SRCS-y += rhead_ev.c
 SRCS-y += rhead_intr.c
 SRCS-y += rhead_nic.c
+SRCS-y += rhead_pci.c
 SRCS-y += rhead_rx.c
 SRCS-y += rhead_tx.c
 
