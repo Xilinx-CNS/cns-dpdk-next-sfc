@@ -175,8 +175,8 @@ rhead_nic_probe(
 
 	EFSYS_ASSERT(EFX_FAMILY_IS_EF100(enp));
 
-	EFX_BAR_READD(enp, ER_GZ_HW_REV_ID_REG, &hw_rev_id, B_FALSE);
-	EFX_BAR_READD(enp, ER_GZ_NIC_REV_ID, &nic_rev_id, B_FALSE);
+	EFX_BAR_FCW_READD(enp, ER_GZ_HW_REV_ID_REG, &hw_rev_id);
+	EFX_BAR_FCW_READD(enp, ER_GZ_NIC_REV_ID, &nic_rev_id);
 	printf("HW revision: %#x, NIC revision: %#x\n",
 	       hw_rev_id.ed_u32[0], nic_rev_id.ed_u32[0]);
 
@@ -466,7 +466,7 @@ rhead_nic_hw_unavailable(
 	if (enp->en_reset_flags & EFX_RESET_HW_UNAVAIL)
 		return (B_TRUE);
 
-	EFX_BAR_READD(enp, ER_GZ_MC_SFT_STATUS, &dword, B_FALSE);
+	EFX_BAR_FCW_READD(enp, ER_GZ_MC_SFT_STATUS, &dword);
 	if (EFX_DWORD_FIELD(dword, EFX_DWORD_0) == 0xffffffff)
 		goto unavail;
 
