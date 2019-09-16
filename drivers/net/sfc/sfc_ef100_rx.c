@@ -749,6 +749,7 @@ sfc_ef100_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 
 	rxq->evq_hw_index = info->evq_hw_index;
 	rxq->evq_prime = (volatile uint8_t *)info->mem_bar +
+			 info->fcw_offset +
 			 ER_GZ_EVQ_INT_PRIME_OFST;
 
 	sfc_ef100_rx_debug(rxq, "RxQ doorbell is %p", rxq->doorbell);
