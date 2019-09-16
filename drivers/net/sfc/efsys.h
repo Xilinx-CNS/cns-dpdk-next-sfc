@@ -24,6 +24,7 @@
 #include <rte_malloc.h>
 #include <rte_log.h>
 #include <rte_io.h>
+#include <rte_bus_pci.h>
 
 #include "sfc_debug.h"
 #include "sfc_log.h"
@@ -157,7 +158,7 @@ prefetch_read_once(const volatile void *addr)
 
 #define EFSYS_OPT_MCDI_PROXY_AUTH_SERVER 0
 
-#define EFSYS_OPT_PCI 0
+#define EFSYS_OPT_PCI 1
 
 /* ID */
 
@@ -732,6 +733,54 @@ typedef uint64_t	efsys_stat_t;
 /* ROTATE */
 
 #define EFSYS_HAS_ROTL_DWORD	0
+
+/* PCI */
+
+typedef struct efsys_pci_config_s {
+	struct rte_pci_device	*espc_dev;
+} efsys_pci_config_t;
+
+/*
+ * Macro for reading PCIe configuration space accepts arguments:
+ * _espcp	System-specific PCIe device handle;
+ * _offset	Offset inside PCIe configuration space to start reading from;
+ * _edp		EFX DWORD structure that should be populated by macro in
+ *		little-endian order;
+ * _retp	Pointer to return code that must be set to 0 if the read
+ *		succeeded, or to any other value to indicate an error;
+ */
+#define EFSYS_PCI_CONFIG_READD(_espcp, _offset, _edp, _retp)		\
+	do {								\
+		int _rc;						\
+									\
+		_rc = rte_pci_read_config((_espcp)->espc_dev,		\
+					  (_edp)->ed_u32,		\
+					  sizeof(efx_dword_t),		\
+					  (_offset));			\
+		*(_retp) = (_rc < 0 ||					\
+			_rc != sizeof(efx_dword_t)) ? EIO : 0;		\
+	} while (B_FALSE)
+
+extern int
+sfc_find_mem_bar(efsys_pci_config_t *configp, int bar_index,
+		 efsys_bar_t *barp);
+
+/*
+ * Macro for finding PCIe memory bar handle by its index from a PCIe device
+ * handle. The found memory bar is available in read-only mode.
+ *
+ * Arguments:
+ * _configp	System-specific PCIe device handle;
+ * _index	Memory bar index;
+ * _memp	Pointer to the found memory bar handle;
+ * _retp	Pointer to return code that must be set to 0 if the search
+ *		succeeded, or to any other value to indicate an error;
+ */
+#define EFSYS_PCI_FIND_MEM_BAR(_configp, _index, _memp, _retp)		\
+	do {								\
+		*(_retp) = sfc_find_mem_bar((_configp), (_index),	\
+					    (_memp));			\
+	} while (B_FALSE)
 
 #ifdef __cplusplus
 }
