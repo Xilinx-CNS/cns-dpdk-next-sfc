@@ -18,6 +18,7 @@ sources = [
 	'efx_mon.c',
 	'efx_nic.c',
 	'efx_nvram.c',
+	'efx_pci.c',
 	'efx_phy.c',
 	'efx_port.c',
 	'efx_proxy.c',
@@ -54,6 +55,7 @@ sources = [
 	'rhead_ev.c',
 	'rhead_intr.c',
 	'rhead_nic.c',
+	'rhead_pci.c',
 	'rhead_rx.c',
 	'rhead_tx.c',
 ]
@@ -79,7 +81,7 @@ endforeach
 if build
 	base_lib = static_library('sfc_base', sources,
 		include_directories: includes,
-		dependencies: static_rte_eal,
+		dependencies: [ static_rte_eal, static_rte_bus_pci ],
 		c_args: c_args)
 
 	base_objs = base_lib.extract_all_objects()

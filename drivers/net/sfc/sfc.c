@@ -617,19 +617,20 @@ sfc_close(struct sfc_adapter *sa)
 }
 
 static int
-sfc_mem_bar_init(struct sfc_adapter *sa, unsigned int membar)
+sfc_mem_bar_init(struct sfc_adapter *sa, const efx_bar_region_t *mem_ebrp)
 {
 	struct rte_eth_dev *eth_dev = sa->eth_dev;
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
 	efsys_bar_t *ebp = &sa->mem_bar;
-	struct rte_mem_resource *res = &pci_dev->mem_resource[membar];
+	struct rte_mem_resource *res =
+		&pci_dev->mem_resource[mem_ebrp->ebr_index];
 
 	SFC_BAR_LOCK_INIT(ebp, eth_dev->data->name);
-	ebp->esb_rid = membar;
+	ebp->esb_rid = mem_ebrp->ebr_index;
 	ebp->esb_dev = pci_dev;
 	ebp->esb_base = res->addr;
 
-	sa->fcw_offset = 0;
+	sa->fcw_offset = mem_ebrp->ebr_offset;
 
 	return 0;
 }
@@ -1025,11 +1026,27 @@ sfc_nic_probe(struct sfc_adapter *sa)
 	return 0;
 }
 
+static int
+sfc_family(struct sfc_adapter *sa, efx_bar_region_t *mem_ebrp)
+{
+	struct rte_eth_dev *eth_dev = sa->eth_dev;
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
+	efsys_pci_config_t espcp;
+	int rc;
+
+	espcp.espc_dev = pci_dev;
+
+	rc = efx_family_probe_bar(pci_dev->id.vendor_id,
+				  pci_dev->id.device_id,
+				  &espcp, &sa->family, mem_ebrp);
+
+	return rc;
+}
+
 int
 sfc_probe(struct sfc_adapter *sa)
 {
-	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(sa->eth_dev);
-	unsigned int membar;
+	efx_bar_region_t mem_ebrp;
 	efx_nic_t *enp;
 	int rc;
 
@@ -1041,21 +1058,22 @@ sfc_probe(struct sfc_adapter *sa)
 	rte_atomic32_init(&sa->restart_required);
 
 	sfc_log_init(sa, "get family");
-	rc = efx_family(pci_dev->id.vendor_id, pci_dev->id.device_id,
-			&sa->family, &membar);
+	rc = sfc_family(sa, &mem_ebrp);
 	if (rc != 0)
 		goto fail_family;
-	sfc_log_init(sa, "family is %u, membar is %u", sa->family, membar);
+	sfc_log_init(sa,
+		     "family is %u, membar is %u, function control window offset is %lu",
+		     sa->family, mem_ebrp.ebr_index, mem_ebrp.ebr_offset);
 
 	sfc_log_init(sa, "init mem bar");
-	rc = sfc_mem_bar_init(sa, membar);
+	rc = sfc_mem_bar_init(sa, &mem_ebrp);
 	if (rc != 0)
 		goto fail_mem_bar_init;
 
 	sfc_log_init(sa, "create nic");
 	rte_spinlock_init(&sa->nic_lock);
 	rc = efx_nic_create(sa->family, (efsys_identifier_t *)sa,
-			    &sa->mem_bar, 0,
+			    &sa->mem_bar, mem_ebrp.ebr_offset,
 			    &sa->nic_lock, &enp);
 	if (rc != 0)
 		goto fail_nic_create;
