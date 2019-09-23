@@ -87,6 +87,10 @@ New Features
   * Added support for protocol extraction on per Rx queue.
   * Added support for the ``RTE_ETH_DEV_CLOSE_REMOVE`` flag.
 
+* **Updated the enic driver.**
+
+  * Added support for Geneve with options offload.
+
 * **Added Marvell NITROX symmetric crypto PMD.**
 
   Added a symmetric crypto PMD for Marvell NITROX V security processor.
