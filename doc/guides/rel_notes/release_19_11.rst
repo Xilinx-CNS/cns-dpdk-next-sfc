@@ -97,6 +97,12 @@ New Features
   * Added support for Geneve with options offload.
   * Added flow API implementation based on VIC Flow Manager API.
 
+* **Updated the Huawei hinic driver.**
+
+  Updated the Huawei hinic driver with new features and improvements, including:
+
+  * Enabled SR-IOV - Partially supported at this point, VFIO only.
+
 * **Added Marvell NITROX symmetric crypto PMD.**
 
   Added a symmetric crypto PMD for Marvell NITROX V security processor.
