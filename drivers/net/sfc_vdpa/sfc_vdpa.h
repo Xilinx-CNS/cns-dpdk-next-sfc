@@ -1,4 +1,3 @@
-
 #include <rte_malloc.h>
 #include <rte_memory.h>
 #include <rte_bus_pci.h>
@@ -63,8 +62,6 @@ struct sfc_vdpa_vring_info {
 	uint16_t last_avail_idx;
 	uint16_t last_used_idx;
 };
-
-
 
 /* Adapter private data */
 struct sfc_vdpa_adapter {
