@@ -2,15 +2,11 @@
 #include <rte_errno.h>
 #include <rte_alarm.h>
 
-
 extern uint32_t sfc_logtype_driver;
-
 
 #define DRV_LOG(level, fmt, args...) \
         rte_log(RTE_LOG_ ## level, sfc_logtype_driver, \
                 "SFC_VDPA %s(): " fmt "\n", __func__, ##args)
-
-
 
 uint32_t
 sfc_vdpa_register_logtype(struct sfc_vdpa_adapter *sva, const char *lt_prefix_str,
@@ -43,7 +39,6 @@ sfc_vdpa_register_logtype(struct sfc_vdpa_adapter *sva, const char *lt_prefix_st
 
 	return (ret < 0) ? RTE_LOGTYPE_PMD : ret;
 }
-
 
 int
 sfc_dma_alloc(const struct sfc_vdpa_adapter *sva, const char *name, uint16_t id,
@@ -95,14 +90,25 @@ sfc_dma_free(const struct sfc_vdpa_adapter *sva, efsys_mem_t *esmp)
 	memset(esmp, 0, sizeof(*esmp));
 }
 
-static void 
+static int 
 sfc_vdpa_get_device_features(struct sfc_vdpa_adapter *sva)
 {
-  (void) sva;
-  // TODO send mcdi to get the feature this will be populated in adapter 
+	int rc;
+	uint64_t dev_features;
 
+	rc = efx_virtio_get_features(sva->nic, EFX_VIRTIO_DEVICE_TYPE_NET, &dev_features);
+	if ( rc < 0) {
+		DRV_LOG(ERR, "failed to get device supported features %s", sva->pdev->name);
+		goto error;
+	}
+
+	sva->dev_features = dev_features;
+
+	return 0; 
+	
+error:
+	return rc;
 }
-
 
 static int
 sfc_vdpa_mem_bar_init(struct sfc_vdpa_adapter *sva, unsigned int membar)
@@ -162,10 +168,10 @@ sfc_vdpa_get_fw_variant(struct sfc_vdpa_adapter *sva, efx_fw_variant_t *efv)
 		break;
 
 	default:
-	/*
-	 * Other firmware variants are not considered, since they are
-	 * not supported in the device parameters
-	 */
+		/*
+	 	* Other firmware variants are not considered, since they are
+	 	* not supported in the device parameters
+	 	*/
 		*efv = EFX_FW_VARIANT_DONT_CARE;
 		break;
 	}
@@ -261,8 +267,6 @@ fail_nic_init:
 	return rc;
 }
 
-
-
 int
 sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 {
@@ -277,8 +281,7 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 
 	SFC_ASSERT(sfc_vdpa_adapter_is_locked(sva));
 
-	sva->socket_id = rte_socket_id();
-//	TODO need to analyze
+	// TODO need to analyze
 	rte_atomic32_init(&sva->restart_required);
 
 	sfc_log_init(sva, "get family");
@@ -303,16 +306,12 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 
 	rc = sfc_vdpa_mcdi_init(sva);
 	if (rc != 0)
-        {
 		goto fail_mcdi_init;
-        }
-
+ 
 	sfc_log_init(sva, "probe nic");
 	rc = sfc_vdpa_nic_probe(sva);
 	if (rc != 0)
 		goto fail_nic_probe;
-
-        sfc_vdpa_get_device_features(sva);
 
 	sfc_log_init(sva, "reset nic");
 	rc = efx_nic_reset(enp);
@@ -323,6 +322,15 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	rc = sfc_vdpa_estimate_resource_limits(sva);
 	if (rc != 0)
 		goto fail_estimate_rsrc_limits;
+	
+	sfc_log_init(sva, "init mem bar");
+	rc = efx_virtio_init(enp);
+	if (rc != 0)
+		goto fail_virtio_init;
+
+	rc = sfc_vdpa_get_device_features(sva);
+	if (rc != 0)
+		goto fail_get_dev_feature;
 
 	sfc_log_init(sva, "fini nic");
 	efx_nic_fini(enp);
@@ -332,7 +340,11 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	sva->state = SFC_VDPA_ADAPTER_INITIALIZED;
 
 	return 0;
+	
+fail_get_dev_feature:
+	efx_virtio_fini(enp);
 
+fail_virtio_init:
 fail_estimate_rsrc_limits:
 fail_nic_reset:
 	efx_nic_unprobe(enp);
@@ -367,14 +379,6 @@ sfc_vdpa_device_fini(struct sfc_vdpa_adapter *sva)
 	efx_nic_unprobe(enp);
 
 	sfc_vdpa_mcdi_fini(sva);
-
-	/*
- 	 * Make sure there is no pending alarm to restart since we are
- 	 * going to free device private which is passed as the callback
- 	 * opaque data. A new alarm cannot be scheduled since MCDI is
- 	 * shut down.
- 	 */
-	//rte_eal_alarm_cancel(sfc_restart_if_required, sva);
 
 	sfc_log_init(sva, "destroy nic");
 	sva->nic = NULL;

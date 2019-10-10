@@ -19866,4 +19866,270 @@
 #define	EF100_MCDI_EVENT_DATA_LBN 32
 #define	EF100_MCDI_EVENT_DATA_WIDTH 32
 
+
+
+/***********************************/
+/* MC_CMD_VIRTIO_GET_FEATURES
+ *  * Get a list of the virtio features supported by the device.
+ *   */
+#define	MC_CMD_VIRTIO_GET_FEATURES 0x168
+#undef	MC_CMD_0x168_PRIVILEGE_CTG
+
+#define	MC_CMD_0x168_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_VIRTIO_GET_FEATURES_IN msgrequest */
+#define	MC_CMD_VIRTIO_GET_FEATURES_IN_LEN 4
+/* Type of device to get features for. Matches the device id as defined by the
+ *  * virtio spec.
+ *   */
+#define	MC_CMD_VIRTIO_GET_FEATURES_IN_DEVICE_ID_OFST 0
+#define	MC_CMD_VIRTIO_GET_FEATURES_IN_DEVICE_ID_LEN 4
+#define	MC_CMD_VIRTIO_GET_FEATURES_IN_RESERVED 0x0 /* enum */
+#define	MC_CMD_VIRTIO_GET_FEATURES_IN_NET 0x1 /* enum */
+#define	MC_CMD_VIRTIO_GET_FEATURES_IN_BLOCK 0x2 /* enum */
+
+/* MC_CMD_VIRTIO_GET_FEATURES_OUT msgresponse */
+#define	MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN 8
+/* Features supported by the device. The result is a bitfield in the format of
+ *  * the feature bits of the specified device type as defined in the virtIO 1.1
+ *   * specification ( https://docs.oasis-
+ *    * open.org/virtio/virtio/v1.1/csprd01/virtio-v1.1-csprd01.pdf )
+ *     */
+#define	MC_CMD_VIRTIO_GET_FEATURES_OUT_FEATURES_OFST 0
+#define	MC_CMD_VIRTIO_GET_FEATURES_OUT_FEATURES_LEN 8
+#define	MC_CMD_VIRTIO_GET_FEATURES_OUT_FEATURES_LO_OFST 0
+#define	MC_CMD_VIRTIO_GET_FEATURES_OUT_FEATURES_HI_OFST 4
+
+
+/***********************************/
+/* MC_CMD_VIRTIO_TEST_FEATURES
+ *  * Query whether a given set of features is supported. Fails with ENOSUP if the
+ *   * driver requests a feature the device doesn't support. Fails with EINVAL if
+ *    * the driver fails to request a feature which the device requires.
+ *     */
+#define	MC_CMD_VIRTIO_TEST_FEATURES 0x169
+#undef	MC_CMD_0x169_PRIVILEGE_CTG
+
+#define	MC_CMD_0x169_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_VIRTIO_TEST_FEATURES_IN msgrequest */
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_LEN 16
+/* Type of device to test features for. Matches the device id as defined by the
+ *  * virtio spec.
+ *   */
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_DEVICE_ID_OFST 0
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_DEVICE_ID_LEN 4
+/*            Enum values, see field(s): */
+/*               MC_CMD_VIRTIO_GET_FEATURES/MC_CMD_VIRTIO_GET_FEATURES_IN/DEVICE_ID */
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_RESERVED_OFST 4
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_RESERVED_LEN 4
+/* Features requested. Same format as the returned value from
+ *  * MC_CMD_VIRTIO_GET_FEATURES.
+ *   */
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_FEATURES_OFST 8
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_FEATURES_LEN 8
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_FEATURES_LO_OFST 8
+#define	MC_CMD_VIRTIO_TEST_FEATURES_IN_FEATURES_HI_OFST 12
+
+/* MC_CMD_VIRTIO_TEST_FEATURES_OUT msgresponse */
+#define	MC_CMD_VIRTIO_TEST_FEATURES_OUT_LEN 0
+
+
+/***********************************/
+/* MC_CMD_VIRTIO_INIT_QUEUE
+ *  * Create a virtio virtqueue. Fails with EALREADY if the queue already exists.
+ *   * Fails with ENOSUP if a feature is requested that isn't supported. Fails with
+ *    * EINVAL if a required feature isn't requested, or any other parameter is
+ *     * invalid.
+ *      */
+#define	MC_CMD_VIRTIO_INIT_QUEUE 0x16a
+#undef	MC_CMD_0x16a_PRIVILEGE_CTG
+
+#define	MC_CMD_0x16a_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_VIRTIO_INIT_QUEUE_REQ msgrequest */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_LEN 68
+/* Type of virtqueue to create. A network rxq and a txq can exist at the same
+ *  * time on a single VI.
+ *   */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_QUEUE_TYPE_OFST 0
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_QUEUE_TYPE_LEN 1
+/* enum: A network device receive queue */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_NET_RXQ 0x0
+/* enum: A network device transmit queue */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_NET_TXQ 0x1
+/* enum: A block device request queue */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_BLOCK 0x2
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_RESERVED_OFST 1
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_RESERVED_LEN 1
+/* If the calling function is a PF and this field is not VF_NULL, create the
+ *  * queue on the specified child VF instead of on the PF.
+ *   */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_TARGET_VF_OFST 2
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_TARGET_VF_LEN 2
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_VF_NULL 0xffff /* enum */
+/* Desired instance. This is the function-local index of the associated VI, not
+ *  * the virtqueue number as counted by the virtqueue spec.
+ *   */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INSTANCE_OFST 4
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INSTANCE_LEN 4
+/* Queue size, in entries. Must be a power of two. */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_SIZE_OFST 8
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_SIZE_LEN 4
+/* Flags */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FLAGS_OFST 12
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FLAGS_LEN 4
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_USE_PASID_LBN 0
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_USE_PASID_WIDTH 1
+/* Address of the descriptor table in the virtqueue. */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_OFST 16
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_LEN 8
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_LO_OFST 16
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_HI_OFST 20
+/* Address of the available ring in the virtqueue. */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_OFST 24
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_LEN 8
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_LO_OFST 24
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_HI_OFST 28
+/* Address of the used ring in the virtqueue. */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_OFST 32
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_LEN 8
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_LO_OFST 32
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_HI_OFST 36
+/* PASID to use on PCIe transactions involving this queue. Ignored if the
+ *  * USE_PASID flag is not set.
+ *   */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_PASID_OFST 40
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_PASID_LEN 4
+/* Which MSIX vector to use for this virtqueue, or NO_VECTOR if MSIX should not
+ *  * be used.
+ *   */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_MSIX_VECTOR_OFST 44
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_MSIX_VECTOR_LEN 2
+/* enum: Do not enable interrupts for this virtqueue */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_NO_VECTOR 0xffff
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_RESERVED2_OFST 46
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_RESERVED2_LEN 2
+/* Virtio features to apply to this queue. Same format as the in the virtio
+ *  * spec and in the return from MC_CMD_VIRTIO_GET_FEATURES. Must be a subset of
+ *   * the features returned from MC_CMD_VIRTIO_GET_FEATURES. Features are per-
+ *    * queue because with vDPA multiple queues on the same function can be passed
+ *     * through to different virtual hosts as independent devices.
+ *      */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FEATURES_OFST 48
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FEATURES_LEN 8
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FEATURES_LO_OFST 48
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FEATURES_HI_OFST 52
+/*            Enum values, see field(s): */
+/*               MC_CMD_VIRTIO_GET_FEATURES/MC_CMD_VIRTIO_GET_FEATURES_OUT/FEATURES */
+/* The inital producer index for this queue's used ring. If this queue is being
+ *  * created to be migrated into, this should be the FINAL_PIDX value returned by
+ *   * MC_CMD_VIRTIO_FINI_QUEUE of the queue being migrated from. Otherwise, it
+ *    * should be zero.
+ *     */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_PIDX_OFST 56
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_PIDX_LEN 4
+/* The inital consumer index for this queue's available ring. If this queue is
+ *  * being created to be migrated into, this should be the FINAL_CIDX value
+ *   * returned by MC_CMD_VIRTIO_FINI_QUEUE of the queue being migrated from.
+ *    * Otherwise, it should be zero.
+ *     */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_CIDX_OFST 60
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_CIDX_LEN 4
+/* A MAE_MPORT_SELECTOR defining which mport this queue should be associated
+ *  * with. Use MAE_MPORT_SELECTOR_ASSIGNED to request the default mport for the
+ *   * function this queue is being created on.
+ *    */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_MPORT_SELECTOR_OFST 64
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_MPORT_SELECTOR_LEN 4
+
+/* MC_CMD_VIRTIO_INIT_QUEUE_RESP msgresponse */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_RESP_LEN 0
+
+
+/***********************************/
+/* MC_CMD_VIRTIO_FINI_QUEUE
+ *  * Destroy a virtio virtqueue
+ *   */
+#define	MC_CMD_VIRTIO_FINI_QUEUE 0x16b
+#undef	MC_CMD_0x16b_PRIVILEGE_CTG
+
+#define	MC_CMD_0x16b_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_VIRTIO_FINI_QUEUE_REQ msgrequest */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_LEN 8
+/* Type of virtqueue to destroy. */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_QUEUE_TYPE_OFST 0
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_QUEUE_TYPE_LEN 1
+/*            Enum values, see field(s): */
+/*               MC_CMD_VIRTIO_INIT_QUEUE/MC_CMD_VIRTIO_INIT_QUEUE_REQ/QUEUE_TYPE */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_RESERVED_OFST 1
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_RESERVED_LEN 1
+/* If the calling function is a PF and this field is not VF_NULL, destroy the
+ *  * queue on the specified child VF instead of on the PF.
+ *   */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_TARGET_VF_OFST 2
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_TARGET_VF_LEN 2
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_VF_NULL 0xffff /* enum */
+/* Instance to destroy */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_INSTANCE_OFST 4
+#define	MC_CMD_VIRTIO_FINI_QUEUE_REQ_INSTANCE_LEN 4
+
+/* MC_CMD_VIRTIO_FINI_QUEUE_RESP msgresponse */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_LEN 8
+/* The producer index of the used ring when the queue was stopped. */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_PIDX_OFST 0
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_PIDX_LEN 4
+/* The consumer index of the available ring when the queue was stopped. */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_CIDX_OFST 4
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_CIDX_LEN 4
+
+
+/***********************************/
+/* MC_CMD_VIRTIO_GET_DOORBELL_OFFSET
+ *  * Get the offset in the BAR of the doorbells for a VI. Doesn't require the
+ *   * queue(s) to be allocated.
+ *    */
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET 0x16c
+#undef	MC_CMD_0x16c_PRIVILEGE_CTG
+
+#define	MC_CMD_0x16c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ msgrequest */
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_LEN 8
+/* Type of device to get information for. Matches the device id as defined by
+ *  * the virtio spec.
+ *   */
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_DEVICE_ID_OFST 0
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_DEVICE_ID_LEN 1
+/*            Enum values, see field(s): */
+/*               MC_CMD_VIRTIO_GET_FEATURES/MC_CMD_VIRTIO_GET_FEATURES_IN/DEVICE_ID */
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_RESERVED_OFST 1
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_RESERVED_LEN 1
+/* If the calling function is a PF and this field is not VF_NULL, query the VI
+ *  * on the specified child VF instead of on the PF.
+ *   */
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_TARGET_VF_OFST 2
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_TARGET_VF_LEN 2
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_VF_NULL 0xffff /* enum */
+/* VI instance to query */
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_INSTANCE_OFST 4
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_REQ_INSTANCE_LEN 4
+
+/* MC_CMD_VIRTIO_GET_NET_DOORBELL_OFFSET_RESP msgresponse */
+#define	MC_CMD_VIRTIO_GET_NET_DOORBELL_OFFSET_RESP_LEN 8
+/* Offset of RX doorbell in BAR */
+#define	MC_CMD_VIRTIO_GET_NET_DOORBELL_OFFSET_RESP_RX_DBL_OFFSET_OFST 0
+#define	MC_CMD_VIRTIO_GET_NET_DOORBELL_OFFSET_RESP_RX_DBL_OFFSET_LEN 4
+/* Offset of TX doorbell in BAR */
+#define	MC_CMD_VIRTIO_GET_NET_DOORBELL_OFFSET_RESP_TX_DBL_OFFSET_OFST 4
+#define	MC_CMD_VIRTIO_GET_NET_DOORBELL_OFFSET_RESP_TX_DBL_OFFSET_LEN 4
+
+/* MC_CMD_VIRTIO_GET_BLOCK_DOORBELL_OFFSET_RESP msgresponse */
+#define	MC_CMD_VIRTIO_GET_BLOCK_DOORBELL_OFFSET_RESP_LEN 4
+/* Offset of request doorbell in BAR */
+#define	MC_CMD_VIRTIO_GET_BLOCK_DOORBELL_OFFSET_RESP_DBL_OFFSET_OFST 0
+#define	MC_CMD_VIRTIO_GET_BLOCK_DOORBELL_OFFSET_RESP_DBL_OFFSET_LEN 4
+
+
 #endif /* _SIENA_MC_DRIVER_PCOL_H */

@@ -166,6 +166,7 @@ prefetch_read_once(const volatile void *addr)
 
 #define EFSYS_OPT_FW_SUBVARIANT_AWARE 1
 #define EFSYS_OPT_RIVERHEAD 1
+#define EFSYS_OPT_VIRTIO 1
 
 /* ID */
 
