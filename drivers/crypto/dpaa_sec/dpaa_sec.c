@@ -27,7 +27,7 @@
 
 #include <fsl_usd.h>
 #include <fsl_qman.h>
-#include <of.h>
+#include <dpaa_of.h>
 
 /* RTA header files */
 #include <hw/desc/common.h>

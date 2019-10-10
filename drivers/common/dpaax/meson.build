@@ -8,6 +8,9 @@ if not is_linux
 	reason = 'only supported on linux'
 endif
 
-sources = files('dpaax_iova_table.c')
+sources = files('dpaax_iova_table.c', 'dpaa_of.c')
 
 cflags += ['-D_GNU_SOURCE']
+if cc.has_argument('-Wno-cast-qual')
+        cflags += '-Wno-cast-qual'
+endif

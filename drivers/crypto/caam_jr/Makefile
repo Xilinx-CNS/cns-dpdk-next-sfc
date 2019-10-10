@@ -17,6 +17,7 @@ CFLAGS += -O3
 CFLAGS += $(WERROR_FLAGS)
 
 CFLAGS += -I$(RTE_SDK)/drivers/bus/dpaa/include
+CFLAGS += -I$(RTE_SDK)/drivers/common/dpaax
 CFLAGS += -I$(RTE_SDK)/drivers/crypto/caam_jr
 #sharing the hw flib headers from dpaa2_sec pmd
 CFLAGS += -I$(RTE_SDK)/drivers/crypto/dpaa2_sec/

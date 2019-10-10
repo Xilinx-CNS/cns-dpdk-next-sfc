@@ -19,7 +19,7 @@ ifeq ($(shell test $(GCC_VERSION) -gt 70 && echo 1), 1)
 CFLAGS += -Wno-implicit-fallthrough
 endif
 endif
-
+CFLAGS += -I$(RTE_SDK)/drivers/common/dpaax
 CFLAGS += -I$(RTE_SDK)/drivers/crypto/dpaa2_sec/
 CFLAGS += -I$(RTE_SDK)/drivers/crypto/dpaa2_sec/mc
 CFLAGS += -I$(RTE_SDK)/drivers/bus/fslmc/
