@@ -119,14 +119,21 @@ rhead_pci_nic_membar_lookup(
 
 	magic = EFX_DWORD_FIELD(magic_ed, ERF_GZ_NIC_MAGIC);
 	if (magic != EFE_GZ_NIC_MAGIC_EXPECTED) {
+#if 0
 		rc = EINVAL;
 		goto fail6;
+#else
+		printf("NIC MAGIC MISMATCH %x vs %x\n",
+		       magic, EFE_GZ_NIC_MAGIC_EXPECTED);
+#endif
 	}
 
 	return (0);
 
+#if 0
 fail6:
 	EFSYS_PROBE(fail6);
+#endif
 fail5:
 	EFSYS_PROBE(fail5);
 fail4:
