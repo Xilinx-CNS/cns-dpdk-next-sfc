@@ -13,6 +13,7 @@ uint32_t sfc_logtype_driver;
 static const char * const sfc_vdpa_valid_arguments[] = {
 	SFC_VDPA_MODE
 };
+
 static pthread_mutex_t sfc_vdpa_adapter_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int
