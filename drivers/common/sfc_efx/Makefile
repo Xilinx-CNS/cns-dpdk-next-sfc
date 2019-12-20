@@ -71,6 +71,7 @@ SRCS-y += efx_hash.c
 SRCS-y += efx_intr.c
 SRCS-y += efx_lic.c
 SRCS-y += efx_mac.c
+SRCS-y += efx_mae.c
 SRCS-y += efx_mcdi.c
 SRCS-y += efx_mon.c
 SRCS-y += efx_nic.c
