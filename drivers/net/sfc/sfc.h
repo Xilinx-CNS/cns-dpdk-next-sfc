@@ -27,6 +27,7 @@
 #include "sfc_log.h"
 #include "sfc_filter.h"
 #include "sfc_sriov.h"
+#include "sfc_mae.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -231,6 +232,7 @@ struct sfc_adapter {
 	struct sfc_intr			intr;
 	struct sfc_port			port;
 	struct sfc_filter		filter;
+	struct sfc_mae			mae;
 
 	struct sfc_flow_list		flow_list;
 
