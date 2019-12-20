@@ -371,4 +371,10 @@
 # endif
 #endif /* EFSYS_OPT_PCI */
 
+#if EFSYS_OPT_MAE
+# if !EFSYS_OPT_RIVERHEAD
+#  error "MAE requires RIVERHEAD"
+# endif
+#endif /* EFSYS_OPT_MAE */
+
 #endif /* _SYS_EFX_CHECK_H */
