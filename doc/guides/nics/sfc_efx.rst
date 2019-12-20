@@ -141,8 +141,9 @@ Flow API support
 Supported attributes:
 
 - Ingress
+- Transfer
 
-Supported pattern items:
+Supported pattern items (***non-transfer*** rules):
 
 - VOID
 
@@ -170,7 +171,7 @@ Supported pattern items:
 
 - NVGRE (exact match of virtual subnet ID)
 
-Supported actions:
+Supported actions (***non-transfer*** rules):
 
 - VOID
 
