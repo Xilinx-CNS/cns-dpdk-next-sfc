@@ -3904,6 +3904,15 @@ extern					void
 efx_mae_fini(
 	__in				efx_nic_t *enp);
 
+typedef struct efx_mae_limits_s {
+	uint32_t			eml_max_n_action_prios;
+} efx_mae_limits_t;
+
+extern	__checkReturn			efx_rc_t
+efx_mae_get_limits(
+	__in				efx_nic_t *enp,
+	__out				efx_mae_limits_t *emlp);
+
 #endif /* EFSYS_OPT_MAE */
 
 #ifdef	__cplusplus
