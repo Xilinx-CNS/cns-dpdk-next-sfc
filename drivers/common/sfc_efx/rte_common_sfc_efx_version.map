@@ -50,6 +50,7 @@ DPDK_20.0.1 {
 	efx_mac_stats_upload;
 
 	efx_mae_fini;
+	efx_mae_get_limits;
 	efx_mae_init;
 
 	efx_mcdi_new_epoch;
