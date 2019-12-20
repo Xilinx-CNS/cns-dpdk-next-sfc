@@ -61,6 +61,8 @@ struct sfc_flow_spec_filter {
 struct sfc_flow_spec_mae {
 	/* Desired priority level */
 	unsigned int			priority;
+	/* EFX match specification */
+	efx_mae_match_spec_t		*match_spec;
 };
 
 /* Flow specification */
@@ -98,6 +100,7 @@ enum sfc_flow_item_layers {
 /* Flow parse context types */
 enum sfc_flow_parse_ctx_type {
 	SFC_FLOW_PARSE_CTX_FILTER = 0,
+	SFC_FLOW_PARSE_CTX_MAE,
 
 	SFC_FLOW_PARSE_CTX_NTYPES
 };
@@ -110,6 +113,8 @@ struct sfc_flow_parse_ctx {
 	union {
 		/* Context pointer valid for filter-based (VNIC) flows */
 		efx_filter_spec_t *filter;
+		/* Context pointer valid for MAE-based flows */
+		struct sfc_mae_parse_ctx *mae;
 	};
 };
 
@@ -151,6 +156,9 @@ typedef int (sfc_flow_parse_cb_t)(struct rte_eth_dev *dev,
 				  const struct rte_flow_action actions[],
 				  struct rte_flow *flow,
 				  struct rte_flow_error *error);
+
+typedef void (sfc_flow_cleanup_cb_t)(struct sfc_adapter *sa,
+				     struct rte_flow *flow);
 
 typedef int (sfc_flow_insert_cb_t)(struct sfc_adapter *sa,
 				   struct rte_flow *flow);
