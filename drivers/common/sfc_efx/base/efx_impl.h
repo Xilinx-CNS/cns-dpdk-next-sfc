@@ -1720,6 +1720,15 @@ struct efx_virtio_vq_s {
 
 #endif /* EFSYS_OPT_VIRTIO */
 
+#if EFSYS_OPT_MAE
+
+struct efx_mae_match_spec_s {
+	efx_mae_rule_type_t		emms_type;
+	uint32_t			emms_prio;
+};
+
+#endif /* EFSYS_OPT_MAE */
+
 #ifdef	__cplusplus
 }
 #endif
