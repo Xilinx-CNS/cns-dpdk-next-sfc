@@ -3894,6 +3894,18 @@ efx_virtio_get_doorbell_offset(
 
 #endif /* EFSYS_OPT_VIRTIO */
 
+#if EFSYS_OPT_MAE
+
+extern	__checkReturn			efx_rc_t
+efx_mae_init(
+	__in				efx_nic_t *enp);
+
+extern					void
+efx_mae_fini(
+	__in				efx_nic_t *enp);
+
+#endif /* EFSYS_OPT_MAE */
+
 #ifdef	__cplusplus
 }
 #endif
