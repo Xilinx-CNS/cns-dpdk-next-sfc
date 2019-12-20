@@ -4177,6 +4177,20 @@ efx_virtio_verify_features(
 
 #endif /* EFSYS_OPT_VIRTIO */
 
+#if EFSYS_OPT_MAE
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_init(
+	__in				efx_nic_t *enp);
+
+LIBEFX_API
+extern					void
+efx_mae_fini(
+	__in				efx_nic_t *enp);
+
+#endif /* EFSYS_OPT_MAE */
+
 #ifdef	__cplusplus
 }
 #endif
