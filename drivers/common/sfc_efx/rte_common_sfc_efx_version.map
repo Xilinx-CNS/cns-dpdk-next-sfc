@@ -49,6 +49,9 @@ DPDK_20.0.1 {
 	efx_mac_stats_update;
 	efx_mac_stats_upload;
 
+	efx_mae_fini;
+	efx_mae_init;
+
 	efx_mcdi_new_epoch;
 
 	efx_nic_cfg_get;
