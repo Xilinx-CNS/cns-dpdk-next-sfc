@@ -170,7 +170,7 @@ prefetch_read_once(const volatile void *addr)
 
 #define EFSYS_OPT_VIRTIO 0
 
-#define EFSYS_OPT_MAE 0
+#define EFSYS_OPT_MAE 1
 
 /* ID */
 
