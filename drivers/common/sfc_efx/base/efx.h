@@ -3962,6 +3962,22 @@ efx_mae_match_specs_class_cmp(
 	__in				const efx_mae_match_spec_t *right,
 	__out				boolean_t *have_same_classp);
 
+typedef struct efx_mae_rc_handle_s { uint32_t h; } efx_mae_rc_handle_t;
+
+#define	EFX_MAE_HANDLE_NULL		UINT32_MAX
+
+extern	__checkReturn			efx_rc_t
+efx_mae_rule_class_register(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_match_spec_t *spec,
+	__out				efx_mae_rc_handle_t *handlep);
+
+extern	__checkReturn			efx_rc_t
+efx_mae_rule_class_unregister(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_match_spec_t *spec,
+	__in				efx_mae_rc_handle_t *handlep);
+
 #endif /* EFSYS_OPT_MAE */
 
 #ifdef	__cplusplus
