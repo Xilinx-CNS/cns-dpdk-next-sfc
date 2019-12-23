@@ -164,6 +164,28 @@ sfc_mae_rules_class_cmp(struct sfc_adapter *sa,
 }
 
 static int
+sfc_mae_rule_class_verify_with_fw(struct sfc_adapter *sa,
+				  efx_mae_match_spec_t **match_specp)
+{
+	efx_mae_rc_handle_t handle;
+	int rc;
+
+	rc = efx_mae_rule_class_register(sa->nic, *match_specp, &handle);
+	if (rc != 0)
+		return rc;
+
+	/*
+	 * FIXME: The class gets unregistered here for consistency.
+	 *
+	 * This step is inefficient and will be removed in a later
+	 * patch only to appear in a more efficient cleanup helper.
+	 */
+	(void)efx_mae_rule_class_unregister(sa->nic, *match_specp, &handle);
+
+	return 0;
+}
+
+static int
 sfc_mae_action_rule_class_verify(struct sfc_adapter *sa,
 				 struct sfc_flow_spec_mae *spec)
 {
@@ -188,7 +210,7 @@ sfc_mae_action_rule_class_verify(struct sfc_adapter *sa,
 		}
 	}
 
-	return EINVAL;
+	return sfc_mae_rule_class_verify_with_fw(sa, &spec->match_spec);
 }
 
 /**
