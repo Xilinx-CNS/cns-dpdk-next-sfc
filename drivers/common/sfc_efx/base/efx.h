@@ -3950,6 +3950,18 @@ efx_mae_match_spec_is_valid(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_match_spec_t *spec);
 
+/*
+ * Conduct a comparison to check whether two match specifications
+ * of equal rule type (action / encapsulation) and priority would
+ * map to the very same rule class from the firmware's standpoint.
+ */
+extern	__checkReturn			efx_rc_t
+efx_mae_match_specs_class_cmp(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_match_spec_t *left,
+	__in				const efx_mae_match_spec_t *right,
+	__out				boolean_t *have_same_classp);
+
 #endif /* EFSYS_OPT_MAE */
 
 #ifdef	__cplusplus
