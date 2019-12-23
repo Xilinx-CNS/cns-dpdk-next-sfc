@@ -92,6 +92,8 @@ INTERNAL {
 	efx_mae_match_spec_init;
 	efx_mae_match_spec_is_valid;
 	efx_mae_match_specs_class_cmp;
+	efx_mae_rule_class_register;
+	efx_mae_rule_class_unregister;
 
 	efx_mcdi_fini;
 	efx_mcdi_get_proxy_handle;
