@@ -530,4 +530,175 @@ fail1:
 	return (rc);
 }
 
+static	__checkReturn			efx_rc_t
+efx_mae_action_rule_class_register(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_match_spec_t *spec,
+	__out				efx_mae_rc_handle_t *handlep)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_AR_CLASS_REG_IN_LENMAX_MCDI2,
+	    MC_CMD_MAE_AR_CLASS_REG_OUT_LEN);
+	efx_mae_rc_handle_t handle;
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(sizeof (handlep->h) ==
+	    MC_CMD_MAE_AR_CLASS_REG_OUT_ARC_HANDLE_LEN);
+	EFX_STATIC_ASSERT(EFX_MAE_HANDLE_NULL ==
+	    MC_CMD_MAE_AR_CLASS_REG_OUT_ACTION_RULE_CLASS_HANDLE_NULL);
+
+	req.emr_cmd = MC_CMD_MAE_AR_CLASS_REG;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_AR_CLASS_REG_IN_LENMAX_MCDI2;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_AR_CLASS_REG_OUT_LEN;
+
+	MCDI_IN_SET_DWORD(req, MAE_AR_CLASS_REG_IN_PRIO, spec->emms_prio);
+
+	memcpy(payload + MC_CMD_MAE_AR_CLASS_REG_IN_FIELDS_OFST,
+	    spec->emms_mask_value_pairs.action, MAE_FIELD_MASK_VALUE_PAIRS_LEN);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (req.emr_out_length_used < MC_CMD_MAE_AR_CLASS_REG_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
+	handle.h = MCDI_OUT_DWORD(req, MAE_AR_CLASS_REG_OUT_ARC_HANDLE);
+	if (handle.h == EFX_MAE_HANDLE_NULL) {
+		rc = ENOENT;
+		goto fail3;
+	}
+
+	handlep->h = handle.h;
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_rule_class_register(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_match_spec_t *spec,
+	__out				efx_mae_rc_handle_t *handlep)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	switch (spec->emms_type) {
+	case EFX_MAE_RULE_ACTION:
+		rc = efx_mae_action_rule_class_register(enp, spec, handlep);
+		break;
+	default:
+		rc = ENOTSUP;
+		break;
+	}
+
+	if (rc != 0)
+		goto fail2;
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_action_rule_class_unregister(
+	__in				efx_nic_t *enp,
+	__in				efx_mae_rc_handle_t *handlep)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_AR_CLASS_UNREG_IN_LEN(1),
+	    MC_CMD_MAE_AR_CLASS_UNREG_OUT_LEN(1));
+	efx_rc_t rc;
+
+	req.emr_cmd = MC_CMD_MAE_AR_CLASS_UNREG;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_AR_CLASS_UNREG_IN_LEN(1);
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_AR_CLASS_UNREG_OUT_LEN(1);
+
+	MCDI_IN_SET_DWORD(req, MAE_AR_CLASS_UNREG_IN_ARC_HANDLE, handlep->h);
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (MCDI_OUT_DWORD(req, MAE_AR_CLASS_UNREG_OUT_UNREGD_ARC_HANDLE) !=
+	    handlep->h) {
+		/* Firmware failed to unregister the action rule class. */
+		rc = EAGAIN;
+		goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_rule_class_unregister(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_match_spec_t *spec,
+	__in				efx_mae_rc_handle_t *handlep)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	switch (spec->emms_type) {
+	case EFX_MAE_RULE_ACTION:
+		rc = efx_mae_action_rule_class_unregister(enp, handlep);
+		break;
+	default:
+		rc = ENOTSUP;
+		break;
+	}
+
+	if (rc != 0)
+		goto fail2;
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
 #endif /* EFSYS_OPT_MAE */
