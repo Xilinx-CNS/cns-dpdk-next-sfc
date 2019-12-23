@@ -1744,6 +1744,9 @@ struct efx_mae_match_spec_s {
 	} emms_mask_value_pairs;
 };
 
+typedef struct efx_mae_actions_s {
+} efx_mae_actions_t;
+
 #endif /* EFSYS_OPT_MAE */
 
 #ifdef	__cplusplus
