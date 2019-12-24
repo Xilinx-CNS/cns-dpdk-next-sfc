@@ -49,6 +49,8 @@ DPDK_20.0.1 {
 	efx_mac_stats_update;
 	efx_mac_stats_upload;
 
+	efx_mae_action_set_alloc;
+	efx_mae_action_set_free;
 	efx_mae_action_set_populate_deliver;
 	efx_mae_action_set_spec_fini;
 	efx_mae_action_set_spec_init;
@@ -65,6 +67,8 @@ DPDK_20.0.1 {
 	efx_mae_mport_id_by_phy_port;
 	efx_mae_rule_class_register;
 	efx_mae_rule_class_unregister;
+	efx_mae_rule_insert;
+	efx_mae_rule_remove;
 
 	efx_mcdi_new_epoch;
 
