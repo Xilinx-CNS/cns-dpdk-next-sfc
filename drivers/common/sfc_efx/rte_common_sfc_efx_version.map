@@ -58,7 +58,9 @@ DPDK_21 {
 	efx_mae_match_spec_fini;
 	efx_mae_match_spec_init;
 	efx_mae_match_spec_is_valid;
+	efx_mae_match_spec_mport_set;
 	efx_mae_match_specs_class_cmp;
+	efx_mae_mport_id_by_phy_port;
 	efx_mae_rule_class_register;
 	efx_mae_rule_class_unregister;
 
