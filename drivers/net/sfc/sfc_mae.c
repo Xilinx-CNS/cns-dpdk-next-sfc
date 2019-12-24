@@ -381,18 +381,42 @@ fail_init_match_spec:
 }
 
 static int
+sfc_mae_rule_parse_action_phy_port(const struct rte_flow_action_phy_port *conf,
+				   efx_mae_actions_t *spec)
+{
+	efx_mport_id_t mport_id;
+	int rc;
+
+	rc = efx_mae_mport_id_by_phy_port(conf->index, &mport_id);
+	if (rc != 0)
+		return rc;
+
+	return efx_mae_action_set_populate_deliver(spec, &mport_id);
+}
+
+static int
 sfc_mae_rule_parse_action(const struct rte_flow_action *action,
-			  __rte_unused efx_mae_actions_t *spec,
+			  efx_mae_actions_t *spec,
 			  struct rte_flow_error *error)
 {
+	int rc;
+
 	switch (action->type) {
+	case RTE_FLOW_ACTION_TYPE_PHY_PORT:
+		rc = sfc_mae_rule_parse_action_phy_port(action->conf, spec);
+		break;
 	default:
 		return rte_flow_error_set(error, ENOTSUP,
 				RTE_FLOW_ERROR_TYPE_ACTION, NULL,
 				"Unsupported action");
 	}
 
-	return 0;
+	if (rc != 0) {
+		rc = rte_flow_error_set(error, rc, RTE_FLOW_ERROR_TYPE_ACTION,
+				NULL, "Failed to request the action");
+	}
+
+	return rc;
 }
 
 int
