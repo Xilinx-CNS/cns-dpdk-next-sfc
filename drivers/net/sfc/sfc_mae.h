@@ -18,11 +18,21 @@
 extern "C" {
 #endif
 
+/** FW-allocatable resource context */
+struct sfc_mae_fw_rsrc {
+	unsigned int			refcnt;
+	RTE_STD_C11
+	union {
+		efx_mae_aset_id_t	aset_id;
+	};
+};
+
 /** Action set registry entry */
 struct sfc_mae_action_set {
 	TAILQ_ENTRY(sfc_mae_action_set)	entries;
 	unsigned int			refcnt;
 	efx_mae_actions_t		*spec;
+	struct sfc_mae_fw_rsrc		fw_rsrc;
 };
 
 TAILQ_HEAD(sfc_mae_action_sets, sfc_mae_action_set);
@@ -34,11 +44,24 @@ enum sfc_mae_status {
 	SFC_MAE_STATUS_SUPPORTED
 };
 
+/** Rule class registration cache */
+struct sfc_mae_rc_cache {
+	/**
+	 * The last EFX match specification for which class registration
+	 * has been conducted successfully
+	 */
+	efx_mae_match_spec_t		*match_spec;
+	/** Handle of the last class registered with the FW */
+	efx_mae_rc_handle_t		class_handle;
+};
+
 struct sfc_mae {
 	/** NIC support for MAE status */
 	enum sfc_mae_status		status;
 	/** Priority level limit for MAE action rules */
 	unsigned int			nb_action_rule_prios_max;
+	/** Action rule class registration cache */
+	struct sfc_mae_rc_cache		action_rc_cache;
 	/** Action set registry */
 	struct sfc_mae_action_sets	action_sets;
 };
@@ -58,11 +81,15 @@ int sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 			       const struct rte_flow_item pattern[],
 			       struct sfc_flow_spec_mae *spec,
 			       struct rte_flow_error *error);
+void sfc_mae_validation_cache_drop(struct sfc_adapter *sa,
+				   struct sfc_mae_rc_cache *rc_cache);
 int sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			       const struct rte_flow_action actions[],
 			       struct sfc_mae_action_set **action_setp,
 			       struct rte_flow_error *error);
 sfc_flow_verify_cb_t sfc_mae_flow_verify;
+sfc_flow_insert_cb_t sfc_mae_flow_insert;
+sfc_flow_remove_cb_t sfc_mae_flow_remove;
 
 #ifdef __cplusplus
 }
