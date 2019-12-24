@@ -26,6 +26,9 @@ sfc_mae_attach(struct sfc_adapter *sa)
 
 	sfc_log_init(sa, "entry");
 
+	mae->rule_class_cache.h = EFX_MAE_HANDLE_NULL;
+	mae->match_spec_cache = NULL;
+
 	if (!encp->enc_mae_supported) {
 		mae->status = SFC_MAE_STATUS_UNSUPPORTED;
 		return 0;
@@ -72,6 +75,9 @@ sfc_mae_detach(struct sfc_adapter *sa)
 	if (status_prev != SFC_MAE_STATUS_SUPPORTED)
 		return;
 
+	SFC_ASSERT(mae->rule_class_cache.h == EFX_MAE_HANDLE_NULL);
+	SFC_ASSERT(mae->match_spec_cache == NULL);
+
 	efx_mae_fini(sa->nic);
 
 	sfc_log_init(sa, "done");
@@ -99,6 +105,7 @@ sfc_mae_action_set_add(struct sfc_mae *mae,
 		       struct sfc_mae_action_set **action_setp)
 {
 	struct sfc_mae_action_set *action_set;
+	struct sfc_mae_fw_rsrc *fw_rsrc;
 	int rc = ENOMEM;
 
 	action_set = rte_zmalloc("sfc_mae_action_set", sizeof(*action_set), 0);
@@ -107,6 +114,9 @@ sfc_mae_action_set_add(struct sfc_mae *mae,
 
 	action_set->refcnt = 1;
 	action_set->spec = spec;
+
+	fw_rsrc = &action_set->fw_rsrc;
+	fw_rsrc->id.id = EFX_MAE_RSRC_ID_INVALID;
 
 	TAILQ_INSERT_TAIL(&mae->action_sets, action_set, entries);
 
@@ -119,14 +129,64 @@ static void
 sfc_mae_action_set_del(struct sfc_adapter *sa,
 		       struct sfc_mae_action_set *action_set)
 {
+	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
 	struct sfc_mae *mae = &sa->mae;
 
 	if (--action_set->refcnt != 0)
 		return;
 
+	SFC_ASSERT(fw_rsrc->id.id == EFX_MAE_RSRC_ID_INVALID);
+	SFC_ASSERT(fw_rsrc->refcnt == 0);
+
 	efx_mae_action_set_spec_fini(sa->nic, action_set->spec);
 	TAILQ_REMOVE(&mae->action_sets, action_set, entries);
 	rte_free(action_set);
+}
+
+static int
+sfc_mae_action_set_enable(struct sfc_adapter *sa,
+			  struct sfc_mae_action_set *action_set)
+{
+	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
+	unsigned int refcnt = fw_rsrc->refcnt;
+	int rc;
+
+	if (refcnt++ == 0) {
+		SFC_ASSERT(fw_rsrc->id.id == EFX_MAE_RSRC_ID_INVALID);
+		SFC_ASSERT(action_set->spec != NULL);
+
+		rc = efx_mae_action_set_alloc(sa->nic, action_set->spec,
+					      &fw_rsrc->id);
+		if (rc != 0)
+			return rc;
+	}
+
+	fw_rsrc->refcnt = refcnt;
+
+	return 0;
+}
+
+static int
+sfc_mae_action_set_disable(struct sfc_adapter *sa,
+			   struct sfc_mae_action_set *action_set)
+{
+	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
+	unsigned int refcnt = fw_rsrc->refcnt;
+	int rc;
+
+	SFC_ASSERT(fw_rsrc->id.id != EFX_MAE_RSRC_ID_INVALID);
+
+	if (--refcnt == 0) {
+		rc = efx_mae_action_set_free(sa->nic, &fw_rsrc->id);
+		if (rc != 0)
+			return rc;
+
+		fw_rsrc->id.id = EFX_MAE_RSRC_ID_INVALID;
+	}
+
+	fw_rsrc->refcnt = refcnt;
+
+	return 0;
 }
 
 void
@@ -145,6 +205,9 @@ sfc_mae_flow_cleanup(struct sfc_adapter *sa,
 		return;
 
 	spec_mae = &spec->mae;
+
+	SFC_ASSERT(spec_mae->rule_class.h == EFX_MAE_HANDLE_NULL);
+	SFC_ASSERT(spec_mae->rule_id.id == EFX_MAE_RSRC_ID_INVALID);
 
 	if (spec_mae->action_set != NULL)
 		sfc_mae_action_set_del(sa, spec_mae->action_set);
@@ -486,24 +549,55 @@ sfc_mae_action_rules_class_cmp(struct sfc_adapter *sa,
 	return (rc == 0) ? have_same_class : false;
 }
 
+void
+sfc_mae_validation_cache_drop(struct sfc_adapter *sa,
+			      efx_mae_rc_handle_t *retained_classp)
+{
+	struct sfc_mae *mae = &sa->mae;
+	efx_mae_match_spec_t *spec = mae->match_spec_cache;
+	efx_mae_rc_handle_t handle = mae->rule_class_cache;
+
+	SFC_ASSERT(spec != NULL);
+	SFC_ASSERT(handle.h != EFX_MAE_HANDLE_NULL);
+
+	if (retained_classp == NULL)
+		(void)efx_mae_rule_class_unregister(sa->nic, spec, &handle);
+	else
+		*retained_classp = handle;
+
+	mae->rule_class_cache.h = EFX_MAE_HANDLE_NULL;
+	efx_mae_match_spec_fini(sa->nic, spec);
+	mae->match_spec_cache = NULL;
+}
+
 static int
 sfc_mae_action_rule_class_verify_with_fw(struct sfc_adapter *sa,
 					 struct sfc_flow_spec_mae *spec)
 {
+	struct sfc_mae *mae = &sa->mae;
 	efx_mae_rc_handle_t handle;
 	int rc;
+
+	if (mae->match_spec_cache != NULL)
+		sfc_mae_validation_cache_drop(sa, NULL);
 
 	rc = efx_mae_rule_class_register(sa->nic, spec->match_spec, &handle);
 	if (rc != 0)
 		return rc;
 
 	/*
-	 * FIXME: The class gets unregistered here for consistency.
-	 *
-	 * This step is inefficient and will be removed in a later
-	 * patch only to appear in a more efficient cleanup helper.
+	 * Typically, a flow create call for the same rule will follow.
+	 * Cache the validation result so that is can be picked
+	 * and remembered by the said flow create call.
 	 */
-	(void)efx_mae_rule_class_unregister(sa->nic, spec->match_spec, &handle);
+	mae->match_spec_cache = spec->match_spec;
+	mae->rule_class_cache = handle;
+
+	/*
+	 * The match specification is owned by the validation cache now.
+	 * There is no need to finalise it on the flow cleanup.
+	 */
+	spec->match_spec = NULL;
 
 	return 0;
 }
@@ -564,4 +658,88 @@ sfc_mae_flow_verify(struct sfc_adapter *sa,
 		return EAGAIN;
 
 	return sfc_mae_action_rule_class_verify(sa, spec_mae);
+}
+
+int
+sfc_mae_flow_insert(struct sfc_adapter *sa,
+		    struct rte_flow *flow)
+{
+	struct sfc_mae *mae = &sa->mae;
+	struct sfc_flow_spec *spec = &flow->spec;
+	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
+	struct sfc_mae_action_set *action_set = spec_mae->action_set;
+	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
+	efx_mae_rc_handle_t *retained_classp;
+	int rc;
+
+	SFC_ASSERT(spec_mae->rule_id.id == EFX_MAE_RSRC_ID_INVALID);
+	SFC_ASSERT(action_set != NULL);
+
+	rc = sfc_mae_action_set_enable(sa, action_set);
+	if (rc != 0)
+		goto fail_action_set_enable;
+
+	rc = efx_mae_rule_insert(sa->nic, spec_mae->match_spec,
+				 NULL, &fw_rsrc->id, &spec_mae->rule_id);
+	if (rc != 0)
+		goto fail_rule_insert;
+
+	if (mae->match_spec_cache == NULL)
+		return 0;
+
+	if (sfc_mae_action_rules_class_cmp(sa, spec_mae->match_spec,
+					   mae->match_spec_cache)) {
+		/*
+		 * The class of the rule being inserted matches that of
+		 * the last validated one. Make sure that the below
+		 * sfc_mae_last_validation_drop() call retains the
+		 * class registration and remembers the handle.
+		 */
+		retained_classp = &spec_mae->rule_class;
+	} else {
+		/*
+		 * The rule being inserted and the last validated one have
+		 * nothing in common. Below sfc_mae_last_validation_drop() call
+		 * will not retain the class registration of the latter.
+		 */
+		retained_classp = NULL;
+	}
+
+	sfc_mae_validation_cache_drop(sa, retained_classp);
+
+	return 0;
+
+fail_rule_insert:
+	(void)sfc_mae_action_set_disable(sa, action_set);
+
+fail_action_set_enable:
+	return rc;
+}
+
+int
+sfc_mae_flow_remove(struct sfc_adapter *sa,
+		     struct rte_flow *flow)
+{
+	struct sfc_flow_spec *spec = &flow->spec;
+	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
+	const efx_mae_match_spec_t *match_spec = spec_mae->match_spec;
+	struct sfc_mae_action_set *action_set = spec_mae->action_set;
+	int rc;
+
+	SFC_ASSERT(spec_mae->rule_id.id != EFX_MAE_RSRC_ID_INVALID);
+	SFC_ASSERT(action_set != NULL);
+
+	rc = efx_mae_rule_remove(sa->nic, &spec_mae->rule_id);
+	if (rc != 0)
+		return rc;
+
+	spec_mae->rule_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	if (spec_mae->rule_class.h != EFX_MAE_HANDLE_NULL) {
+		(void)efx_mae_rule_class_unregister(sa->nic, match_spec,
+						    &spec_mae->rule_class);
+		spec_mae->rule_class.h = EFX_MAE_HANDLE_NULL;
+	}
+
+	return sfc_mae_action_set_disable(sa, action_set);
 }

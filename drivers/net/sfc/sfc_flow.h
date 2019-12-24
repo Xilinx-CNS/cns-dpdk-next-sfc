@@ -65,6 +65,10 @@ struct sfc_flow_spec_mae {
 	efx_mae_match_spec_t		*match_spec;
 	/* Action set registry entry */
 	struct sfc_mae_action_set	*action_set;
+	/* Firmware-allocated rule ID */
+	efx_mae_rule_id_t		rule_id;
+	/* Explicitly registered class */
+	efx_mae_rc_handle_t		rule_class;
 };
 
 /* Flow specification */

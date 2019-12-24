@@ -50,8 +50,8 @@ static const struct sfc_flow_ops_by_spec sfc_flow_ops_mae = {
 	.parse = sfc_flow_parse_rte_to_mae,
 	.verify = sfc_mae_flow_verify,
 	.cleanup = sfc_mae_flow_cleanup,
-	.insert = NULL,
-	.remove = NULL,
+	.insert = sfc_mae_flow_insert,
+	.remove = sfc_mae_flow_remove,
 };
 
 static const struct sfc_flow_ops_by_spec *
@@ -1202,6 +1202,8 @@ sfc_flow_parse_attr(struct sfc_adapter *sa,
 		spec_mae->priority = attr->priority;
 		spec_mae->match_spec = NULL;
 		spec_mae->action_set = NULL;
+		spec_mae->rule_id.id = EFX_MAE_RSRC_ID_INVALID;
+		spec_mae->rule_class.h = EFX_MAE_HANDLE_NULL;
 	}
 
 	return 0;
@@ -2733,12 +2735,16 @@ sfc_flow_fini(struct sfc_adapter *sa)
 void
 sfc_flow_stop(struct sfc_adapter *sa)
 {
+	struct sfc_mae *mae = &sa->mae;
 	struct rte_flow *flow;
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
 	TAILQ_FOREACH(flow, &sa->flow_list, entries)
 		sfc_flow_remove(sa, flow, NULL);
+
+	if (mae->match_spec_cache != NULL)
+		sfc_mae_validation_cache_drop(sa, NULL);
 }
 
 int
