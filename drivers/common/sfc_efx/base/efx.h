@@ -3720,6 +3720,19 @@ typedef enum efx_mae_field_id_e {
 } efx_mae_field_id_t;
 
 /*
+ * Action set resource ID.
+ *
+ * Unlike rule classes, which are supposed to be subscribed to, resources
+ * have IDs rather than handles. This highlights the fact that such a
+ * value always represents a unique allocatable object.
+ */
+typedef struct efx_mae_aset_id_s {
+	uint32_t id;
+} efx_mae_aset_id_t;
+
+#define	EFX_MAE_RSRC_ID_INVALID	UINT32_MAX
+
+/*
  * Make sure that match fields known by EFX have proper masks set
  * in the match specification as per requirements of SF-122526-TC.
  *
@@ -3820,6 +3833,17 @@ extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
 	__in				efx_mae_actions_t *spec,
 	__in				const efx_mport_id_t *mport_idp);
+
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_alloc(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_actions_t *spec,
+	__out				efx_mae_aset_id_t *aset_idp);
+
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_free(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_aset_id_t *aset_idp);
 
 #endif /* EFSYS_OPT_MAE */
 
