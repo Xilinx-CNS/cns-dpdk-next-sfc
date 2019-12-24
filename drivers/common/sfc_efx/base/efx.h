@@ -3764,6 +3764,8 @@ typedef struct efx_mport_id_s {
 	uint32_t id;
 } efx_mport_id_t;
 
+#define	EFX_MPORT_NULL			(0U)
+
 /* Get static MPORT ID of a physical port. */
 extern	__checkReturn			efx_rc_t
 efx_mae_mport_id_by_phy_port(
@@ -3813,6 +3815,11 @@ efx_mae_match_spec_mport_set(
 	__in				efx_mae_match_spec_t *spec,
 	__in				const efx_mport_id_t *valuep,
 	__in_opt			const efx_mport_id_t *maskp);
+
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_deliver(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_mport_id_t *mport_idp);
 
 #endif /* EFSYS_OPT_MAE */
 
