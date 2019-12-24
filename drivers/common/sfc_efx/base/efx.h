@@ -3934,6 +3934,8 @@ efx_mae_match_spec_fini(
 	__in				efx_mae_match_spec_t *spec);
 
 typedef enum efx_mae_field_id_e {
+	EFX_MAE_FIELD_INGRESS_MPORT_SELECTOR = 0,
+
 	EFX_MAE_FIELD_NIDS
 } efx_mae_field_id_t;
 
@@ -3978,6 +3980,16 @@ efx_mae_rule_class_unregister(
 	__in				const efx_mae_match_spec_t *spec,
 	__in				efx_mae_rc_handle_t *handlep);
 
+typedef struct efx_mport_id_s {
+	uint32_t id;
+} efx_mport_id_t;
+
+/* Get static MPORT ID of a physical port. */
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_id_by_phy_port(
+	__in				uint32_t phy_port,
+	__out				efx_mport_id_t *mport_idp);
+
 typedef struct efx_mae_actions_s efx_mae_actions_t;
 
 extern	__checkReturn			efx_rc_t
@@ -3994,6 +4006,33 @@ extern	__checkReturn			boolean_t
 efx_mae_action_set_specs_equal(
 	__in				const efx_mae_actions_t *left,
 	__in				const efx_mae_actions_t *right);
+
+/*
+ * Fields which have BE postfix in their named constants are expected
+ * to be passed by callers in big-endian byte order. They will appear
+ * in the MCDI buffer, which is a part of the match specification, in
+ * the very same byte order, that is, no conversion will be performed.
+ *
+ * Fields which don't have BE postfix in their named constants are in
+ * host byte order. MCDI expects them to be little-endian, so the API
+ * will take care to carry out conversion to little-endian byte order.
+ * At the moment, the only field in host byte order is MPORT selector.
+ */
+extern	__checkReturn			efx_rc_t
+efx_mae_match_spec_field_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				efx_mae_field_id_t field_id,
+	__in				size_t value_size,
+	__in_bcount(value_size)		const uint8_t *value,
+	__in				size_t mask_size,
+	__in_bcount(mask_size)		const uint8_t *mask);
+
+/* If the mask argument is NULL, the API will use full mask by default. */
+extern	__checkReturn			efx_rc_t
+efx_mae_match_spec_mport_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				const efx_mport_id_t *valuep,
+	__in_opt			const efx_mport_id_t *maskp);
 
 #endif /* EFSYS_OPT_MAE */
 
