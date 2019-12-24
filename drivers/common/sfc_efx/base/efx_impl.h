@@ -1744,7 +1744,18 @@ struct efx_mae_match_spec_s {
 	} emms_mask_value_pairs;
 };
 
+typedef enum efx_mae_action_e {
+	/* DELIVER is always the last action. */
+	EFX_MAE_ACTION_DELIVER,
+
+	EFX_MAE_NACTIONS
+} efx_mae_action_t;
+
 typedef struct efx_mae_actions_s {
+	/* Bitmap of actions in spec, indexed by action type */
+	uint32_t			emass_actions;
+
+	efx_mport_sel_t			emass_deliver_mport;
 } efx_mae_actions_t;
 
 #endif /* EFSYS_OPT_MAE */
