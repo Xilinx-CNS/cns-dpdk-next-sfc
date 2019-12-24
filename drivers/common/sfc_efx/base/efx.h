@@ -4350,6 +4350,32 @@ efx_mae_rule_class_unregister(
 	__in				const efx_mae_match_spec_t *spec,
 	__in				efx_mae_rc_handle_t *handlep);
 
+/*
+ * Unlike rule classes, which are supposed to be subscribed to, resources
+ * have IDs rather than handles. This highlights the fact that such a
+ * value always represents a unique allocatable object.
+ */
+
+#define	EFX_MAE_RSRC_ID_INVALID	UINT32_MAX
+
+/* Action set ID */
+typedef struct efx_mae_aset_id_s {
+	uint32_t id;
+} efx_mae_aset_id_t;
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_alloc(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_actions_t *spec,
+	__out				efx_mae_aset_id_t *aset_idp);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_free(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_aset_id_t *aset_idp);
+
 #endif /* EFSYS_OPT_MAE */
 
 #ifdef	__cplusplus
