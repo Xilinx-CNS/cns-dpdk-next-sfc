@@ -68,6 +68,8 @@ EXPORT_MAP := rte_pmd_sfc_version.map
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_ethdev.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_kvargs.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_vdpa_ops.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_vdpa.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_mcdi.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_sriov.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += sfc_intr.c
@@ -109,6 +111,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_sram.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_tunnel.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_tx.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_vpd.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += efx_virtio.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += mcdi_mon.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += siena_mac.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += siena_mcdi.c
@@ -140,5 +143,6 @@ SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_nic.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_pci.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_rx.c
 SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_tx.c
+SRCS-$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD) += rhead_virtio.c
 
 include $(RTE_SDK)/mk/rte.lib.mk

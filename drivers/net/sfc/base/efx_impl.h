@@ -65,6 +65,7 @@ extern "C" {
 #define	EFX_MOD_TUNNEL		0x00004000
 #define	EFX_MOD_EVB		0x00008000
 #define	EFX_MOD_PROXY		0x00010000
+#define EFX_MOD_VIRTIO          0x00020000
 
 #define	EFX_RESET_PHY		0x00000001
 #define	EFX_RESET_RXQ_ERR	0x00000002
@@ -731,6 +732,24 @@ typedef struct efx_proxy_ops_s {
 
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
+/* TBD: Any Flag etc ?? */
+typedef struct efx_virtio_ops_s {
+        efx_rc_t        (*evo_init)(efx_nic_t *);
+        efx_rc_t        (*evo_fini)(efx_nic_t *);
+        efx_rc_t        (*evo_virtq_create)(efx_nic_t *, efx_virtio_vq_type_t,
+                                uint16_t, uint32_t, efx_virtio_vq_cfg_t *,
+                                efx_virtio_vq_t **);
+        efx_rc_t        (*evo_virtq_destroy)(efx_virtio_vq_t *, uint32_t *,
+                                uint32_t *);
+        efx_rc_t        (*evo_get_doorbell_offset)(efx_virtio_device_type_t,
+                                efx_virtio_vq_t *, uint32_t *);
+        efx_rc_t        (*evo_get_features)(efx_nic_t *,
+                                efx_virtio_device_type_t, uint64_t *);
+        efx_rc_t        (*evo_verify_features)(efx_nic_t *,
+                                efx_virtio_device_type_t, uint64_t);
+} efx_virtio_ops_t;
+
+
 #define	EFX_DRV_VER_MAX		20
 
 typedef struct efx_drv_cfg_s {
@@ -837,6 +856,10 @@ struct efx_nic_s {
 #if EFSYS_OPT_MCDI_PROXY_AUTH_SERVER
 	const efx_proxy_ops_t	*en_epop;
 #endif	/* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
+//#if EFSYS_OPT_VIRTIO
+        const efx_virtio_ops_t  *en_evop;
+//#endif  /* EFSYS_OPT_VPD */
+
 };
 
 #define	EFX_FAMILY_IS_EF10(_enp) \
@@ -1575,6 +1598,66 @@ efx_pci_xilinx_cap_tbl_find(
 	__inout				efsys_dma_addr_t *entry_offsetp);
 
 #endif /* EFSYS_OPT_PCI */
+
+extern __checkReturn                   efx_rc_t
+efx_mcdi_proxy_cmd(
+        __in                            efx_nic_t *enp,
+        __in                            uint32_t pf_index,
+        __in                            uint32_t vf_index,
+        __in_bcount(request_size)       uint8_t *request_bufferp,
+        __in                            size_t request_size,
+        __out_bcount(response_size)     uint8_t *response_bufferp,
+        __in                            size_t response_size,
+        __out_opt                       size_t *response_size_actualp);
+
+
+#define EFX_VIRTQ_MAGIC 0x15022009
+
+extern __checkReturn   efx_rc_t
+rhead_virtio_init(
+        __in            efx_nic_t *enp);
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_fini(
+        __in    efx_nic_t *enp);
+
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_get_features(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_device_type_t type,
+        __out                   uint64_t *featuresp);
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_virtq_create(
+          __in                    efx_nic_t *enp,
+          __in                    efx_virtio_vq_type_t type,
+        __in                    uint16_t target_vf,
+          __in                    uint32_t vq_num,
+          __in                    efx_virtio_vq_cfg_t *evvcp,
+          __deref_out             efx_virtio_vq_t **evvp);
+
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_virtq_destroy(
+                __in                    efx_virtio_vq_t *evvp,
+                __out                   uint32_t *pidx,
+                __out                   uint32_t *cidx);
+
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_get_doorbell_offset(
+        __in                    efx_virtio_device_type_t type,
+        __in                    efx_virtio_vq_t *evvp,
+        __out                   uint32_t *offsetp);
+
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_verify_features(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_device_type_t type,
+        __in                    uint64_t featuresp);
+
 
 #ifdef	__cplusplus
 }

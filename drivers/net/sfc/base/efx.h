@@ -3624,6 +3624,107 @@ efx_proxy_auth_privilege_modify(
 
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
+/* VIRTIO */
+typedef enum efx_virtio_vq_type_e {
+        EFX_VIRTIO_VQ_TYPE_NET_RXQ,
+        EFX_VIRTIO_VQ_TYPE_NET_TXQ,
+        EFX_VIRTIO_VQ_TYPE_BLOCK,
+        EFX_VIRTIO_VQ_NTYPES
+} efx_virtio_vq_type_t;
+
+typedef enum efx_virtio_device_type_e {
+        EFX_VIRTIO_DEVICE_TYPE_RESERVED,
+        EFX_VIRTIO_DEVICE_TYPE_NET,
+        EFX_VIRTIO_DEVICE_TYPE_BLOCK,
+        EFX_VIRTIO_DEVICE_NTYPES
+} efx_virtio_device_type_t;
+
+typedef struct efx_virtio_vq_cfg_s {
+    uint32_t            evvc_vq_size;           /* Queue size, it must be a power of two */
+    uint32_t            evvc_vq_pidx;           /* The inital producer index for this queue's used ring
+                                                   If this queue is being created to be migrated into, this
+                                                   should be the FINAL_PIDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
+                                                   of the queue being migrated from. Otherwise, it should be zero. */
+    uint32_t            evvc_vq_cidx;           /* The inital consumer index for this queue's available ring
+                                                   If this queue is being created to be migrated into, this
+                                                   should be the FINAL_CIDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
+                                                   of the queue being migrated from. Otherwise, it should be zero */
+    efsys_dma_addr_t    evvc_desc_tbl_addr;     /* Base address of desc table in the Virtqueue in the VM, iova address */
+    efsys_dma_addr_t    evvc_avail_ring_addr;   /* Base address of avail ring in the Virtqueue in the VM, iova address */
+    efsys_dma_addr_t    evvc_used_ring_addr;    /* Base address of used ring in the Virtqueue in the VM, iova address  */
+    uint16_t            evvc_msix_vector;       /* MSiX vector to use for this virtqueue */
+    boolean_t           evvc_use_pasid;         /* If B_TRUE(1), virtqueue uses PCIe PASID */
+    uint32_t            evvc_pas_id;            /* PASID to use on PCIe transaction involving this queue */
+    uint64_t            evcc_features;          /* Virtio features to apply to this queue */
+    uint64_t            evcc_mport_selector;    /* A MAE_MPORT_SELECTOR defining which mport this queue should
+                                                   be associated with. Use MAE_MPORT_SELECTOR_ASSIGNED to request
+                                                   the default mport for the function this queue is being created on */
+} efx_virtio_vq_cfg_t;
+
+typedef struct efx_virtio_vq_s {
+    uint32_t                        evv_magic;
+    efx_nic_t                       *evv_enp;
+    unsigned int                    evv_index; // VI Index : vi_base + q_index
+    efx_virtio_vq_type_t            evv_type;
+    uint16_t                        evv_target_vf;
+    uint32_t                        evv_vq_num;
+} efx_virtio_vq_t;
+
+extern __checkReturn   efx_rc_t
+efx_virtio_init(
+        __in            efx_nic_t *enp);
+
+
+extern void
+efx_virtio_fini(
+        __in    efx_nic_t *enp);
+
+
+extern  __checkReturn   efx_rc_t
+efx_virtio_get_features(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_device_type_t type,
+        __out                   uint64_t *featuresp);
+
+extern  __checkReturn   efx_rc_t
+  efx_virtio_virtq_create(
+          __in                    efx_nic_t *enp,
+          __in                    efx_virtio_vq_type_t type,
+          __in                    uint16_t target_vf,
+          __in                    uint32_t vq_num,
+          __in                    efx_virtio_vq_cfg_t *evvcp,
+          __deref_out             efx_virtio_vq_t **evvp);
+
+
+extern  __checkReturn   efx_rc_t
+efx_virtio_virtq_destroy(
+                __in                    efx_virtio_vq_t *evvp,
+                __out                   uint32_t *pidxp,
+                __out                   uint32_t *cidxp);
+
+
+extern  __checkReturn   efx_rc_t
+efx_virtio_get_doorbell_offset(
+        __in                    efx_virtio_device_type_t type,
+        __in                    efx_virtio_vq_t *evvp,
+        __out                   uint32_t *offsetp);
+
+
+extern  __checkReturn   efx_rc_t
+efx_virtio_verify_features(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_device_type_t type,
+        __in                    uint64_t featuresp);
+
+
+/* Structures to help parsing of MCDI request and response buffers */
+typedef struct {
+  uint8_t      *emr_out_buf;
+} efx_outbuf_t;
+
+typedef struct {
+  uint8_t     *emr_in_buf;
+} efx_inbuf_t;
 #ifdef	__cplusplus
 }
 #endif

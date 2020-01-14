@@ -2990,6 +2990,74 @@ fail1:
 	return (rc);
 }
 
+__checkReturn                   efx_rc_t
+efx_mcdi_proxy_cmd(
+        __in                            efx_nic_t *enp,
+        __in                            uint32_t pf_index,
+        __in                            uint32_t vf_index,
+        __in_bcount(request_size)       uint8_t *request_bufferp,
+        __in                            size_t request_size,
+        __out_bcount(response_size)     uint8_t *response_bufferp,
+        __in                            size_t response_size,
+        __out_opt                       size_t *response_size_actualp)
+{
+        efx_dword_t *inbufp;
+        efx_mcdi_req_t req;
+        efx_rc_t rc;
+	int i=0;
+
+	printf("\n\n In efx_mcdi_proxy_cmd : %d, %d  ", (int)request_size, (int)(sizeof (*inbufp)));
+        if (request_size % sizeof (*inbufp) != 0) {
+                rc = EINVAL;
+                goto fail1;
+        }
+
+	printf("\n\n In efx_mcdi_proxy_cmd ");
+	printf("\n pf_index : %d,vf_index %d , request_size : %d ", pf_index, vf_index, (int)request_size);
+
+	for (i=0; i < request_size + 8; i++)
+		printf("\n req_buff[%d] : %x ", i, *(request_bufferp + i) );
+
+        EFSYS_KMEM_ALLOC(enp, (MC_CMD_PROXY_CMD_IN_LEN + request_size), inbufp);
+
+        req.emr_cmd = MC_CMD_PROXY_CMD;
+        req.emr_in_buf = (uint8_t *) inbufp;
+        req.emr_in_length = MC_CMD_PROXY_CMD_IN_LEN + request_size;
+        req.emr_out_buf = response_bufferp;
+        req.emr_out_length = response_size;
+
+        MCDI_IN_POPULATE_DWORD_2(req, PROXY_CMD_IN_TARGET,
+                 PROXY_CMD_IN_TARGET_PF, pf_index,
+                 PROXY_CMD_IN_TARGET_VF, vf_index);
+
+        /* Proxied command should be located just after PROXY_CMD */
+        memcpy(&inbufp[MC_CMD_PROXY_CMD_IN_LEN / sizeof (*inbufp)],
+                request_bufferp, request_size);
+
+	/* TODO : Commented out for UT */
+        // efx_mcdi_execute(enp, &req);
+	req.emr_rc = 0; // only tp avoid compilation error -- to be removed 
+	req.emr_out_length_used = 12;
+        EFSYS_KMEM_FREE(enp, (MC_CMD_PROXY_CMD_IN_LEN + request_size), inbufp);
+        if (req.emr_rc != 0) {
+                rc = req.emr_rc;
+                goto fail2;
+        }
+
+        if (response_size_actualp != NULL)
+                *response_size_actualp = req.emr_out_length_used;
+
+	printf("\n Out efx_mcdi_proxy_cmd \n\n\n");
+        return (0);
+
+fail2:
+        EFSYS_PROBE(fail2);
+fail1:
+        EFSYS_PROBE1(fail1, efx_rc_t, rc);
+        return (rc);
+}
+
+
 #endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
 
 #endif	/* EFSYS_OPT_MCDI */
