@@ -11,6 +11,10 @@
 #include "efx_regs_mcdi.h"
 #include "efx_impl.h"
 
+/* ToDO : PF is hardcoded for testing only */
+#define HARD_CODED_PF_ADDR
+//#define BYPASS_VFIO_BIND_ERROR
+
 #define DRV_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, sfc_logtype_driver, \
 		"SFC_VDPA %s(): " fmt "\n", __func__, ##args)
@@ -35,7 +39,7 @@ static pthread_mutex_t sfc_vdpa_adapter_list_lock = PTHREAD_MUTEX_INITIALIZER;
 void rte_get_vf_to_pf_index(char *vf, char *pf)
 {
 	char cmd[100];
-
+	/* cut command needs to be replaced with some rte func */
 	snprintf(cmd, 1000, "ls -l  /sys/bus/pci/devices/%s/physfn | cut -d ' ' -f 12 | cut -b 4-15", vf);
 
 	FILE *fp = popen(cmd, "r");
@@ -52,7 +56,6 @@ void rte_get_vf_to_pf_index(char *vf, char *pf)
 
 	if (pclose(fp) != 0)
         	fprintf(stderr," Error: Failed to close command stream \n");
-
          return;
 }
 
@@ -344,6 +347,7 @@ sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp,
 	return rc;
 }
 
+/*TODO : Remove all prints */
 static int
 efx_get_sriov_cfg(efx_nic_t *enp,
 				unsigned int *vf_current, unsigned int *vf_offset, unsigned int *vf_stride)
@@ -362,26 +366,26 @@ efx_get_sriov_cfg(efx_nic_t *enp,
 
 	efx_mcdi_execute(enp, &req);
 	
+DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_current : %d ", *vf_current);
 
 	if (req.emr_rc != 0) {
 		rc = req.emr_rc;
 		goto fail1;
 	}
 
+DRV_LOG(ERR,"\n In111 efx_get_sriov_cfg : vf_current : %d ", *vf_current);
 
 	if (req.emr_out_length_used < MC_CMD_GET_SRIOV_CFG_OUT_LEN) {
 		rc = EMSGSIZE;
 		goto fail2;
 	}
-
-
 	*vf_current = MCDI_OUT_DWORD(req, GET_SRIOV_CFG_OUT_VF_CURRENT);
 	*vf_offset  = MCDI_OUT_DWORD(req, GET_SRIOV_CFG_OUT_VF_OFFSET);
 	*vf_stride  = MCDI_OUT_DWORD(req, GET_SRIOV_CFG_OUT_VF_STRIDE);
 
-printf("\n In efx_get_sriov_cfg : vf_current %d ", *vf_current);
-printf("\n In efx_get_sriov_cfg : vf_offset %d ", *vf_offset);
-printf("\n In efx_get_sriov_cfg : vf_stride %d ", *vf_stride);
+DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_current %d ", *vf_current);
+DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_offset %d ", *vf_offset);
+DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_stride %d ", *vf_stride);
 
 fail2:
 	EFSYS_PROBE(fail2);
@@ -391,6 +395,7 @@ fail1:
 	return (rc);
 }
 
+/*Todo: Remove all debug prints which uses printf */
 int
 sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint16_t vf_rid, uint32_t *pf_index, uint32_t *vf_index)
 {	
@@ -412,10 +417,10 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint1
 	/* Use mcdi MC_CMD_GET_SRIOV_CFG to get vf/pf index */
 	rc = efx_get_sriov_cfg(vdpa_data->nic, &vf_current, &vf_offset, &vf_stride);
 	
-	printf("\n After efx_get_sriov_cfg ... In sfc_vdpa_get_vfpf_id : vf_index %d ", *vf_index);
-	
+	vf_stride = 1;
 	vf_rid_base = pf_rid_base + vf_offset;
 	printf("\n vf_rid : %d, vf_rid_base %d ", vf_rid, vf_rid_base);
+	return 0;
     
 	if (vf_rid >= vf_rid_base) 
 	{
@@ -436,7 +441,7 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint1
 	} 
 	
 	vf_index = 0;
-	printf("\n In sfc_vdpa_get_vfpf_id : pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
+	printf("\n Error from sfc_vdpa_get_vfpf_id : pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
 	
 	return rc;
 }
@@ -489,7 +494,8 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 
 	/* Get vf index */
 	sfc_vdpa_get_vfpf_id(sva->vdpa_data, pf_rid, vf_rid, &pf_index, &vf_index);
-
+	vf_index = 0;
+	pf_index = 0;
 	sva->vdpa_data->pf_index = pf_index;
 	sva->vdpa_data->vf_index = vf_index;
 
@@ -509,12 +515,11 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	if (rc != 0)
 		goto fail_mem_bar_init;
 
-DRV_LOG(ERR,"\n In probe  ......  99 2  ");
-
 	rc = efx_virtio_init(enp);
 	if (rc != 0)
 		goto fail_virtio_init;
 
+	
 	rc = sfc_vdpa_get_device_features(sva);
 	if (rc != 0)
 		goto fail_get_dev_feature;
@@ -542,7 +547,7 @@ sfc_vdpa_device_fini(struct sfc_vdpa_adapter *sva)
 
 	sva->vdpa_data->state = SFC_VDPA_STATE_UNINITIALIZED;
 }
-
+/* TODO: Remove all debug logs from this function */
 static int
 sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
 {
@@ -552,7 +557,9 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
 	char dev_name[RTE_DEV_NAME_MAX_LEN] = {0};
 	int iommu_group_num;
 	
-	DRV_LOG(ERR,"\n In probe ..44 00, ... vdpa_data %p, dev : %p ", vdpa_data, dev );
+	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .. vdpa_data %p, dev.bus : %d ", vdpa_data, dev->addr.bus);
+	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .. vdpa_data %p, dev.devid: %d ", vdpa_data, dev->addr.devid);
+	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .. vdpa_data %p, dev.function %d ", vdpa_data, dev->addr.function);
 	
 	if ((vdpa_data == NULL) || (dev == NULL))
 		return -1;
@@ -563,19 +570,28 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
 
 	rte_pci_device_name(&dev->addr, dev_name, RTE_DEV_NAME_MAX_LEN);
 
+	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .dev_name: %s", dev_name);
+
 	vdpa_data->vfio_container_fd = rte_vfio_container_create();
 	if (vdpa_data->vfio_container_fd < 0)
 		return -1;
 
+	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .vdpa_data->vfio_container_fd : ..%d ", vdpa_data->vfio_container_fd);
+
 	rte_vfio_get_group_num(rte_pci_get_sysfs_path(), dev_name,
 			&iommu_group_num);
+	DRV_LOG(ERR,"\n In sfc_vdpa_vfio_setup : iommu_group_num :  %d", iommu_group_num);
 
+
+	DRV_LOG(ERR,"\n In sfc_vdpa_vfio_setup (Before rte_vfio_container_group_bind) vdpa_data->vfio_group_fd :  %d", vdpa_data->vfio_group_fd);
 	vdpa_data->vfio_group_fd = rte_vfio_container_group_bind(
 			vdpa_data->vfio_container_fd, iommu_group_num);
-			
+	DRV_LOG(ERR,"\n In sfc_vdpa_vfio_setup (After rte_vfio_container_group_bind) vdpa_data->vfio_group_fd :  %d", vdpa_data->vfio_group_fd);
+
+#ifndef BYPASS_VFIO_BIND_ERROR		
 	if (vdpa_data->vfio_group_fd < 0)
 		goto error;
-
+#endif
 	if (rte_pci_map_device(dev))
 		goto error;
 
@@ -656,48 +672,16 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 
 	sva->pdev = pci_dev;
 
-	/* Find Parent PF's and its rte_eth_dev to access process_private fields */
-	rte_pci_device_name(&pci_dev->addr, vf_dev_name, RTE_DEV_NAME_MAX_LEN);
-	DRV_LOG(ERR,"\n vf_dev_name : %s, pf_dev_name %s ", vf_dev_name, pf_dev_name);
-
-	rte_get_vf_to_pf_index(vf_dev_name, pf_dev_name);
-	if(pf_dev_name == NULL) {
-		DRV_LOG(ERR,"\n Could not find any PF device ");
-		return 0;
-	}
-
-	DRV_LOG(ERR,"\n AFTER vf_dev_name : %s, pf_dev_name %s ", vf_dev_name, pf_dev_name);
-
-	/* Get PF's rte_eth_dev to access process_private (PF's adapter) fields */
-	pf_eth_dev = rte_get_pf_to_eth_dev(pf_dev_name);
-
-	if (pf_eth_dev != NULL) {
-	DRV_LOG(ERR,"\n In side if ... After rte_get_pf_to_eth_dev : %p", pf_eth_dev);
-        	sa = (struct sfc_adapter *)pf_eth_dev->process_private;
-		if (sa == NULL)
-			goto error;
-		
-       	 	DRV_LOG(ERR,"\n state : %d,", sa->state);
-	}
-	
 	/* Create vdpa context */
 	vdpa_data = sfc_vdpa_create_context();
 	if (vdpa_data == NULL)
 		goto error;
 		
-	/* Update vdpa context vdpa_data fields */
 	vdpa_data->vdpa_context = SFC_VDPA_AS_VF;
-	vdpa_data->nic = sa->nic;
-	pf_pci_dev = RTE_ETH_DEV_TO_PCI(pf_eth_dev);
-	vdpa_data->pf_pci_addr = pf_pci_dev->addr;
 	vdpa_data->pci_dev = pci_dev;
-	
+
 	/* Store vdpa context in the adpopter structure */
 	sva->vdpa_data = vdpa_data;
-	
-	rte_spinlock_init(&sva->lock);
-	
-	vdpa_data->lock = sva->lock;
 
 	if (sfc_vdpa_vfio_setup(sva) < 0) {
 		DRV_LOG(ERR, "failed to setup device %s", pci_dev->name);
@@ -705,11 +689,56 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	} else
 		DRV_LOG(ERR, "Successfully setup devices %s", pci_dev->name);
 
+	/* Find Parent PF's and its rte_eth_dev to access process_private fields */
+	rte_pci_device_name(&pci_dev->addr, vf_dev_name, RTE_DEV_NAME_MAX_LEN);
+	DRV_LOG(ERR,"\n vf_dev_name : %s, pf_dev_name %s ", vf_dev_name, pf_dev_name);
+
+#ifndef HARD_CODED_PF_ADDR /*TODO: Need to use generic function to get parent's ID*/
+	rte_get_vf_to_pf_index(vf_dev_name, pf_dev_name);
+	if(pf_dev_name == NULL) {
+		DRV_LOG(ERR,"\n Could not find any PF device ");
+		return 0;
+	}
+#endif
+
+	/* Get PF's rte_eth_dev to access process_private (PF's adapter) fields */
+#ifdef HARD_CODED_PF_ADDR
+	/* ToDO : PF is hardcoded for testing only */
+	pf_eth_dev = rte_get_pf_to_eth_dev("01:00.2");
+#else
+	pf_eth_dev = rte_get_pf_to_eth_dev(pf_dev_name);
+#endif
+
+	DRV_LOG(ERR,"\n pf_eth_dev : %p ", pf_eth_dev);
+
+	if (pf_eth_dev != NULL) {
+        	sa = (struct sfc_adapter *)pf_eth_dev->process_private;
+		if (sa == NULL)
+			goto error;
+		
+       	 	DRV_LOG(ERR,"\n state : %d,", sa->state);
+	}
+	else {		
+		DRV_LOG(ERR,"\n PF's ethdev could not found");
+		return 0;
+	}
+	
+	/* Update vdpa context vdpa_data fields */
+	vdpa_data->nic = sa->nic;
+	pf_pci_dev = RTE_ETH_DEV_TO_PCI(pf_eth_dev);
+	vdpa_data->pf_pci_addr = pf_pci_dev->addr;
+	
+	rte_spinlock_init(&sva->lock);
+	
+	vdpa_data->lock = sva->lock;
+
 	if (sfc_vdpa_device_init(sva) < 0) {
 		DRV_LOG(ERR, "failed to init device %s", pci_dev->name);
 		goto error;
 	}
 	
+	DRV_LOG(ERR,"\n vf_dev_name : %s, pf_dev_name %s ", vf_dev_name, pf_dev_name);
+
 	sva->dev_addr.pci_addr = pci_dev->addr;
 	sva->dev_addr.type = PCI_ADDR;
 	sva_list->sva = sva;
@@ -717,13 +746,15 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	/* Register vdpa ops */
 	sfc_vdpa_register_device(vdpa_data, &sva->dev_addr);
 	
+	DRV_LOG(ERR,"\n sfc_vdpa_register_device Done");
+
 	pthread_mutex_lock(&sfc_vdpa_adapter_list_lock);
 	TAILQ_INSERT_TAIL(&sfc_vdpa_adapter_list, sva_list, next);
 	pthread_mutex_unlock(&sfc_vdpa_adapter_list_lock);
 
 	rte_kvargs_free(kvlist);
 	
-	DRV_LOG(ERR,"\n Exit from probe");
+	DRV_LOG(ERR,"\n Probe Complete");
 	
 	return 0;
 

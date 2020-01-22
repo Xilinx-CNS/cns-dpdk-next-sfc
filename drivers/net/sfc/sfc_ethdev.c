@@ -2141,7 +2141,6 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 	const struct rte_ether_addr *from;
 
 	sfc_register_dp();
-
 	logtype_main = sfc_register_logtype(&pci_dev->addr,
 					    SFC_LOGTYPE_MAIN_STR,
 					    RTE_LOG_NOTICE);
@@ -2274,6 +2273,7 @@ static const struct rte_pci_id pci_id_sfc_efx_map[] = {
 static int sfc_eth_dev_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct rte_pci_device *pci_dev)
 {
+	printf("IN sfc_eth_dev_pci_probe ... ");
 	return rte_eth_dev_pci_generic_probe(pci_dev,
 		sizeof(struct sfc_adapter_shared), sfc_eth_dev_init);
 }

@@ -448,6 +448,8 @@ sfc_start(struct sfc_adapter *sa)
 		 * we should recreate it. May be we need proper
 		 * indication instead of guessing.
 		 */
+		/* TODO : Added for testing only, should be removed */
+		#ifdef WITH_SRIO
 		if (rc != 0)
 		{
 			sfc_sriov_vswitch_destroy(sa);
@@ -455,6 +457,7 @@ sfc_start(struct sfc_adapter *sa)
 			if (rc != 0)
 				goto fail_sriov_vswitch_create;
 		}
+		#endif
 		rc = sfc_try_start(sa);
 	} while ((--start_tries > 0) &&
 		 (rc == EIO || rc == EAGAIN || rc == ENOENT || rc == EINVAL));
@@ -467,7 +470,9 @@ sfc_start(struct sfc_adapter *sa)
 	return 0;
 
 fail_try_start:
+#ifdef WITH_SRIO
 fail_sriov_vswitch_create:
+#endif
 	sa->state = SFC_ADAPTER_CONFIGURED;
 fail_bad_state:
 	sfc_log_init(sa, "failed %d", rc);
@@ -773,7 +778,10 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_nic_reset;
 
+#ifdef WITH_SRIO
 	rc = sfc_sriov_attach(sa);
+#endif
+	rc = 0;
 	if (rc != 0)
 		goto fail_sriov_attach;
 
@@ -862,7 +870,10 @@ sfc_attach(struct sfc_adapter *sa)
 	sfc_flow_init(sa);
 
 	/* Create vSwitch to be able to use VFs when PF is not started yet */
+#ifdef WITH_SRIO
 	rc = sfc_sriov_vswitch_create(sa);
+#endif
+	rc = 0;
 	if (rc != 0)
 		goto fail_sriov_vswitch_create;
 
