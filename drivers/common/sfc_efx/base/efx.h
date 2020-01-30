@@ -3375,13 +3375,20 @@ efx_tunnel_config_udp_add(
 	__in		uint16_t port /* host/cpu-endian */,
 	__in		efx_tunnel_protocol_t protocol);
 
+/*
+ * Returns EBUSY if reconfiguration of the port is in progress in other thread.
+ */
 extern	__checkReturn	efx_rc_t
 efx_tunnel_config_udp_remove(
 	__in		efx_nic_t *enp,
 	__in		uint16_t port /* host/cpu-endian */,
 	__in		efx_tunnel_protocol_t protocol);
 
-extern			void
+/*
+ * Returns EBUSY if reconfiguration of any of the tunnel entries
+ * is in progress in other thread.
+ */
+extern	__checkReturn	efx_rc_t
 efx_tunnel_config_clear(
 	__in		efx_nic_t *enp);
 
