@@ -114,6 +114,7 @@ SRCS-y += rhead_intr.c
 SRCS-y += rhead_nic.c
 SRCS-y += rhead_pci.c
 SRCS-y += rhead_rx.c
+SRCS-y += rhead_tunnel.c
 SRCS-y += rhead_tx.c
 
 include $(RTE_SDK)/mk/rte.lib.mk
