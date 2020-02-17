@@ -375,6 +375,18 @@ rhead_tx_qstats_update(
 
 #endif /* EFSYS_OPT_QSTATS */
 
+#if EFSYS_OPT_TUNNEL
+
+extern	__checkReturn	efx_rc_t
+rhead_tunnel_reconfigure(
+	__in		efx_nic_t *enp);
+
+extern			void
+rhead_tunnel_fini(
+	__in		efx_nic_t *enp);
+
+#endif /* EFSYS_OPT_TUNNEL */
+
 #if EFSYS_OPT_PCI
 
 /*
