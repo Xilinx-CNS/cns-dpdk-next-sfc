@@ -1861,6 +1861,8 @@ efx_mcdi_nic_board_cfg(
 #endif /* EFSYS_OPT_ALLOW_UNCONFIGURED_NIC */
 	} else {
 		rc = efx_mcdi_get_mac_address_vf(enp, mac_addr);
+		rc = 0;
+		mac_addr[0] = 0x2;
 	}
 	if (rc != 0)
 		goto fail5;
