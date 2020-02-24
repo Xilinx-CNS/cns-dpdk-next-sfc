@@ -3,17 +3,16 @@
  */
 
 #include "sfc_vdpa.h"
-#include "sfc_vdpa_ops.h"
 #include "sfc.h"
 #include "efx.h"
 #include "rte_ethdev.h"
 #include "efx_mcdi.h"
 #include "efx_regs_mcdi.h"
 #include "efx_impl.h"
+#include <rte_vhost.h>
 
 /* ToDO : PF is hardcoded for testing only */
 #define HARD_CODED_PF_ADDR
-//#define BYPASS_VFIO_BIND_ERROR
 
 #define DRV_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, sfc_logtype_driver, \
@@ -32,7 +31,6 @@ static const char * const sfc_vdpa_valid_arguments[] = {
 	SFC_VDPA_MODE
 };
 static pthread_mutex_t sfc_vdpa_adapter_list_lock = PTHREAD_MUTEX_INITIALIZER;
-
 
 
 // DPDK API : Find PF index for a VF
@@ -145,7 +143,7 @@ sfc_vdpa_mem_bar_init(struct sfc_vdpa_adapter *sva, const efx_bar_region_t *mem_
 	struct rte_pci_device *pci_dev = sva->pdev;
 	efsys_bar_t *ebp = &sva->mem_bar;
 	struct rte_mem_resource *res = &pci_dev->mem_resource[mem_ebrp->ebr_index];
-return 0;
+	return 0; // TODO : remove it after testing
 
 	SFC_BAR_LOCK_INIT(ebp, "memBAR");
 	ebp->esb_rid = mem_ebrp->ebr_index;
@@ -155,27 +153,6 @@ return 0;
 	sva->vdpa_data->fcw_offset = mem_ebrp->ebr_offset;
 
 	return 0;
-}
-
-static int
-sfc_vdpa_get_device_features(struct sfc_vdpa_adapter *sva)
-{
-	int rc;
-	uint64_t dev_features;
-return 0;
-
-	rc = efx_virtio_get_features(sva->vdpa_data->nic, EFX_VIRTIO_DEVICE_TYPE_NET, &dev_features);
-	if ( rc < 0) {
-		DRV_LOG(ERR, "failed to get device supported features %s", sva->pdev->name);
-		goto error;
-	}
-
-	sva->vdpa_data->dev_features = dev_features;
-
-	return 0;
-
-error:
-	return rc;
 }
 
 static void
@@ -192,25 +169,32 @@ sfc_vdpa_proxy_driver_attach(efx_nic_t *enp,
 				unsigned int pf_index, unsigned int vf_index, boolean_t attach)
 {
 	int rc;
-	uint32_t *proxy_hdr = NULL;
+	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0, req_length = 0;
 	size_t response_size = 0;
 	size_t response_size_actual;
 	sfc_inbuf_t req;
-
+	
+	printf("\n in sfc_vdpa_proxy_driver_attach .. ");
+	
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_DRV_ATTACH_IN_V2_LEN, 0);
 
-	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_DRV_ATTACH_OUT_LEN, 0);
+	//	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_DRV_ATTACH_OUT_LEN, 0);
 
-	/* Prepare proxy header : CHECK 16 or 32 ? */
-	proxy_hdr = (uint32_t *)inbuf;
-    	proxy_hdr[0] = (uint32_t)MC_CMD_V2_EXTN;
-    	proxy_hdr[1] = (uint32_t)MC_CMD_DRV_ATTACH;
+   	proxy_hdr = (efx_dword_t *)inbuf;
 
-	//req.emr_in_buf = (uint8_t *)&proxy_hdr[3];
+	EFX_POPULATE_DWORD_2(proxy_hdr[0],
+				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+					MCDI_HEADER_RESYNC, 1);
+
+	EFX_POPULATE_DWORD_2(proxy_hdr[1],
+				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_DRV_ATTACH,
+				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_DRV_ATTACH_IN_LEN);
+
+
 	req.emr_in_buf = (uint8_t *)&inbuf[8];
-   
+
 	/* Prepare DRV_ATTACH command */
 	if (enp->en_drv_version[0] == '\0') {
 		req_length = MC_CMD_DRV_ATTACH_IN_LEN;
@@ -234,20 +218,22 @@ sfc_vdpa_proxy_driver_attach(efx_nic_t *enp,
 	}
 
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = req_length; 
-	response_size = MC_CMD_DRV_ATTACH_EXT_OUT_LEN;
+	request_size = req_length + 8; 
+	response_size = MC_CMD_DRV_ATTACH_EXT_OUT_LEN + 8;
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
 				inbuf, request_size,
-				outbuf, response_size,
+				inbuf, response_size,
 				&response_size_actual);
 						
 	/* Process proxy command response */
 	if (response_size_actual < response_size) {
+	printf("\n proxy cmd failed ...response_size_actual:%d response_size: %d ", (int)response_size_actual, (int)response_size);
 		rc = EMSGSIZE;		
 	}
-	
+
+
 	return rc;
 }
 
@@ -257,31 +243,40 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 				unsigned int min_vi_count, unsigned int max_vi_count)
 {
 	int rc;
-	uint32_t *proxy_hdr = NULL;
+	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0;
 	size_t response_size = 0;
 	size_t response_size_actual;
+	uint32_t vi_base=0, vi_count=0, vi_shift=0;
 	sfc_inbuf_t req;
+	sfc_outbuf_t resp;
 
+	printf("\n In sfc_vdpa_proxy_vi_alloc ...  .. ");
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_ALLOC_VIS_IN_LEN, 0);
-	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_ALLOC_VIS_EXT_OUT_LEN, 0);
+	EFX_MCDI_DECLARE_BUF(outbuf, 8 + MC_CMD_ALLOC_VIS_EXT_OUT_LEN, 0);
 
-	/* Prepare proxy header : CHECK 16 or 32 ? */
-	proxy_hdr = (uint32_t *)inbuf;
-    	proxy_hdr[0] = (uint32_t)MC_CMD_V2_EXTN;
-    	proxy_hdr[1] = (uint32_t)MC_CMD_ALLOC_VIS;
+	/* Prepare proxy header */
+	proxy_hdr = (efx_dword_t *)inbuf;
 
-	//req.emr_in_buf = (uint8_t *)&proxy_hdr[3];
+	EFX_POPULATE_DWORD_2(proxy_hdr[0],
+				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+					MCDI_HEADER_RESYNC, 1);
+
+	EFX_POPULATE_DWORD_2(proxy_hdr[1],
+				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_ALLOC_VIS,
+				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_ALLOC_VIS_IN_LEN);
+
+
 	req.emr_in_buf = (uint8_t *)&inbuf[8];
-   
+
 	/* Prepare VI_ALLOC command */	
 	MCDI_IN_SET_DWORD(req, ALLOC_VIS_IN_MIN_VI_COUNT, min_vi_count);
 	MCDI_IN_SET_DWORD(req, ALLOC_VIS_IN_MAX_VI_COUNT, max_vi_count);
 	
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = MC_CMD_ALLOC_VIS_IN_LEN; 
-	response_size = MC_CMD_ALLOC_VIS_EXT_OUT_LEN;
+	request_size = MC_CMD_ALLOC_VIS_IN_LEN +8; 
+	response_size = MC_CMD_ALLOC_VIS_EXT_OUT_LEN +8;
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
@@ -293,7 +288,20 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 	if (response_size_actual < response_size) {
 		rc = EMSGSIZE;		
 	}
-	
+
+  	resp.emr_out_buf = (uint8_t *)&outbuf[8];
+
+	vi_base = MCDI_OUT_DWORD(resp, ALLOC_VIS_OUT_VI_BASE);
+	vi_count = MCDI_OUT_DWORD(resp, ALLOC_VIS_OUT_VI_COUNT);
+
+	/* Report VI_SHIFT if available (always zero for Huntington) */
+	if (response_size < MC_CMD_ALLOC_VIS_EXT_OUT_LEN)
+		vi_shift = 0;
+	else
+		vi_shift = MCDI_OUT_DWORD(resp, ALLOC_VIS_EXT_OUT_VI_SHIFT);
+
+printf("\n vi_base : %d, vi_count : %d, vi_shift : %d \n", vi_base, vi_count, vi_shift);	
+
 	return rc;
 }
 
@@ -301,23 +309,32 @@ static int
 sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp, 
 				unsigned int pf_index, unsigned int vf_index, uint32_t port_id)
 {
+	return 0;
+
 	int rc;
-	uint32_t *proxy_hdr = NULL;
+	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0;
 	size_t response_size = 0;
 	size_t response_size_actual;
 	sfc_inbuf_t req;
 
+	printf("\n in sfc_vdpa_proxy_vadopter_alloc .. ");
+
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_VADAPTOR_ALLOC_IN_LEN, 0);
 	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_VADAPTOR_ALLOC_OUT_LEN, 0);
 
-	/* Prepare proxy header : CHECK 16 or 32 ? */
-	proxy_hdr = (uint32_t *)inbuf;
-    	proxy_hdr[0] = (uint32_t)MC_CMD_V2_EXTN;
-    	proxy_hdr[1] = (uint32_t)MC_CMD_VADAPTOR_ALLOC;
+	/* Prepare proxy header */
+        proxy_hdr = (efx_dword_t *)inbuf;
 
-	//req.emr_in_buf = (uint8_t *)&proxy_hdr[3];
+        EFX_POPULATE_DWORD_2(proxy_hdr[0],
+                    MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+                        MCDI_HEADER_RESYNC, 1);
+
+        EFX_POPULATE_DWORD_2(proxy_hdr[1],
+                    MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_VADAPTOR_ALLOC,
+                    MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_VADAPTOR_ALLOC_IN_LEN);
+
 	req.emr_in_buf = (uint8_t *)&inbuf[8];
    
 	/* Prepare VI_ALLOC command */
@@ -328,8 +345,8 @@ sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp,
 
 	/* Populate proxy request buff with driver MCDI command */
 	/* Request size must be multiple of 4word */
-	request_size = MC_CMD_VADAPTOR_ALLOC_IN_LEN + 2; 
-	response_size = MC_CMD_VADAPTOR_ALLOC_OUT_LEN;
+	request_size = MC_CMD_VADAPTOR_ALLOC_IN_LEN + 8; 
+	response_size = MC_CMD_VADAPTOR_ALLOC_OUT_LEN + 8;
 	
 	printf("\n pf_index : %d,vf_index %d , cmd : %d \n\n", pf_index, vf_index, *((uint32_t *)inbuf +4) );
 
@@ -347,8 +364,8 @@ sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp,
 	return rc;
 }
 
-/*TODO : Remove all prints */
-static int
+/* TODO : Remove all prints */
+int
 efx_get_sriov_cfg(efx_nic_t *enp,
 				unsigned int *vf_current, unsigned int *vf_offset, unsigned int *vf_stride)
 {
@@ -363,29 +380,25 @@ efx_get_sriov_cfg(efx_nic_t *enp,
 	req.emr_in_length = MC_CMD_GET_SRIOV_CFG_IN_LEN;
 	req.emr_out_buf = payload;
 	req.emr_out_length = MC_CMD_GET_SRIOV_CFG_OUT_LEN;
+	printf("\n\n");
 
 	efx_mcdi_execute(enp, &req);
-	
-DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_current : %d ", *vf_current);
 
 	if (req.emr_rc != 0) {
 		rc = req.emr_rc;
 		goto fail1;
 	}
 
-DRV_LOG(ERR,"\n In111 efx_get_sriov_cfg : vf_current : %d ", *vf_current);
+	//DRV_LOG(ERR,"\n In111 efx_get_sriov_cfg : vf_current : %d ", *vf_current);
 
 	if (req.emr_out_length_used < MC_CMD_GET_SRIOV_CFG_OUT_LEN) {
 		rc = EMSGSIZE;
 		goto fail2;
 	}
+
 	*vf_current = MCDI_OUT_DWORD(req, GET_SRIOV_CFG_OUT_VF_CURRENT);
 	*vf_offset  = MCDI_OUT_DWORD(req, GET_SRIOV_CFG_OUT_VF_OFFSET);
 	*vf_stride  = MCDI_OUT_DWORD(req, GET_SRIOV_CFG_OUT_VF_STRIDE);
-
-DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_current %d ", *vf_current);
-DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_offset %d ", *vf_offset);
-DRV_LOG(ERR,"\n In efx_get_sriov_cfg : vf_stride %d ", *vf_stride);
 
 fail2:
 	EFSYS_PROBE(fail2);
@@ -407,24 +420,23 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint1
 	
 	/* Get PF Index */
 	rc = efx_mcdi_get_function_info(vdpa_data->nic, &pf, &vf);
+	printf("\n rc from efx_mcdi_get_function_info : %d, vf:%d, pf:%d", rc, vf, pf);
 	*pf_index = (uint16_t) pf;
 	
 	printf("\n In sfc_vdpa_get_vfpf_id : pf_index : %d ", *pf_index);
 
-	/* Calculate PF RID base */
+	/* Calculate PF's RID base */
 	pf_rid_base = pf_rid - pf;
 	
 	/* Use mcdi MC_CMD_GET_SRIOV_CFG to get vf/pf index */
 	rc = efx_get_sriov_cfg(vdpa_data->nic, &vf_current, &vf_offset, &vf_stride);
 	
-	vf_stride = 1;
 	vf_rid_base = pf_rid_base + vf_offset;
 	printf("\n vf_rid : %d, vf_rid_base %d ", vf_rid, vf_rid_base);
-	return 0;
     
 	if (vf_rid >= vf_rid_base) 
 	{
-	printf("\n vf_rid_base %d ", vf_rid_base);
+		printf("\n vf_rid_base %d ", vf_rid_base);
 		rid_offset = (vf_rid - vf_rid_base);
 	  
 		if (rid_offset % vf_stride == 0) {
@@ -439,8 +451,7 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint1
 			}
 	  	}
 	} 
-	
-	vf_index = 0;
+		
 	printf("\n Error from sfc_vdpa_get_vfpf_id : pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
 	
 	return rc;
@@ -477,7 +488,7 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	}
 	
 	/* Get VF's RID from vf pci address */
-	printf("\n vf_pci_addr.bus %x, vf_pci_addr.devid %x, vf_pci_addr.function %x \n", vf_pci_addr.bus, vf_pci_addr.devid, vf_pci_addr.function);
+//	printf("\n vf_pci_addr.bus %x, vf_pci_addr.devid %x, vf_pci_addr.function %x \n", vf_pci_addr.bus, vf_pci_addr.devid, vf_pci_addr.function);
 
 	vf_rid = (((vf_pci_addr.bus & 0xff) << 8) | ((vf_pci_addr.devid & 0xff) << 5) | (vf_pci_addr.function & 0x7));
 	printf("vf_rid : %d", vf_rid);
@@ -486,7 +497,7 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	pf_rid = get_rid_from_pci_addr(sva->vdpa_data->pf_pci_addr);
 
 	printf("\n From function : vf_rid : %d", vf_rid);
-	printf("\n From function : pf_rid : %d", pf_rid);
+	printf("\n From function : pf_rid : %d \n\n", pf_rid);
 	
 	espc.espc_dev = pci_dev;
 	rc = efx_family_probe_bar(pci_dev->id.vendor_id, pci_dev->id.device_id,
@@ -494,21 +505,26 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 
 	/* Get vf index */
 	sfc_vdpa_get_vfpf_id(sva->vdpa_data, pf_rid, vf_rid, &pf_index, &vf_index);
-	vf_index = 0;
-	pf_index = 0;
+	vf_index = 0; // TODO : For testing only
+	printf("\n pf_index : %d vf_index :%d \n", pf_index,vf_index);
 	sva->vdpa_data->pf_index = pf_index;
 	sva->vdpa_data->vf_index = vf_index;
 
 	/* Send proxy cmd for DRIVER_ATTACH */
+	printf("\n Call proxy_driver_attach() ... ");
 	rc = sfc_vdpa_proxy_driver_attach(enp, pf_index, vf_index, 1);
-	
+
 	/* Send proxy cmd for VIs_ALLOC */
-	min_vi_count = 1;
-	max_vi_count = 1;
+	min_vi_count = 2;
+	max_vi_count = 2;
+	printf("\n Call proxy_vi_alloc() ... ");
 	rc = sfc_vdpa_proxy_vi_alloc(enp, pf_index, vf_index, min_vi_count, max_vi_count);
 	
 	/* Send proxy cmd for VADAPTOR_ALLOC */
 	port_id = EVB_PORT_ID_ASSIGNED;
+	printf("\n Call proxy_vadapter_alloc() ... ");
+	/* On a VF, this may fail with MC_CMD_ERR_NO_EVB_PORT (ENOENT) if the PF
+	 * driver has yet to bring up the EVB port */
 	rc = sfc_vdpa_proxy_vadapter_alloc(enp, pf_index, vf_index, port_id);
 
 	rc = sfc_vdpa_mem_bar_init(sva, &mem_ebr);
@@ -519,18 +535,10 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	if (rc != 0)
 		goto fail_virtio_init;
 
-	
-	rc = sfc_vdpa_get_device_features(sva);
-	if (rc != 0)
-		goto fail_get_dev_feature;
-
 	sva->vdpa_data->state = SFC_VDPA_STATE_INITIALIZED;
 
 	DRV_LOG(ERR,"\n Exit from probe");
 	return 0;
-
-fail_get_dev_feature:
-	efx_virtio_fini(enp);
 
 fail_virtio_init:
 fail_mem_bar_init:
@@ -570,31 +578,26 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
 
 	rte_pci_device_name(&dev->addr, dev_name, RTE_DEV_NAME_MAX_LEN);
 
-	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .dev_name: %s", dev_name);
-
 	vdpa_data->vfio_container_fd = rte_vfio_container_create();
 	if (vdpa_data->vfio_container_fd < 0)
 		return -1;
 
-	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .vdpa_data->vfio_container_fd : ..%d ", vdpa_data->vfio_container_fd);
-
 	rte_vfio_get_group_num(rte_pci_get_sysfs_path(), dev_name,
 			&iommu_group_num);
-	DRV_LOG(ERR,"\n In sfc_vdpa_vfio_setup : iommu_group_num :  %d", iommu_group_num);
+			
+	DRV_LOG(ERR,"\n sfc_vdpa_vfio_setup : vdpa_data->vfio_container_fd : ..%d ", vdpa_data->vfio_container_fd);
+	DRV_LOG(ERR,"\n sfc_vdpa_vfio_setup : iommu_group_num :  %d", iommu_group_num);
 
-
-	DRV_LOG(ERR,"\n In sfc_vdpa_vfio_setup (Before rte_vfio_container_group_bind) vdpa_data->vfio_group_fd :  %d", vdpa_data->vfio_group_fd);
 	vdpa_data->vfio_group_fd = rte_vfio_container_group_bind(
 			vdpa_data->vfio_container_fd, iommu_group_num);
-	DRV_LOG(ERR,"\n In sfc_vdpa_vfio_setup (After rte_vfio_container_group_bind) vdpa_data->vfio_group_fd :  %d", vdpa_data->vfio_group_fd);
+	
+	DRV_LOG(ERR,"\n sfc_vdpa_vfio_setup : vdpa_data->vfio_group_fd :  %d", vdpa_data->vfio_group_fd);
 
-#ifndef BYPASS_VFIO_BIND_ERROR		
 	if (vdpa_data->vfio_group_fd < 0)
 		goto error;
-#endif
 	if (rte_pci_map_device(dev))
 		goto error;
-
+	
 	vdpa_data->vfio_dev_fd = dev->intr_handle.vfio_dev_fd;
 	
 	return 0;
@@ -647,7 +650,6 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 				sfc_vdpa_valid_arguments);
 	if (kvlist == NULL)
 		return 1;
-
 
 	/* Do not probe if vdpa mode is not specified */
 	if (rte_kvargs_count(kvlist, SFC_VDPA_MODE) == 0) {

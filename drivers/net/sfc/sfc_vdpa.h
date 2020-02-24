@@ -2,23 +2,23 @@
 #ifndef _SFC_VDPA_H
 #define _SFC_VDPA_H
 
-#include <rte_malloc.h>
-#include <rte_memory.h>
-#include <rte_bus_pci.h>
-#include <rte_vhost.h>
-#include <rte_vdpa.h>
-#include <rte_vfio.h>
-#include <rte_spinlock.h>
-#include <rte_log.h>
-#include <rte_ethdev.h>
-
+#include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/epoll.h>
 #include <linux/virtio_net.h>
-#include <stdbool.h>
+
+#include <rte_malloc.h>
+#include <rte_memory.h>
+#include <rte_bus_pci.h>
+#include <rte_vdpa.h>
+#include <rte_vfio.h>
+#include <rte_spinlock.h>
+#include <rte_log.h>
+#include <rte_ethdev.h>
+
 #include <rte_kvargs.h>
 #include <rte_devargs.h>
 
@@ -35,6 +35,9 @@
 
 #define SFC_VDPA_MSIX_IRQ_SET_BUF_LEN (sizeof(struct vfio_irq_set) + \
 				sizeof(int) * (SFC_VDPA_MAX_QUEUES * 2 + 1))
+
+/* Proxy cmd req/resp header */
+#define PROXY_HDR_SIZE		8
 
 enum sfc_vdpa_mcdi_state {
 	SFC_VDPA_MCDI_UNINITIALIZED = 0,

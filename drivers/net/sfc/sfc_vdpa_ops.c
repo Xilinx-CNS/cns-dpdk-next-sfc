@@ -1,8 +1,10 @@
+
 #include "sfc_vdpa.h"
 #include "efx.h"
 #include "efx_mcdi.h"
 #include "efx_regs_mcdi.h"
 #include "efx_impl.h"
+#include <rte_vhost.h>
 
 uint32_t sfc_vdpa_ops_logtype_driver;
 #define DRV_OPS_LOG(level, fmt, args...) \
@@ -358,46 +360,69 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 				efx_virtio_device_type_t type, uint64_t *dev_features)
 {
 	int rc;
-	uint32_t *proxy_hdr = NULL;
+	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0;
 	size_t response_size = 0;
 	size_t response_size_actual;
 	sfc_inbuf_t req;
+	//efx_dword_t rc_proxied_cmd = 0;
+
 	sfc_outbuf_t resp;
 
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_VIRTIO_GET_FEATURES_IN_LEN, 0);
-	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN, 0);
 
-	/* Prepare proxy header : CHECK 16 or 32 ? */
-	proxy_hdr = (uint32_t *)inbuf;
-    proxy_hdr[0] = (uint32_t)MC_CMD_V2_EXTN;
-    proxy_hdr[1] = (uint32_t)MC_CMD_VIRTIO_GET_FEATURES;
+	proxy_hdr = (efx_dword_t *)inbuf;
 
-	req.emr_in_buf = (uint8_t *)&inbuf[8];
+	EFX_POPULATE_DWORD_2(proxy_hdr[0],
+				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+					MCDI_HEADER_RESYNC, 1);
+
+	EFX_POPULATE_DWORD_2(proxy_hdr[1],
+				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_VIRTIO_GET_FEATURES,
+				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_VIRTIO_GET_FEATURES_IN_LEN);
+
+
+	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
 
 	/* Prepare get feature command */
 	MCDI_IN_SET_DWORD(req, VIRTIO_GET_FEATURES_IN_DEVICE_ID, type);
 
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = MC_CMD_VIRTIO_GET_FEATURES_IN_LEN;
-	response_size = MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN;
+	request_size = MC_CMD_VIRTIO_GET_FEATURES_IN_LEN + PROXY_HDR_SIZE;
+	response_size = MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN + PROXY_HDR_SIZE;
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index,
 				inbuf, request_size,
-				outbuf, response_size,
+				inbuf, response_size,
 				&response_size_actual);
 
 	/* Process proxy command response */
 	if (response_size_actual < response_size) {
 		rc = EMSGSIZE;		
 	}
-	
-	resp.emr_out_buf = (uint8_t *)&outbuf[0];
 
+	printf("\n response_size %d, response_size_actual : %d",(int)response_size, (int)response_size_actual);
+	
+	proxy_hdr = (efx_dword_t *)&inbuf[0];
+	
+	if(EFX_DWORD_FIELD(*proxy_hdr, MCDI_HEADER_ERROR)) {
+		DRV_OPS_LOG(ERR, "Proxied cmd failed");
+		return rc;
+	}
+
+	resp.emr_out_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
+
+#if 0
 	*dev_features = MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_LO);
 	*dev_features |= (MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_HI));
+#endif
+	
+	*dev_features = MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES);
+	
+	printf("\n dev_features (LSB): 0x%x \n\n", (int)(*dev_features & 0xFFFFFFFF));
+	printf("\n dev_features (MSB): 0x%x \n\n", (int)((*dev_features >> 32) & 0xFFFFFFFF));
 
 	return rc;
 }
@@ -405,10 +430,10 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 static int
 sfc_virtio_proxy_verify_features(efx_nic_t *enp,
 				unsigned int pf_index, unsigned int vf_index,
-				efx_virtio_device_type_t type)
+				efx_virtio_device_type_t type, uint64_t dev_features)
 {
 	int rc;
-	uint32_t *proxy_hdr = NULL;
+	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0;
 	size_t response_size = 0;
 	size_t response_size_actual;
@@ -416,33 +441,47 @@ sfc_virtio_proxy_verify_features(efx_nic_t *enp,
 
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_VIRTIO_TEST_FEATURES_IN_LEN, 0);
-	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_VIRTIO_TEST_FEATURES_OUT_LEN, 0);
 
-	/* Prepare proxy header : CHECK 16 or 32 ? */
-	proxy_hdr = (uint32_t *)inbuf;
-    proxy_hdr[0] = (uint32_t)MC_CMD_V2_EXTN;
-    proxy_hdr[1] = (uint32_t)MC_CMD_VIRTIO_TEST_FEATURES;
+	proxy_hdr = (efx_dword_t *)inbuf;
 
-	req.emr_in_buf = (uint8_t *)&inbuf[8];
+	EFX_POPULATE_DWORD_2(proxy_hdr[0],
+				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+					MCDI_HEADER_RESYNC, 1);
 
-	/* Prepare verify feature command */
+	EFX_POPULATE_DWORD_2(proxy_hdr[1],
+				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_VIRTIO_TEST_FEATURES,
+				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_VIRTIO_TEST_FEATURES_IN_LEN);
+
+	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
+
+	/* Prepare get feature command */
 	MCDI_IN_SET_DWORD(req, VIRTIO_TEST_FEATURES_IN_DEVICE_ID, type);
+	MCDI_IN_SET_DWORD(req, VIRTIO_TEST_FEATURES_IN_FEATURES, dev_features);
 
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = MC_CMD_VIRTIO_TEST_FEATURES_IN_LEN;
-	response_size = MC_CMD_VIRTIO_TEST_FEATURES_OUT_LEN;
+	request_size = MC_CMD_VIRTIO_TEST_FEATURES_IN_LEN + PROXY_HDR_SIZE;
+	response_size = MC_CMD_VIRTIO_TEST_FEATURES_OUT_LEN + PROXY_HDR_SIZE;
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index,
 				inbuf, request_size,
-				outbuf, response_size,
+				inbuf, response_size,
 				&response_size_actual);
 
 	/* Process proxy command response */
 	if (response_size_actual < response_size) {
 		rc = EMSGSIZE;		
 	}
-		
+
+	printf("\n response_size %d, response_size_actual : %d",(int)response_size, (int)response_size_actual);
+	
+	proxy_hdr = (efx_dword_t *)&inbuf[0];
+	
+	if(EFX_DWORD_FIELD(*proxy_hdr, MCDI_HEADER_ERROR)) {
+		DRV_OPS_LOG(ERR, "Proxied cmd failed");
+		return rc;
+	}
+	
 	return rc;
 }
 
@@ -452,7 +491,6 @@ sfc_vdpa_get_dev_features(struct sfc_vdpa_ops_data *vdpa_data)
 	int rc = -1; 
 	uint64_t dev_features = 0;
 	
-		
 	if (vdpa_data->vdpa_context == SFC_VDPA_AS_PF) {
 		rc = efx_virtio_get_features(vdpa_data->nic, 
 						EFX_VIRTIO_DEVICE_TYPE_NET, 
@@ -461,9 +499,10 @@ sfc_vdpa_get_dev_features(struct sfc_vdpa_ops_data *vdpa_data)
 	else if (vdpa_data->vdpa_context == SFC_VDPA_AS_VF) {
 		printf("\n calling proxy sfc_virtio_proxy_get_features ........ \n\n\n");
 		/* Send proxy command */
-		rc = sfc_virtio_proxy_get_features(vdpa_data->nic, vdpa_data->vf_index, vdpa_data->vf_index, EFX_VIRTIO_DEVICE_TYPE_NET, &dev_features);
+		rc = sfc_virtio_proxy_get_features(vdpa_data->nic, vdpa_data->pf_index, 
+					vdpa_data->vf_index, EFX_VIRTIO_DEVICE_TYPE_NET, &dev_features);
 	}
-	
+        printf("\n dev_features : 0x%x", (int)dev_features);	
 	vdpa_data->dev_features = dev_features;
 	
 	return rc;
@@ -490,10 +529,13 @@ sfc_vdpa_set_features(int vid)
 						vdpa_data->req_features);
 	}
 	else if (vdpa_data->vdpa_context == SFC_VDPA_AS_VF) {
-		printf("\n calling proxy sfc_virtio_proxy_verify_features ........ \n\n\n\n\n");
+		printf("\n calling proxy sfc_virtio_proxy_verify_features ........ \n\n\n");
 		/* Send proxy command */
-		rc = sfc_virtio_proxy_verify_features(vdpa_data->nic, vdpa_data->vf_index, vdpa_data->vf_index, EFX_VIRTIO_DEVICE_TYPE_NET);
+		rc = sfc_virtio_proxy_verify_features(vdpa_data->nic, vdpa_data->vf_index, 
+												vdpa_data->vf_index, EFX_VIRTIO_DEVICE_TYPE_NET, 
+												vdpa_data->req_features);
 	}
+	
 	/* TBD : ENOSUP and EINVAL values ?? */
 	if (rc  == 0 /*ENOSUP*/) {
 		DRV_OPS_LOG(ERR, "Unsupported feature is requested");
@@ -594,6 +636,7 @@ sfc_vdpa_get_features(int did, uint64_t *features)
 	}
 	
 	*features = vdpa_data->drv_features;
+	printf("\n features : 0x%lx", *features);
 
 	return 0;
 }

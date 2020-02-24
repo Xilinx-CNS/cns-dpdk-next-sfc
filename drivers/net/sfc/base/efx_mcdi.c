@@ -2033,7 +2033,6 @@ fail1:
 #endif	/* EFSYS_OPT_MAC_STATS */
 
 #if EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10()
-
 /*
  * This function returns the pf and vf number of a function.  If it is a pf the
  * vf number is 0xffff.  The vf number is the index of the vf on that
@@ -3006,16 +3005,16 @@ efx_mcdi_proxy_cmd(
         efx_rc_t rc;
 	int i=0;
 
-	printf("\n\n In efx_mcdi_proxy_cmd : %d, %d  ", (int)request_size, (int)(sizeof (*inbufp)));
+	printf("\n\n In efx_mcdi_proxy_cmd ");
+
+	printf("\n\n request_size: %d  ", (int)request_size);
         if (request_size % sizeof (*inbufp) != 0) {
                 rc = EINVAL;
                 goto fail1;
         }
 
-	printf("\n\n In efx_mcdi_proxy_cmd ");
-	printf("\n pf_index : %d,vf_index %d , request_size : %d ", pf_index, vf_index, (int)request_size);
-
-	for (i=0; i < request_size + 8; i++)
+	/* Remove it after testing */
+	for (i=0; i < request_size ; i++)
 		printf("\n req_buff[%d] : %x ", i, *(request_bufferp + i) );
 
         EFSYS_KMEM_ALLOC(enp, (MC_CMD_PROXY_CMD_IN_LEN + request_size), inbufp);
@@ -3035,9 +3034,9 @@ efx_mcdi_proxy_cmd(
                 request_bufferp, request_size);
 
 	/* TODO : Commented out for UT */
-        // efx_mcdi_execute(enp, &req);
-	req.emr_rc = 0; // only tp avoid compilation error -- to be removed 
-	req.emr_out_length_used = 12;
+        efx_mcdi_execute(enp, &req);
+	
+
         EFSYS_KMEM_FREE(enp, (MC_CMD_PROXY_CMD_IN_LEN + request_size), inbufp);
         if (req.emr_rc != 0) {
                 rc = req.emr_rc;
@@ -3047,7 +3046,6 @@ efx_mcdi_proxy_cmd(
         if (response_size_actualp != NULL)
                 *response_size_actualp = req.emr_out_length_used;
 
-	printf("\n Out efx_mcdi_proxy_cmd \n\n\n");
         return (0);
 
 fail2:
