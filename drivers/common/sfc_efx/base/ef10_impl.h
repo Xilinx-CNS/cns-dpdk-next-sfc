@@ -212,6 +212,10 @@ efx_mcdi_vadaptor_free(
 	__in		uint32_t port_id);
 
 extern	__checkReturn	efx_rc_t
+ef10_upstream_port_vadaptor_alloc(
+	__in		efx_nic_t *enp);
+
+extern	__checkReturn	efx_rc_t
 ef10_nic_probe(
 	__in		efx_nic_t *enp);
 
