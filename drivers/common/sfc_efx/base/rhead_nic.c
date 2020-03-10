@@ -337,6 +337,58 @@ fail1:
 	return (rc);
 }
 
+static	__checkReturn	efx_rc_t
+rhead_upstream_port_vadaptor_alloc(
+	__in		efx_nic_t *enp)
+{
+	uint32_t retry;
+	uint32_t delay_us;
+	efx_rc_t rc;
+
+	/*
+	 * On a VF, this may fail with MC_CMD_ERR_NO_EVB_PORT (ENOENT) if the PF
+	 * driver has yet to bring up the EVB port. See bug 56147. In this case,
+	 * retry the request several times after waiting a while. The wait time
+	 * between retries starts small (10ms) and exponentially increases.
+	 * Total wait time is a little over two seconds. Retry logic in the
+	 * client driver may mean this whole loop is repeated if it continues to
+	 * fail.
+	 */
+	retry = 0;
+	delay_us = 10000;
+	while ((rc = efx_mcdi_vadaptor_alloc(enp, EVB_PORT_ID_ASSIGNED)) != 0) {
+		if (EFX_PCI_FUNCTION_IS_PF(&enp->en_nic_cfg) ||
+		    (rc != ENOENT)) {
+			/*
+			 * Do not retry alloc for PF, or for other errors on
+			 * a VF.
+			 */
+			goto fail1;
+		}
+
+		/* VF startup before PF is ready. Retry allocation. */
+		if (retry > 5) {
+			/* Too many attempts */
+			rc = EINVAL;
+			goto fail2;
+		}
+		EFSYS_PROBE1(mcdi_no_evb_port_retry, int, retry);
+		EFSYS_SLEEP(delay_us);
+		retry++;
+		if (delay_us < 500000)
+			delay_us <<= 2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
 	__checkReturn	efx_rc_t
 rhead_nic_init(
 	__in		efx_nic_t *enp)
@@ -346,6 +398,7 @@ rhead_nic_init(
 	uint32_t vi_count, vi_base, vi_shift;
 	uint32_t vi_window_size;
 	efx_rc_t rc;
+	boolean_t alloc_vadaptor = B_TRUE;
 
 	EFSYS_ASSERT(EFX_FAMILY_IS_EF100(enp));
 	EFSYS_ASSERT3U(edcp->edc_max_piobuf_count, ==, 0);
@@ -397,11 +450,33 @@ rhead_nic_init(
 	enp->en_arch.ef10.ena_wc_mem_map_offset = 0;
 	enp->en_arch.ef10.ena_wc_mem_map_size = 0;
 
-	enp->en_vport_id = EVB_PORT_ID_NULL;
-
 	enp->en_nic_cfg.enc_mcdi_max_payload_length = MCDI_CTL_SDU_LEN_MAX_V2;
 
+	/*
+	 * For SR-IOV use case, vAdaptor is allocated for PF and associated VFs
+	 * during NIC initialization when vSwitch is created and vports are
+	 * allocated. Hence, skip vAdaptor allocation for EVB and update vport
+	 * id in NIC structure with the one allocated for PF.
+	 */
+
+	enp->en_vport_id = EVB_PORT_ID_ASSIGNED;
+#if EFSYS_OPT_EVB
+	if ((enp->en_vswitchp != NULL) && (enp->en_vswitchp->ev_evcp != NULL)) {
+		/* For EVB use vport allocated on vswitch */
+		enp->en_vport_id = enp->en_vswitchp->ev_evcp->evc_vport_id;
+		alloc_vadaptor = B_FALSE;
+	}
+#endif
+	if (alloc_vadaptor != B_FALSE) {
+		/* Allocate a vAdaptor attached to our upstream vPort/pPort */
+		if ((rc = rhead_upstream_port_vadaptor_alloc(enp)) != 0)
+			goto fail5;
+	}
+
 	return (0);
+
+fail5:
+	EFSYS_PROBE(fail5);
 
 fail4:
 	EFSYS_PROBE(fail4);
@@ -507,6 +582,22 @@ rhead_nic_set_hw_unavailable(
 rhead_nic_fini(
 	__in		efx_nic_t *enp)
 {
+	boolean_t do_vadaptor_free = B_TRUE;
+
+#if EFSYS_OPT_EVB
+	if (enp->en_vswitchp != NULL) {
+		/*
+		 * For SR-IOV the vAdaptor is freed with the vswitch,
+		 * so do not free it here.
+		 */
+		do_vadaptor_free = B_FALSE;
+	}
+#endif
+	if (do_vadaptor_free != B_FALSE) {
+		(void) efx_mcdi_vadaptor_free(enp, enp->en_vport_id);
+		enp->en_vport_id = EVB_PORT_ID_NULL;
+	}
+
 	(void) efx_mcdi_free_vis(enp);
 	enp->en_arch.ef10.ena_vi_count = 0;
 }
