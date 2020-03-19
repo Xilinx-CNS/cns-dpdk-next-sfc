@@ -11,6 +11,10 @@ if arch_subdir != 'x86' or not dpdk_conf.get('RTE_ARCH_64')
 	reason = 'only supported on x86_64'
 endif
 
+build = dpdk_conf.has('RTE_LIBRTE_VHOST')
+reason = 'missing dependency, DPDK vhost library'
+deps += 'vhost'
+
 allow_experimental_apis = true
 
 extra_flags = []
@@ -42,6 +46,9 @@ sources = files(
 	'sfc_ethdev.c',
 	'sfc_kvargs.c',
 	'sfc.c',
+	'sfc_vdpa.c',
+	'sfc_vdpa_ops.c',
+	'sfc_vdpa_filter.c',
 	'sfc_mcdi.c',
 	'sfc_sriov.c',
 	'sfc_intr.c',

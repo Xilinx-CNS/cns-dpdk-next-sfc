@@ -31,7 +31,7 @@
 #include "efx.h"
 #include "efx_impl.h"
 
-//#if EFSYS_OPT_RIVERHEAD TODO .. Commented to run it on Medford device : Remove this after testing
+#if EFSYS_OPT_RIVERHEAD 
 
 uint32_t sfc_logtype_driver_cc;
 
@@ -77,12 +77,11 @@ rhead_virtio_get_features(
 	MCDI_IN_SET_DWORD(req, VIRTIO_GET_FEATURES_IN_DEVICE_ID, type);
 
 	DRV_LOG_CC(ERR, "Configuring device using libefx API : rhead_virtio_get_features");
-#if 1
-	/* Added for testing only should be removed */
-	printf("\n\n ##### Configuring device using libefx API : rhead_virtio_get_features ##### \n\n");
 
-	return 0;
-#endif
+	/* Added for testing only should be removed */
+	
+	printf("\n\n ##### For VIRTIO MCDI MC_CMD_VIRTIO_GET_FEATURES Invoked libefx API : rhead_virtio_get_features ##### \n\n");
+
 	efx_mcdi_execute(enp, &req);
 
 	if (req.emr_rc != 0) {
@@ -96,8 +95,13 @@ rhead_virtio_get_features(
 	}
 
 	*featuresp = MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_LO);
+	printf("\n LO *featuresp : %d", (unsigned int) *featuresp);
+	
+	printf("\n LO 0x%x", (unsigned int) (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_LO)));
+	
 	*featuresp |= (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_HI));
 	
+	printf("\n HI 0x%x", (unsigned int) (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_HI)));
 	return (0);
 	
 	fail1:
@@ -128,8 +132,7 @@ rhead_virtio_verify_features(
 	MCDI_IN_SET_DWORD(req, VIRTIO_TEST_FEATURES_IN_FEATURES_LO, features & 0xFFFFFFFF);
 	MCDI_IN_SET_DWORD(req, VIRTIO_TEST_FEATURES_IN_FEATURES_LO, features & 0xFFFFFFFF);
 		
-	printf("\n\n ##### Configuring device using libefx API : rhead_virtio_verify_features ##### \n\n");
-	return 0;
+	printf("\n\n ##### For VIRTIO MCDI MC_CMD_VIRTIO_TEST_FEATURES Invoked libefx API : rhead_virtio_get_features ##### \n\n");
 
 	efx_mcdi_execute(enp, &req);
 
@@ -168,9 +171,9 @@ rhead_virtio_get_doorbell_offset(
 	MCDI_IN_SET_DWORD(req, VIRTIO_GET_DOORBELL_OFFSET_REQ_INSTANCE, evvp->evv_vq_num); //TODO VI NUM
 		
 	printf("\n\n ####### Configuring device using libefx API : rhead_virtio_get_doorbell_offset ####### \n\n");
-	return 0;
 
 	efx_mcdi_execute(enp, &req);
+	printf("\n ## RC of VIRTIO MCDI MC_CMD_VIRTIO_GET_DOORBELL_OFFSET : %d ## \n", (int)req.emr_rc);
 
 	if (req.emr_rc != 0) {
 		rc = req.emr_rc;
@@ -216,81 +219,92 @@ rhead_virtio_virtq_create(
                  __in                    uint16_t target_vf,
                  __in                    uint32_t vq_num,
                  __in                    efx_virtio_vq_cfg_t *evvcp,
-                 __deref_out     	 efx_virtio_vq_t **evvpp)
+                 __deref_out     	 	 efx_virtio_vq_t **evvpp)
 {
    	efx_mcdi_req_t req;
         EFX_MCDI_DECLARE_BUF(payload, MC_CMD_VIRTIO_INIT_QUEUE_REQ_LEN,
                 MC_CMD_VIRTIO_INIT_QUEUE_RESP_LEN);
-	efx_rc_t rc;
+	efx_rc_t rc = 0;
         uint8_t queue_type = 0;
 	uint32_t flags = 0;
 	efx_virtio_vq_t *evvp;
 	uint32_t vi_index = 0;
 
-        req.emr_cmd = MC_CMD_VIRTIO_INIT_QUEUE;
-        req.emr_in_buf = payload;
-        req.emr_in_length = MC_CMD_VIRTIO_INIT_QUEUE_REQ_LEN;
-        req.emr_out_buf = payload;
-        req.emr_out_length = MC_CMD_VIRTIO_INIT_QUEUE_RESP_LEN;
+
+	printf("\n In rhead_virtio_virtq_create : target_vf : %d", target_vf);
+
+	req.emr_cmd = MC_CMD_VIRTIO_INIT_QUEUE;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_VIRTIO_INIT_QUEUE_REQ_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_VIRTIO_INIT_QUEUE_RESP_LEN;
 
 	if (type == EFX_VIRTIO_VQ_TYPE_NET_RXQ)
 		queue_type = MC_CMD_VIRTIO_INIT_QUEUE_REQ_NET_RXQ;
 	else if (type == EFX_VIRTIO_VQ_TYPE_NET_TXQ)
 		queue_type = MC_CMD_VIRTIO_INIT_QUEUE_REQ_NET_TXQ;
 
-        MCDI_IN_SET_BYTE(req, VIRTIO_INIT_QUEUE_REQ_QUEUE_TYPE, queue_type);
-        MCDI_IN_SET_WORD(req, VIRTIO_INIT_QUEUE_REQ_TARGET_VF, target_vf);
+	MCDI_IN_SET_BYTE(req, VIRTIO_INIT_QUEUE_REQ_QUEUE_TYPE, queue_type);
+	MCDI_IN_SET_WORD(req, VIRTIO_INIT_QUEUE_REQ_TARGET_VF, target_vf);
 	/* 
- 	 * This is the function-local index of the associated VI, not the
-         * virtqueue number as counted by the virtqueue spec
+	 * This is the function-local index of the associated VI, not the
+	 * virtqueue number as counted by the virtqueue spec. queue 0 reserved is for MCDI.
 	 */
-	vi_index = enp->en_arch.ef10.ena_vi_base + vq_num/2;
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INSTANCE, vi_index);
+	
+	vi_index = vq_num/2 +1 ;
+	printf("\n vq_num : %d, vi_index : %d", vq_num, vi_index);
+	
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INSTANCE, vi_index);
 
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_SIZE, evvcp->evvc_vq_size);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_SIZE, evvcp->evvc_vq_size);
 	flags |= evvcp->evvc_use_pasid ? B_TRUE : B_FALSE;
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_FLAGS, flags);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_FLAGS, flags);
 
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_LO, evvcp->evvc_desc_tbl_addr);
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_HI, evvcp->evvc_desc_tbl_addr);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_LO, evvcp->evvc_desc_tbl_addr);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_DESC_TBL_ADDR_HI, evvcp->evvc_desc_tbl_addr);
 
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_LO, evvcp->evvc_avail_ring_addr);
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_HI, evvcp->evvc_avail_ring_addr);
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_LO, evvcp->evvc_used_ring_addr);
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_HI, evvcp->evvc_used_ring_addr);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_LO, evvcp->evvc_avail_ring_addr);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_AVAIL_RING_ADDR_HI, evvcp->evvc_avail_ring_addr);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_LO, evvcp->evvc_used_ring_addr);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_USED_RING_ADDR_HI, evvcp->evvc_used_ring_addr);
 
 	if (evvcp->evvc_use_pasid)
 		MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_PASID, evvcp->evvc_pas_id);
+
+	MCDI_IN_SET_WORD(req, VIRTIO_INIT_QUEUE_REQ_MSIX_VECTOR, evvcp->evvc_msix_vector);
+
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_FEATURES_LO, (evvcp->evcc_features & 0xFFFFFFFF));
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_FEATURES_HI, ((evvcp->evcc_features >> 32) & 0xFFFFFFFF));
 	
-        MCDI_IN_SET_WORD(req, VIRTIO_INIT_QUEUE_REQ_MSIX_VECTOR, evvcp->evvc_msix_vector);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INITIAL_PIDX, evvcp->evvc_vq_pidx);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INITIAL_CIDX, evvcp->evvc_vq_cidx);
 
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_FEATURES_LO, evvcp->evcc_features);
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_FEATURES_HI, evvcp->evcc_features);
+	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_MPORT_SELECTOR, evvcp->evcc_mport_selector);
 
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INITIAL_PIDX, evvcp->evvc_vq_pidx);
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INITIAL_CIDX, evvcp->evvc_vq_cidx);
 
-        MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_MPORT_SELECTOR, evvcp->evcc_mport_selector);
+    printf("\n\n ######### Configuring device using libefx API : rhead_virtio_virtq_create (virtio MCDI : MC_CMD_VIRTIO_INIT_QUEUE)####### \n\n");
+	printf("\n enp : %p,", enp);
+	
+	efx_mcdi_execute(enp, &req);
+	
+	printf("\n ## RC of VIRTIO MCDI MC_CMD_VIRTIO_INIT_QUEUE : %d ## \n", (int)req.emr_rc);
 
-	printf("\n\n ######### Configuring device using libefx API : rhead_virtio_virtq_create ####### \n\n");
-#if 0
-        efx_mcdi_execute(enp, &req);
 
-        if (req.emr_rc != 0) {
-                rc = req.emr_rc;
-                goto fail1;
-        }
-#endif
-        /* Allocate an VIRTQ object */
-        EFSYS_KMEM_ALLOC(enp->en_esip, sizeof (efx_virtio_vq_t), evvp);
+	if (req.emr_rc != 0) {
+			rc = req.emr_rc;
+			goto fail1;
+	}
 
-        if (evvp == NULL) {
-                rc = ENOMEM;
-                goto fail2;
-        }
+	/* Allocate an VIRTQ object */
+	EFSYS_KMEM_ALLOC(enp->en_esip, sizeof (efx_virtio_vq_t), evvp);
+
+	if (evvp == NULL) {
+			rc = ENOMEM;
+			goto fail2;
+	}
 
 	/* Prepare the virtqueue context */
-        evvp->evv_magic = EFX_VIRTQ_MAGIC;
+	evvp->evv_magic = EFX_VIRTQ_MAGIC;
 	evvp->evv_index = vi_index;
 	evvp->evv_type = queue_type;
 	evvp->evv_target_vf = target_vf;
@@ -299,12 +313,12 @@ rhead_virtio_virtq_create(
 
 	*evvpp = evvp;
 
-        return (0);
+    return (0);
 
-        fail2:
-                EFSYS_PROBE1(fail2, efx_rc_t, rc);
-        //fail1:
-                EFSYS_PROBE1(fail1, efx_rc_t, rc);
+fail2:
+		EFSYS_PROBE1(fail2, efx_rc_t, rc);
+fail1:
+		EFSYS_PROBE1(fail1, efx_rc_t, rc);
 
 	return (rc);
 }
@@ -319,9 +333,9 @@ rhead_virtio_virtq_destroy (
         EFX_MCDI_DECLARE_BUF(payload, MC_CMD_VIRTIO_FINI_QUEUE_REQ_LEN,
                 MC_CMD_VIRTIO_FINI_QUEUE_RESP_LEN);
         efx_rc_t rc;
-	efx_nic_t *enp = evvp->evv_enp;
+		efx_nic_t *enp = evvp->evv_enp;
         uint8_t queue_type = 0;
-        uint32_t flags = 0;
+        //uint32_t flags = 0;
 
         req.emr_cmd = MC_CMD_VIRTIO_FINI_QUEUE;
         req.emr_in_buf = payload;
@@ -337,12 +351,14 @@ rhead_virtio_virtq_destroy (
         MCDI_IN_SET_BYTE(req, VIRTIO_FINI_QUEUE_REQ_QUEUE_TYPE, queue_type);
         MCDI_IN_SET_WORD(req, VIRTIO_INIT_QUEUE_REQ_TARGET_VF, evvp->evv_target_vf);
         MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INSTANCE, evvp->evv_index);
-#if 1
-	printf("\n\n ######### Configuring device using libefx API : rhead_virtio_virtq_destroy ######## \n\n ");
-#endif
 
-#if 0
+		printf("\n\n ######### Configuring device using libefx API : rhead_virtio_virtq_destroy (MC_CMD_VIRTIO_FINI_QUEUE) ######## \n\n ");
+		printf("\n enp : %p, evvp->evv_target_vf : %d, evvp->evv_index : %d", enp, evvp->evv_target_vf, evvp->evv_index);
+
         efx_mcdi_execute(enp, &req);
+		printf("\n req.emr_rc : %d", (int)req.emr_rc);
+		
+		printf("\n ## RC of VIRTIO MCDI MC_CMD_VIRTIO_FINI_QUEUE : %d ## \n", (int)req.emr_rc);
 
         if (req.emr_rc != 0) {
                 rc = req.emr_rc;
@@ -353,22 +369,23 @@ rhead_virtio_virtq_destroy (
                 rc = EMSGSIZE;
                 goto fail2;
         }
-#endif
-	/* Free virtq context */
-        EFSYS_KMEM_FREE(enp->en_esip, sizeof (efx_virtio_vq_t), evvp);
-	
-        *pidxp = MCDI_OUT_DWORD(req, VIRTIO_FINI_QUEUE_RESP_FINAL_PIDX);
-        *cidxp = MCDI_OUT_DWORD(req, VIRTIO_FINI_QUEUE_RESP_FINAL_CIDX);
 
-        return (0);
-#if 0
-        fail1:
-                EFSYS_PROBE1(fail1, efx_rc_t, rc);
+		/* Free virtq context */
+		EFSYS_KMEM_FREE(enp->en_esip, sizeof (efx_virtio_vq_t), evvp);
+
+		*pidxp = MCDI_OUT_DWORD(req, VIRTIO_FINI_QUEUE_RESP_FINAL_PIDX);
+		*cidxp = MCDI_OUT_DWORD(req, VIRTIO_FINI_QUEUE_RESP_FINAL_CIDX);
+		
+		printf("\n Exit from rhead_virtio_virtq_destroy ----" );
+		return (0);
+		
+    fail1:
+		EFSYS_PROBE1(fail1, efx_rc_t, rc);
 	fail2:
 		EFSYS_PROBE1(fail2, efx_rc_t, rc);
-#endif
+
 	return (rc);
 }
 
-//#endif /* EFSYS_OPT_RIVERHEAD */
+#endif /* EFSYS_OPT_RIVERHEAD */
 

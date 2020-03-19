@@ -8,11 +8,13 @@
 #include "rte_ethdev.h"
 #include "efx_mcdi.h"
 #include "efx_regs_mcdi.h"
-#include "efx_impl.h"
+#include "efx_regs_mcdi.h"
 #include <rte_vhost.h>
+#include <rte_common.h>
+#include <rte_string_fns.h>
 
 /* ToDO : PF is hardcoded for testing only */
-#define HARD_CODED_PF_ADDR
+//#define HARD_CODED_PF_ADDR
 
 #define DRV_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, sfc_logtype_driver, \
@@ -25,39 +27,72 @@ uint16_t get_rid_from_pci_addr(struct rte_pci_addr pci_addr);
 uint32_t sfc_logtype_driver;
 
 int 
-sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint16_t vf_rid, uint32_t *pf_index, uint32_t *vf_index);
+sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, 
+		uint16_t vf_rid, uint32_t *pf_index, uint32_t *vf_index);
+
+int
+efx_get_sriov_cfg(efx_nic_t *enp,
+		unsigned int *vf_current, unsigned int *vf_offset, unsigned int *vf_stride);
 
 static const char * const sfc_vdpa_valid_arguments[] = {
-	SFC_VDPA_MODE
+	SFC_VDPA_MODE,
+	SFC_VDPA_MAC_ADDR,
+	NULL
 };
 static pthread_mutex_t sfc_vdpa_adapter_list_lock = PTHREAD_MUTEX_INITIALIZER;
 
-
-// DPDK API : Find PF index for a VF
+/* Find PF index for a VF */
+/* TODO : DPDK does not have any API for VF-PF Mapping, this can be upstreamed */ 
 void rte_get_vf_to_pf_index(char *vf, char *pf)
 {
 	char cmd[100];
-	/* cut command needs to be replaced with some rte func */
-	snprintf(cmd, 1000, "ls -l  /sys/bus/pci/devices/%s/physfn | cut -d ' ' -f 12 | cut -b 4-15", vf);
+	char *token[16];
+	int ret, i=0;
+	char pf_str[200];
+
+	snprintf(cmd, 1000, "ls -l  /sys/bus/pci/devices/%s/physfn", vf);
 
 	FILE *fp = popen(cmd, "r");
 	if (fp == NULL) {
-                printf ("failed to open popen");
-		return;
+			printf ("failed to open popen");
+			return;
 	}
 
-        fgets(pf, RTE_DEV_NAME_MAX_LEN, fp);
-        if (!pf)
-            printf(" failed to find phy device");
+	fgets(pf_str, sizeof(cmd), fp);
+	//fgets(pf_str, 200, fp);
+	printf("\n sizeof(cmd): %lu, Parent PF_STR :  %s \n", sizeof(cmd), pf_str);
 
-         printf("\n Parent PF :  %s \n", pf);
+	ret = rte_strsplit(pf_str, sizeof(pf_str),
+					token, RTE_DIM(token), ' ');
+	if (ret <= 0) {
+			DRV_LOG(ERR, "Cannot get PF number of VF %s \n", vf);
+			return;
+	}
+
+	printf("\n RTE_DIM(token) : %d",  (int)RTE_DIM(token) );
+
+	for(i=0; i < 11; i++) {
+			printf("\n %s : len : %d", token[i], (int)strlen(token[i]) );
+	}
+
+	printf("\n %s", token[10]);
+
+	/* PF number is the last(11th) token */
+	/* Get only BDF value ignore 0000: prefix */
+	memcpy(pf, token[10] +8, (strlen(token[10]) - 8));
+
+	printf("\n Parent PF :  %s \n", pf);
+	if (!pf)
+			printf(" failed to find phy device");
 
 	if (pclose(fp) != 0)
-        	fprintf(stderr," Error: Failed to close command stream \n");
-         return;
+			fprintf(stderr," Error: Failed to close command stream \n");
+
+	return;
 }
 
-// DPDK/SFC API name TBD :: Find ethdev for a PF
+/* DPDK/SFC API name TBD :: Find ethdev for a PF */
+/* TODO : DPDK does not have any API for it, this can be upstremed */
 struct rte_eth_dev * rte_get_pf_to_eth_dev(const char * pf_name)
 {
 	int i = 0;
@@ -66,19 +101,16 @@ struct rte_eth_dev * rte_get_pf_to_eth_dev(const char * pf_name)
 	
 	char port_name[RTE_ETH_NAME_MAX_LEN];
 
-	printf("\n In rte_get_pf_to_eth_dev for PF : %s" , pf_name );
-	printf("\n Available Port : %d", ports);
+	DRV_LOG(DEBUG,"\n In rte_get_pf_to_eth_dev for PF : %s" , pf_name );
+	DRV_LOG(DEBUG,"\n Available Port : %d", ports);
 
 	for (i = 0; i < ports; i++)
 	{
-		DRV_LOG(ERR,"\n i=%d Port : %d", i, ports);
+		DRV_LOG(DEBUG,"\n i=%d Port : %d", i, ports);
 
-		/* Compare PCI address */
+		/* Compare PCI address which are in the BDF format */
 		if (rte_eth_dev_get_name_by_port(i, port_name) == 0) {
-
-	   	printf("\n In rte_get_pf_to_eth_dev for PF : %s, port_name : %s" , pf_name, port_name);
-
-			if (strncmp(port_name, pf_name, 12) == 0) {
+			if (strncmp(port_name, pf_name, 7) == 0) {
 				eth_dev = &rte_eth_devices[i];
 				if (eth_dev == NULL)
 					return NULL;
@@ -136,7 +168,7 @@ get_adapter_by_dev(struct rte_pci_device *pdev)
 	return list;
 }
 
-// TODO : Revisit this function after UT.
+
 static int
 sfc_vdpa_mem_bar_init(struct sfc_vdpa_adapter *sva, const efx_bar_region_t *mem_ebrp)
 {
@@ -180,8 +212,6 @@ sfc_vdpa_proxy_driver_attach(efx_nic_t *enp,
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_DRV_ATTACH_IN_V2_LEN, 0);
 
-	//	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_DRV_ATTACH_OUT_LEN, 0);
-
    	proxy_hdr = (efx_dword_t *)inbuf;
 
 	EFX_POPULATE_DWORD_2(proxy_hdr[0],
@@ -191,7 +221,6 @@ sfc_vdpa_proxy_driver_attach(efx_nic_t *enp,
 	EFX_POPULATE_DWORD_2(proxy_hdr[1],
 				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_DRV_ATTACH,
 				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_DRV_ATTACH_IN_LEN);
-
 
 	req.emr_in_buf = (uint8_t *)&inbuf[8];
 
@@ -212,28 +241,33 @@ sfc_vdpa_proxy_driver_attach(efx_nic_t *enp,
 	if (req_length >= MC_CMD_DRV_ATTACH_IN_V2_LEN) {
 		EFX_STATIC_ASSERT(sizeof (enp->en_drv_version) ==
 		    MC_CMD_DRV_ATTACH_IN_V2_DRIVER_VERSION_LEN);
+		
 		memcpy(MCDI_IN2(req, char, DRV_ATTACH_IN_V2_DRIVER_VERSION),
-		    enp->en_drv_version,
-		    MC_CMD_DRV_ATTACH_IN_V2_DRIVER_VERSION_LEN);
+		    enp->en_drv_version, MC_CMD_DRV_ATTACH_IN_V2_DRIVER_VERSION_LEN);
 	}
 
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = req_length + 8; 
-	response_size = MC_CMD_DRV_ATTACH_EXT_OUT_LEN + 8;
+	request_size = req_length + PROXY_HDR_SIZE; 
+	response_size = MC_CMD_DRV_ATTACH_EXT_OUT_LEN + PROXY_HDR_SIZE;
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
 				inbuf, request_size,
 				inbuf, response_size,
 				&response_size_actual);
-						
+	
+	if (rc != 0)
+		goto fail_proxy_cmd;
+					
 	/* Process proxy command response */
 	if (response_size_actual < response_size) {
-	printf("\n proxy cmd failed ...response_size_actual:%d response_size: %d ", (int)response_size_actual, (int)response_size);
 		rc = EMSGSIZE;		
 	}
+	
+	return rc;
 
-
+fail_proxy_cmd:
+	DRV_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
 	return rc;
 }
 
@@ -251,7 +285,6 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 	sfc_inbuf_t req;
 	sfc_outbuf_t resp;
 
-	printf("\n In sfc_vdpa_proxy_vi_alloc ...  .. ");
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_ALLOC_VIS_IN_LEN, 0);
 	EFX_MCDI_DECLARE_BUF(outbuf, 8 + MC_CMD_ALLOC_VIS_EXT_OUT_LEN, 0);
@@ -268,28 +301,31 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_ALLOC_VIS_IN_LEN);
 
 
-	req.emr_in_buf = (uint8_t *)&inbuf[8];
+	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
 
 	/* Prepare VI_ALLOC command */	
 	MCDI_IN_SET_DWORD(req, ALLOC_VIS_IN_MIN_VI_COUNT, min_vi_count);
 	MCDI_IN_SET_DWORD(req, ALLOC_VIS_IN_MAX_VI_COUNT, max_vi_count);
 	
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = MC_CMD_ALLOC_VIS_IN_LEN +8; 
-	response_size = MC_CMD_ALLOC_VIS_EXT_OUT_LEN +8;
+	request_size = MC_CMD_ALLOC_VIS_IN_LEN + PROXY_HDR_SIZE; 
+	response_size = MC_CMD_ALLOC_VIS_EXT_OUT_LEN + PROXY_HDR_SIZE;
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
 				inbuf, request_size,
 				outbuf, response_size,
 				&response_size_actual);
-						
+
+	if (rc != 0)
+		goto fail_proxy_cmd;
+
 	/* Process proxy command response */
 	if (response_size_actual < response_size) {
 		rc = EMSGSIZE;		
 	}
 
-  	resp.emr_out_buf = (uint8_t *)&outbuf[8];
+  	resp.emr_out_buf = (uint8_t *)&outbuf[MCDI_RESP_HDR_SIZE];
 
 	vi_base = MCDI_OUT_DWORD(resp, ALLOC_VIS_OUT_VI_BASE);
 	vi_count = MCDI_OUT_DWORD(resp, ALLOC_VIS_OUT_VI_COUNT);
@@ -300,8 +336,12 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 	else
 		vi_shift = MCDI_OUT_DWORD(resp, ALLOC_VIS_EXT_OUT_VI_SHIFT);
 
-printf("\n vi_base : %d, vi_count : %d, vi_shift : %d \n", vi_base, vi_count, vi_shift);	
+	printf("\n EXIT :: vi_base : %d, vi_count : %d, vi_shift : %d \n", vi_base, vi_count, vi_shift);	
 
+	return rc;
+
+fail_proxy_cmd:
+	DRV_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
 	return rc;
 }
 
@@ -309,8 +349,6 @@ static int
 sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp, 
 				unsigned int pf_index, unsigned int vf_index, uint32_t port_id)
 {
-	return 0;
-
 	int rc;
 	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0;
@@ -318,53 +356,126 @@ sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp,
 	size_t response_size_actual;
 	sfc_inbuf_t req;
 
-	printf("\n in sfc_vdpa_proxy_vadopter_alloc .. ");
-
+	/* TBD : MC_CMD_VADAPTOR_ALLOC_IN_LEN is 30 which is not the multiple of 4 */
 	EFX_MCDI_DECLARE_BUF(inbuf,
-                       sizeof(efx_dword_t) * 2 + MC_CMD_VADAPTOR_ALLOC_IN_LEN, 0);
+                       sizeof(efx_dword_t) * 2 + MC_CMD_VADAPTOR_ALLOC_IN_LEN +2, 0);
 	EFX_MCDI_DECLARE_BUF(outbuf, MC_CMD_VADAPTOR_ALLOC_OUT_LEN, 0);
 
 	/* Prepare proxy header */
-        proxy_hdr = (efx_dword_t *)inbuf;
+	proxy_hdr = (efx_dword_t *)inbuf;
 
-        EFX_POPULATE_DWORD_2(proxy_hdr[0],
-                    MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
-                        MCDI_HEADER_RESYNC, 1);
+	EFX_POPULATE_DWORD_2(proxy_hdr[0],
+				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+					MCDI_HEADER_RESYNC, 1);
 
-        EFX_POPULATE_DWORD_2(proxy_hdr[1],
-                    MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_VADAPTOR_ALLOC,
-                    MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_VADAPTOR_ALLOC_IN_LEN);
+	EFX_POPULATE_DWORD_2(proxy_hdr[1],
+				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_VADAPTOR_ALLOC,
+				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_VADAPTOR_ALLOC_IN_LEN);
 
-	req.emr_in_buf = (uint8_t *)&inbuf[8];
+	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
    
-	/* Prepare VI_ALLOC command */
+	printf("\n  prepare MC_CMD_VADAPTOR_ALLOC command ");
+   
+	/* Prepare MC_CMD_VADAPTOR_ALLOC command */
 	MCDI_IN_SET_DWORD(req, VADAPTOR_ALLOC_IN_UPSTREAM_PORT_ID, port_id);
 	MCDI_IN_POPULATE_DWORD_1(req, VADAPTOR_ALLOC_IN_FLAGS,
-	    VADAPTOR_ALLOC_IN_FLAG_PERMIT_SET_MAC_WHEN_FILTERS_INSTALLED,
-	    1);
-
+	    VADAPTOR_ALLOC_IN_FLAG_PERMIT_SET_MAC_WHEN_FILTERS_INSTALLED, 1);
+		
 	/* Populate proxy request buff with driver MCDI command */
-	/* Request size must be multiple of 4word */
-	request_size = MC_CMD_VADAPTOR_ALLOC_IN_LEN + 8; 
-	response_size = MC_CMD_VADAPTOR_ALLOC_OUT_LEN + 8;
+	request_size = MC_CMD_VADAPTOR_ALLOC_IN_LEN + 2 + PROXY_HDR_SIZE;
+	response_size = MC_CMD_VADAPTOR_ALLOC_OUT_LEN + PROXY_HDR_SIZE; 
 	
-	printf("\n pf_index : %d,vf_index %d , cmd : %d \n\n", pf_index, vf_index, *((uint32_t *)inbuf +4) );
-
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
 				inbuf, request_size,
 				outbuf, response_size,
 				&response_size_actual);
-						
+	
+	if (rc != 0)
+		goto fail_proxy_cmd;
+					
 	/* Process proxy command response */
 	if (response_size_actual < response_size) {
 		rc = EMSGSIZE;		
 	}
 	
 	return rc;
+
+fail_proxy_cmd:
+	DRV_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
+	return rc;
 }
 
-/* TODO : Remove all prints */
+static int
+sfc_vdpa_proxy_vport_alloc(efx_nic_t *enp, unsigned int pf_index,
+							unsigned int vf_index, unsigned int *vport_id)
+{
+	int rc;
+	efx_dword_t *proxy_hdr = NULL;
+	size_t request_size = 0;
+	size_t response_size = 0;
+	size_t response_size_actual;
+	sfc_inbuf_t req;
+	sfc_outbuf_t resp;
+	
+	EFX_MCDI_DECLARE_BUF(inbuf,
+                       sizeof(efx_dword_t) * 2 + MC_CMD_VPORT_ALLOC_IN_LEN, 0);
+	EFX_MCDI_DECLARE_BUF(outbuf, 8 + MC_CMD_VPORT_ALLOC_OUT_LEN, 0);
+
+	/* Prepare proxy header */
+	proxy_hdr = (efx_dword_t *)inbuf;
+
+	EFX_POPULATE_DWORD_2(proxy_hdr[0],
+				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+					MCDI_HEADER_RESYNC, 1);
+
+	EFX_POPULATE_DWORD_2(proxy_hdr[1],
+				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_VPORT_ALLOC,
+				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_VPORT_ALLOC_IN_LEN);
+
+	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
+ 
+	/* Prepare vport alloc command */
+	MCDI_IN_SET_DWORD(req, VPORT_ALLOC_IN_UPSTREAM_PORT_ID, EVB_PORT_ID_ASSIGNED);
+	MCDI_IN_SET_DWORD(req, VPORT_ALLOC_IN_TYPE, EFX_VPORT_TYPE_NORMAL);
+	MCDI_IN_SET_DWORD(req, VPORT_ALLOC_IN_NUM_VLAN_TAGS, EFX_FILTER_VID_UNSPEC);
+	MCDI_IN_POPULATE_DWORD_2(req, VPORT_ALLOC_IN_FLAGS,
+		VPORT_ALLOC_IN_FLAG_AUTO_PORT, 0,
+		VPORT_ALLOC_IN_FLAG_VLAN_RESTRICT, 0); //TBD : Value of VPORT_ALLOC_IN_FLAG_VLAN_RESTRICT field?  
+		
+	MCDI_IN_POPULATE_DWORD_1(req, VPORT_ALLOC_IN_VLAN_TAGS,
+		VPORT_ALLOC_IN_VLAN_TAG_0, 0);
+		
+	/* Populate proxy request buff with driver MCDI command */
+	request_size = MC_CMD_VPORT_ALLOC_IN_LEN + PROXY_HDR_SIZE;
+	response_size = MC_CMD_VPORT_ALLOC_OUT_LEN + PROXY_HDR_SIZE; 
+	
+	/* Send proxy command */
+	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
+				inbuf, request_size,
+				outbuf, response_size,
+				&response_size_actual);
+
+	if (rc != 0)
+		goto fail_proxy_cmd;
+
+	/* Process proxy command response */
+	if (response_size_actual < response_size) {
+		rc = EMSGSIZE;		
+	}
+	
+    /* Reasponse is after proxy header */
+  	resp.emr_out_buf = (uint8_t *)&outbuf[MCDI_RESP_HDR_SIZE];
+	
+	*vport_id = *MCDI_OUT2(resp, uint32_t, VPORT_ALLOC_OUT_VPORT_ID);
+	
+	return rc;
+
+fail_proxy_cmd:
+	DRV_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
+	return rc;
+}
+
 int
 efx_get_sriov_cfg(efx_nic_t *enp,
 				unsigned int *vf_current, unsigned int *vf_offset, unsigned int *vf_stride)
@@ -380,7 +491,6 @@ efx_get_sriov_cfg(efx_nic_t *enp,
 	req.emr_in_length = MC_CMD_GET_SRIOV_CFG_IN_LEN;
 	req.emr_out_buf = payload;
 	req.emr_out_length = MC_CMD_GET_SRIOV_CFG_OUT_LEN;
-	printf("\n\n");
 
 	efx_mcdi_execute(enp, &req);
 
@@ -388,8 +498,6 @@ efx_get_sriov_cfg(efx_nic_t *enp,
 		rc = req.emr_rc;
 		goto fail1;
 	}
-
-	//DRV_LOG(ERR,"\n In111 efx_get_sriov_cfg : vf_current : %d ", *vf_current);
 
 	if (req.emr_out_length_used < MC_CMD_GET_SRIOV_CFG_OUT_LEN) {
 		rc = EMSGSIZE;
@@ -410,7 +518,8 @@ fail1:
 
 /*Todo: Remove all debug prints which uses printf */
 int
-sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, uint16_t vf_rid, uint32_t *pf_index, uint32_t *vf_index)
+sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid, 
+						uint16_t vf_rid, uint32_t *pf_index, uint32_t *vf_index)
 {	
 	uint32_t vf_current=0, vf_offset=0, vf_stride=0;
 	uint32_t vf_rid_base, rid_offset;
@@ -474,6 +583,7 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	uint32_t min_vi_count, max_vi_count;
 	uint32_t pf_index=0, vf_index=0;
 	uint32_t port_id;
+	uint32_t vport_id = 0;
 	int rc;
 	struct rte_pci_addr vf_pci_addr;
 	uint16_t vf_rid = 0, pf_rid = 0; 
@@ -488,8 +598,6 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	}
 	
 	/* Get VF's RID from vf pci address */
-//	printf("\n vf_pci_addr.bus %x, vf_pci_addr.devid %x, vf_pci_addr.function %x \n", vf_pci_addr.bus, vf_pci_addr.devid, vf_pci_addr.function);
-
 	vf_rid = (((vf_pci_addr.bus & 0xff) << 8) | ((vf_pci_addr.devid & 0xff) << 5) | (vf_pci_addr.function & 0x7));
 	printf("vf_rid : %d", vf_rid);
 
@@ -505,13 +613,11 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 
 	/* Get vf index */
 	sfc_vdpa_get_vfpf_id(sva->vdpa_data, pf_rid, vf_rid, &pf_index, &vf_index);
-	vf_index = 0; // TODO : For testing only
 	printf("\n pf_index : %d vf_index :%d \n", pf_index,vf_index);
 	sva->vdpa_data->pf_index = pf_index;
 	sva->vdpa_data->vf_index = vf_index;
 
 	/* Send proxy cmd for DRIVER_ATTACH */
-	printf("\n Call proxy_driver_attach() ... ");
 	rc = sfc_vdpa_proxy_driver_attach(enp, pf_index, vf_index, 1);
 
 	/* Send proxy cmd for VIs_ALLOC */
@@ -522,16 +628,27 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	
 	/* Send proxy cmd for VADAPTOR_ALLOC */
 	port_id = EVB_PORT_ID_ASSIGNED;
+	
 	printf("\n Call proxy_vadapter_alloc() ... ");
 	/* On a VF, this may fail with MC_CMD_ERR_NO_EVB_PORT (ENOENT) if the PF
 	 * driver has yet to bring up the EVB port */
 	rc = sfc_vdpa_proxy_vadapter_alloc(enp, pf_index, vf_index, port_id);
-
+	
+	/* Send proxy cmd for VPORT_ALLOC */
+	printf("\n Call proxy_vport_alloc() ... ");
+	rc = sfc_vdpa_proxy_vport_alloc(enp, pf_index, vf_index, &vport_id);
+	if (rc == 0)
+	{
+		/* Store vport_id in the vdpa_data */
+		sva->vdpa_data->vport_id = vport_id;
+	}
+	
 	rc = sfc_vdpa_mem_bar_init(sva, &mem_ebr);
 	if (rc != 0)
 		goto fail_mem_bar_init;
 
 	rc = efx_virtio_init(enp);
+	if (rc != 0)
 	if (rc != 0)
 		goto fail_virtio_init;
 
@@ -555,6 +672,7 @@ sfc_vdpa_device_fini(struct sfc_vdpa_adapter *sva)
 
 	sva->vdpa_data->state = SFC_VDPA_STATE_UNINITIALIZED;
 }
+
 /* TODO: Remove all debug logs from this function */
 static int
 sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
@@ -564,10 +682,6 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
 	
 	char dev_name[RTE_DEV_NAME_MAX_LEN] = {0};
 	int iommu_group_num;
-	
-	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .. vdpa_data %p, dev.bus : %d ", vdpa_data, dev->addr.bus);
-	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .. vdpa_data %p, dev.devid: %d ", vdpa_data, dev->addr.devid);
-	DRV_LOG(ERR,"\n IN sfc_vdpa_vfio_setup .. vdpa_data %p, dev.function %d ", vdpa_data, dev->addr.function);
 	
 	if ((vdpa_data == NULL) || (dev == NULL))
 		return -1;
@@ -584,15 +698,10 @@ sfc_vdpa_vfio_setup(struct sfc_vdpa_adapter *sva)
 
 	rte_vfio_get_group_num(rte_pci_get_sysfs_path(), dev_name,
 			&iommu_group_num);
-			
-	DRV_LOG(ERR,"\n sfc_vdpa_vfio_setup : vdpa_data->vfio_container_fd : ..%d ", vdpa_data->vfio_container_fd);
-	DRV_LOG(ERR,"\n sfc_vdpa_vfio_setup : iommu_group_num :  %d", iommu_group_num);
 
 	vdpa_data->vfio_group_fd = rte_vfio_container_group_bind(
 			vdpa_data->vfio_container_fd, iommu_group_num);
 	
-	DRV_LOG(ERR,"\n sfc_vdpa_vfio_setup : vdpa_data->vfio_group_fd :  %d", vdpa_data->vfio_group_fd);
-
 	if (vdpa_data->vfio_group_fd < 0)
 		goto error;
 	if (rte_pci_map_device(dev))
@@ -621,6 +730,21 @@ check_vdpa_mode(const char *key __rte_unused, const char *value, void *extra_arg
 
 	return 0;
 }
+
+static inline int
+get_eth_addr(const char *key __rte_unused, const char *value, void *extra_args)
+{
+	struct rte_ether_addr *mac_addr = extra_args;
+
+	if (value == NULL || extra_args == NULL)
+		return -EINVAL;
+	
+	/* Convert string with Ethernet address to an ether_addr */
+	rte_ether_unformat_addr(value, mac_addr);
+	
+	return 0;
+}
+
 static struct rte_pci_id pci_id_sfc_vdpa_efx_map[] = {
 #define RTE_PCI_DEV_ID_DECL_XNIC(vend, dev) {RTE_PCI_DEVICE(vend, dev)},
 	RTE_PCI_DEV_ID_DECL_XNIC(EFX_PCI_VENID_XILINX, EFX_PCI_DEVID_RIVERHEAD_VF)
@@ -633,6 +757,7 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct sfc_vdpa_adapter *sva = NULL;
 	struct sfc_vdpa_adapter_list  *sva_list = NULL;
 	int vdpa_mode = 0, ret = 0;
+	struct rte_ether_addr mac_addr;
 	struct rte_kvargs *kvlist = NULL;
 	struct sfc_vdpa_ops_data *vdpa_data;
 	struct rte_pci_device *pf_pci_dev = NULL;
@@ -640,8 +765,9 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct sfc_adapter *sa = NULL;
 	char pf_dev_name[RTE_DEV_NAME_MAX_LEN] = {0};	
 	char vf_dev_name[RTE_DEV_NAME_MAX_LEN] = {0};		
+	int i=0;
 
-	DRV_LOG(ERR,"\n Enter in probe");
+	DRV_LOG(DEBUG,"\n Enter sfc_vdpa_pci_probe : ");
 
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
@@ -663,7 +789,20 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		rte_kvargs_free(kvlist);
 		return 1;
 	}
-
+	
+	/* TODO: Do not probe if MAC addr is not specified ? */
+	if (rte_kvargs_count(kvlist, SFC_VDPA_MAC_ADDR) == 0) {
+		rte_kvargs_free(kvlist);
+		return 1;
+	}
+	
+	ret = rte_kvargs_process(kvlist, SFC_VDPA_MAC_ADDR, &get_eth_addr,
+				&mac_addr);
+	if (ret < 0) {
+		rte_kvargs_free(kvlist);
+		return 1;
+	}
+	
 	sva_list = rte_zmalloc("sfc_vdpa", sizeof(struct sfc_vdpa_adapter_list), 0);
 	if (sva_list == NULL)
 		goto error;
@@ -684,6 +823,12 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 
 	/* Store vdpa context in the adpopter structure */
 	sva->vdpa_data = vdpa_data;
+	
+	
+	/* Populate MAC address */
+	for (i=0;i<6;i++) {
+		vdpa_data->eth_addr[i]  = mac_addr.addr_bytes[i];
+	}
 
 	if (sfc_vdpa_vfio_setup(sva) < 0) {
 		DRV_LOG(ERR, "failed to setup device %s", pci_dev->name);
@@ -693,8 +838,7 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 
 	/* Find Parent PF's and its rte_eth_dev to access process_private fields */
 	rte_pci_device_name(&pci_dev->addr, vf_dev_name, RTE_DEV_NAME_MAX_LEN);
-	DRV_LOG(ERR,"\n vf_dev_name : %s, pf_dev_name %s ", vf_dev_name, pf_dev_name);
-
+	
 #ifndef HARD_CODED_PF_ADDR /*TODO: Need to use generic function to get parent's ID*/
 	rte_get_vf_to_pf_index(vf_dev_name, pf_dev_name);
 	if(pf_dev_name == NULL) {
@@ -702,6 +846,8 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		return 0;
 	}
 #endif
+
+	DRV_LOG(DEBUG,"\n\n\n\n --------------- vf_dev_name : %s, pf_dev_name %s \n\n\n\n ", vf_dev_name, pf_dev_name);
 
 	/* Get PF's rte_eth_dev to access process_private (PF's adapter) fields */
 #ifdef HARD_CODED_PF_ADDR
@@ -711,14 +857,12 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	pf_eth_dev = rte_get_pf_to_eth_dev(pf_dev_name);
 #endif
 
-	DRV_LOG(ERR,"\n pf_eth_dev : %p ", pf_eth_dev);
+	DRV_LOG(DEBUG,"\n pf_eth_dev : %p ", pf_eth_dev);
 
 	if (pf_eth_dev != NULL) {
         	sa = (struct sfc_adapter *)pf_eth_dev->process_private;
 		if (sa == NULL)
 			goto error;
-		
-       	 	DRV_LOG(ERR,"\n state : %d,", sa->state);
 	}
 	else {		
 		DRV_LOG(ERR,"\n PF's ethdev could not found");
@@ -739,8 +883,6 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		goto error;
 	}
 	
-	DRV_LOG(ERR,"\n vf_dev_name : %s, pf_dev_name %s ", vf_dev_name, pf_dev_name);
-
 	sva->dev_addr.pci_addr = pci_dev->addr;
 	sva->dev_addr.type = PCI_ADDR;
 	sva_list->sva = sva;
@@ -748,7 +890,7 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	/* Register vdpa ops */
 	sfc_vdpa_register_device(vdpa_data, &sva->dev_addr);
 	
-	DRV_LOG(ERR,"\n sfc_vdpa_register_device Done");
+	DRV_LOG(DEBUG,"\n sfc_vdpa_register_device Done");
 
 	pthread_mutex_lock(&sfc_vdpa_adapter_list_lock);
 	TAILQ_INSERT_TAIL(&sfc_vdpa_adapter_list, sva_list, next);

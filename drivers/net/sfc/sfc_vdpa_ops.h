@@ -3,8 +3,8 @@
 #define _SFC_VDPA_OPS_H
 
 #include "sfc_vdpa.h"
-#include <rte_vdpa.h>
 #include <rte_ethdev.h>
+#include <rte_ether.h>
 
 #define SFC_VDPA_MAX_QUEUES		1
 
@@ -63,6 +63,7 @@ struct sfc_vdpa_ops_data {
 	
 	uint32_t pf_index;
 	uint32_t vf_index;
+	uint32_t vport_id;
 
 	struct sfc_vdpa_vring_info vring[SFC_VDPA_MAX_QUEUES * 2];
 	struct efx_virtio_vq_s *vq[SFC_VDPA_MAX_QUEUES * 2]; /* virtq context */
@@ -73,6 +74,13 @@ struct sfc_vdpa_ops_data {
 	uint64_t drv_features; /* Features supported by driver */
 	uint64_t dev_features; /* Features supported by device */
 	uint64_t req_features;
+	
+	//rte_ether_addr eth_addr;
+    uint8_t eth_addr[6];
+	
+	/*TODO: Is it ok to use ef10 types ? */
+	ef10_filter_handle_t bcast_mac_filter_handle;
+	ef10_filter_handle_t unicast_mac_filter_handle;
 };
 
 /*

@@ -28,6 +28,7 @@ sources = [
 	'efx_tunnel.c',
 	'efx_tx.c',
 	'efx_vpd.c',
+	'efx_virtio.c',
 	'mcdi_mon.c',
 	'siena_mac.c',
 	'siena_mcdi.c',
@@ -59,6 +60,7 @@ sources = [
 	'rhead_pci.c',
 	'rhead_rx.c',
 	'rhead_tx.c',
+	'rhead_virtio.c',
 ]
 
 extra_flags = [

@@ -31,6 +31,7 @@
 #include "efx.h"
 #include "efx_impl.h"
 
+#if EFSYS_OPT_RIVERHEAD 
 
 uint32_t sfc_logtype_driver_ccr;
 
@@ -39,12 +40,12 @@ uint32_t sfc_logtype_driver_ccr;
                 "SFC_VDPA_CCR %s(): " fmt "\n", __func__, ##args)
 
 static const efx_virtio_ops_t	__efx_virtio_rhead_ops = {
-	rhead_virtio_init,			/* evo_init */
-	rhead_virtio_fini,			/* evo_fini */
+	rhead_virtio_init,				/* evo_init */
+	rhead_virtio_fini,				/* evo_fini */
 	rhead_virtio_virtq_create,		/* evo_virtq_create */
 	rhead_virtio_virtq_destroy,		/* evo_virtq_destroy */
 	rhead_virtio_get_doorbell_offset,	/* evo_get_doorbell_offset */
-	rhead_virtio_get_features,		/* evo_get_features */
+	rhead_virtio_get_features,			/* evo_get_features */
 	rhead_virtio_verify_features,		/* evo_verify_features */
 };
 
@@ -54,8 +55,6 @@ efx_virtio_init(
 {
 	const efx_virtio_ops_t *evop;
 	efx_rc_t rc;
-
-printf("\n enp->en_magic : %d, EFX_NIC_MAGIC : %d ",enp->en_magic , EFX_NIC_MAGIC);
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 
@@ -70,7 +69,6 @@ printf("\n enp->en_magic : %d, EFX_NIC_MAGIC : %d ",enp->en_magic , EFX_NIC_MAGI
 
 	switch (enp->en_family) {
 		
-	case EFX_FAMILY_MEDFORD: // TBD : For Testing only should be removed 
 	case EFX_FAMILY_RIVERHEAD:
 		DRV_LOG_CCR(ERR, "virtio Ops init done");
 		evop = &__efx_virtio_rhead_ops;
@@ -131,7 +129,6 @@ efx_virtio_virtq_create(
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_VIRTIO);
-
 
 	if ((rc = evop->evo_virtq_create(enp, type, target_vf, vq_num, evvcp, evvp)) != 0)
 		goto fail1;
@@ -209,8 +206,6 @@ efx_virtio_get_doorbell_offset(
 	efx_nic_t *enp = evvp->evv_enp;
 	const efx_virtio_ops_t *evop = enp->en_evop;
 	efx_rc_t rc;
-printf("\n enp->en_magic : %d, EFX_NIC_MAGIC : %d ",enp->en_magic , EFX_NIC_MAGIC);
-printf("\n en_mod_flags : %d, EFX_MOD_VIRTIO : %d ",enp->en_mod_flags , EFX_MOD_VIRTIO);
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_VIRTIO);
@@ -236,15 +231,14 @@ efx_virtio_verify_features(
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_VIRTIO);
+	
 	if(evop == NULL)
-		DRV_LOG_CCR(ERR, "\n ---- >> In efx_virtio_verify_features ... eovp is NULL");
+		DRV_LOG_CCR(ERR, "\n In efx_virtio_verify_features ... eovp is NULL");
 
-	DRV_LOG_CCR(ERR, "\n ---- >> In efx_virtio_verify_features ... eovp");
-
+	
 	if ((rc = evop->evo_verify_features(enp, type, features)) != 0)
 		goto fail1;
-	DRV_LOG_CCR(ERR, "\n ---- >> In efx_virtio_verify_features ...111 ");
-
+	
 	return (0);
 	
 	fail1:
@@ -253,4 +247,4 @@ efx_virtio_verify_features(
 
 }
 
-//#endif /* EFSYS_OPT_RIVERHEAD */
+#endif /* EFSYS_OPT_RIVERHEAD */

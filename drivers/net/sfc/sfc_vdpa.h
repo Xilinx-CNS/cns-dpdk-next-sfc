@@ -1,4 +1,5 @@
 
+
 #ifndef _SFC_VDPA_H
 #define _SFC_VDPA_H
 
@@ -21,8 +22,10 @@
 
 #include <rte_kvargs.h>
 #include <rte_devargs.h>
+#include <rte_ether.h>
 
 #include "efx.h"
+#include "efx_impl.h"
 #include "sfc_log.h"
 #include "sfc_debug.h"
 #include "sfc_vdpa_ops.h"
@@ -32,12 +35,14 @@
 #define SFC_VDPA_VF_NULL		0xFFFF
 
 #define SFC_VDPA_MODE			"vdpa"
+#define SFC_VDPA_MAC_ADDR		"mac"
 
 #define SFC_VDPA_MSIX_IRQ_SET_BUF_LEN (sizeof(struct vfio_irq_set) + \
 				sizeof(int) * (SFC_VDPA_MAX_QUEUES * 2 + 1))
 
-/* Proxy cmd req/resp header */
-#define PROXY_HDR_SIZE		8
+/* Proxy cmd req header */
+#define PROXY_HDR_SIZE			8
+#define MCDI_RESP_HDR_SIZE		8
 
 enum sfc_vdpa_mcdi_state {
 	SFC_VDPA_MCDI_UNINITIALIZED = 0,
@@ -125,6 +130,16 @@ uint32_t
 sfc_vdpa_register_logtype(struct sfc_vdpa_adapter *sva, const char *lt_prefix_str,
 	                     uint32_t ll_default);
 
+int
+sfc_vdpa_proxy_filter_insert(efx_nic_t *enp, unsigned int pf_index, 
+							unsigned int vf_index, uint32_t vport_id, uint8_t *src_mac_addr,
+							ef10_filter_handle_t *handle);
+int
+sfc_vdpa_proxy_filter_remove(efx_nic_t *enp, unsigned int pf_index, 
+							unsigned int vf_index, 
+							ef10_filter_handle_t *handle);
+int sfc_vdpa_filter_remove(struct sfc_vdpa_ops_data *vdpa_data);
+int sfc_vdpa_filter_config(struct sfc_vdpa_ops_data *vdpa_data);
 
 #endif  /* _SFC_VDPA_H */
 
