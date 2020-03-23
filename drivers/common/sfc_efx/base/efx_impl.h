@@ -15,6 +15,9 @@
 #include "efx_mcdi.h"
 #endif	/* EFSYS_OPT_MCDI */
 
+/* FIXME: TEMPORARY IMPORT */
+#include "mc_driver_pcol_private.h"
+
 /* FIXME: Add definition for driver generated software events */
 #ifndef	ESE_DZ_EV_CODE_DRV_GEN_EV
 #define	ESE_DZ_EV_CODE_DRV_GEN_EV FSE_AZ_EV_CODE_DRV_GEN_EV
