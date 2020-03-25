@@ -4326,6 +4326,12 @@ efx_mae_action_set_populate_flag(
 
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_mark(
+	__in				efx_mae_actions_t *spec,
+	__in				uint32_t mark_value);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
 	__in				efx_mae_actions_t *spec,
 	__in				const efx_mport_sel_t *mportp);
