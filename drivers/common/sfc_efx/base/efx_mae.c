@@ -903,6 +903,43 @@ fail1:
 	return (rc);
 }
 
+
+static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_vlan_pop(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	if (spec->emass_n_vlan_tags_to_pop == EFX_MAE_VLAN_POP_MAX_NTAGS) {
+		rc = ENOTSUP;
+		goto fail3;
+	}
+
+	++spec->emass_n_vlan_tags_to_pop;
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
 static	__checkReturn			efx_rc_t
 efx_mae_action_set_add_deliver(
 	__in				efx_mae_actions_t *spec,
@@ -939,15 +976,20 @@ typedef struct efx_mae_action_desc_s {
 } efx_mae_action_desc_t;
 
 static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
+	[EFX_MAE_ACTION_VLAN_POP] = {
+		.emad_add = efx_mae_action_set_add_vlan_pop
+	},
 	[EFX_MAE_ACTION_DELIVER] = {
 		.emad_add = efx_mae_action_set_add_deliver
 	}
 };
 
 static const uint32_t efx_mae_action_ordered_map =
+	(1U << EFX_MAE_ACTION_VLAN_POP) |
 	(1U << EFX_MAE_ACTION_DELIVER);
 
-static const uint32_t efx_mae_action_repeat_map = 0;
+static const uint32_t efx_mae_action_repeat_map =
+	(1U << EFX_MAE_ACTION_VLAN_POP);
 
 /*
  * Add an action to an action set.
@@ -1023,6 +1065,14 @@ fail1:
 }
 
 	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_vlan_pop(
+	__in				efx_mae_actions_t *spec)
+{
+	return (efx_mae_action_set_spec_populate(spec, EFX_MAE_ACTION_VLAN_POP,
+						 0, NULL));
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
 	__in				efx_mae_actions_t *spec,
 	__in				const efx_mport_id_t *mport_idp)
@@ -1080,6 +1130,10 @@ efx_mae_action_set_alloc(
 		    EFX_MAE_RSRC_ID_INVALID);
 	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID,
 		    EFX_MAE_RSRC_ID_INVALID);
+
+	MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
+		   MAE_ACTION_SET_ALLOC_IN_VLAN_POP,
+		   spec->emass_n_vlan_tags_to_pop);
 
 	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_DELIVER,
 		    spec->emass_deliver_mport_id.id);
