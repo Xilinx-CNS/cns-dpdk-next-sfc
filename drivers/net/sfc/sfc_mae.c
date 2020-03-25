@@ -579,6 +579,13 @@ sfc_mae_rule_parse_action_of_set_vlan_pcp(
 }
 
 static int
+sfc_mae_rule_parse_action_mark(const struct rte_flow_action_mark *conf,
+			       efx_mae_actions_t *spec)
+{
+	return efx_mae_action_set_populate_mark(spec, conf->id);
+}
+
+static int
 sfc_mae_rule_parse_action_phy_port(const struct rte_flow_action_phy_port *conf,
 				   efx_mae_actions_t *spec)
 {
@@ -625,6 +632,11 @@ sfc_mae_rule_parse_action(const struct rte_flow_action *action,
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_FLAG,
 				       bundle->actions_mask);
 		rc = efx_mae_action_set_populate_flag(spec);
+		break;
+	case RTE_FLOW_ACTION_TYPE_MARK:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_MARK,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_mark(action->conf, spec);
 		break;
 	case RTE_FLOW_ACTION_TYPE_PHY_PORT:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_PHY_PORT,
