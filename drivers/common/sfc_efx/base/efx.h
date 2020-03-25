@@ -4053,6 +4053,10 @@ efx_mae_match_spec_mport_set(
 	__in_opt			const efx_mport_id_t *maskp);
 
 extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_vlan_pop(
+	__in				efx_mae_actions_t *spec);
+
+extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
 	__in				efx_mae_actions_t *spec,
 	__in				const efx_mport_id_t *mport_idp);
