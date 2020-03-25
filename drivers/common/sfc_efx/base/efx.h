@@ -4321,6 +4321,11 @@ efx_mae_action_set_populate_vlan_push(
 
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_flag(
+	__in				efx_mae_actions_t *spec);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
 	__in				efx_mae_actions_t *spec,
 	__in				const efx_mport_sel_t *mportp);
