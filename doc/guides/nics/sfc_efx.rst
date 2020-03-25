@@ -203,6 +203,8 @@ Supported actions (***transfer*** rules):
 
 - FLAG
 
+- MARK
+
 - PHY_PORT
 
 Validating flow rules depends on the firmware variant.
