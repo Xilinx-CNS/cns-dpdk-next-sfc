@@ -46,8 +46,9 @@ static pthread_mutex_t sfc_vdpa_adapter_list_lock = PTHREAD_MUTEX_INITIALIZER;
 void rte_get_vf_to_pf_index(char *vf, char *pf)
 {
 	char cmd[100];
-	char *token[16];
-	int ret, i=0;
+	char *token[12];
+	int ret;
+	unsigned int i=0;
 	char pf_str[200];
 
 	snprintf(cmd, 1000, "ls -l  /sys/bus/pci/devices/%s/physfn", vf);
@@ -59,7 +60,7 @@ void rte_get_vf_to_pf_index(char *vf, char *pf)
 	}
 
 	fgets(pf_str, sizeof(cmd), fp);
-	//fgets(pf_str, 200, fp);
+
 	printf("\n sizeof(cmd): %lu, Parent PF_STR :  %s \n", sizeof(cmd), pf_str);
 
 	ret = rte_strsplit(pf_str, sizeof(pf_str),
@@ -71,15 +72,17 @@ void rte_get_vf_to_pf_index(char *vf, char *pf)
 
 	printf("\n RTE_DIM(token) : %d",  (int)RTE_DIM(token) );
 
-	for(i=0; i < 11; i++) {
-			printf("\n %s : len : %d", token[i], (int)strlen(token[i]) );
+	/* PF number is the last token in the ../0000:B:D.F format */
+	for(i=0; i < RTE_DIM(token); i++) {
+		printf("\n %s : len : %d", token[i], (int)strlen(token[i]) );
+		if(strlen(token[i]) == 16)
+			break;
 	}
 
-	printf("\n %s", token[10]);
+	printf("\n i:%d %s", i, token[i]);
 
-	/* PF number is the last(11th) token */
-	/* Get only BDF value ignore 0000: prefix */
-	memcpy(pf, token[10] +8, (strlen(token[10]) - 8));
+	/* Get only BDF value skip '../0000:' prefix */
+	memcpy(pf, token[i] + 8, (strlen(token[i]) - 8));
 
 	printf("\n Parent PF :  %s \n", pf);
 	if (!pf)
