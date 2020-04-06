@@ -10,6 +10,532 @@
 
 #if EFSYS_OPT_RIVERHEAD
 
+/*
+ * Size of design parameters area in bits.
+ * TODO: use value from a generated header (not available yet).
+ */
+#define	ER_GZ_PARAMS_TLV_WIDTH	8160
+
+/* Maximum count of design parameters specified in a parameters TLV */
+#define	EF100_MAX_DESIGN_PARAMS	(ER_GZ_PARAMS_TLV_WIDTH / 8 / 3)
+
+typedef struct ef100_dp_tlv_cursor_s {
+	uint8_t		*current;
+	uint8_t		*limit;
+} ef100_dp_tlv_cursor_t;
+
+typedef struct ef100_dp_view_s {
+	uint16_t	type;
+	uint8_t		length;
+	uint8_t		*value;
+} ef100_dp_view_t;
+
+typedef struct ef100_design_params_s {
+	uint8_t		*tlv;
+	uint32_t	tlv_len;
+	ef100_dp_view_t	*dp_views;
+	uint32_t	dp_views_size;
+	uint32_t	dp_views_max;
+} ef100_design_params_t;
+
+static	__checkReturn	boolean_t
+ef100_dp_tlv_cursor_space_available(
+	__in		const ef100_dp_tlv_cursor_t *cursorp,
+	__in		size_t size)
+{
+	return (cursorp->current + size <= cursorp->limit);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_tlv_cursor_init(
+	__out		ef100_dp_tlv_cursor_t *cursorp,
+	__in		uint8_t *currentp,
+	__in		uint8_t *limitp)
+{
+	cursorp->current = currentp;
+	cursorp->limit = limitp;
+
+	if (ef100_dp_tlv_cursor_space_available(cursorp, 0) == B_FALSE)
+		return (EACCES);
+
+	return (0);
+}
+
+static			uint8_t *
+ef100_dp_tlv_cursor_get_current(
+	__in		ef100_dp_tlv_cursor_t *cursorp)
+{
+	return (cursorp->current);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_tlv_cursor_advance(
+	__inout		ef100_dp_tlv_cursor_t *cursorp,
+	__in		size_t size)
+{
+	if (ef100_dp_tlv_cursor_space_available(cursorp, size) == B_FALSE)
+		return (EACCES);
+
+	cursorp->current += size;
+
+	return (0);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_tlv_cursor_read(
+	__inout		ef100_dp_tlv_cursor_t *cursorp,
+	__in		size_t size,
+	__out		uint8_t *buf)
+{
+	efx_rc_t rc;
+	uint8_t *begin = cursorp->current;
+
+	rc = ef100_dp_tlv_cursor_advance(cursorp, size);
+	if (rc != 0)
+		goto fail1;
+
+	memcpy(buf, begin, size);
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_tlv_cursor_read_byte(
+	__inout		ef100_dp_tlv_cursor_t *cursorp,
+	__out		uint8_t *bytep)
+{
+	return (ef100_dp_tlv_cursor_read(cursorp, sizeof (*bytep), bytep));
+}
+
+static	__checkReturn	ef100_dp_view_t *
+ef100_dp_find(
+	__in		ef100_design_params_t *paramsp,
+	__in		uint16_t type)
+{
+	unsigned int i;
+
+	for (i = 0; i < paramsp->dp_views_size; i++) {
+		if (paramsp->dp_views[i].type == type)
+			return (&paramsp->dp_views[i]);
+	}
+
+	return (NULL);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_add(
+	__in		ef100_design_params_t *paramsp,
+	__in		uint16_t type,
+	__in		uint8_t length,
+	__in		uint8_t *valuep)
+{
+	unsigned int i;
+	ef100_dp_view_t *dp;
+	efx_rc_t rc;
+
+	dp = ef100_dp_find(paramsp, type);
+	if (dp == NULL) {
+		if (paramsp->dp_views_size >= paramsp->dp_views_max) {
+			rc = ENOSPC;
+			goto fail1;
+		}
+
+		dp = &paramsp->dp_views[paramsp->dp_views_size];
+		paramsp->dp_views_size++;
+	}
+
+	dp->type = type;
+	dp->length = length;
+	dp->value = valuep;
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_decode_type_len(
+	__inout		ef100_dp_tlv_cursor_t *cursorp,
+	__out		uint16_t *typep,
+	__out		uint8_t *lengthp)
+{
+	uint16_t type = 0;
+	uint8_t type_low;
+	uint8_t type_high;
+	uint8_t length;
+	efx_rc_t rc;
+
+	rc = ef100_dp_tlv_cursor_read_byte(cursorp, &type_low);
+	if (rc != 0)
+		goto fail1;
+
+	/*
+	 * The type of a design parameter is encoded by 1 or 2 bytes in the TLV.
+	 * It depends on the top bit of the first byte.
+	 * See SF-119689-TC section 4.5.4.
+	 */
+	if (type_low & 0x80) {
+		/* The type is a 15 bit value encoded in 2 bytes */
+		rc = ef100_dp_tlv_cursor_read_byte(cursorp, &type_high);
+		if (rc != 0)
+			goto fail2;
+
+		type = (type_low & 0x7F) | (type_high << 7);
+	} else {
+		/* The type is a 7 bit value */
+		type = type_low;
+	}
+
+	/* Length is always encoded in 1 byte */
+	rc = ef100_dp_tlv_cursor_read_byte(cursorp, &length);
+	if (rc != 0)
+		goto fail3;
+
+	*typep = type;
+	*lengthp = length;
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_dp_get_int64(
+	__in		ef100_dp_view_t *paramp,
+	__out		int64_t *valuep)
+{
+	int64_t value_le = 0;
+
+	if (paramp->length > sizeof (*valuep))
+		return (EINVAL);
+
+	memcpy(&value_le, paramp->value, paramp->length);
+	*valuep = __LE_TO_CPU_64(value_le);
+
+	return (0);
+}
+
+
+static	__checkReturn	efx_rc_t
+ef100_dp_parse_tlv(
+	__in		ef100_design_params_t *paramsp,
+	__in		ef100_dp_tlv_cursor_t *cursorp)
+{
+	efx_rc_t rc;
+
+	/*
+	 * Scan the whole design parameter area, as described in
+	 * SF-119689-TC section 4.5.4.
+	 *
+	 * Check that at least 2 bytes are available since a valid
+	 * design parameter cannot fit into 1 byte.
+	 */
+	while (ef100_dp_tlv_cursor_space_available(cursorp, 2)) {
+		uint16_t dp_type;
+		uint8_t dp_len;
+		uint8_t *dp_val;
+
+		/* Get the type and length of a parameter */
+		rc = ef100_dp_decode_type_len(cursorp, &dp_type, &dp_len);
+		if (rc != 0)
+			goto fail1;
+
+		dp_val = ef100_dp_tlv_cursor_get_current(cursorp);
+		rc = ef100_dp_tlv_cursor_advance(cursorp, dp_len);
+		if (rc != 0)
+			goto fail2;
+
+		/*
+		 * Skip dedicated for padding parameter and zero-length
+		 * parameters.
+		 */
+		if (dp_type != ESE_EF100_DP_GZ_PAD && dp_len != 0) {
+			rc = ef100_dp_add(paramsp, dp_type, dp_len, dp_val);
+			if (rc != 0)
+				goto fail3;
+		}
+	}
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
+ef100_design_params_init(
+	__in		efx_nic_t *enp,
+	__out		ef100_design_params_t *paramsp)
+{
+	ef100_dp_tlv_cursor_t cursor;
+	uint32_t n_reads;
+	uint32_t tlv_len;
+	uint32_t remainder;
+	efx_dword_t ed;
+	efx_rc_t rc;
+	uint32_t i;
+
+	memset(paramsp, 0, sizeof(*paramsp));
+
+	/*
+	 * All VIs have a copy of design parameters. Read them from the
+	 * first one.
+	 */
+	EFX_BAR_VI_READD(enp, ER_GZ_PARAMS_TLV_LEN, 0, &ed, B_FALSE);
+
+	tlv_len = EFX_DWORD_FIELD(ed, EFX_DWORD_0);
+
+	if (tlv_len == 0)
+		return (0);
+
+	if (tlv_len > ER_GZ_PARAMS_TLV_WIDTH / 8) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	EFSYS_KMEM_ALLOC(enp->en_esip, tlv_len, paramsp->tlv);
+	if (paramsp->tlv == NULL) {
+		rc = ENOMEM;
+		goto fail2;
+	}
+
+	paramsp->dp_views_max = EF100_MAX_DESIGN_PARAMS;
+	EFSYS_KMEM_ALLOC(enp->en_esip, paramsp->dp_views_max *
+			 sizeof (*paramsp->dp_views), paramsp->dp_views);
+	if (paramsp->dp_views == NULL) {
+		rc = ENOMEM;
+		goto fail3;
+	}
+
+	paramsp->tlv_len = tlv_len;
+	n_reads = tlv_len / sizeof(efx_dword_t);
+
+	for (i = 0; i < n_reads; i++) {
+		EFX_BAR_VI_READD_INDEXED(enp, ER_GZ_PARAMS_TLV, 0, i, &ed,
+					 B_FALSE);
+		memcpy(&paramsp->tlv[i * sizeof (efx_dword_t)], ed.ed_u32,
+		       sizeof (efx_dword_t));
+	}
+
+	remainder = tlv_len % sizeof(efx_dword_t);
+	if (remainder != 0) {
+		EFX_BAR_VI_READD_INDEXED(enp, ER_GZ_PARAMS_TLV, 0, n_reads,
+					 &ed, B_FALSE);
+		memcpy(&paramsp->tlv[paramsp->tlv_len - remainder], ed.ed_u32,
+		       remainder);
+	}
+
+	rc = ef100_dp_tlv_cursor_init(&cursor, paramsp->tlv,
+				      paramsp->tlv + paramsp->tlv_len);
+	if (rc != 0)
+		goto fail4;
+
+	rc = ef100_dp_parse_tlv(paramsp, &cursor);
+	if (rc != 0)
+		goto fail5;
+
+	return (0);
+
+fail5:
+	EFSYS_PROBE(fail5);
+fail4:
+	EFSYS_PROBE(fail4);
+	EFSYS_KMEM_FREE(enp->en_esip, paramsp->dp_views_max, paramsp->dp_views);
+
+fail3:
+	EFSYS_PROBE(fail3);
+	EFSYS_KMEM_FREE(enp->en_esip, tlv_len, paramsp->tlv);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static			void
+ef100_design_params_fini(
+	__in		efx_nic_t *enp,
+	__in		ef100_design_params_t *paramsp)
+{
+	if (paramsp->tlv != NULL)
+		EFSYS_KMEM_FREE(enp->en_esip, paramsp->tlv_len, paramsp->tlv);
+
+	if (paramsp->dp_views != NULL) {
+		EFSYS_KMEM_FREE(enp->en_esip, paramsp->dp_views_max,
+				paramsp->dp_views);
+	}
+}
+
+#define ESE_EF100_DP_GZ_DEF_MAP_ENTRY(_field) \
+	{ ESE_EF100_DP_GZ_##_field, ESE_EF100_DP_GZ_##_field##_DEFAULT }
+
+static	__checkReturn	efx_rc_t
+ef100_design_param_get_default_int64(
+	__in		uint16_t type,
+	__out		int64_t *valuep)
+{
+	static const struct default_params_map {
+		uint16_t type;
+		int64_t value;
+	} map[] = {
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(COMPAT),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(EVQ_TIMER_TICK_NANOS),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(EVQ_UNSOL_CREDIT_SEQ_BITS),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(MEM2MEM_MAX_LEN),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(NMMU_GROUP_SIZE),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(NMMU_PAGE_SIZES),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(PARTIAL_TSTAMP_SUB_NANO_BITS),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(RX_MAX_RUNT),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(RXQ_SIZE_GRANULARITY),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(TSO_MAX_HDR_LEN),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(TSO_MAX_HDR_NUM_SEGS),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(TSO_MAX_NUM_FRAMES),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(TSO_MAX_PAYLOAD_LEN),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(TSO_MAX_PAYLOAD_NUM_SEGS),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(TXQ_SIZE_GRANULARITY),
+		ESE_EF100_DP_GZ_DEF_MAP_ENTRY(VI_STRIDES),
+	};
+
+	boolean_t found = B_FALSE;
+	unsigned int i;
+	efx_rc_t rc;
+
+	for (i = 0; i < EFX_ARRAY_SIZE(map); i++) {
+		if (map[i].type == type) {
+			found = B_TRUE;
+			*valuep = map[i].value;
+			break;
+		}
+	}
+
+	if (found == B_FALSE) {
+		rc = ENOENT;
+		goto fail1;
+	}
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+#undef ESE_EF100_DP_GZ_DEF_MAP_ENTRY
+
+static	__checkReturn	efx_rc_t
+ef100_design_param_get_int64(
+	__in		ef100_design_params_t *paramsp,
+	__in		uint16_t type,
+	__out		int64_t *valuep)
+{
+	ef100_dp_view_t *dp;
+	efx_rc_t rc;
+
+	dp = ef100_dp_find(paramsp, type);
+	if (dp == NULL) {
+		rc = ef100_design_param_get_default_int64(type, valuep);
+		if (rc != 0)
+			goto fail1;
+	} else {
+		rc = ef100_dp_get_int64(dp, valuep);
+		if (rc != 0)
+			goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+static	__checkReturn	efx_rc_t
+rhead_design_params_populate(
+	__in		efx_nic_t *enp)
+{
+	efx_nic_cfg_t *encp = &(enp->en_nic_cfg);
+	ef100_design_params_t params;
+	const struct design_params_map {
+		uint16_t type;
+		uint32_t *ptr;
+	} dp_map[] = {
+		{ ESE_EF100_DP_GZ_TSO_MAX_HDR_NUM_SEGS,
+		  &encp->enc_tx_tso_max_header_ndescs },
+		{ ESE_EF100_DP_GZ_TSO_MAX_HDR_LEN,
+		  &encp->enc_tx_tso_max_header_length },
+		{ ESE_EF100_DP_GZ_TSO_MAX_PAYLOAD_NUM_SEGS,
+		  &encp->enc_tx_tso_max_payload_ndescs },
+		{ ESE_EF100_DP_GZ_TSO_MAX_PAYLOAD_LEN,
+		  &encp->enc_tx_tso_max_payload_length },
+		{ ESE_EF100_DP_GZ_TSO_MAX_NUM_FRAMES,
+		  &encp->enc_tx_tso_max_nframes },
+	};
+	unsigned int i;
+	efx_rc_t rc;
+
+	rc = ef100_design_params_init(enp, &params);
+	if (rc != 0)
+		goto fail1;
+
+	for (i = 0; i < EFX_ARRAY_SIZE(dp_map); i++) {
+		int64_t value;
+
+		rc = ef100_design_param_get_int64(&params, dp_map[i].type,
+						  &value);
+		if (rc != 0)
+			goto fail2;
+
+		if (((uint64_t)value) > UINT32_MAX) {
+			rc = EINVAL;
+			goto fail3;
+		}
+
+		*dp_map[i].ptr = (uint32_t)value;
+	}
+
+	ef100_design_params_fini(enp, &params);
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+	ef100_design_params_fini(enp, &params);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
 	__checkReturn	efx_rc_t
 rhead_board_cfg(
 	__in		efx_nic_t *enp)
@@ -48,23 +574,6 @@ rhead_board_cfg(
 	encp->enc_tx_dma_desc_size_max = EFX_MASK32(ESF_GZ_TX_SEND_LEN);
 	/* No boundary crossing limits */
 	encp->enc_tx_dma_desc_boundary = 0;
-
-	/*
-	 * Initialise design parameters to either a runtime value read from
-	 * the design parameters area or the well known default value
-	 * (see SF-119689-TC section 4.4 for details).
-	 * FIXME: Read design parameters area values.
-	 */
-	encp->enc_tx_tso_max_header_ndescs =
-	    ESE_EF100_DP_GZ_TSO_MAX_HDR_NUM_SEGS_DEFAULT;
-	encp->enc_tx_tso_max_header_length =
-	    ESE_EF100_DP_GZ_TSO_MAX_HDR_LEN_DEFAULT;
-	encp->enc_tx_tso_max_payload_ndescs =
-	    ESE_EF100_DP_GZ_TSO_MAX_PAYLOAD_NUM_SEGS_DEFAULT;
-	encp->enc_tx_tso_max_payload_length =
-	    ESE_EF100_DP_GZ_TSO_MAX_PAYLOAD_LEN_DEFAULT;
-	encp->enc_tx_tso_max_nframes =
-	    ESE_EF100_DP_GZ_TSO_MAX_NUM_FRAMES_DEFAULT;
 
 	/*
 	 * Riverhead does not put any restrictions on TCP header offset limit.
@@ -430,6 +939,10 @@ rhead_nic_init(
 		goto fail4;
 	}
 
+	rc = rhead_design_params_populate(enp);
+	if (rc != 0)
+		goto fail5;
+
 	enp->en_arch.ef10.ena_vi_base = vi_base;
 	enp->en_arch.ef10.ena_vi_count = vi_count;
 	enp->en_arch.ef10.ena_vi_shift = vi_shift;
@@ -470,10 +983,13 @@ rhead_nic_init(
 	if (alloc_vadaptor != B_FALSE) {
 		/* Allocate a vAdaptor attached to our upstream vPort/pPort */
 		if ((rc = rhead_upstream_port_vadaptor_alloc(enp)) != 0)
-			goto fail5;
+			goto fail6;
 	}
 
 	return (0);
+
+fail6:
+	EFSYS_PROBE(fail6);
 
 fail5:
 	EFSYS_PROBE(fail5);

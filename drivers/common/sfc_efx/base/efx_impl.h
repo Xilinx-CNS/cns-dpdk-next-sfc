@@ -1310,6 +1310,25 @@ struct efx_txq_s {
 	_NOTE(CONSTANTCONDITION)					\
 	} while (B_FALSE)
 
+#define	EFX_BAR_VI_READD_INDEXED(_enp, _reg, _vi_index, _read_index,	\
+				 _edp, _lock)				\
+	do {								\
+		EFX_CHECK_REG((_enp), (_reg));				\
+		EFSYS_BAR_READD((_enp)->en_esbp,			\
+		    ((_reg ## _OFST) +					\
+		    ((_vi_index) <<					\
+		     (_enp)->en_nic_cfg.enc_vi_window_shift) +		\
+		    ((_read_index) * sizeof (efx_dword_t))),		\
+		    (_edp), (_lock));					\
+		EFSYS_PROBE5(efx_bar_vi_readd_indexed, const char *,	\
+		    #_reg,						\
+		    uint32_t, (_vi_index),				\
+		    uint32_t, (_read_index),				\
+		    uint32_t, _reg ## _OFST,				\
+		    uint32_t, (_edp)->ed_u32[0]);			\
+	_NOTE(CONSTANTCONDITION)					\
+	} while (B_FALSE)
+
 #define	EFX_BAR_VI_WRITED(_enp, _reg, _index, _edp, _lock)		\
 	do {								\
 		EFX_CHECK_REG((_enp), (_reg));				\
