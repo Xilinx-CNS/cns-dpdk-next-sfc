@@ -35,6 +35,13 @@ struct sfc_vdpa_vring_info {
 	uint16_t last_used_idx;
 };
 
+typedef struct sfc_virtio_vq_context_s {
+    	uint8_t			vq_valid;
+	uint32_t 		pidx;
+	uint32_t 		cidx;
+    	efx_virtio_vq_t		vq;
+} sfc_virtio_vq_context_t;
+
 struct sfc_vdpa_ops_data {
 	int vid; /* vhost_id */
 	int did; /* dev id */
@@ -66,7 +73,7 @@ struct sfc_vdpa_ops_data {
 	uint32_t vport_id;
 
 	struct sfc_vdpa_vring_info vring[SFC_VDPA_MAX_QUEUES * 2];
-	struct efx_virtio_vq_s *vq[SFC_VDPA_MAX_QUEUES * 2]; /* virtq context */
+	struct sfc_virtio_vq_context_s vq_cxt[SFC_VDPA_MAX_QUEUES * 2]; /* virtq context */
 
 	uint32_t pidx[SFC_VDPA_MAX_QUEUES *2];
 	uint32_t cidx[SFC_VDPA_MAX_QUEUES *2];

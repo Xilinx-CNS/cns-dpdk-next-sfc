@@ -3662,12 +3662,9 @@ typedef struct efx_virtio_vq_cfg_s {
 } efx_virtio_vq_cfg_t;
 
 typedef struct efx_virtio_vq_s {
-    uint32_t                        evv_magic;
-    efx_nic_t                       *evv_enp;
-    unsigned int                    evv_index; // VI Index : vi_base + q_index
+    unsigned int                    evv_vi_index;
     efx_virtio_vq_type_t            evv_type;
     uint16_t                        evv_target_vf;
-    uint32_t                        evv_vq_num;
 } efx_virtio_vq_t;
 
 extern __checkReturn   efx_rc_t
@@ -3692,12 +3689,11 @@ extern  __checkReturn   efx_rc_t
           __in                    efx_virtio_vq_type_t type,
           __in                    uint16_t target_vf,
           __in                    uint32_t vq_num,
-          __in                    efx_virtio_vq_cfg_t *evvcp,
-          __deref_out             efx_virtio_vq_t **evvp);
-
+          __in                    efx_virtio_vq_cfg_t *evvcp);
 
 extern  __checkReturn   efx_rc_t
 efx_virtio_virtq_destroy(
+          	__in                    efx_nic_t *enp,
                 __in                    efx_virtio_vq_t *evvp,
                 __out                   uint32_t *pidxp,
                 __out                   uint32_t *cidxp);
@@ -3705,6 +3701,7 @@ efx_virtio_virtq_destroy(
 
 extern  __checkReturn   efx_rc_t
 efx_virtio_get_doorbell_offset(
+        __in                    efx_nic_t *enp,
         __in                    efx_virtio_device_type_t type,
         __in                    efx_virtio_vq_t *evvp,
         __out                   uint32_t *offsetp);

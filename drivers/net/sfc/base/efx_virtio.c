@@ -40,12 +40,12 @@ uint32_t sfc_logtype_driver_ccr;
                 "SFC_VDPA_CCR %s(): " fmt "\n", __func__, ##args)
 
 static const efx_virtio_ops_t	__efx_virtio_rhead_ops = {
-	rhead_virtio_init,				/* evo_init */
-	rhead_virtio_fini,				/* evo_fini */
+	rhead_virtio_init,			/* evo_init */
+	rhead_virtio_fini,			/* evo_fini */
 	rhead_virtio_virtq_create,		/* evo_virtq_create */
 	rhead_virtio_virtq_destroy,		/* evo_virtq_destroy */
 	rhead_virtio_get_doorbell_offset,	/* evo_get_doorbell_offset */
-	rhead_virtio_get_features,			/* evo_get_features */
+	rhead_virtio_get_features,		/* evo_get_features */
 	rhead_virtio_verify_features,		/* evo_verify_features */
 };
 
@@ -120,8 +120,7 @@ efx_virtio_virtq_create(
 		 __in			 efx_virtio_vq_type_t type,
 		 __in			 uint16_t target_vf,
 		 __in			 uint32_t vq_num,
-		 __in			 efx_virtio_vq_cfg_t *evvcp,
-		 __deref_out	 efx_virtio_vq_t **evvp)
+		 __in			 efx_virtio_vq_cfg_t *evvcp)
 {
 	const efx_virtio_ops_t *evop = enp->en_evop;
 	efx_evq_t *eep;
@@ -130,7 +129,7 @@ efx_virtio_virtq_create(
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_VIRTIO);
 
-	if ((rc = evop->evo_virtq_create(enp, type, target_vf, vq_num, evvcp, evvp)) != 0)
+	if ((rc = evop->evo_virtq_create(enp, type, target_vf, vq_num, evvcp)) != 0)
 		goto fail1;
 
 	return (0);
@@ -142,19 +141,18 @@ fail1:
 
 extern  __checkReturn   efx_rc_t
 efx_virtio_virtq_destroy (
+	__in		efx_nic_t *enp,
         __in            efx_virtio_vq_t *evvp,
         __out           uint32_t *pidxp,
         __out           uint32_t *cidxp)
 {
-	efx_nic_t *enp = evvp->evv_enp;
 	const efx_virtio_ops_t *evop = enp->en_evop;
 	efx_rc_t rc;
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
-	EFSYS_ASSERT3U(evvp->evv_magic, ==, EFX_VIRTQ_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_VIRTIO);
 
-	if ((rc = evop->evo_virtq_destroy(evvp, pidxp, cidxp)) != 0)
+	if ((rc = evop->evo_virtq_destroy(enp, evvp, pidxp, cidxp)) != 0)
                 goto fail1;
 
         return (0);
@@ -194,23 +192,22 @@ fail2:
 fail1:
 	EFSYS_PROBE(fail1);
 	return (rc);
-
 }
 
 extern	__checkReturn	efx_rc_t
 efx_virtio_get_doorbell_offset(
+	__in			efx_nic_t *enp,
 	__in			efx_virtio_device_type_t type,
 	__in			efx_virtio_vq_t *evvp,
 	__out			uint32_t *offsetp)
 {
-	efx_nic_t *enp = evvp->evv_enp;
 	const efx_virtio_ops_t *evop = enp->en_evop;
 	efx_rc_t rc;
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_VIRTIO);
 
-	if ((rc = evop->evo_get_doorbell_offset(type, evvp, offsetp)) != 0)
+	if ((rc = evop->evo_get_doorbell_offset(enp, type, evvp, offsetp)) != 0)
 		goto fail1;
 
 	return (0);

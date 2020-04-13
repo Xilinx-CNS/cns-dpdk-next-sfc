@@ -10,6 +10,11 @@ uint32_t sfc_vdpa_ops_logtype_driver;
 	rte_log(RTE_LOG_ ## level, sfc_vdpa_ops_logtype_driver, \
 		"SFC_VDPA_OPS %s(): " fmt "\n", __func__, ##args)
 
+/* Get function-local index of the associated VI from the 
+ * virtqueue number queue 0 is reserved for MCDI 
+ */
+#define SFC_GET_VI_INDEX(vq_num) ((vq_num/2) + 1)
+
 /* TODD : Move it to proper place */
 /* This value has been taken from FW */
 #define  MAE_MPORT_SELECTOR_ASSIGNED 0x1000000
@@ -145,10 +150,10 @@ static int
 sfc_vdpa_virtq_init(struct sfc_vdpa_ops_data *vdpa_data)
 {
 	int i, rc = 0;
-	efx_virtio_vq_t *vq = NULL;
 	efx_virtio_vq_cfg_t vq_cfg;
 	efx_virtio_vq_type_t type;
 	uint16_t target_vf = 0;
+	uint32_t vi_index = 0;
 	
 	if (vdpa_data->vdpa_context == SFC_VDPA_AS_PF)
 		target_vf = SFC_VDPA_VF_NULL;
@@ -160,6 +165,9 @@ sfc_vdpa_virtq_init(struct sfc_vdpa_ops_data *vdpa_data)
 			type = EFX_VIRTIO_VQ_TYPE_NET_TXQ;
 		else
 			type = EFX_VIRTIO_VQ_TYPE_NET_RXQ;
+
+		/* Get function-local index of the associated VI from the virtqueue number */ 
+		vi_index = SFC_GET_VI_INDEX(i);
 		
 		vq_cfg.evvc_vq_size = vdpa_data->vring[i].size;
 		vq_cfg.evvc_vq_pidx = vdpa_data->vring[i].last_used_idx;
@@ -175,11 +183,16 @@ sfc_vdpa_virtq_init(struct sfc_vdpa_ops_data *vdpa_data)
 		vq_cfg.evcc_features = (vdpa_data->dev_features & vdpa_data->req_features);
 		vq_cfg.evcc_mport_selector = 0;
 		vq_cfg.evcc_mport_selector = MAE_MPORT_SELECTOR_ASSIGNED;
-
+	
 		rc = efx_virtio_virtq_create(vdpa_data->nic, type, target_vf,
-					i, &vq_cfg, &vq);
-		if(rc == 0) 
-			vdpa_data->vq[i] = vq;
+					vi_index, &vq_cfg);
+		if(rc == 0) {
+			/* Store created virtqueue context */
+			vdpa_data->vq_cxt[i].vq.evv_vi_index = vi_index;
+			vdpa_data->vq_cxt[i].vq.evv_type = type;
+			vdpa_data->vq_cxt[i].vq.evv_target_vf = target_vf;
+			vdpa_data->vq_cxt[i].vq_valid = B_TRUE;
+		}
 	}
 
 	return rc;
@@ -191,17 +204,21 @@ sfc_vdpa_virtq_fini(struct sfc_vdpa_ops_data *vdpa_data)
 	int i, rc;
 	uint32_t pidx;
 	uint32_t cidx;
-	
+	efx_virtio_vq_t vq;
+
 	for (i = 0; i < vdpa_data->num_vring; i++) {
-		if(vdpa_data->vq[i] == NULL)
+		if(vdpa_data->vq_cxt[i].vq_valid != B_TRUE)
 			continue; 
 
-		rc = efx_virtio_virtq_destroy(vdpa_data->vq[i],
-					&pidx, &cidx);
+		vq.evv_vi_index = vdpa_data->vq_cxt[i].vq.evv_vi_index;
+		vq.evv_type = vdpa_data->vq_cxt[i].vq.evv_type;
+		vq.evv_target_vf = vdpa_data->vq_cxt[i].vq.evv_target_vf;
+		
+		rc = efx_virtio_virtq_destroy(vdpa_data->nic, &vq, &pidx, &cidx);
 		if (rc == 0) {
-			vdpa_data->cidx[i] = cidx;
-			vdpa_data->pidx[i] = pidx;
-			vdpa_data->vq[i] = NULL;
+			vdpa_data->vq_cxt[i].cidx = cidx;
+			vdpa_data->vq_cxt[i].pidx = pidx;
+			vdpa_data->vq_cxt[i].vq_valid = B_FALSE;
 		}
 	}
 }
@@ -697,26 +714,24 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 		return -1;
 	}
 	
-	evv_data.evv_enp = vdpa_data->nic;
-	evv_data.evv_index = vid;
+	evv_data.evv_vi_index = SFC_GET_VI_INDEX(qid);
+
 	if (vdpa_data->vdpa_context == SFC_VDPA_AS_PF)
 		evv_data.evv_target_vf = SFC_VDPA_VF_NULL;
 	else if (vdpa_data->vdpa_context == SFC_VDPA_AS_VF)
 		evv_data.evv_target_vf = vdpa_data->vf_index; 	
-	evv_data.evv_vq_num = qid;
 
-	if (evv_data.evv_index % 2) /* Even Id for RX and odd for TX */
+	if (evv_data.evv_vi_index % 2) /* Even Id for RX and odd for TX */
 		evv_data.evv_type = EFX_VIRTIO_VQ_TYPE_NET_TXQ;
 	else
 		evv_data.evv_type = EFX_VIRTIO_VQ_TYPE_NET_RXQ;
 
-	rc = efx_virtio_get_doorbell_offset(EFX_VIRTIO_DEVICE_TYPE_NET,
+	rc = efx_virtio_get_doorbell_offset(vdpa_data->nic, EFX_VIRTIO_DEVICE_TYPE_NET,
 						&evv_data, &bar_offset);
 
 	if (rc != 0)
 		return rc;
 
-	/* notify offset = base addr of FCW + doorbell offset in the bar */
 	fcw_base = vdpa_data->fcw_offset;
 	*offset = fcw_base + bar_offset;
 	*size = 0x1000; /* FIXME */

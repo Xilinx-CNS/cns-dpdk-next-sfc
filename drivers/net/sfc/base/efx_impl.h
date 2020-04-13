@@ -732,17 +732,15 @@ typedef struct efx_proxy_ops_s {
 
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
-/* TBD: Any Flag etc ?? */
+/* TBD: Any Flag for VIRTO to be used  */
 typedef struct efx_virtio_ops_s {
         efx_rc_t        (*evo_init)(efx_nic_t *);
         efx_rc_t        (*evo_fini)(efx_nic_t *);
         efx_rc_t        (*evo_virtq_create)(efx_nic_t *, efx_virtio_vq_type_t,
-                                uint16_t, uint32_t, efx_virtio_vq_cfg_t *,
-                                efx_virtio_vq_t **);
-        efx_rc_t        (*evo_virtq_destroy)(efx_virtio_vq_t *, uint32_t *,
-                                uint32_t *);
-        efx_rc_t        (*evo_get_doorbell_offset)(efx_virtio_device_type_t,
-                                efx_virtio_vq_t *, uint32_t *);
+                                uint16_t, uint32_t, efx_virtio_vq_cfg_t *);
+        efx_rc_t        (*evo_virtq_destroy)(efx_nic_t *, efx_virtio_vq_t *, 
+				uint32_t *, uint32_t *);
+        efx_rc_t        (*evo_get_doorbell_offset)(efx_nic_t *, efx_virtio_device_type_t, efx_virtio_vq_t *, uint32_t *);
         efx_rc_t        (*evo_get_features)(efx_nic_t *,
                                 efx_virtio_device_type_t, uint64_t *);
         efx_rc_t        (*evo_verify_features)(efx_nic_t *,
@@ -1630,23 +1628,23 @@ rhead_virtio_get_features(
 
 extern  __checkReturn   efx_rc_t
 rhead_virtio_virtq_create(
-          __in                    efx_nic_t *enp,
-          __in                    efx_virtio_vq_type_t type,
-        __in                    uint16_t target_vf,
-          __in                    uint32_t vq_num,
-          __in                    efx_virtio_vq_cfg_t *evvcp,
-          __deref_out             efx_virtio_vq_t **evvp);
+	__in                    efx_nic_t *enp,
+	__in                    efx_virtio_vq_type_t type,
+	__in                    uint16_t target_vf,
+	__in                    uint32_t vq_num,
+	__in                    efx_virtio_vq_cfg_t *evvcp);
 
 
 extern  __checkReturn   efx_rc_t
 rhead_virtio_virtq_destroy(
+		__in                    efx_nic_t *enp,
                 __in                    efx_virtio_vq_t *evvp,
                 __out                   uint32_t *pidx,
                 __out                   uint32_t *cidx);
 
-
 extern  __checkReturn   efx_rc_t
 rhead_virtio_get_doorbell_offset(
+	__in                    efx_nic_t *enp,
         __in                    efx_virtio_device_type_t type,
         __in                    efx_virtio_vq_t *evvp,
         __out                   uint32_t *offsetp);
