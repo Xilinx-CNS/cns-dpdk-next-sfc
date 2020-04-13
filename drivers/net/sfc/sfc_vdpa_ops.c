@@ -175,9 +175,8 @@ sfc_vdpa_virtq_init(struct sfc_vdpa_ops_data *vdpa_data)
 		vq_cfg.evvc_desc_tbl_addr = vdpa_data->vring[i].desc;
 		vq_cfg.evvc_avail_ring_addr = vdpa_data->vring[i].avail;
 		vq_cfg.evvc_used_ring_addr = vdpa_data->vring[i].used;
-		
-		/*TODO : msix vector configuration to be done : VDPADPDK-42 */
-		vq_cfg.evvc_msix_vector = 0xFFFF;
+		/* MSI-X vector is function-relative */	
+		vq_cfg.evvc_msix_vector = i;
 		vq_cfg.evvc_use_pasid = 0;
 		vq_cfg.evvc_pas_id = 0;
 		vq_cfg.evcc_features = (vdpa_data->dev_features & vdpa_data->req_features);
@@ -286,12 +285,13 @@ sfc_vdpa_start(struct sfc_vdpa_ops_data *vdpa_data)
 	uint64_t gpa;
 	int ret;
 
-    SFC_ASSERT(vdpa_data->state == SFC_VDPA_STATE_CONFIGURED);
+	SFC_ASSERT(vdpa_data->state == SFC_VDPA_STATE_CONFIGURED);
 
 	vdpa_data->state = SFC_VDPA_STATE_STARTING;
 
-    ret = sfc_vdpa_enable_vfio_intr(vdpa_data);
+	ret = sfc_vdpa_enable_vfio_intr(vdpa_data);
 	if (ret < 0) {
+		printf("\n\n\n sfc_vdpa_enable_vfio_intr failed ...");
 		goto fail_enable_vfio_intr;
 	}
 
@@ -633,6 +633,8 @@ sfc_vdpa_dev_close(int vid)
 
 	rte_atomic32_set(&vdpa_data->dev_attached, 0);
 	sfc_vdpa_close(vdpa_data);
+
+	sfc_vdpa_disable_vfio_intr(vdpa_data);
 	
 	return 0;
 }
