@@ -406,6 +406,8 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_VIRTIO_GET_FEATURES_IN_LEN, 0);
+	EFX_MCDI_DECLARE_BUF(outbuf,
+                       sizeof(efx_dword_t) * 2 + MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN, 0);
 
 	proxy_hdr = (efx_dword_t *)inbuf;
 
@@ -425,11 +427,11 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 	/* Populate proxy request buff with driver MCDI command */
 	request_size = MC_CMD_VIRTIO_GET_FEATURES_IN_LEN + PROXY_HDR_SIZE;
 	response_size = MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN + PROXY_HDR_SIZE;
-	
+
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index,
 				inbuf, request_size,
-				inbuf, response_size,
+				outbuf, response_size,
 				&response_size_actual);
 		
 	printf("\n ## RC of VIRTIO MCDI MC_CMD_VIRTIO_GET_FEATURES (proxy) : %d ## \n", (int)rc);
@@ -442,8 +444,9 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 		rc = EMSGSIZE;		
 	}
 	
-	resp.emr_out_buf = (uint8_t *)&inbuf[MCDI_RESP_HDR_SIZE];
-
+	resp.emr_out_buf = (uint8_t *)&outbuf[MCDI_RESP_HDR_SIZE];
+	
+	/* FIXME : dev_features needs to be correctly populated as (HI <<32) | LO */
 	*dev_features = MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_LO);
 	printf("\n LO 0x%x", (unsigned int) (MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_LO)));
 	
