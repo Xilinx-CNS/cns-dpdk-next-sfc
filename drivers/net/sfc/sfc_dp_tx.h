@@ -12,6 +12,7 @@
 
 #include <rte_ethdev_driver.h>
 
+#include "sfc_debug.h"
 #include "sfc_dp.h"
 #include "sfc_debug.h"
 #include "sfc_tso.h"
