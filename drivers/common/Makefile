@@ -40,4 +40,8 @@ ifeq ($(findstring y,$(CONFIG_RTE_LIBRTE_MLX5_PMD)$(CONFIG_RTE_LIBRTE_MLX5_VDPA_
 DIRS-y += mlx5
 endif
 
+ifeq ($(findstring y,$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD)),y)
+DIRS-y += sfc_efx
+endif
+
 include $(RTE_SDK)/mk/rte.subdir.mk
