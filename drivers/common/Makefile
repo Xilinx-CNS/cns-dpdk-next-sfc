@@ -36,4 +36,8 @@ ifneq (,$(findstring y,$(IAVF-y)))
 DIRS-y += iavf
 endif
 
+ifeq ($(findstring y,$(CONFIG_RTE_LIBRTE_SFC_EFX_PMD)),y)
+DIRS-y += sfc_efx
+endif
+
 include $(RTE_SDK)/mk/rte.subdir.mk
