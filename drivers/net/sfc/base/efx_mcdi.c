@@ -3005,17 +3005,15 @@ efx_mcdi_proxy_cmd(
         efx_rc_t rc;
 	int i=0;
 
-	printf("\n\n In efx_mcdi_proxy_cmd ");
-
-	printf("\n\n request_size: %d  ", (int)request_size);
         if (request_size % sizeof (*inbufp) != 0) {
                 rc = EINVAL;
                 goto fail1;
         }
-
+#if 0
 	/* Remove it after testing */
 	for (i=0; i < request_size ; i++)
 		printf("\n req_buff[%d] : %x ", i, *(request_bufferp + i) );
+#endif
 
         EFSYS_KMEM_ALLOC(enp, (MC_CMD_PROXY_CMD_IN_LEN + request_size), inbufp);
 

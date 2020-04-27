@@ -13,9 +13,6 @@
 #include <rte_common.h>
 #include <rte_string_fns.h>
 
-/* ToDO : PF is hardcoded for testing only */
-//#define HARD_CODED_PF_ADDR
-
 #define DRV_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, sfc_logtype_driver, \
 		"SFC_VDPA %s(): " fmt "\n", __func__, ##args)
@@ -61,35 +58,29 @@ void rte_get_vf_to_pf_index(char *vf, char *pf)
 
 	fgets(pf_str, sizeof(cmd), fp);
 
-	printf("\n sizeof(cmd): %lu, Parent PF_STR :  %s \n", sizeof(cmd), pf_str);
-
 	ret = rte_strsplit(pf_str, sizeof(pf_str),
 					token, RTE_DIM(token), ' ');
 	if (ret <= 0) {
-			DRV_LOG(ERR, "Cannot get PF number of VF %s \n", vf);
-			return;
+		DRV_LOG(ERR, "Cannot get PF number of VF %s \n", vf);
+		return;
 	}
-
-	printf("\n RTE_DIM(token) : %d",  (int)RTE_DIM(token) );
 
 	/* PF number is the last token in the ../0000:B:D.F format */
 	for(i=0; i < RTE_DIM(token); i++) {
-		printf("\n %s : len : %d", token[i], (int)strlen(token[i]) );
+		//printf("\n %s : len : %d", token[i], (int)strlen(token[i]) );
 		if(strlen(token[i]) == 16)
 			break;
 	}
-
-	printf("\n i:%d %s", i, token[i]);
 
 	/* Get only BDF value skip '../0000:' prefix */
 	memcpy(pf, token[i] + 8, (strlen(token[i]) - 8));
 
 	printf("\n Parent PF :  %s \n", pf);
 	if (!pf)
-			printf(" failed to find phy device");
+		printf(" failed to find phy device");
 
 	if (pclose(fp) != 0)
-			fprintf(stderr," Error: Failed to close command stream \n");
+		fprintf(stderr," Error: Failed to close command stream \n");
 
 	return;
 }
@@ -210,7 +201,7 @@ sfc_vdpa_proxy_driver_attach(efx_nic_t *enp,
 	size_t response_size_actual;
 	sfc_inbuf_t req;
 	
-	printf("\n in sfc_vdpa_proxy_driver_attach .. ");
+	printf("\n In sfc_vdpa_proxy_driver_attach .. ");
 	
 	EFX_MCDI_DECLARE_BUF(inbuf,
                        sizeof(efx_dword_t) * 2 + MC_CMD_DRV_ATTACH_IN_V2_LEN, 0);
@@ -347,8 +338,8 @@ fail_proxy_cmd:
 	DRV_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
 	return rc;
 }
-
-static int
+#if 0
+int
 sfc_vdpa_proxy_vadapter_alloc(efx_nic_t *enp, 
 				unsigned int pf_index, unsigned int vf_index, uint32_t port_id)
 {
@@ -409,7 +400,7 @@ fail_proxy_cmd:
 	return rc;
 }
 
-static int
+int
 sfc_vdpa_proxy_vport_alloc(efx_nic_t *enp, unsigned int pf_index,
 							unsigned int vf_index, unsigned int *vport_id)
 {
@@ -478,7 +469,7 @@ fail_proxy_cmd:
 	DRV_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
 	return rc;
 }
-
+#endif
 int
 efx_get_sriov_cfg(efx_nic_t *enp,
 				unsigned int *vf_current, unsigned int *vf_offset, unsigned int *vf_stride)
@@ -532,7 +523,7 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid,
 	
 	/* Get PF Index */
 	rc = efx_mcdi_get_function_info(vdpa_data->nic, &pf, &vf);
-	printf("\n rc from efx_mcdi_get_function_info : %d, vf:%d, pf:%d", rc, vf, pf);
+	//printf("\n rc from efx_mcdi_get_function_info : %d, vf:%d, pf:%d", rc, vf, pf);
 	*pf_index = (uint16_t) pf;
 	
 	printf("\n In sfc_vdpa_get_vfpf_id : pf_index : %d ", *pf_index);
@@ -545,11 +536,12 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid,
 	
 	vf_rid_base = pf_rid_base + vf_offset;
 	printf("\n vf_rid : %d, vf_rid_base %d ", vf_rid, vf_rid_base);
+	printf("\n vf_stride %d ", vf_stride);
     
 	if (vf_rid >= vf_rid_base) 
 	{
-		printf("\n vf_rid_base %d ", vf_rid_base);
 		rid_offset = (vf_rid - vf_rid_base);
+		printf("\n rid_offset %d ", rid_offset);
 	  
 		if (rid_offset % vf_stride == 0) {
 			vf = rid_offset / vf_stride;
@@ -558,13 +550,14 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid,
 				printf("\n In sfc_vdpa_get_vfpf_id : vf_index %d ", *vf_index);
 				*vf_index = (uint16_t)vf;
 				printf("\n final In sfc_vdpa_get_vfpf_id : vf_index %d ", *vf_index);
+				printf("\n pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
 			
 				return 0;
 			}
 	  	}
 	} 
 		
-	printf("\n Error from sfc_vdpa_get_vfpf_id : pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
+	printf("\n pf_index : %d, vf_index : %d (default) ", *pf_index, *vf_index );
 	
 	return rc;
 }
@@ -585,8 +578,8 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	efsys_pci_config_t espc;
 	uint32_t min_vi_count, max_vi_count;
 	uint32_t pf_index=0, vf_index=0;
-	uint32_t port_id;
-	uint32_t vport_id = 0;
+	//uint32_t port_id;
+	//uint32_t vport_id = 0;
 	int rc;
 	struct rte_pci_addr vf_pci_addr;
 	uint16_t vf_rid = 0, pf_rid = 0; 
@@ -601,14 +594,11 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	}
 	
 	/* Get VF's RID from vf pci address */
-	vf_rid = (((vf_pci_addr.bus & 0xff) << 8) | ((vf_pci_addr.devid & 0xff) << 5) | (vf_pci_addr.function & 0x7));
-	printf("vf_rid : %d", vf_rid);
-
 	vf_rid = get_rid_from_pci_addr(vf_pci_addr);
 	pf_rid = get_rid_from_pci_addr(sva->vdpa_data->pf_pci_addr);
 
-	printf("\n From function : vf_rid : %d", vf_rid);
-	printf("\n From function : pf_rid : %d \n\n", pf_rid);
+	//printf("\n vf_rid : %d", vf_rid);
+	//printf("\n pf_rid : %d \n\n", pf_rid);
 	
 	espc.espc_dev = pci_dev;
 	rc = efx_family_probe_bar(pci_dev->id.vendor_id, pci_dev->id.device_id,
@@ -629,9 +619,10 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	printf("\n Call proxy_vi_alloc() ... ");
 	rc = sfc_vdpa_proxy_vi_alloc(enp, pf_index, vf_index, min_vi_count, max_vi_count);
 	
+#if 0	
 	/* Send proxy cmd for VADAPTOR_ALLOC */
 	port_id = EVB_PORT_ID_ASSIGNED;
-	
+
 	printf("\n Call proxy_vadapter_alloc() ... ");
 	/* On a VF, this may fail with MC_CMD_ERR_NO_EVB_PORT (ENOENT) if the PF
 	 * driver has yet to bring up the EVB port */
@@ -645,7 +636,7 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 		/* Store vport_id in the vdpa_data */
 		sva->vdpa_data->vport_id = vport_id;
 	}
-	
+#endif	
 	rc = sfc_vdpa_mem_bar_init(sva, &mem_ebr);
 	if (rc != 0)
 		goto fail_mem_bar_init;
@@ -842,23 +833,16 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	/* Find Parent PF's and its rte_eth_dev to access process_private fields */
 	rte_pci_device_name(&pci_dev->addr, vf_dev_name, RTE_DEV_NAME_MAX_LEN);
 	
-#ifndef HARD_CODED_PF_ADDR /*TODO: Need to use generic function to get parent's ID*/
 	rte_get_vf_to_pf_index(vf_dev_name, pf_dev_name);
 	if(pf_dev_name == NULL) {
 		DRV_LOG(ERR,"\n Could not find any PF device ");
 		return 0;
 	}
-#endif
 
-	DRV_LOG(DEBUG,"\n\n\n\n --------------- vf_dev_name : %s, pf_dev_name %s \n\n\n\n ", vf_dev_name, pf_dev_name);
+	DRV_LOG(DEBUG,"\n\n\n\n vf_dev_name : %s, pf_dev_name %s \n\n\n\n ", vf_dev_name, pf_dev_name);
 
 	/* Get PF's rte_eth_dev to access process_private (PF's adapter) fields */
-#ifdef HARD_CODED_PF_ADDR
-	/* ToDO : PF is hardcoded for testing only */
-	pf_eth_dev = rte_get_pf_to_eth_dev("01:00.2");
-#else
 	pf_eth_dev = rte_get_pf_to_eth_dev(pf_dev_name);
-#endif
 
 	DRV_LOG(DEBUG,"\n pf_eth_dev : %p ", pf_eth_dev);
 

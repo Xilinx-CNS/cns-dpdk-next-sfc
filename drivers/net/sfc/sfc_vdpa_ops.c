@@ -4,6 +4,7 @@
 #include "efx_regs_mcdi.h"
 #include "efx_impl.h"
 #include <rte_vhost.h>
+#include <inttypes.h>
 
 uint32_t sfc_vdpa_ops_logtype_driver;
 #define DRV_OPS_LOG(level, fmt, args...) \
@@ -378,10 +379,11 @@ sfc_vdpa_dev_config(int vid)
 	if(ret != 0)
 		return -1;
 	
+	#if 0
 	ret = sfc_vdpa_filter_config(vdpa_data);
 	if(ret != 0)
 		return -1;
-	
+	#endif	
 	sfc_vdpa_adapter_unlock(vdpa_data);
 	
 	if (rte_vhost_host_notifier_ctrl(vid, true) != 0)
@@ -401,6 +403,8 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 	size_t response_size = 0;
 	size_t response_size_actual;
 	sfc_inbuf_t req;
+	uint64_t dev_features_lo = 0;
+	uint64_t dev_features_hi = 0;
 
 	sfc_outbuf_t resp;
 
@@ -446,12 +450,15 @@ sfc_virtio_proxy_get_features(efx_nic_t *enp,
 	
 	resp.emr_out_buf = (uint8_t *)&outbuf[MCDI_RESP_HDR_SIZE];
 	
-	/* FIXME : dev_features needs to be correctly populated as (HI <<32) | LO */
-	*dev_features = MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_LO);
-	printf("\n LO 0x%x", (unsigned int) (MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_LO)));
+	dev_features_lo = MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_LO);
+	printf("\n LO 0x%x", (unsigned int) dev_features_lo);
+	*dev_features = dev_features_lo & 0xFFFFFFFF;
 	
-	*dev_features |= (MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_HI));
-	printf("\n HI 0x%x", (unsigned int) (MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_HI)));
+	dev_features_hi = (MCDI_OUT_DWORD(resp, VIRTIO_GET_FEATURES_OUT_FEATURES_HI));
+	printf("\n HI 0x%x", (unsigned int) dev_features_hi);
+	*dev_features |= dev_features_hi << 32;
+
+	return rc;
 	
 fail_proxy_cmd:
 	DRV_OPS_LOG(ERR, "\n Proxy Cmd failed with error : %d  \n", (int)rc);
@@ -534,6 +541,8 @@ sfc_vdpa_get_device_features(struct sfc_vdpa_ops_data *vdpa_data)
 	}
     
 	vdpa_data->dev_features = dev_features;
+
+	printf("\n vdpa_data->dev_features :: %" PRIu64 "\n", vdpa_data->dev_features );
 
 	return rc;
 }

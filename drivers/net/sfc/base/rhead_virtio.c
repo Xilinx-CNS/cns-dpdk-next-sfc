@@ -67,6 +67,7 @@ rhead_virtio_get_features(
 	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_VIRTIO_GET_FEATURES_IN_LEN,
 		MC_CMD_VIRTIO_GET_FEATURES_OUT_LEN);
 	efx_rc_t rc;
+	uint64_t features_hi;
 
 	req.emr_cmd = MC_CMD_VIRTIO_GET_FEATURES;
 	req.emr_in_buf = payload;
@@ -99,7 +100,8 @@ rhead_virtio_get_features(
 	
 	printf("\n LO 0x%x", (unsigned int) (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_LO)));
 	
-	*featuresp |= (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_HI));
+	features_hi = (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_HI));
+	*featuresp |= features_hi << 32;
 	
 	printf("\n HI 0x%x", (unsigned int) (MCDI_OUT_DWORD(req, VIRTIO_GET_FEATURES_OUT_FEATURES_HI)));
 	return (0);
@@ -243,7 +245,7 @@ rhead_virtio_virtq_create(
 	MCDI_IN_SET_BYTE(req, VIRTIO_INIT_QUEUE_REQ_QUEUE_TYPE, virtq_type);
 	MCDI_IN_SET_WORD(req, VIRTIO_INIT_QUEUE_REQ_TARGET_VF, target_vf);
 	
-	printf("\n vi_index : %d", vi_index);
+	//printf("\n vi_index : %d", vi_index);
 	
 	MCDI_IN_SET_DWORD(req, VIRTIO_INIT_QUEUE_REQ_INSTANCE, vi_index);
 
