@@ -1555,6 +1555,7 @@ efx_mcdi_mac_stats(
 extern	__checkReturn			efx_rc_t
 efx_pci_config_find_next_ext_cap(
 	__in				efsys_pci_config_t *espcp,
+	__in				const efx_pci_ops_t *epop,
 	__in				uint16_t cap_id,
 	__inout				size_t *offsetp);
 
@@ -1568,6 +1569,7 @@ efx_pci_config_find_next_ext_cap(
 extern	__checkReturn			efx_rc_t
 efx_pci_config_next_ext_cap(
 	__in				efsys_pci_config_t *espcp,
+	__in				const efx_pci_ops_t *epop,
 	__inout				size_t *offsetp);
 
 /*
@@ -1579,6 +1581,7 @@ efx_pci_config_next_ext_cap(
 extern	__checkReturn			efx_rc_t
 efx_pci_find_next_xilinx_cap_table(
 	__in				efsys_pci_config_t *espcp,
+	__in				const efx_pci_ops_t *epop,
 	__inout				size_t *pci_cap_offsetp,
 	__out				unsigned int *xilinx_tbl_barp,
 	__out				efsys_dma_addr_t *xilinx_tbl_offsetp);
@@ -1593,6 +1596,7 @@ efx_pci_find_next_xilinx_cap_table(
 extern	__checkReturn			efx_rc_t
 efx_pci_read_ext_cap_xilinx_table(
 	__in				efsys_pci_config_t *espcp,
+	__in				const efx_pci_ops_t *epop,
 	__in				size_t cap_offset,
 	__out				unsigned int *barp,
 	__out				efsys_dma_addr_t *offsetp);
