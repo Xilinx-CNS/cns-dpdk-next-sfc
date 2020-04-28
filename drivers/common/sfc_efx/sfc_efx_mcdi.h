@@ -7,8 +7,8 @@
  * for Solarflare) and Solarflare Communications, Inc.
  */
 
-#ifndef _SFC_MCDI_H
-#define _SFC_MCDI_H
+#ifndef _SFC_EFX_MCDI_H
+#define _SFC_EFX_MCDI_H
 
 #include <stdint.h>
 
@@ -62,8 +62,14 @@ struct sfc_efx_mcdi {
 	const char			*log_prefix;
 };
 
+int sfc_efx_mcdi_init(struct sfc_efx_mcdi *mcdi,
+		      uint32_t logtype, const char *log_prefix,
+		      efx_nic_t *nic,
+		      const struct sfc_efx_mcdi_ops *ops, void *ops_cookie);
+void sfc_efx_mcdi_fini(struct sfc_efx_mcdi *mcdi);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /* _SFC_MCDI_H */
+#endif  /* _SFC_EFX_MCDI_H */

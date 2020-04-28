@@ -47,13 +47,7 @@ DPDK_20.0.1 {
 	efx_mac_stats_update;
 	efx_mac_stats_upload;
 
-	efx_mcdi_fini;
-	efx_mcdi_get_proxy_handle;
-	efx_mcdi_init;
 	efx_mcdi_new_epoch;
-	efx_mcdi_request_abort;
-	efx_mcdi_request_poll;
-	efx_mcdi_request_start;
 
 	efx_nic_cfg_get;
 	efx_nic_create;
@@ -117,6 +111,9 @@ DPDK_20.0.1 {
 	efx_tx_qflush;
 	efx_tx_qpush;
 	efx_txq_size;
+
+	sfc_efx_mcdi_init;
+	sfc_efx_mcdi_fini;
 
 	local: *;
 };
