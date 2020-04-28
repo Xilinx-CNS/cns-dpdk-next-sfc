@@ -58,6 +58,7 @@ EXPORT_MAP := rte_common_sfc_efx_version.map
 #
 
 SRCS-y += sfc_efx.c
+SRCS-y += sfc_efx_mcdi.c
 
 VPATH += $(SRCDIR)/base
 
