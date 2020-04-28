@@ -643,7 +643,6 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 
 	rc = efx_virtio_init(enp);
 	if (rc != 0)
-	if (rc != 0)
 		goto fail_virtio_init;
 
 	sva->vdpa_data->state = SFC_VDPA_STATE_INITIALIZED;
