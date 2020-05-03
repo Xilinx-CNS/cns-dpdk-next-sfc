@@ -1120,6 +1120,15 @@ fs_dev_merge_info(struct rte_eth_dev_info *info,
 
 	info->hash_key_size = RTE_MIN(info->hash_key_size,
 				      sinfo->hash_key_size);
+
+	/*
+	 * If at least one sub-device suggests enabling this setting
+	 * by default, incorporate the same suggestion in the common
+	 * default configuration since the said sub-device might not
+	 * support disabling the said setting and RxQ setup may fail.
+	 */
+	if (sinfo->default_rxconf.rx_drop_en == 1)
+		info->default_rxconf.rx_drop_en = 1;
 }
 
 /**
