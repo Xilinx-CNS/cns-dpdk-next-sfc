@@ -22,7 +22,6 @@
 /* Features desired/implemented by this driver. */
 #define VIRTIO_PMD_DEFAULT_GUEST_FEATURES	\
 	(1u << VIRTIO_NET_F_MAC		  |	\
-	 1u << VIRTIO_NET_F_STATUS	  |	\
 	 1u << VIRTIO_NET_F_MQ		  |	\
 	 1u << VIRTIO_NET_F_CTRL_MAC_ADDR |	\
 	 1u << VIRTIO_NET_F_CTRL_VQ	  |	\
