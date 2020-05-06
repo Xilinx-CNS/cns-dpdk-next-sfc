@@ -86,6 +86,51 @@ struct sfc_ef10_rxq {
 	struct sfc_dp_rxq		dp;
 };
 
+static void
+sfc_ef10_rxq_debug_log(struct sfc_ef10_rxq *rxq)
+{
+	SFC_GENERIC_LOG(ERR, "DEBUG RxQ information:\n");
+	SFC_GENERIC_LOG(ERR, "flags: %x\n", rxq->flags);
+	SFC_GENERIC_LOG(ERR, "ptr_mask: %x\n", rxq->ptr_mask);
+	SFC_GENERIC_LOG(ERR, "pending: %x\n", rxq->pending);
+	SFC_GENERIC_LOG(ERR, "completed: %x\n", rxq->completed);
+	SFC_GENERIC_LOG(ERR, "evq_read_ptr: %x\n", rxq->evq_read_ptr);
+	SFC_GENERIC_LOG(ERR, "evq_read_ptr_primed: %x\n",
+			rxq->evq_read_ptr_primed);
+
+	if (rxq->evq_hw_ring != NULL) {
+		SFC_GENERIC_LOG(ERR, "evq_hw_ring: %x %x\n",
+				rxq->evq_hw_ring->eq_u32[0],
+				rxq->evq_hw_ring->eq_u32[1]);
+	}
+
+	if (rxq->sw_ring != NULL && rxq->sw_ring->mbuf != NULL) {
+		SFC_GENERIC_LOG(ERR, "sw_ring: \n");
+		rte_pktmbuf_dump(stderr, rxq->sw_ring->mbuf, 1500);
+	}
+
+	SFC_GENERIC_LOG(ERR, "rearm_data: %lx\n", rxq->rearm_data);
+	if (rxq->scatter_pkt != NULL) {
+		SFC_GENERIC_LOG(ERR, "scatter_pkt: \n");
+		rte_pktmbuf_dump(stderr, rxq->scatter_pkt, 1500);
+	}
+
+	SFC_GENERIC_LOG(ERR, "evq_prime: %p\n", rxq->evq_prime);
+	SFC_GENERIC_LOG(ERR, "prefix_size: %x\n", rxq->prefix_size);
+	SFC_GENERIC_LOG(ERR, "buf_size: %x\n", rxq->buf_size);
+	SFC_GENERIC_LOG(ERR, "added: %x\n", rxq->added);
+	SFC_GENERIC_LOG(ERR, "max_fill_level: %x\n", rxq->max_fill_level);
+	SFC_GENERIC_LOG(ERR, "refill_threshold: %x\n", rxq->refill_threshold);
+
+	if (rxq->rxq_hw_ring != NULL) {
+		SFC_GENERIC_LOG(ERR, "rxq_hw_ring: %x %x\n",
+				rxq->rxq_hw_ring->eq_u32[0],
+				rxq->rxq_hw_ring->eq_u32[1]);
+	}
+
+	SFC_GENERIC_LOG(ERR, "doorbell: %p\n", rxq->doorbell);
+}
+
 static inline struct sfc_ef10_rxq *
 sfc_ef10_rxq_by_dp_rxq(struct sfc_dp_rxq *dp_rxq)
 {
@@ -287,6 +332,8 @@ sfc_ef10_rx_process_event(struct sfc_ef10_rxq *rxq, efx_qword_t rx_ev,
 
 	/* If scattered packet is in progress */
 	if (rxq->scatter_pkt != NULL) {
+		if (unlikely(ready != 1))
+			sfc_ef10_rxq_debug_log(rxq);
 		/* Events for scattered packet frags are not merged */
 		SFC_ASSERT(ready == 1);
 		SFC_ASSERT(rxq->completed == pending);
