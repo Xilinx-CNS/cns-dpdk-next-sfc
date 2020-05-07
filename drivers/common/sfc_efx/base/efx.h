@@ -3785,6 +3785,13 @@ efx_mae_mport_id_by_phy_port(
 	__in				uint32_t phy_port,
 	__out				efx_mport_id_t *mport_idp);
 
+/* Get static MPORT ID of a PCIe function. */
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_id_by_pcie_function(
+	__in				uint32_t pf,
+	__in				uint32_t vf,
+	__out				efx_mport_id_t *mport_idp);
+
 typedef struct efx_mae_actions_s efx_mae_actions_t;
 
 extern	__checkReturn			efx_rc_t
