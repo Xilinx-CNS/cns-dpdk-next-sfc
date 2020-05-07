@@ -241,6 +241,11 @@ New Features
     that can be configured through ``rte_node_ip4_rewrite_add`` function.
   * Packet drop node: Frees the packets received to their respective mempool.
 
+* **Updated testpmd application.**
+
+  * Added a new cmdline option ``--rx-mq-mode`` which can be used to test PMD's
+    behaviour on handling Rx mq mode.
+
 * **Added new l3fwd-graph sample application.**
 
   Added an example application ``l3fwd-graph``. It demonstrates the usage of graph
