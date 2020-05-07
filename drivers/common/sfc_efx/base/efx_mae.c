@@ -775,6 +775,46 @@ fail1:
 	return (rc);
 }
 
+
+	__checkReturn			efx_rc_t
+efx_mae_mport_id_by_pcie_function(
+	__in				uint32_t pf,
+	__in				uint32_t vf,
+	__out				efx_mport_id_t *mport_idp)
+{
+	efx_dword_t dword;
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_PCI_VF_INVALID ==
+		MAE_MPORT_SELECTOR_FUNC_VF_ID_NULL);
+
+	if (pf > EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_PF_ID)) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (vf > EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_VF_ID)) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	EFX_POPULATE_DWORD_3(dword,
+	    MAE_MPORT_SELECTOR_TYPE, MAE_MPORT_SELECTOR_TYPE_FUNC,
+	    MAE_MPORT_SELECTOR_FUNC_PF_ID, pf,
+	    MAE_MPORT_SELECTOR_FUNC_VF_ID, vf);
+
+	memset(mport_idp, 0, sizeof (*mport_idp));
+	mport_idp->id = dword.ed_u32[0];
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
 	__checkReturn			efx_rc_t
 efx_mae_match_spec_field_set(
 	__in				efx_mae_match_spec_t *spec,
