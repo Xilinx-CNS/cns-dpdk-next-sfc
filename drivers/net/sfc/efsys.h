@@ -159,6 +159,7 @@ prefetch_read_once(const volatile void *addr)
 #define EFSYS_OPT_MCDI_PROXY_AUTH_SERVER 1
 
 #define EFSYS_OPT_PCI 1
+#define EFSYS_OPT_VIRTIO 1
 
 /* ID */
 

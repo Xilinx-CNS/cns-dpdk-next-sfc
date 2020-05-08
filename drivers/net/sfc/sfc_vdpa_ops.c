@@ -151,24 +151,22 @@ static int
 sfc_vdpa_virtq_init(struct sfc_vdpa_ops_data *vdpa_data)
 {
 	int i, rc = 0;
+	efx_virtio_vq_t vq;
 	efx_virtio_vq_cfg_t vq_cfg;
-	efx_virtio_vq_type_t type;
-	uint16_t target_vf = 0;
-	uint32_t vi_index = 0;
 	
 	if (vdpa_data->vdpa_context == SFC_VDPA_AS_PF)
-		target_vf = SFC_VDPA_VF_NULL;
+		vq.evv_target_vf = SFC_VDPA_VF_NULL;
 	else if (vdpa_data->vdpa_context == SFC_VDPA_AS_VF)
-		target_vf = vdpa_data->vf_index;
+		vq.evv_target_vf = vdpa_data->vf_index;
 	
 	for (i = 0; i < vdpa_data->num_vring; i++) {
 		if(i%2) /* Even VQ for RX and odd for TX */
-			type = EFX_VIRTIO_VQ_TYPE_NET_TXQ;
+			vq.evv_type = EFX_VIRTIO_VQ_TYPE_NET_TXQ;
 		else
-			type = EFX_VIRTIO_VQ_TYPE_NET_RXQ;
+			vq.evv_type = EFX_VIRTIO_VQ_TYPE_NET_RXQ;
 
 		/* Get function-local index of the associated VI from the virtqueue number */ 
-		vi_index = SFC_GET_VI_INDEX(i);
+		vq.evv_vi_index = SFC_GET_VI_INDEX(i);
 		
 		vq_cfg.evvc_vq_size = vdpa_data->vring[i].size;
 		vq_cfg.evvc_vq_pidx = vdpa_data->vring[i].last_used_idx;
@@ -180,17 +178,27 @@ sfc_vdpa_virtq_init(struct sfc_vdpa_ops_data *vdpa_data)
 		vq_cfg.evvc_msix_vector = i;
 		vq_cfg.evvc_use_pasid = 0;
 		vq_cfg.evvc_pas_id = 0;
-		vq_cfg.evcc_features = (vdpa_data->dev_features & vdpa_data->req_features);
+		//vq_cfg.evcc_features = (vdpa_data->dev_features & vdpa_data->req_features);
+
+		printf("\n (vdpa_data->dev_features & vdpa_data->req_features) & 0xFFFFFFFF : 0x%x",(uint32_t) ((vdpa_data->dev_features & vdpa_data->req_features) & 0xFFFFFFFF));
+		vq_cfg.evcc_features.eq_u32[0] = (vdpa_data->dev_features & vdpa_data->req_features) & 0xFFFFFFFF;
+
+		printf("\n (vdpa_data->dev_features & vdpa_data->req_features) & 0xFFFFFFFF : 0x%x", (uint32_t)((vdpa_data->dev_features & vdpa_data->req_features) >> 32));
+		vq_cfg.evcc_features.eq_u32[1] = ((vdpa_data->dev_features & vdpa_data->req_features) >> 32) & 0xFFFFFFFF;
+
 		vq_cfg.evcc_mport_selector = 0;
 		vq_cfg.evcc_mport_selector = MAE_MPORT_SELECTOR_ASSIGNED;
 	
-		rc = efx_virtio_virtq_create(vdpa_data->nic, type, target_vf,
-					vi_index, &vq_cfg);
+		vq.evv_vi_index = vdpa_data->vq_cxt[i].vq.evv_vi_index;
+		vq.evv_type = vdpa_data->vq_cxt[i].vq.evv_type;
+		vq.evv_target_vf = vdpa_data->vq_cxt[i].vq.evv_target_vf;
+
+		rc = efx_virtio_virtq_create(vdpa_data->nic, &vq, &vq_cfg);
 		if(rc == 0) {
 			/* Store created virtqueue context */
-			vdpa_data->vq_cxt[i].vq.evv_vi_index = vi_index;
-			vdpa_data->vq_cxt[i].vq.evv_type = type;
-			vdpa_data->vq_cxt[i].vq.evv_target_vf = target_vf;
+			vdpa_data->vq_cxt[i].vq.evv_vi_index = vq.evv_vi_index;
+			vdpa_data->vq_cxt[i].vq.evv_type = vq.evv_type;
+			vdpa_data->vq_cxt[i].vq.evv_target_vf = vq.evv_target_vf;
 			vdpa_data->vq_cxt[i].vq_valid = B_TRUE;
 		}
 	}
@@ -530,9 +538,13 @@ sfc_vdpa_get_device_features(struct sfc_vdpa_ops_data *vdpa_data)
 	uint64_t dev_features = 0;
 	
 	if (vdpa_data->vdpa_context == SFC_VDPA_AS_PF) {
+		printf("\n Not supported");
+		return 0;
+#if 0
 		rc = efx_virtio_get_features(vdpa_data->nic, 
 						EFX_VIRTIO_DEVICE_TYPE_NET, 
 						&dev_features);
+#endif
 	}
 	else if (vdpa_data->vdpa_context == SFC_VDPA_AS_VF) {
 		/* Send proxy command */
@@ -565,9 +577,12 @@ sfc_vdpa_set_features(int vid)
 	}
 
 	if (vdpa_data->vdpa_context == SFC_VDPA_AS_PF) {
+		printf("\n Not Supported ");
+#if 0
 		rc = efx_virtio_verify_features(vdpa_data->nic, 
 						EFX_VIRTIO_DEVICE_TYPE_NET, 
 						vdpa_data->req_features);
+#endif
 	}
 	else if (vdpa_data->vdpa_context == SFC_VDPA_AS_VF) {
 		/* Send proxy command */
@@ -739,10 +754,11 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 		evv_data.evv_type = EFX_VIRTIO_VQ_TYPE_NET_TXQ;
 	else
 		evv_data.evv_type = EFX_VIRTIO_VQ_TYPE_NET_RXQ;
-
+#if 1
 	rc = efx_virtio_get_doorbell_offset(vdpa_data->nic, EFX_VIRTIO_DEVICE_TYPE_NET,
 						&evv_data, &bar_offset);
-
+#endif
+	rc = 0;
 	if (rc != 0)
 		return rc;
 
