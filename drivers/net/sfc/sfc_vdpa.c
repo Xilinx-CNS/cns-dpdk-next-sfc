@@ -13,6 +13,12 @@
 #include <rte_common.h>
 #include <rte_string_fns.h>
 
+#define TEST_COUNT_1 100
+#define TEST_COUNT_2 200
+
+#define MIN_VI_COUNT	2
+#define MAX_VI_COUNT	2
+
 #define DRV_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, sfc_logtype_driver, \
 		"SFC_VDPA %s(): " fmt "\n", __func__, ##args)
@@ -49,7 +55,6 @@ void rte_get_vf_to_pf_index(char *vf, char *pf)
 	char pf_str[200];
 
 	snprintf(cmd, 1000, "ls -l  /sys/bus/pci/devices/%s/physfn", vf);
-
 	FILE *fp = popen(cmd, "r");
 	if (fp == NULL) {
 			printf ("failed to open popen");
@@ -125,6 +130,7 @@ get_vdpa_data_by_did(int did)
 
 	TAILQ_FOREACH(list, &sfc_vdpa_adapter_list, next) {
 		if (did == list->sva->vdpa_data->did) {
+			printf("\n did :%d, found", did);
 			found = 1;
 			break;
 		}
@@ -169,7 +175,6 @@ sfc_vdpa_mem_bar_init(struct sfc_vdpa_adapter *sva, const efx_bar_region_t *mem_
 	struct rte_pci_device *pci_dev = sva->pdev;
 	efsys_bar_t *ebp = &sva->mem_bar;
 	struct rte_mem_resource *res = &pci_dev->mem_resource[mem_ebrp->ebr_index];
-	return 0; // TODO : remove it after testing
 
 	SFC_BAR_LOCK_INIT(ebp, "memBAR");
 	ebp->esb_rid = mem_ebrp->ebr_index;
@@ -267,10 +272,10 @@ fail_proxy_cmd:
 
 static int
 sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp, 
-				unsigned int pf_index, unsigned int vf_index,
-				unsigned int min_vi_count, unsigned int max_vi_count)
+		unsigned int pf_index, unsigned int vf_index,
+		unsigned int min_vi_count, unsigned int max_vi_count)
 {
-	int rc;
+	int rc = 0;
 	efx_dword_t *proxy_hdr = NULL;
 	size_t request_size = 0;
 	size_t response_size = 0;
@@ -287,13 +292,12 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 	proxy_hdr = (efx_dword_t *)inbuf;
 
 	EFX_POPULATE_DWORD_2(proxy_hdr[0],
-				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
-					MCDI_HEADER_RESYNC, 1);
+		MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+			MCDI_HEADER_RESYNC, 1);
 
 	EFX_POPULATE_DWORD_2(proxy_hdr[1],
-				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_ALLOC_VIS,
-				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_ALLOC_VIS_IN_LEN);
-
+		MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_ALLOC_VIS,
+			MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_ALLOC_VIS_IN_LEN);
 
 	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
 
@@ -307,9 +311,9 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 	
 	/* Send proxy command */
 	rc = efx_mcdi_proxy_cmd(enp, pf_index, vf_index, 
-				inbuf, request_size,
-				outbuf, response_size,
-				&response_size_actual);
+		inbuf, request_size,
+		outbuf, response_size,
+		&response_size_actual);
 
 	if (rc != 0)
 		goto fail_proxy_cmd;
@@ -324,13 +328,13 @@ sfc_vdpa_proxy_vi_alloc(efx_nic_t *enp,
 	vi_base = MCDI_OUT_DWORD(resp, ALLOC_VIS_OUT_VI_BASE);
 	vi_count = MCDI_OUT_DWORD(resp, ALLOC_VIS_OUT_VI_COUNT);
 
-	/* Report VI_SHIFT if available (always zero for Huntington) */
+	/* Report VI_SHIFT if available */
 	if (response_size < MC_CMD_ALLOC_VIS_EXT_OUT_LEN)
 		vi_shift = 0;
 	else
 		vi_shift = MCDI_OUT_DWORD(resp, ALLOC_VIS_EXT_OUT_VI_SHIFT);
 
-	printf("\n EXIT :: vi_base : %d, vi_count : %d, vi_shift : %d \n", vi_base, vi_count, vi_shift);	
+	printf("\n VI_ALLOC Passed :: vi_base : %d, vi_count : %d, vi_shift : %d \n", vi_base, vi_count, vi_shift);	
 
 	return rc;
 
@@ -472,7 +476,9 @@ fail_proxy_cmd:
 #endif
 int
 efx_get_sriov_cfg(efx_nic_t *enp,
-				unsigned int *vf_current, unsigned int *vf_offset, unsigned int *vf_stride)
+			unsigned int *vf_current, 
+			unsigned int *vf_offset, 
+			unsigned int *vf_stride)
 {
 	efx_mcdi_req_t req;
 	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_SRIOV_CFG_IN_LEN,
@@ -516,59 +522,59 @@ sfc_vdpa_get_vfpf_id(struct sfc_vdpa_ops_data *vdpa_data, uint16_t pf_rid,
 						uint16_t vf_rid, uint32_t *pf_index, uint32_t *vf_index)
 {	
 	uint32_t vf_current=0, vf_offset=0, vf_stride=0;
-	uint32_t vf_rid_base, rid_offset;
-	uint32_t pf_rid_base;
-	int rc = 0;
-	uint32_t pf = 0, vf = 0;
+	uint32_t vf_rid_base, vf_rid_offset;
+	int rc;
+	uint32_t pf, vf;
 	
+	printf("\n vf_rid : %d, pf_rid %d ", vf_rid, pf_rid);
+
 	/* Get PF Index */
 	rc = efx_mcdi_get_function_info(vdpa_data->nic, &pf, &vf);
-	//printf("\n rc from efx_mcdi_get_function_info : %d, vf:%d, pf:%d", rc, vf, pf);
+	printf("\n rc from efx_mcdi_get_function_info : %d, vf:%d, pf:%d", rc, vf, pf);
 	*pf_index = (uint16_t) pf;
 	
-	printf("\n In sfc_vdpa_get_vfpf_id : pf_index : %d ", *pf_index);
+	printf("\n pf_index : %d, vf_index : %d (default) ", *pf_index, *vf_index );
 
-	/* Calculate PF's RID base */
-	pf_rid_base = pf_rid - pf;
-	
-	/* Use mcdi MC_CMD_GET_SRIOV_CFG to get vf/pf index */
+	/* Use mcdi MC_CMD_GET_SRIOV_CFG to get vf current/offset/stride tuple */
 	rc = efx_get_sriov_cfg(vdpa_data->nic, &vf_current, &vf_offset, &vf_stride);
+	printf("\n vf_current :%d, vf_offset: %d, vf_stride : %d", vf_current, vf_offset, vf_stride);
 	
-	vf_rid_base = pf_rid_base + vf_offset;
-	printf("\n vf_rid : %d, vf_rid_base %d ", vf_rid, vf_rid_base);
-	printf("\n vf_stride %d ", vf_stride);
+	vf_rid_base = pf_rid + vf_offset;
+	printf("\n vf_rid_base %d ", vf_rid_base);
     
 	if (vf_rid >= vf_rid_base) 
 	{
-		rid_offset = (vf_rid - vf_rid_base);
-		printf("\n rid_offset %d ", rid_offset);
+		vf_rid_offset = (vf_rid - vf_rid_base);
+		printf("\n vf_rid_offset %d ", vf_rid_offset);
 	  
-		if (rid_offset % vf_stride == 0) {
-			vf = rid_offset / vf_stride;
+		if (vf_rid_offset % vf_stride == 0) {
+			vf = vf_rid_offset / vf_stride;
 			printf("\n vf %d ", vf);
 			if (vf <= vf_current) {
-				printf("\n In sfc_vdpa_get_vfpf_id : vf_index %d ", *vf_index);
 				*vf_index = (uint16_t)vf;
-				printf("\n final In sfc_vdpa_get_vfpf_id : vf_index %d ", *vf_index);
+				printf("\n Found vf_index for vf_rid : %d", vf_rid);
 				printf("\n pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
 			
 				return 0;
 			}
 	  	}
-	} 
-		
-	printf("\n pf_index : %d, vf_index : %d (default) ", *pf_index, *vf_index );
-	
+	}
+
+	/* Error */	
+	printf("\n Error : could not found vf_index for vf_rid : %d", vf_rid);
+	printf("\n pf_index : %d, vf_index : %d ", *pf_index, *vf_index );
+
 	return rc;
 }
 
 uint16_t get_rid_from_pci_addr(struct rte_pci_addr pci_addr)
 {
 	uint16_t rid;  
-	rid = (((pci_addr.bus & 0xff) << 8) | ((pci_addr.devid & 0xff) << 5) | (pci_addr.function & 0x7));
+
+	rid = (((pci_addr.bus & 0xff) << 8) | ((pci_addr.devid & 0x1f) << 3) | (pci_addr.function & 0x7));
 	return rid;
 }
-	
+
 int
 sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 {
@@ -576,7 +582,6 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	efx_nic_t *enp = NULL;
 	efx_bar_region_t mem_ebr;
 	efsys_pci_config_t espc;
-	uint32_t min_vi_count, max_vi_count;
 	uint32_t pf_index=0, vf_index=0;
 	//uint32_t port_id;
 	//uint32_t vport_id = 0;
@@ -597,16 +602,18 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	vf_rid = get_rid_from_pci_addr(vf_pci_addr);
 	pf_rid = get_rid_from_pci_addr(sva->vdpa_data->pf_pci_addr);
 
-	//printf("\n vf_rid : %d", vf_rid);
-	//printf("\n pf_rid : %d \n\n", pf_rid);
+	printf("\n vf_rid : %d", vf_rid);
+	printf("\n pf_rid : %d \n\n", pf_rid);
 	
 	espc.espc_dev = pci_dev;
 	rc = efx_family_probe_bar(pci_dev->id.vendor_id, pci_dev->id.device_id,
 				  &espc, &sva->family, &mem_ebr);
 
 	/* Get vf index */
-	sfc_vdpa_get_vfpf_id(sva->vdpa_data, pf_rid, vf_rid, &pf_index, &vf_index);
-	printf("\n pf_index : %d vf_index :%d \n", pf_index,vf_index);
+	rc = sfc_vdpa_get_vfpf_id(sva->vdpa_data, pf_rid, vf_rid, &pf_index, &vf_index);
+	if(rc != 0)
+		goto fail_get_vf_vf_init;
+
 	sva->vdpa_data->pf_index = pf_index;
 	sva->vdpa_data->vf_index = vf_index;
 
@@ -614,12 +621,10 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	rc = sfc_vdpa_proxy_driver_attach(enp, pf_index, vf_index, 1);
 
 	/* Send proxy cmd for VIs_ALLOC */
-	min_vi_count = 2;
-	max_vi_count = 2;
 	printf("\n Call proxy_vi_alloc() ... ");
-	rc = sfc_vdpa_proxy_vi_alloc(enp, pf_index, vf_index, min_vi_count, max_vi_count);
-	
-#if 0	
+	rc = sfc_vdpa_proxy_vi_alloc(enp, pf_index, vf_index, MIN_VI_COUNT, MAX_VI_COUNT);
+
+#if 0
 	/* Send proxy cmd for VADAPTOR_ALLOC */
 	port_id = EVB_PORT_ID_ASSIGNED;
 
@@ -650,6 +655,7 @@ sfc_vdpa_device_init(struct sfc_vdpa_adapter *sva)
 	DRV_LOG(ERR,"\n Exit from probe");
 	return 0;
 
+fail_get_vf_vf_init:
 fail_virtio_init:
 fail_mem_bar_init:
 
@@ -864,8 +870,9 @@ static int sfc_vdpa_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	
 	vdpa_data->lock = sva->lock;
 
-	if (sfc_vdpa_device_init(sva) < 0) {
+	if (sfc_vdpa_device_init(sva) != 0) {
 		DRV_LOG(ERR, "failed to init device %s", pci_dev->name);
+		printf("\n Decice Init Failed .. ");
 		goto error;
 	}
 	

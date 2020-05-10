@@ -513,7 +513,7 @@ sfc_virtio_proxy_verify_features(efx_nic_t *enp,
 				inbuf, request_size,
 				inbuf, response_size,
 				&response_size_actual);
-	
+
 	printf("\n ## RC of VIRTIO MCDI MC_CMD_VIRTIO_TEST_FEATURES (proxy) : %d ## \n", (int)rc);
 
 	if (rc != 0)
@@ -674,6 +674,7 @@ sfc_vdpa_get_queue_num(int did, uint32_t *queue_num)
 	vdpa_data = get_vdpa_data_by_did(did);
 	
 	printf("\n ## VDPA_OPS : get_queue Invoked ## \n");
+	printf("\n pf_index %d, vf_index %d \n",vdpa_data->pf_index, vdpa_data->vf_index);
 	
 	if (vdpa_data == NULL) {
 		DRV_OPS_LOG(ERR, "Invalid device id: %d", did);
