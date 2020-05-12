@@ -1347,6 +1347,7 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_evq_timer_quantum_ns;
 	uint32_t		enc_evq_timer_max_us;
 	uint32_t		enc_clk_mult;
+	uint32_t		enc_ev_ew_desc_size;
 	uint32_t		enc_ev_desc_size;
 	uint32_t		enc_rx_desc_size;
 	uint32_t		enc_tx_desc_size;
@@ -1448,6 +1449,7 @@ typedef struct efx_nic_cfg_s {
 	boolean_t		enc_allow_set_mac_with_installed_filters;
 	boolean_t		enc_enhanced_set_mac_supported;
 	boolean_t		enc_init_evq_v2_supported;
+	boolean_t		enc_init_evq_extended_width_supported;
 	boolean_t		enc_no_cont_ev_mode_supported;
 	boolean_t		enc_init_rxq_with_buffer_size;
 	boolean_t		enc_rx_packed_stream_supported;
@@ -2106,12 +2108,14 @@ efx_ev_fini(
 extern	__checkReturn	size_t
 efx_evq_size(
 	__in	const efx_nic_t *enp,
-	__in	unsigned int ndescs);
+	__in	unsigned int ndescs,
+	__in	uint32_t flags);
 
 extern	__checkReturn	unsigned int
 efx_evq_nbufs(
 	__in	const efx_nic_t *enp,
-	__in	unsigned int ndescs);
+	__in	unsigned int ndescs,
+	__in	uint32_t flags);
 
 #define	EFX_EVQ_FLAGS_TYPE_MASK		(0x3)
 #define	EFX_EVQ_FLAGS_TYPE_AUTO		(0x0)
@@ -2131,6 +2135,10 @@ efx_evq_nbufs(
  * which is the case when an event queue is set to THROUGHPUT mode.
  */
 #define	EFX_EVQ_FLAGS_NO_CONT_EV	(0x10)
+
+/* Configure EVQ for extended width events (EF100 only) */
+#define	EFX_EVQ_FLAGS_EXTENDED_WIDTH	(0x20)
+
 
 extern	__checkReturn	efx_rc_t
 efx_ev_qcreate(
