@@ -1296,6 +1296,24 @@ fail1:
 }
 
 	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_drop(
+	__in				efx_mae_actions_t *spec)
+{
+	efx_mport_id_t mport_id;
+	const uint8_t *arg;
+	efx_dword_t dword;
+
+	EFX_POPULATE_DWORD_1(dword,
+		MAE_MPORT_SELECTOR_FLAT, MAE_MPORT_SELECTOR_NULL);
+	mport_id.id = dword.ed_u32[0];
+
+	arg = (const uint8_t *)&mport_id.id;
+
+	return (efx_mae_action_set_spec_populate(spec, EFX_MAE_ACTION_DELIVER,
+						 sizeof (mport_id.id), arg));
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_action_set_alloc(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_actions_t *spec,
