@@ -4092,6 +4092,10 @@ efx_mae_action_set_populate_deliver(
 	__in				const efx_mport_id_t *mport_idp);
 
 extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_drop(
+	__in				efx_mae_actions_t *spec);
+
+extern	__checkReturn			efx_rc_t
 efx_mae_action_set_alloc(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_actions_t *spec,
