@@ -1716,11 +1716,13 @@ typedef enum efx_vpd_tag_e {
 
 typedef uint16_t efx_vpd_keyword_t;
 
+#define	EFX_VPD_VALUE_BUF_LEN	(0x100)
+
 typedef struct efx_vpd_value_s {
 	efx_vpd_tag_t		evv_tag;
 	efx_vpd_keyword_t	evv_keyword;
 	uint8_t			evv_length;
-	uint8_t			evv_value[0x100];
+	uint8_t			evv_value[EFX_VPD_VALUE_BUF_LEN];
 } efx_vpd_value_t;
 
 
