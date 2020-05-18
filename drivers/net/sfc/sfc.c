@@ -1258,3 +1258,41 @@ sfc_register_logtype(const struct rte_pci_addr *pci_addr,
 
 	return ret;
 }
+
+struct sfc_hw_switch_id {
+	char vpd_sn[EFX_VPD_VALUE_BUF_LEN];
+};
+
+int
+sfc_hw_switch_id_init(__rte_unused struct sfc_adapter *sa,
+		      struct sfc_hw_switch_id **idp)
+{
+	struct sfc_hw_switch_id *id;
+
+	if (idp == NULL)
+		return EINVAL;
+
+	id = rte_zmalloc("sfc_hw_switch_id", sizeof(*id), 0);
+	if (id == NULL)
+		return ENOMEM;
+
+	/* FIXME: fetch VPD SN once VPD is supported on all boards. */
+
+	*idp = id;
+
+	return 0;
+}
+
+void
+sfc_hw_switch_id_fini(__rte_unused struct sfc_adapter *sa,
+		      struct sfc_hw_switch_id *id)
+{
+	rte_free(id);
+}
+
+bool
+sfc_hw_switch_ids_equal(const struct sfc_hw_switch_id *left,
+			const struct sfc_hw_switch_id *right)
+{
+	return memcmp(left->vpd_sn, right->vpd_sn, EFX_VPD_VALUE_BUF_LEN) == 0;
+}
