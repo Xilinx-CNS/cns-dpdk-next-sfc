@@ -136,8 +136,8 @@ prefetch_read_once(const volatile void *addr)
 #define EFSYS_OPT_PHY_LED_CONTROL 0
 #define EFSYS_OPT_PHY_FLAGS 0
 
-#define EFSYS_OPT_VPD 0
-#define EFSYS_OPT_NVRAM 0
+#define EFSYS_OPT_VPD 1
+#define EFSYS_OPT_NVRAM 1
 #define EFSYS_OPT_BOOTCFG 0
 #define EFSYS_OPT_IMAGE_LAYOUT 0
 

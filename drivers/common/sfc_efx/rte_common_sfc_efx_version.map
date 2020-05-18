@@ -146,6 +146,20 @@ INTERNAL {
 	efx_nic_set_hw_unavailable;
 	efx_nic_unprobe;
 
+	efx_nvram_erase;
+	efx_nvram_fini;
+	efx_nvram_get_version;
+	efx_nvram_info;
+	efx_nvram_init;
+	efx_nvram_read_backup;
+	efx_nvram_read_chunk;
+	efx_nvram_rw_finish;
+	efx_nvram_rw_start;
+	efx_nvram_set_version;
+	efx_nvram_size;
+	efx_nvram_validate;
+	efx_nvram_write_chunk;
+
 	efx_phy_adv_cap_get;
 	efx_phy_adv_cap_set;
 	efx_phy_fec_type_get;
@@ -227,6 +241,17 @@ INTERNAL {
 	efx_virtio_qstart;
 	efx_virtio_qstop;
 	efx_virtio_verify_features;
+
+	efx_vpd_fini;
+	efx_vpd_get;
+	efx_vpd_init;
+	efx_vpd_next;
+	efx_vpd_read;
+	efx_vpd_reinit;
+	efx_vpd_set;
+	efx_vpd_size;
+	efx_vpd_verify;
+	efx_vpd_write;
 
 	sfc_efx_dev_class_get;
 
