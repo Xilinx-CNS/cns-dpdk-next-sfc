@@ -52,9 +52,21 @@ enum sfc_mae_switch_port_type {
  * This mapping comprises a port type to ensure that RTE switch port ID
  * of a represented entity and that of its representor are different in
  * the case when the entity gets plugged into DPDK and not into a guest.
+ *
+ * Entry data also comprises RTE ethdev's own mport ID. This value
+ * coincides with the entity mport ID in the case of independent ports.
+ * In the case of representors, this ID is not a selector and refers
+ * to an allocatable object (that is, it's likely to change on RTE
+ * ethdev replug). Flow API backend must use this value rather
+ * than entity_mport_id to support flow rule action PORT_ID.
  */
 struct sfc_mae_switch_port {
 	TAILQ_ENTRY(sfc_mae_switch_port)	switch_domain_ports;
+
+	/** RTE ethdev mport ID */
+	efx_mport_id_t				ethdev_mport_id;
+	/** RTE ethdev port ID */
+	uint16_t				ethdev_port_id;
 
 	/** Entity (PCIe function) mport selector */
 	efx_mport_id_t				entity_mport_id;
