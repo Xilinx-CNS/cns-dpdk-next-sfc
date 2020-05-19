@@ -12,11 +12,115 @@
 
 #include <stdbool.h>
 
+#include <rte_spinlock.h>
+
 #include "efx.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/** Options for MAE switch port type */
+enum sfc_mae_switch_port_type {
+	/**
+	 * The switch port is operated by a self-sufficient RTE ethdev
+	 * and thus refers to its underlying PCIe function
+	 */
+	SFC_MAE_SWITCH_PORT_INDEPENDENT = 0,
+};
+
+/**
+ * Switch port registry entry.
+ *
+ * Drivers aware of RTE switch domains also have to maintain RTE switch
+ * port IDs for RTE ethdev instances they operate. These IDs are supposed
+ * to stand for physical interconnect entities, in example, PCIe functions.
+ *
+ * In terms of MAE, a physical interconnect entity can be referred to using
+ * an MPORT selector, that is, a 32-bit value. RTE switch port IDs, in turn,
+ * are 16-bit values, so indirect mapping has to be maintained:
+ *
+ * +--------------------+          +---------------------------------------+
+ * | RTE switch port ID |  ------  |         MAE switch port entry         |
+ * +--------------------+          |         ---------------------         |
+ *                                 |                                       |
+ *                                 | Entity (PCIe function) MPORT selector |
+ *                                 |                   +                   |
+ *                                 |  Port type (independent/representor)  |
+ *                                 +---------------------------------------+
+ *
+ * This mapping comprises a port type to ensure that RTE switch port ID
+ * of a represented entity and that of its representor are different in
+ * the case when the entity gets plugged into DPDK and not into a guest.
+ */
+struct sfc_mae_switch_port {
+	TAILQ_ENTRY(sfc_mae_switch_port)	switch_domain_ports;
+
+	/** Entity (PCIe function) MPORT selector */
+	efx_mport_sel_t				entity_mport;
+	/** Port type (independent/representor) */
+	enum sfc_mae_switch_port_type		type;
+	/** RTE switch port ID */
+	uint16_t				id;
+};
+
+TAILQ_HEAD(sfc_mae_switch_ports, sfc_mae_switch_port);
+
+/**
+ * Switch domain registry entry.
+ *
+ * Even if an RTE ethdev instance gets unplugged, the corresponding
+ * entry in the switch port registry will not be removed because the
+ * entity (PCIe function) MPORT is static and cannot change. If this
+ * RTE ethdev gets plugged back, the entry will be reused, and
+ * RTE switch port ID will be the same.
+ */
+struct sfc_mae_switch_domain {
+	TAILQ_ENTRY(sfc_mae_switch_domain)	entries;
+
+	/** HW switch ID */
+	struct sfc_hw_switch_id			*hw_switch_id;
+	/** The number of ports in the switch port registry */
+	unsigned int				nb_ports;
+	/** Switch port registry */
+	struct sfc_mae_switch_ports		ports;
+	/** RTE switch domain ID allocated for a group of devices */
+	uint16_t				id;
+};
+
+TAILQ_HEAD(sfc_mae_switch_domains, sfc_mae_switch_domain);
+
+/**
+ * MAE representation of RTE switch infrastructure.
+ *
+ * It is possible that an RTE flow API client tries to insert a rule
+ * referencing an RTE ethdev deployed on top of a different physical
+ * device (it may belong to the same vendor or not). This particular
+ * driver/engine cannot support this and has to turn down such rules.
+ *
+ * Technically, it's HW switch identifier which, if queried for each
+ * RTE ethdev instance, indicates relationship between the instances.
+ * In the meantime, RTE flow API clients also need to somehow figure
+ * out relationship between RTE ethdev instances in advance.
+ *
+ * The concept of RTE switch domains resolves this issue. The driver
+ * maintains a static list of switch domains which is easy to browse,
+ * and each RTE ethdev fills RTE switch parameters in device
+ * information structure which is made available to clients.
+ *
+ * Even if all RTE ethdev instances belonging to a switch domain get
+ * unplugged, the corresponding entry in the switch domain registry
+ * will not be removed because the corresponding HW switch exists
+ * regardless of its ports being plugged to DPDK or kept aside.
+ * If a port gets plugged back to DPDK, the corresponding
+ * RTE ethdev will indicate the same RTE switch domain ID.
+ */
+struct sfc_mae_switch {
+	/** A lock to protect the whole structure */
+	rte_spinlock_t			lock;
+	/** Switch domain registry */
+	struct sfc_mae_switch_domains	domains;
+};
 
 /** FW-allocatable resource context */
 struct sfc_mae_fw_rsrc {
@@ -56,6 +160,10 @@ struct sfc_mae_rc_cache {
 };
 
 struct sfc_mae {
+	/** Switch domain entry */
+	struct sfc_mae_switch_domain	*switch_domain;
+	/** Switch port entry */
+	struct sfc_mae_switch_port	*switch_port;
 	/** NIC support for MAE status */
 	enum sfc_mae_status		status;
 	/** Priority level limit for MAE action rules */
