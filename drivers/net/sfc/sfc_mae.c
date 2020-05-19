@@ -440,6 +440,85 @@ sfc_mae_flow_cleanup(struct sfc_adapter *sa,
 		efx_mae_match_spec_fini(sa->nic, spec_mae->match_spec);
 }
 
+static const struct sfc_mae_switch_port *
+sfc_mae_switch_port_by_ethdev(const struct sfc_mae_parse_ctx *ctx,
+			      uint16_t ethdev_port_id)
+{
+	const struct sfc_mae_switch_port *port;
+	struct sfc_mae *mae = &ctx->sa->mae;
+
+	rte_spinlock_lock(&sfc_mae_switch.lock);
+	port = sfc_mae_find_switch_port_by_ethdev(mae->switch_domain,
+						  ethdev_port_id);
+	rte_spinlock_unlock(&sfc_mae_switch.lock);
+
+	return port;
+}
+
+static int
+sfc_mae_rule_parse_item_port_id(const struct rte_flow_item *item,
+				struct sfc_flow_parse_ctx *ctx,
+				struct rte_flow_error *error)
+{
+	struct sfc_mae_parse_ctx *ctx_mae = ctx->mae;
+	const struct rte_flow_item_port_id supp_mask = {
+		.id = 0xffffffff,
+	};
+	const void *def_mask = &rte_flow_item_port_id_mask;
+	const struct rte_flow_item_port_id *spec = NULL;
+	const struct rte_flow_item_port_id *mask = NULL;
+	const struct sfc_mae_switch_port *switch_port;
+	int rc;
+
+	if (ctx_mae->match_mport_set) {
+		return rte_flow_error_set(error, ENOTSUP,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Can't handle multiple traffic source items");
+	}
+
+	rc = sfc_flow_parse_init(item,
+				 (const void **)&spec, (const void **)&mask,
+				 (const void *)&supp_mask, def_mask,
+				 sizeof(struct rte_flow_item_port_id), error);
+	if (rc != 0)
+		return rc;
+
+	if (mask->id != supp_mask.id) {
+		return rte_flow_error_set(error, EINVAL,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Bad mask in the PORT_ID pattern item");
+	}
+
+	/* If "spec" is not set, could be any port ID */
+	if (spec == NULL)
+		return 0;
+
+	if (spec->id > UINT16_MAX) {
+		return rte_flow_error_set(error, EOVERFLOW,
+					  RTE_FLOW_ERROR_TYPE_ITEM, item,
+					  "The port ID is too large");
+	}
+
+	switch_port = sfc_mae_switch_port_by_ethdev(ctx_mae, spec->id);
+	if (switch_port == NULL) {
+		return rte_flow_error_set(error, ENOENT,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Can't find RTE ethdev by the port ID");
+	}
+
+	rc = efx_mae_match_spec_mport_set(ctx_mae->match_spec_action,
+					  &switch_port->ethdev_mport, NULL);
+	if (rc != 0) {
+		return rte_flow_error_set(error, rc,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Failed to set MPORT for the port ID");
+	}
+
+	ctx_mae->match_mport_set = B_TRUE;
+
+	return 0;
+}
+
 static int
 sfc_mae_rule_parse_item_phy_port(const struct rte_flow_item *item,
 				 struct sfc_flow_parse_ctx *ctx,
@@ -701,6 +780,17 @@ sfc_mae_rule_parse_item_eth(const struct rte_flow_item *item,
 }
 
 static const struct sfc_flow_item sfc_flow_items[] = {
+	{
+		.type = RTE_FLOW_ITEM_TYPE_PORT_ID,
+		/*
+		 * In terms of RTE flow, this item is a META one,
+		 * and its position in the pattern is don't care.
+		 */
+		.prev_layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.ctx_type = SFC_FLOW_PARSE_CTX_MAE,
+		.parse = sfc_mae_rule_parse_item_port_id,
+	},
 	{
 		.type = RTE_FLOW_ITEM_TYPE_PHY_PORT,
 		/*
