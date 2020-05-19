@@ -118,18 +118,40 @@ sfc_mae_find_switch_port_by_entity(const struct sfc_mae_switch_domain *domain,
 	return NULL;
 }
 
+/* This function expects to be called only when the lock is held */
+static struct sfc_mae_switch_port *
+sfc_mae_find_switch_port_by_ethdev(const struct sfc_mae_switch_domain *domain,
+				   uint16_t port_id)
+{
+	struct sfc_mae_switch_port *port;
+
+	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
+
+	if (port_id == RTE_MAX_ETHPORTS)
+		return NULL;
+
+	TAILQ_FOREACH(port, &domain->ports, switch_domain_ports) {
+		if (port->ethdev_port_id == port_id)
+			return port;
+	}
+
+	return NULL;
+}
+
 struct sfc_mae_switch_port_request {
 	enum sfc_mae_switch_port_type		type;
 	const efx_mport_id_t			*entity_mport_idp;
+	const efx_mport_id_t			*ethdev_mport_idp;
 };
 
 /* This function expects to be called only when the lock is held */
 static int
-sfc_mae_assign_switch_port(__rte_unused struct sfc_adapter *sa,
+sfc_mae_assign_switch_port(struct sfc_adapter *sa,
 			   struct sfc_mae_switch_domain *domain,
 			   const struct sfc_mae_switch_port_request *req,
 			   struct sfc_mae_switch_port **portp)
 {
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_mae_switch_port *port;
 
 	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
@@ -151,6 +173,8 @@ sfc_mae_assign_switch_port(__rte_unused struct sfc_adapter *sa,
 	TAILQ_INSERT_TAIL(&domain->ports, port, switch_domain_ports);
 
 done:
+	port->ethdev_mport_id.id = req->ethdev_mport_idp->id;
+	port->ethdev_port_id = sas->port_id;
 	*portp = port;
 
 	return 0;
@@ -228,6 +252,11 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	sfc_log_init(sa, "assign RTE switch parameters");
 	switch_port_request.type = SFC_MAE_SWITCH_PORT_INDEPENDENT;
 	switch_port_request.entity_mport_idp = &entity_mport_id;
+	/*
+	 * As of now, the driver does not support representors, so
+	 * RTE ethdev mport ID simply matches that of the entity.
+	 */
+	switch_port_request.ethdev_mport_idp = &entity_mport_id;
 	rc = sfc_mae_assign_switch_parameters(sa, &switch_port_request,
 					      &switch_domain, &switch_port);
 	if (rc != 0)
@@ -270,6 +299,9 @@ sfc_mae_detach(struct sfc_adapter *sa)
 
 	SFC_ASSERT(mae->rule_class_cache.h == EFX_MAE_HANDLE_NULL);
 	SFC_ASSERT(mae->match_spec_cache == NULL);
+
+	/* Invalidate RTE ethdev port ID in the switch port entry */
+	mae->switch_port->ethdev_port_id = RTE_MAX_ETHPORTS;
 
 	efx_mae_fini(sa->nic);
 
@@ -943,6 +975,35 @@ sfc_mae_rule_parse_action_pf_vf(struct sfc_adapter *sa,
 }
 
 static int
+sfc_mae_rule_parse_action_port_id(struct sfc_adapter *sa,
+				  const struct rte_flow_action_port_id *conf,
+				  efx_mae_actions_t *spec)
+{
+	const struct sfc_mae_switch_port *switch_port;
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_id_t mport_id;
+
+	rte_spinlock_lock(&sfc_mae_switch.lock);
+
+	if (conf->original != 0) {
+		mport_id.id = mae->switch_port->ethdev_mport_id.id;
+	} else {
+		switch_port = sfc_mae_find_switch_port_by_ethdev(
+						mae->switch_domain, conf->id);
+		if (switch_port == NULL) {
+			rte_spinlock_unlock(&sfc_mae_switch.lock);
+			return EINVAL;
+		}
+
+		mport_id.id = switch_port->ethdev_mport_id.id;
+	}
+
+	rte_spinlock_unlock(&sfc_mae_switch.lock);
+
+	return efx_mae_action_set_populate_deliver(spec, &mport_id);
+}
+
+static int
 sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 			  const struct rte_flow_action *action,
 			  struct sfc_mae_actions_bundle *bundle,
@@ -996,6 +1057,11 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_VF,
 				       bundle->actions_mask);
 		rc = sfc_mae_rule_parse_action_pf_vf(sa, action->conf, spec);
+		break;
+	case RTE_FLOW_ACTION_TYPE_PORT_ID:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_PORT_ID,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_port_id(sa, action->conf, spec);
 		break;
 	case RTE_FLOW_ACTION_TYPE_DROP:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_DROP,
