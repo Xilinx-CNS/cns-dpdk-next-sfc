@@ -10,16 +10,192 @@
 #include <stdbool.h>
 
 #include <rte_common.h>
+#include <rte_spinlock.h>
 
 #include "efx.h"
 
 #include "sfc.h"
 #include "sfc_log.h"
 
+static struct sfc_mae_switch sfc_mae_switch = {
+	.lock = RTE_SPINLOCK_INITIALIZER,
+	.domains = TAILQ_HEAD_INITIALIZER(sfc_mae_switch.domains),
+};
+
+static int
+sfc_mae_assign_entity_mport_id(struct sfc_adapter *sa,
+			       efx_mport_id_t *mport_idp)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+
+	return efx_mae_mport_id_by_pcie_function(encp->enc_pf, encp->enc_vf,
+						 mport_idp);
+}
+
+/* This function expects to be called only when the lock is held */
+static struct sfc_mae_switch_domain *
+sfc_mae_find_switch_domain_by_hw_switch_id(const struct sfc_hw_switch_id *id)
+{
+	struct sfc_mae_switch_domain *domain;
+
+	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
+
+	TAILQ_FOREACH(domain, &sfc_mae_switch.domains, entries) {
+		if (sfc_hw_switch_ids_equal(domain->hw_switch_id, id))
+			return domain;
+	}
+
+	return NULL;
+}
+
+/* This function expects to be called only when the lock is held */
+static int
+sfc_mae_assign_switch_domain(struct sfc_adapter *sa,
+			     struct sfc_mae_switch_domain **domainp)
+{
+	struct sfc_hw_switch_id *hw_switch_id;
+	struct sfc_mae_switch_domain *domain;
+	int rc;
+
+	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
+
+	rc = sfc_hw_switch_id_init(sa, &hw_switch_id);
+	if (rc != 0)
+		return rc;
+
+	domain = sfc_mae_find_switch_domain_by_hw_switch_id(hw_switch_id);
+	if (domain != NULL) {
+		sfc_hw_switch_id_fini(sa, hw_switch_id);
+		goto done;
+	}
+
+	domain = rte_zmalloc("sfc_mae_switch_domain", sizeof(*domain), 0);
+	if (domain == NULL) {
+		sfc_hw_switch_id_fini(sa, hw_switch_id);
+		return ENOMEM;
+	}
+
+	/*
+	 * This code belongs in driver init path, that is, negation is
+	 * done at the end of the path by sfc_eth_dev_init(). RTE APIs
+	 * negate error codes, so drop negation here.
+	 */
+	rc = -rte_eth_switch_domain_alloc(&domain->id);
+	if (rc != 0) {
+		sfc_hw_switch_id_fini(sa, hw_switch_id);
+		rte_free(domain);
+		return rc;
+	}
+
+	domain->hw_switch_id = hw_switch_id;
+
+	TAILQ_INIT(&domain->ports);
+
+	TAILQ_INSERT_TAIL(&sfc_mae_switch.domains, domain, entries);
+
+done:
+	*domainp = domain;
+
+	return 0;
+}
+
+/* This function expects to be called only when the lock is held */
+static struct sfc_mae_switch_port *
+sfc_mae_find_switch_port_by_entity(const struct sfc_mae_switch_domain *domain,
+				   const efx_mport_id_t *entity_mport_idp,
+				   enum sfc_mae_switch_port_type type)
+{
+	struct sfc_mae_switch_port *port;
+
+	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
+
+	TAILQ_FOREACH(port, &domain->ports, switch_domain_ports) {
+		if (port->entity_mport_id.id == entity_mport_idp->id &&
+		    port->type == type)
+			return port;
+	}
+
+	return NULL;
+}
+
+struct sfc_mae_switch_port_request {
+	enum sfc_mae_switch_port_type		type;
+	const efx_mport_id_t			*entity_mport_idp;
+};
+
+/* This function expects to be called only when the lock is held */
+static int
+sfc_mae_assign_switch_port(__rte_unused struct sfc_adapter *sa,
+			   struct sfc_mae_switch_domain *domain,
+			   const struct sfc_mae_switch_port_request *req,
+			   struct sfc_mae_switch_port **portp)
+{
+	struct sfc_mae_switch_port *port;
+
+	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
+
+	port = sfc_mae_find_switch_port_by_entity(domain, req->entity_mport_idp,
+						  req->type);
+	if (port != NULL)
+		goto done;
+
+	port = rte_zmalloc("sfc_mae_switch_port", sizeof(*port), 0);
+	if (port == NULL)
+		return ENOMEM;
+
+	port->entity_mport_id.id = req->entity_mport_idp->id;
+	port->type = req->type;
+
+	port->id = (domain->nb_ports++);
+
+	TAILQ_INSERT_TAIL(&domain->ports, port, switch_domain_ports);
+
+done:
+	*portp = port;
+
+	return 0;
+}
+
+static int
+sfc_mae_assign_switch_parameters(struct sfc_adapter *sa,
+				 const struct sfc_mae_switch_port_request *req,
+				 struct sfc_mae_switch_domain **domainp,
+				 struct sfc_mae_switch_port **portp)
+{
+	struct sfc_mae_switch_domain *domain;
+	struct sfc_mae_switch_port *port;
+	int rc;
+
+	rte_spinlock_lock(&sfc_mae_switch.lock);
+
+	rc = sfc_mae_assign_switch_domain(sa, &domain);
+	if (rc != 0) {
+		rte_spinlock_unlock(&sfc_mae_switch.lock);
+		return rc;
+	}
+
+	rc = sfc_mae_assign_switch_port(sa, domain, req, &port);
+	if (rc != 0) {
+		rte_spinlock_unlock(&sfc_mae_switch.lock);
+		return rc;
+	}
+
+	rte_spinlock_unlock(&sfc_mae_switch.lock);
+
+	*domainp = domain;
+	*portp = port;
+
+	return 0;
+}
+
 int
 sfc_mae_attach(struct sfc_adapter *sa)
 {
+	struct sfc_mae_switch_port_request switch_port_request = {0};
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_mae_switch_domain *switch_domain;
+	struct sfc_mae_switch_port *switch_port;
+	efx_mport_id_t entity_mport_id;
 	struct sfc_mae *mae = &sa->mae;
 	efx_mae_limits_t limits;
 	int rc;
@@ -44,6 +220,21 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mae_get_limits;
 
+	sfc_log_init(sa, "assign entity mport ID");
+	rc = sfc_mae_assign_entity_mport_id(sa, &entity_mport_id);
+	if (rc != 0)
+		goto fail_mae_assign_entity_mport_id;
+
+	sfc_log_init(sa, "assign RTE switch parameters");
+	switch_port_request.type = SFC_MAE_SWITCH_PORT_INDEPENDENT;
+	switch_port_request.entity_mport_idp = &entity_mport_id;
+	rc = sfc_mae_assign_switch_parameters(sa, &switch_port_request,
+					      &switch_domain, &switch_port);
+	if (rc != 0)
+		goto fail_mae_assign_switch_parameters;
+
+	mae->switch_domain = switch_domain;
+	mae->switch_port = switch_port;
 	mae->status = SFC_MAE_STATUS_SUPPORTED;
 	mae->nb_action_rule_prios_max = limits.eml_max_n_action_prios;
 	TAILQ_INIT(&mae->action_sets);
@@ -52,6 +243,8 @@ sfc_mae_attach(struct sfc_adapter *sa)
 
 	return 0;
 
+fail_mae_assign_switch_parameters:
+fail_mae_assign_entity_mport_id:
 fail_mae_get_limits:
 	efx_mae_fini(sa->nic);
 
