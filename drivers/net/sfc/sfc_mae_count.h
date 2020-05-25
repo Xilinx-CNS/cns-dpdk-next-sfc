@@ -45,6 +45,10 @@ int sfc_mae_counter_add(struct sfc_mae_counters *counters, bool shared,
 int sfc_mae_counter_del(struct sfc_mae_counters *counters,
 			uint32_t mae_counter_id,
 			uint32_t *counter_id_to_free);
+int sfc_mae_counter_get(struct sfc_mae_counters *counters,
+			uint32_t mae_counter_id,
+			const struct rte_flow_action_count *conf,
+			struct rte_flow_query_count *data);
 
 int sfc_mae_count_start(struct sfc_adapter *sa);
 void sfc_mae_count_stop(struct sfc_adapter *sa);

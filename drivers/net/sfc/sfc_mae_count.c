@@ -663,3 +663,34 @@ fail_counter_stream:
 
 	return rc;
 }
+
+int
+sfc_mae_counter_get(struct sfc_mae_counters *counters, uint32_t mae_counter_id,
+		    const struct rte_flow_action_count *conf,
+		    struct rte_flow_query_count *data)
+{
+	struct sfc_mae_counter *p;
+
+	rte_spinlock_lock(&counters->lock);
+
+	p = sfc_mae_counter_find_mae_id(counters, mae_counter_id);
+	if (p == NULL ||
+	    (conf != NULL && (conf->id != p->rte_id ||
+			      (!conf->shared != !p->shared)))) {
+		rte_spinlock_unlock(&counters->lock);
+		return EINVAL;
+	}
+
+	data->hits_set = 1;
+	data->bytes_set = 1;
+	data->hits = p->hits;
+	data->bytes = p->bytes;
+	if (data->reset) {
+		p->hits = 0;
+		p->bytes = 0;
+	}
+
+	rte_spinlock_unlock(&counters->lock);
+
+	return 0;
+}

@@ -2908,3 +2908,50 @@ sfc_mae_flow_remove(struct sfc_adapter *sa,
 
 	return 0;
 }
+
+static int
+sfc_mae_query_counter(struct sfc_adapter *sa,
+		      struct sfc_flow_spec_mae *spec,
+		      const struct rte_flow_action *action,
+		      struct rte_flow_query_count *data,
+		      struct rte_flow_error *error)
+{
+	const struct rte_flow_action_count *conf = action->conf;
+	int rc;
+
+	if (spec->counter_id == EFX_MAE_COUNTER_ID_INVALID) {
+		return rte_flow_error_set(error, EINVAL,
+			RTE_FLOW_ERROR_TYPE_ACTION, action,
+			"Queried flow rule does not have count actions");
+	}
+
+	rc = sfc_mae_counter_get(&sa->mae.counter_registry.counters,
+				 spec->counter_id, conf, data);
+	if (rc != 0) {
+		return rte_flow_error_set(error, EINVAL,
+			RTE_FLOW_ERROR_TYPE_ACTION, action,
+			"Queried flow rule counter action is invalid");
+	}
+
+	return 0;
+}
+
+int
+sfc_mae_flow_query(struct rte_eth_dev *dev,
+		   struct rte_flow *flow,
+		   const struct rte_flow_action *action,
+		   void *data,
+		   struct rte_flow_error *error)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_flow_spec *spec = &flow->spec;
+	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
+
+	if (action->type != RTE_FLOW_ACTION_TYPE_COUNT) {
+		return rte_flow_error_set(error, ENOTSUP,
+			RTE_FLOW_ERROR_TYPE_ACTION, NULL,
+			"Query for action of this type is not supported");
+	}
+
+	return sfc_mae_query_counter(sa, spec_mae, action, data, error);
+}
