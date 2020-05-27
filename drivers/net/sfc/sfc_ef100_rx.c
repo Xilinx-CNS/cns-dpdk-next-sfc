@@ -887,6 +887,19 @@ sfc_ef100_rx_intr_disable(struct sfc_dp_rxq *dp_rxq)
 	return 0;
 }
 
+static sfc_dp_rx_get_pushed_t sfc_ef100_rx_get_pushed;
+static unsigned int
+sfc_ef100_rx_get_pushed(struct sfc_dp_rxq *dp_rxq)
+{
+	struct sfc_ef100_rxq *rxq = sfc_ef100_rxq_by_dp_rxq(dp_rxq);
+
+	/*
+	 * The datapath always keeps 'added' aligned, so it can be used
+	 * interchangeably with 'pushed'.
+	 */
+	return rxq->added;
+}
+
 struct sfc_dp_rx sfc_ef100_rx = {
 	.dp = {
 		.name		= SFC_KVARG_DATAPATH_EF100,
@@ -914,5 +927,6 @@ struct sfc_dp_rx sfc_ef100_rx = {
 	.qdesc_status		= sfc_ef100_rx_qdesc_status,
 	.intr_enable		= sfc_ef100_rx_intr_enable,
 	.intr_disable		= sfc_ef100_rx_intr_disable,
+	.get_pushed		= sfc_ef100_rx_get_pushed,
 	.pkt_burst		= sfc_ef100_recv_pkts,
 };
