@@ -24,7 +24,9 @@
 #include "sfc_kvargs.h"
 #include "sfc_tweak.h"
 
-
+/* Temporarily disabled use of vSwitch API, It would be removed after testing
+ * Could not do it by disabling EFSYS_OPT_EVB, as build failed */
+//#define DISABLE_VSWITCH_CREATE
 int
 sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
 	      size_t len, int socket_id, efsys_mem_t *esmp)
@@ -449,12 +451,14 @@ sfc_start(struct sfc_adapter *sa)
 		 * we should recreate it. May be we need proper
 		 * indication instead of guessing.
 		 */
+#ifdef DISABLE_VSWITCH_CREATE
 		if (rc != 0) {
 			sfc_sriov_vswitch_destroy(sa);
 			rc = sfc_sriov_vswitch_create(sa);
 			if (rc != 0)
 				goto fail_sriov_vswitch_create;
 		}
+#endif
 		rc = sfc_try_start(sa);
 	} while ((--start_tries > 0) &&
 		 (rc == EIO || rc == EAGAIN || rc == ENOENT || rc == EINVAL));
@@ -467,7 +471,9 @@ sfc_start(struct sfc_adapter *sa)
 	return 0;
 
 fail_try_start:
+#ifdef DISABLE_VSWITCH_CREATE
 fail_sriov_vswitch_create:
+#endif
 	sa->state = SFC_ADAPTER_CONFIGURED;
 fail_bad_state:
 	sfc_log_init(sa, "failed %d", rc);
@@ -870,20 +876,23 @@ sfc_attach(struct sfc_adapter *sa)
 	 * as DPDK port. VFs should be able to talk to each other even
 	 * if PF is down.
 	 */
+#ifdef DISABLE_VSWITCH_CREATE
 	rc = sfc_sriov_vswitch_create(sa);
 	if (rc != 0)
 		goto fail_sriov_vswitch_create;
-
+#endif
 	sa->state = SFC_ADAPTER_INITIALIZED;
 
 	sfc_log_init(sa, "done");
 	return 0;
 
+#ifdef DISABLE_VSWITCH_CREATE
 fail_sriov_vswitch_create:
+#endif
+fail_mae_attach:
 	sfc_flow_fini(sa);
 	sfc_mae_detach(sa);
 
-fail_mae_attach:
 	sfc_filter_detach(sa);
 
 fail_filter_attach:

@@ -390,7 +390,7 @@ ef10_proxy_auth_complete_request(
 			proxy_result, handle));
 }
 
-static	__checkReturn			efx_rc_t
+	__checkReturn			efx_rc_t
 efx_mcdi_proxy_cmd(
 	__in				efx_nic_t *enp,
 	__in				uint32_t pf_index,

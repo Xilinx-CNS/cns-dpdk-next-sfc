@@ -3669,6 +3669,17 @@ efx_proxy_auth_privilege_modify(
 	__in		uint32_t add_privileges_mask,
 	__in		uint32_t remove_privileges_mask);
 
+      __checkReturn                   efx_rc_t
+efx_mcdi_proxy_cmd(
+        __in                            efx_nic_t *enp,
+        __in                            uint32_t pf_index,
+        __in                            uint32_t vf_index,
+        __in_bcount(request_size)       uint8_t *request_bufferp,
+        __in                            size_t request_size,
+        __out_bcount(response_size)     uint8_t *response_bufferp,
+        __in                            size_t response_size,
+        __out_opt                       size_t *response_size_actualp);
+
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
 #if EFSYS_OPT_MAE
@@ -3891,6 +3902,88 @@ efx_mae_rule_remove(
 	__in				const efx_mae_rule_id_t *ar_idp);
 
 #endif /* EFSYS_OPT_MAE */
+
+#if EFSYS_OPT_VIRTIO
+typedef enum efx_virtio_vq_type_e {
+        EFX_VIRTIO_VQ_TYPE_NET_RXQ,
+        EFX_VIRTIO_VQ_TYPE_NET_TXQ,
+        EFX_VIRTIO_VQ_TYPE_BLOCK,
+        EFX_VIRTIO_VQ_NTYPES
+} efx_virtio_vq_type_t;
+
+typedef enum efx_virtio_device_type_e {
+        EFX_VIRTIO_DEVICE_TYPE_RESERVED,
+        EFX_VIRTIO_DEVICE_TYPE_NET,
+        EFX_VIRTIO_DEVICE_TYPE_BLOCK,
+        EFX_VIRTIO_DEVICE_NTYPES
+} efx_virtio_device_type_t;
+
+typedef struct efx_virtio_vq_cfg_s {
+	/* Queue size, it must be a power of two */
+	uint32_t                evvc_vq_size;
+        /*
+	 * If queue is being created to be migrated then this
+	 * should be the FINAL_PIDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
+	 * of the queue being migrated from. Otherwise, it should be zero.
+	 */
+        uint32_t                evvc_vq_pidx;
+        /*
+	 * If this queue is being created to be migrated then this
+	 * should be the FINAL_CIDX value returned by MC_CMD_VIRTIO_FINI_QUEUE
+	 * of the queue being migrated from. Otherwise, it should be zero
+	 */
+	uint32_t                evvc_vq_cidx;
+
+	efsys_dma_addr_t        evvc_desc_tbl_addr;
+	efsys_dma_addr_t        evvc_avail_ring_addr;
+	efsys_dma_addr_t        evvc_used_ring_addr;
+        uint16_t                evvc_msix_vector;
+        /* If B_TRUE then virtq uses PCIe PASID */
+        boolean_t               evvc_use_pasid;
+        uint32_t                evvc_pas_id;
+        efx_qword_t             evcc_features;
+        /*
+	 * Use MAE_MPORT_SELECTOR_ASSIGNED to request the default
+	 * mport for the function this queue is being created on
+	 */
+	uint32_t                evcc_mport_selector;
+} efx_virtio_vq_cfg_t;
+
+typedef struct efx_virtio_vq_s {
+    unsigned int                    evv_vi_index;
+    efx_virtio_vq_type_t            evv_type;
+    uint16_t                        evv_target_vf;
+} efx_virtio_vq_t;
+
+extern __checkReturn   efx_rc_t
+efx_virtio_init(
+        __in            efx_nic_t *enp);
+
+extern void
+efx_virtio_fini(
+        __in    efx_nic_t *enp);
+
+extern  __checkReturn   efx_rc_t
+  efx_virtio_virtq_create(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_vq_t *evvp,
+        __in                    efx_virtio_vq_cfg_t *evvcp);
+
+extern  __checkReturn   efx_rc_t
+efx_virtio_virtq_destroy(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_vq_t *evvp,
+        __out                   uint32_t *pidxp,
+        __out                   uint32_t *cidxp);
+
+extern  __checkReturn   efx_rc_t
+efx_virtio_get_doorbell_offset(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_device_type_t type,
+        __in                    efx_virtio_vq_t *evvp,
+        __out                   uint32_t *offsetp);
+
+#endif /* EFSYS_OPT_VIRTIO */
 
 #ifdef	__cplusplus
 }

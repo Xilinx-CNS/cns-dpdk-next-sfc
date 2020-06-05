@@ -68,6 +68,7 @@ extern "C" {
 #define	EFX_MOD_TUNNEL		0x00004000
 #define	EFX_MOD_EVB		0x00008000
 #define	EFX_MOD_PROXY		0x00010000
+#define	EFX_MOD_VIRTIO		0x00020000
 
 #define	EFX_RESET_PHY		0x00000001
 #define	EFX_RESET_RXQ_ERR	0x00000002
@@ -771,6 +772,19 @@ typedef struct efx_proxy_ops_s {
 
 #endif /* EFSYS_OPT_MCDI_PROXY_AUTH_SERVER */
 
+#if EFSYS_OPT_VIRTIO
+typedef struct efx_virtio_ops_s {
+        efx_rc_t        (*evo_virtq_create)(efx_nic_t *, efx_virtio_vq_t *,
+                                efx_virtio_vq_cfg_t *);
+        efx_rc_t        (*evo_virtq_destroy)(efx_nic_t *, efx_virtio_vq_t *,
+                                uint32_t *, uint32_t *);
+        efx_rc_t        (*evo_get_doorbell_offset)(efx_nic_t *,
+                                efx_virtio_device_type_t, efx_virtio_vq_t *,
+                                uint32_t *);
+
+} efx_virtio_ops_t;
+#endif /* EFSYS_OPT_VIRTIO */
+
 #if EFSYS_OPT_MAE
 
 typedef struct efx_mae_field_cap_s {
@@ -902,6 +916,9 @@ struct efx_nic_s {
 #if EFSYS_OPT_MAE
 	efx_mae_t		*en_maep;
 #endif
+#if EFSYS_OPT_VIRTIO
+        const efx_virtio_ops_t  *en_evop;
+#endif  /* EFSYS_OPT_VIRTIO */
 };
 
 #define	EFX_FAMILY_IS_EF10(_enp) \
@@ -1699,6 +1716,30 @@ typedef struct efx_mae_actions_s {
 } efx_mae_actions_t;
 
 #endif /* EFSYS_OPT_MAE */
+
+#ifdef EFSYS_OPT_VIRTIO
+extern  __checkReturn   efx_rc_t
+rhead_virtio_virtq_create(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_vq_t *evvp,
+        __in                    efx_virtio_vq_cfg_t *evvcp);
+
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_virtq_destroy(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_vq_t *evvp,
+        __out                   uint32_t *pidx,
+        __out                   uint32_t *cidx);
+
+extern  __checkReturn   efx_rc_t
+rhead_virtio_get_doorbell_offset(
+        __in                    efx_nic_t *enp,
+        __in                    efx_virtio_device_type_t type,
+        __in                    efx_virtio_vq_t *evvp,
+        __out                   uint32_t *offsetp);
+#endif /* EFSYS_OPT_VIRTIO */
+
 
 #ifdef	__cplusplus
 }

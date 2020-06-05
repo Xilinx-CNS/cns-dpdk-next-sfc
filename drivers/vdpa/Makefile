@@ -9,4 +9,6 @@ endif
 
 DIRS-$(CONFIG_RTE_LIBRTE_MLX5_VDPA_PMD) += mlx5
 
+DIRS-$(CONFIG_RTE_LIBRTE_SFC_VDPA_PMD) += sfc
+
 include $(RTE_SDK)/mk/rte.subdir.mk

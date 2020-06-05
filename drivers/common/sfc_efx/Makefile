@@ -85,6 +85,7 @@ SRCS-y += efx_sram.c
 SRCS-y += efx_tunnel.c
 SRCS-y += efx_tx.c
 SRCS-y += efx_vpd.c
+SRCS-y += efx_virtio.c
 SRCS-y += mcdi_mon.c
 SRCS-y += siena_mac.c
 SRCS-y += siena_mcdi.c
@@ -117,5 +118,6 @@ SRCS-y += rhead_pci.c
 SRCS-y += rhead_rx.c
 SRCS-y += rhead_tunnel.c
 SRCS-y += rhead_tx.c
+SRCS-y += rhead_virtio.c
 
 include $(RTE_SDK)/mk/rte.lib.mk

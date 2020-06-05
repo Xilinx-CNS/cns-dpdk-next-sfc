@@ -675,6 +675,7 @@ rhead_nic_xilinx_cap_tbl_read_ef100_locator(
 	ebrp->ebr_offset = EFX_OWORD_FIELD32(entry,
 			ESF_GZ_CFGBAR_EF100_FUNC_CTL_WIN_OFF) <<
 			ESE_GZ_EF100_FUNC_CTL_WIN_OFF_SHIFT;
+
 	ebrp->ebr_type = EFX_BAR_TYPE_MEM;
 	ebrp->ebr_length = 0;
 
