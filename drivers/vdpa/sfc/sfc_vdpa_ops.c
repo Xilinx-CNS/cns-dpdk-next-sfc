@@ -23,7 +23,7 @@ uint32_t sfc_vdpa_ops_logtype_driver;
 
 /* TODO: Bypassed filter remove due to issue FWRIVERHD-940
  * It will be enabled once EVb support would be available */
-//#define  USE_FILTER_CONFIG 1
+#define  USE_FILTER_CONFIG 1
 
 
 static int
@@ -417,9 +417,12 @@ sfc_vdpa_dev_config(int vid)
 	ret = sfc_vdpa_filter_config(vdpa_data);
 	
 	printf("\n configuration of MAC unicast and broadcast filters : rc : %d", ret);
-	if(ret != 0)
+	if(ret != 0) {
+		sfc_vdpa_adapter_unlock(vdpa_data);
 		return -1;
+	}
 	#endif	
+
 	sfc_vdpa_adapter_unlock(vdpa_data);
 	
 	if (rte_vhost_host_notifier_ctrl(vid, true) != 0)

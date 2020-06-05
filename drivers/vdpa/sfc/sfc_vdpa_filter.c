@@ -12,7 +12,7 @@ uint32_t sfc_vdpa_ops_logtype_driver;
 
 int
 sfc_vdpa_proxy_filter_insert(efx_nic_t *enp, unsigned int pf_index,
-		unsigned int vf_index, unsigned int vport_id, uint8_t *src_mac_addr,
+		unsigned int vf_index, unsigned int vport_id, uint8_t *loc_mac_addr,
 		ef10_filter_handle_t *handle)
 {
 	int rc, i=0;
@@ -25,52 +25,56 @@ sfc_vdpa_proxy_filter_insert(efx_nic_t *enp, unsigned int pf_index,
 	efx_filter_match_flags_t match_flags;
 
 	EFX_MCDI_DECLARE_BUF(inbuf,
-                       sizeof(efx_dword_t) * 2 + MC_CMD_FILTER_OP_V3_IN_LEN, 0);
+                       sizeof(efx_dword_t) * 2 + MC_CMD_FILTER_OP_EXT_IN_LEN, 0);
 	EFX_MCDI_DECLARE_BUF(outbuf, 8 + MC_CMD_FILTER_OP_EXT_OUT_LEN, 0);
 
 	/* Prepare proxy header */
 	proxy_hdr = (efx_dword_t *)inbuf;
 
 	EFX_POPULATE_DWORD_2(proxy_hdr[0],
-				MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
-					MCDI_HEADER_RESYNC, 1);
+		MCDI_HEADER_CODE, MC_CMD_V2_EXTN,
+		MCDI_HEADER_RESYNC, 1);
 
 	EFX_POPULATE_DWORD_2(proxy_hdr[1],
-				MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_FILTER_OP,
-				MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_FILTER_OP_V3_IN_LEN);
+		MC_CMD_V2_EXTN_IN_EXTENDED_CMD, MC_CMD_FILTER_OP,
+		MC_CMD_V2_EXTN_IN_ACTUAL_LEN, MC_CMD_FILTER_OP_EXT_IN_LEN);
 
 	req.emr_in_buf = (uint8_t *)&inbuf[PROXY_HDR_SIZE];
  
-	/* Prepare filter command */
+	/* [1] Prepare filter command */
 	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_OP, MC_CMD_FILTER_OP_IN_OP_INSERT);
-	/* Set port id */	
+
+	/* [3] Set port id */	
 	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_PORT_ID, vport_id);
-	/* Set Flags */
-	//match_flags = EFX_FILTER_FLAG_RX ; // RX
-	match_flags = EFX_FILTER_MATCH_LOC_MAC; // Unicast MAC
-	//match_flags = EFX_FILTER_MATCH_UNKNOWN_UCAST_DST; // ALL filter
+
+	/* [4] Set Flags */
+	match_flags = EFX_FILTER_MATCH_LOC_MAC; // Unicast DEST MAC
 	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_MATCH_FIELDS, match_flags);
-	/* Set MAC */
-	memcpy(MCDI_IN2(req, uint8_t, FILTER_OP_EXT_IN_SRC_MAC), src_mac_addr, EFX_MAC_ADDR_LEN);
 
-	/* Added following two ..*/
+	/* [5] Set Rx-Dest to MC_CMD_FILTER_OP_IN_RX_DEST_HOST */
 	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_RX_DEST,
-	    MC_CMD_FILTER_OP_EXT_IN_RX_DEST_DROP);
+	    MC_CMD_FILTER_OP_EXT_IN_RX_DEST_HOST);
+	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_RX_QUEUE, 1); /* TODO: Remove hardcoded queue number */
 
-	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_TX_DEST,
-	    MC_CMD_FILTER_OP_EXT_IN_TX_DEST_DEFAULT);
-#if 0
+	/* [6] RX Mode to MC_CMD_FILTER_OP_EXT_IN_RX_MODE_SIMPLE */
 	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_RX_MODE,
             MC_CMD_FILTER_OP_EXT_IN_RX_MODE_SIMPLE);
-#endif
+
+	/* [10 Ser Tx-Dest to 0 */
+	//MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_TX_DEST, 0);
+	MCDI_IN_SET_DWORD(req, FILTER_OP_EXT_IN_TX_DEST, MC_CMD_FILTER_OP_EXT_IN_TX_DEST_DEFAULT);
+	
+	/* [13] Set Dest MAC */
+	memcpy(MCDI_IN2(req, uint8_t, FILTER_OP_EXT_IN_DST_MAC),
+		loc_mac_addr, EFX_MAC_ADDR_LEN);
 
 	printf("\n\n Configuring filter for MAC Address : ");
 	for(i=0; i<6; i++)
-		printf("\n src_mac_addr[%d]: %x", i, src_mac_addr[i]);
+		printf("\n loc_mac_addr[%d]: %x", i, loc_mac_addr[i]);
 	printf("\n\n");
 				
 	/* Populate proxy request buff with driver MCDI command */
-	request_size = MC_CMD_FILTER_OP_V3_IN_LEN + PROXY_HDR_SIZE;
+	request_size = MC_CMD_FILTER_OP_EXT_IN_LEN + PROXY_HDR_SIZE;
 	response_size = MC_CMD_FILTER_OP_EXT_OUT_LEN + PROXY_HDR_SIZE; 
 	
 	/* Send proxy command */
