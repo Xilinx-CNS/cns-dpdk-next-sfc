@@ -158,7 +158,7 @@ mlx5_devx_cmd_mkey_create(void *ctx,
 		return NULL;
 	}
 	memset(in, 0, in_size_dw * 4);
-	pgsize = sysconf(_SC_PAGESIZE);
+	pgsize = mlx5_os_get_page_size();
 	MLX5_SET(create_mkey_in, in, opcode, MLX5_CMD_OP_CREATE_MKEY);
 	mkc = MLX5_ADDR_OF(create_mkey_in, in, memory_key_mkey_entry);
 	if (klm_num > 0) {

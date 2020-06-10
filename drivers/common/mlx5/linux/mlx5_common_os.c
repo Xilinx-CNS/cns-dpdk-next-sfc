@@ -125,6 +125,18 @@ mlx5_translate_port_name(const char *port_name_in,
 	port_info_out->name_type = MLX5_PHYS_PORT_NAME_TYPE_UNKNOWN;
 }
 
+/**
+ * Get OS page size
+ *
+ * @return
+ *   OS pagesize
+ */
+size_t
+mlx5_os_get_page_size(void)
+{
+	return sysconf(_SC_PAGESIZE);
+}
+
 #ifdef MLX5_GLUE
 
 /**
