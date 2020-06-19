@@ -199,6 +199,8 @@ Supported pattern items (***transfer*** rules):
 
 - ETH
 
+- VLAN (double-tagging is supported)
+
 Supported actions (***transfer*** rules):
 
 - OF_POP_VLAN
