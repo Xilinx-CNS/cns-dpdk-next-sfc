@@ -2790,6 +2790,11 @@ typedef enum efx_rxq_type_e {
  * Rx checksum offload results.
  */
 #define	EFX_RXQ_FLAG_INNER_CLASSES	0x2
+/*
+ * Request delivery of the RSS hash calculated by HW to be used by
+ * the driver.
+ */
+#define	EFX_RXQ_FLAG_RSS_HASH		0x4
 
 extern	__checkReturn	efx_rc_t
 efx_rx_qcreate(
