@@ -315,6 +315,8 @@ typedef struct efx_virtio_ops_s {
 				efx_virtio_vq_dyncfg_t *);
 	efx_rc_t	(*evo_virtio_qstop)(efx_virtio_vq_t *,
 				efx_virtio_vq_dyncfg_t *);
+	efx_rc_t	(*evo_get_doorbell_offset)(efx_virtio_vq_t *,
+				uint32_t *);
 } efx_virtio_ops_t;
 #endif /* EFSYS_OPT_VIRTIO */
 
@@ -1677,6 +1679,11 @@ extern  __checkReturn			efx_rc_t
 rhead_virtio_qstop(
 	__in				efx_virtio_vq_t *evvp,
 	__out_opt			efx_virtio_vq_dyncfg_t *evvdp);
+
+extern  __checkReturn			efx_rc_t
+rhead_virtio_get_doorbell_offset(
+	__in				efx_virtio_vq_t *evvp,
+	__out				uint32_t *offsetp);
 
 #endif /* EFSYS_OPT_VIRTIO */
 
