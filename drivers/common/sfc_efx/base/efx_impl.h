@@ -65,6 +65,7 @@ extern "C" {
 #define	EFX_MOD_TUNNEL		0x00004000
 #define	EFX_MOD_EVB		0x00008000
 #define	EFX_MOD_PROXY		0x00010000
+#define	EFX_MOD_VIRTIO		0x00020000
 
 #define	EFX_RESET_PHY		0x00000001
 #define	EFX_RESET_RXQ_ERR	0x00000002
@@ -306,6 +307,16 @@ typedef struct efx_tunnel_ops_s {
 	void		(*eto_fini)(efx_nic_t *);
 } efx_tunnel_ops_t;
 #endif /* EFSYS_OPT_TUNNEL */
+
+#if EFSYS_OPT_VIRTIO
+typedef struct efx_virtio_ops_s {
+	efx_rc_t	(*evo_virtio_qstart)(efx_virtio_vq_t *,
+				efx_virtio_vq_cfg_t *,
+				efx_virtio_vq_dyncfg_t *);
+	efx_rc_t	(*evo_virtio_qstop)(efx_virtio_vq_t *,
+				efx_virtio_vq_dyncfg_t *);
+} efx_virtio_ops_t;
+#endif /* EFSYS_OPT_VIRTIO */
 
 typedef struct efx_port_s {
 	efx_mac_type_t		ep_mac_type;
@@ -818,6 +829,9 @@ struct efx_nic_s {
 #endif	/* EFSYS_OPT_NVRAM */
 #if EFSYS_OPT_VPD
 	const efx_vpd_ops_t	*en_evpdop;
+#endif	/* EFSYS_OPT_VPD */
+#if EFSYS_OPT_VIRTIO
+	const efx_virtio_ops_t	*en_evop;
 #endif	/* EFSYS_OPT_VPD */
 #if EFSYS_OPT_RX_SCALE
 	efx_rx_hash_support_t		en_hash_support;
@@ -1626,6 +1640,45 @@ efx_pci_xilinx_cap_tbl_find(
 	__inout				efsys_dma_addr_t *entry_offsetp);
 
 #endif /* EFSYS_OPT_PCI */
+
+#if EFSYS_OPT_VIRTIO
+
+#define	EFX_VQ_MAGIC	0x026011950
+
+/*
+ * Get function-local index of the associated VI from the
+ * virtqueue number queue 0 is reserved for MCDI
+ */
+#define EFX_VIRTIO_GET_VI_INDEX(vq_num) (((vq_num) / 2) + 1)
+
+typedef enum efx_virtio_vq_state_e {
+	EFX_VIRTIO_VQ_STATE_UNKNOWN = 0,
+	EFX_VIRTIO_VQ_STATE_INITIALIZED,
+	EFX_VIRTIO_VQ_STATE_STARTED,
+	EFX_VIRTIO_VQ_NSTATES
+} efx_virtio_vq_state_t;
+
+struct efx_virtio_vq_s {
+	uint32_t		evv_magic;
+	efx_nic_t		*evv_enp;
+	efx_virtio_vq_state_t	evv_state;
+	uint32_t		evv_vi_index;
+	efx_virtio_vq_type_t	evv_type;
+	uint16_t		evv_target_vf;
+};
+
+extern  __checkReturn			efx_rc_t
+rhead_virtio_qstart(
+	__in				efx_virtio_vq_t *evvp,
+	__in				efx_virtio_vq_cfg_t *evvcp,
+	__in_opt			efx_virtio_vq_dyncfg_t *evvdp);
+
+extern  __checkReturn			efx_rc_t
+rhead_virtio_qstop(
+	__in				efx_virtio_vq_t *evvp,
+	__out_opt			efx_virtio_vq_dyncfg_t *evvdp);
+
+#endif /* EFSYS_OPT_VIRTIO */
 
 #ifdef	__cplusplus
 }
