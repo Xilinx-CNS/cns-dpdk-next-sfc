@@ -190,6 +190,13 @@ INTERNAL {
 	efx_txq_nbufs;
 	efx_txq_size;
 
+	efx_virtio_fini;
+	efx_virtio_init;
+	efx_virtio_qcreate;
+	efx_virtio_qdestroy;
+	efx_virtio_qstart;
+	efx_virtio_qstop;
+
 	sfc_efx_mcdi_init;
 	sfc_efx_mcdi_fini;
 
