@@ -401,4 +401,10 @@
 # endif
 #endif /* EFSYS_OPT_DESC_PROXY */
 
+#if EFSYS_OPT_VIRTIO
+# if !EFSYS_OPT_RIVERHEAD
+#  error "VIRTIO requires RIVERHEAD"
+# endif
+#endif /* EFSYS_OPT_VIRTIO */
+
 #endif /* _SYS_EFX_CHECK_H */
