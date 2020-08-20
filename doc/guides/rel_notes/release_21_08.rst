@@ -60,6 +60,7 @@ New Features
   Updated the Solarflare ``sfc_efx`` driver with changes including:
 
   * Added COUNT action support for SN1000 NICs
+  * Added SN1000 virtual functions (VF) support
 
 * **Updated testpmd to use log API for errors logging.**
 
