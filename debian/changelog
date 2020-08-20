@@ -1,3 +1,14 @@
+dpdk (19.11.4~rc1-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/t/test-autotest: bump sse feature check
+
+  [ Luca Boccassi ]
+  * New upstream version 19.11.4~rc1
+  * Adjust dpdk-doc install path for guides
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 20 Aug 2020 15:59:10 +0100
+
 dpdk (19.11.3-1) unstable; urgency=medium
 
   * New upstream release 19.11.3; for a full list of changes see:
