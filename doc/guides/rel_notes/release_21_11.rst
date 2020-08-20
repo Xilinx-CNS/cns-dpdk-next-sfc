@@ -95,6 +95,7 @@ New Features
   Updated the Solarflare ``sfc_efx`` driver with changes including:
 
   * Added port representors support on SN1000 SmartNICs
+  * Added SN1000 virtual functions (VF) support
 
 * **Updated Marvell cnxk crypto PMD.**
 
