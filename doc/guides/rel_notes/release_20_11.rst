@@ -78,6 +78,12 @@ New Features
     ``--portmask=N``
     where N represents the hexadecimal bitmask of ports used.
 
+* **Updated Broadcom bnxt driver.**
+
+  Updated the Broadcom bnxt driver with new features and improvements, including:
+
+  * Added support for 200G PAM4 link speed.
+
 
 Removed Items
 -------------
