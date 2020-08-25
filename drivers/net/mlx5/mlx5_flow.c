@@ -1244,6 +1244,10 @@ mlx5_flow_validate_attributes(struct rte_eth_dev *dev,
  * @return
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
+
+#ifndef IPPROTO_ICMPV6
+#define IPPROTO_ICMPV6  58
+#endif
 int
 mlx5_flow_validate_item_icmp6(const struct rte_flow_item *item,
 			       uint64_t item_flags,
@@ -1296,6 +1300,9 @@ mlx5_flow_validate_item_icmp6(const struct rte_flow_item *item,
  * @return
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
+#ifndef IPPROTO_ICMP
+#define IPPROTO_ICMP  1
+#endif
 int
 mlx5_flow_validate_item_icmp(const struct rte_flow_item *item,
 			     uint64_t item_flags,
