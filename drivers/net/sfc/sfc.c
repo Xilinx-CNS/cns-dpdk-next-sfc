@@ -892,6 +892,10 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mae_attach;
 
+	rc = sfc_mae_switchdev_init(sa);
+	if (rc != 0)
+		goto fail_mae_switchdev_init;
+
 	sfc_log_init(sa, "fini nic");
 	efx_nic_fini(enp);
 
@@ -913,6 +917,9 @@ sfc_attach(struct sfc_adapter *sa)
 
 fail_sriov_vswitch_create:
 	sfc_flow_fini(sa);
+	sfc_mae_switchdev_fini(sa);
+
+fail_mae_switchdev_init:
 	sfc_mae_detach(sa);
 
 fail_mae_attach:
@@ -959,6 +966,7 @@ sfc_detach(struct sfc_adapter *sa)
 
 	sfc_flow_fini(sa);
 
+	sfc_mae_switchdev_fini(sa);
 	sfc_mae_detach(sa);
 	sfc_mae_count_rxq_detach(sa);
 	sfc_filter_detach(sa);
