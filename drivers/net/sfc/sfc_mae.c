@@ -54,6 +54,96 @@ sfc_mae_counter_registry_fini(struct sfc_adapter *sa,
 }
 
 int
+sfc_mae_rule_add_mport_match_deliver(struct sfc_adapter *sa,
+				     const efx_mport_sel_t *mport_match,
+				     const efx_mport_sel_t *mport_deliver,
+				     int prio, struct sfc_mae_rule **rulep)
+{
+	struct sfc_mae *mae = &sa->mae;
+	struct sfc_mae_internal_rules *internal_rules = &mae->internal_rules;
+	struct sfc_mae_rule *rule;
+	unsigned int entry;
+	int rc;
+
+	if (prio > 0 && (unsigned int)prio >= mae->nb_action_rule_prios_max)
+		return EINVAL;
+
+	for (entry = 0; entry < SFC_MAE_NB_RULES_MAX; entry++) {
+		if (internal_rules->rules[entry].spec == NULL)
+			break;
+	}
+
+	if (entry == SFC_MAE_NB_RULES_MAX)
+		return ENOSPC;
+
+	rule = &internal_rules->rules[entry];
+
+	rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_ACTION,
+				     prio < 0 ?
+				     mae->nb_action_rule_prios_max - 1 :
+				     (uint32_t)prio,
+				     &rule->spec);
+	if (rc != 0)
+		goto fail_match_init;
+
+	rc = efx_mae_match_spec_mport_set(rule->spec, mport_match, NULL);
+	if (rc != 0)
+		goto fail_mport_set;
+
+	rc = efx_mae_action_set_spec_init(sa->nic, &rule->actions);
+	if (rc != 0)
+		goto fail_action_init;
+
+	rc = efx_mae_action_set_populate_deliver(rule->actions,
+						 mport_deliver);
+	if (rc != 0)
+		goto fail_populate_deliver;
+
+	rc = efx_mae_action_set_alloc(sa->nic, rule->actions,
+				      &rule->action_set);
+	if (rc != 0)
+		goto fail_action_set_alloc;
+
+	rc = efx_mae_action_rule_insert(sa->nic, rule->spec, NULL,
+					&rule->action_set,
+					&rule->rule_id);
+	if (rc != 0)
+		goto fail_rule_insert;
+
+	*rulep = rule;
+
+	return 0;
+
+fail_rule_insert:
+	efx_mae_action_set_free(sa->nic, &rule->action_set);
+
+fail_action_set_alloc:
+fail_populate_deliver:
+	efx_mae_action_set_spec_fini(sa->nic, rule->actions);
+
+fail_action_init:
+fail_mport_set:
+	efx_mae_match_spec_fini(sa->nic, rule->spec);
+
+fail_match_init:
+	return rc;
+}
+
+void
+sfc_mae_rule_del(struct sfc_adapter *sa, struct sfc_mae_rule *rule)
+{
+	if (rule == NULL || rule->spec == NULL)
+		return;
+
+	efx_mae_action_rule_remove(sa->nic, &rule->rule_id);
+	efx_mae_action_set_free(sa->nic, &rule->action_set);
+	efx_mae_action_set_spec_fini(sa->nic, rule->actions);
+	efx_mae_match_spec_fini(sa->nic, rule->spec);
+
+	rule->spec = NULL;
+}
+
+int
 sfc_mae_attach(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
@@ -2954,4 +3044,68 @@ sfc_mae_flow_query(struct rte_eth_dev *dev,
 	}
 
 	return sfc_mae_query_counter(sa, spec_mae, action, data, error);
+}
+
+int
+sfc_mae_switchdev_init(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t pf;
+	efx_mport_sel_t phy;
+	int rc;
+
+	if (!sa->switchdev)
+		return 0;
+
+	if (mae->status != SFC_MAE_STATUS_SUPPORTED) {
+		rc = ENOTSUP;
+		goto fail_no_mae;
+	}
+
+	if (!EFX_PCI_FUNCTION_IS_PF(encp))
+		return 0;
+
+	rc = efx_mae_mport_by_pcie_function(encp->enc_pf, EFX_PCI_VF_INVALID,
+					    &pf);
+	if (rc != 0)
+		goto fail_pf_get;
+
+	rc = efx_mae_mport_by_phy_port(encp->enc_assigned_port, &phy);
+	if (rc != 0)
+		goto fail_phy_get;
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &pf, &phy, -1,
+						  &mae->switchdev_rules[0]);
+	if (rc != 0)
+		goto fail_pf_add;
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &phy, &pf, -1,
+						  &mae->switchdev_rules[1]);
+	if (rc != 0)
+		goto fail_phy_add;
+
+	return 0;
+
+fail_phy_add:
+	sfc_mae_rule_del(sa, mae->switchdev_rules[0]);
+
+fail_pf_add:
+fail_phy_get:
+fail_pf_get:
+fail_no_mae:
+	return rc;
+}
+
+void
+sfc_mae_switchdev_fini(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_mae *mae = &sa->mae;
+
+	if (!sa->switchdev || !EFX_PCI_FUNCTION_IS_PF(encp))
+		return;
+
+	sfc_mae_rule_del(sa, mae->switchdev_rules[0]);
+	sfc_mae_rule_del(sa, mae->switchdev_rules[1]);
 }
