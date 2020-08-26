@@ -44,6 +44,123 @@ sfc_mae_counter_registry_fini(struct sfc_mae_counter_registry *registry)
 }
 
 int
+sfc_mae_rule_add_mport_match_deliver(struct sfc_adapter *sa,
+				     const efx_mport_sel_t *mport_match,
+				     const efx_mport_sel_t *mport_deliver,
+				     int prio, struct sfc_mae_rule **rulep)
+{
+	struct sfc_mae *mae = &sa->mae;
+	struct sfc_mae_internal_rules *internal_rules = &mae->internal_rules;
+	struct sfc_mae_rule *rule;
+	unsigned int entry;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	if (prio > 0 && (unsigned int)prio >= mae->nb_action_rule_prios_max) {
+		rc = EINVAL;
+		sfc_err(sa, "failed: invalid priority %d (max %u)", prio,
+			mae->nb_action_rule_prios_max);
+		goto fail_invalid_prio;
+	}
+
+	for (entry = 0; entry < SFC_MAE_NB_RULES_MAX; entry++) {
+		if (internal_rules->rules[entry].spec == NULL)
+			break;
+	}
+
+	if (entry == SFC_MAE_NB_RULES_MAX) {
+		rc = ENOSPC;
+		sfc_err(sa, "failed too many rules (%u rules used)", entry);
+		goto fail_too_many_rules;
+	}
+
+	rule = &internal_rules->rules[entry];
+
+	sfc_log_init(sa, "init MAE match spec");
+	rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_ACTION,
+				     prio < 0 ?
+				     mae->nb_action_rule_prios_max - 1 :
+				     (uint32_t)prio,
+				     &rule->spec);
+	if (rc != 0) {
+		sfc_err(sa, "failed to init MAE match spec");
+		goto fail_match_init;
+	}
+
+	rc = efx_mae_match_spec_mport_set(rule->spec, mport_match, NULL);
+	if (rc != 0) {
+		sfc_err(sa, "failed to get MAE match mport selector");
+		goto fail_mport_set;
+	}
+
+	rc = efx_mae_action_set_spec_init(sa->nic, &rule->actions);
+	if (rc != 0) {
+		sfc_err(sa, "failed to init MAE action set");
+		goto fail_action_init;
+	}
+
+	rc = efx_mae_action_set_populate_deliver(rule->actions,
+						 mport_deliver);
+	if (rc != 0) {
+		sfc_err(sa, "failed to populate deliver action");
+		goto fail_populate_deliver;
+	}
+
+	rc = efx_mae_action_set_alloc(sa->nic, rule->actions,
+				      &rule->action_set);
+	if (rc != 0) {
+		sfc_err(sa, "failed to allocate action set");
+		goto fail_action_set_alloc;
+	}
+
+	rc = efx_mae_action_rule_insert(sa->nic, rule->spec, NULL,
+					&rule->action_set,
+					&rule->rule_id);
+	if (rc != 0) {
+		sfc_err(sa, "failed to insert action rule");
+		goto fail_rule_insert;
+	}
+
+	*rulep = rule;
+
+	sfc_log_init(sa, "done");
+
+	return 0;
+
+fail_rule_insert:
+	efx_mae_action_set_free(sa->nic, &rule->action_set);
+
+fail_action_set_alloc:
+fail_populate_deliver:
+	efx_mae_action_set_spec_fini(sa->nic, rule->actions);
+
+fail_action_init:
+fail_mport_set:
+	efx_mae_match_spec_fini(sa->nic, rule->spec);
+
+fail_match_init:
+fail_too_many_rules:
+fail_invalid_prio:
+	sfc_log_init(sa, "failed: %s", rte_strerror(rc));
+	return rc;
+}
+
+void
+sfc_mae_rule_del(struct sfc_adapter *sa, struct sfc_mae_rule *rule)
+{
+	if (rule == NULL || rule->spec == NULL)
+		return;
+
+	efx_mae_action_rule_remove(sa->nic, &rule->rule_id);
+	efx_mae_action_set_free(sa->nic, &rule->action_set);
+	efx_mae_action_set_spec_fini(sa->nic, rule->actions);
+	efx_mae_match_spec_fini(sa->nic, rule->spec);
+
+	rule->spec = NULL;
+}
+
+int
 sfc_mae_attach(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
@@ -3119,4 +3236,80 @@ sfc_mae_flow_query(struct rte_eth_dev *dev,
 			RTE_FLOW_ERROR_TYPE_ACTION, NULL,
 			"Query for action of this type is not supported");
 	}
+}
+
+int
+sfc_mae_switchdev_init(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t pf;
+	efx_mport_sel_t phy;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	if (!sa->switchdev) {
+		sfc_log_init(sa, "switchdev is not enabled - skip");
+		return 0;
+	}
+
+	if (mae->status != SFC_MAE_STATUS_SUPPORTED) {
+		rc = ENOTSUP;
+		sfc_err(sa, "failed to init switchdev - no MAE support");
+		goto fail_no_mae;
+	}
+
+	rc = efx_mae_mport_by_pcie_function(encp->enc_pf, EFX_PCI_VF_INVALID,
+					    &pf);
+	if (rc != 0) {
+		sfc_err(sa, "failed get PF mport");
+		goto fail_pf_get;
+	}
+
+	rc = efx_mae_mport_by_phy_port(encp->enc_assigned_port, &phy);
+	if (rc != 0) {
+		sfc_err(sa, "failed get PHY mport");
+		goto fail_phy_get;
+	}
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &pf, &phy, -1,
+						  &mae->switchdev_rules[0]);
+	if (rc != 0) {
+		sfc_err(sa, "failed add MAE rule to forward from PF to PHY");
+		goto fail_pf_add;
+	}
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &phy, &pf, -1,
+						  &mae->switchdev_rules[1]);
+	if (rc != 0) {
+		sfc_err(sa, "failed add MAE rule to forward from PHY to PF");
+		goto fail_phy_add;
+	}
+
+	sfc_log_init(sa, "done");
+
+	return 0;
+
+fail_phy_add:
+	sfc_mae_rule_del(sa, mae->switchdev_rules[0]);
+
+fail_pf_add:
+fail_phy_get:
+fail_pf_get:
+fail_no_mae:
+	sfc_log_init(sa, "failed: %s", rte_strerror(rc));
+	return rc;
+}
+
+void
+sfc_mae_switchdev_fini(struct sfc_adapter *sa)
+{
+	struct sfc_mae *mae = &sa->mae;
+
+	if (!sa->switchdev)
+		return;
+
+	sfc_mae_rule_del(sa, mae->switchdev_rules[0]);
+	sfc_mae_rule_del(sa, mae->switchdev_rules[1]);
 }
