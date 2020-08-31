@@ -2171,6 +2171,39 @@ sfc_register_dp(void)
 }
 
 static int
+sfc_parse_switch_mode(struct sfc_adapter *sa)
+{
+	const char *switch_mode = NULL;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	rc = sfc_kvargs_process(sa, SFC_KVARG_SWITCH_MODE,
+				sfc_kvarg_string_handler, &switch_mode);
+	if (rc != 0)
+		goto fail_kvargs;
+
+	if (switch_mode == NULL ||
+	    strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_LEGACY) == 0) {
+		sa->switchdev = false;
+	} else if (strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_SWITCHDEV) == 0) {
+		sa->switchdev = true;
+	} else {
+		sfc_log_init(sa, "invalid switch mode device argument");
+		rc = EINVAL;
+		goto fail_mode;
+	}
+
+	return 0;
+
+fail_mode:
+fail_kvargs:
+	sfc_log_init(sa, "failed %d", rc);
+
+	return rc;
+}
+
+static int
 sfc_eth_dev_init(struct rte_eth_dev *dev)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
@@ -2250,6 +2283,10 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 	sfc_adapter_lock_init(sa);
 	sfc_adapter_lock(sa);
 
+	rc = sfc_parse_switch_mode(sa);
+	if (rc != 0)
+		goto fail_switch_mode;
+
 	sfc_log_init(sa, "probing");
 	rc = sfc_probe(sa);
 	if (rc != 0)
@@ -2286,6 +2323,7 @@ fail_set_ops:
 	sfc_unprobe(sa);
 
 fail_probe:
+fail_switch_mode:
 	sfc_adapter_unlock(sa);
 	sfc_adapter_lock_fini(sa);
 	rte_free(dev->data->mac_addrs);
@@ -2350,6 +2388,7 @@ RTE_PMD_REGISTER_PCI(net_sfc_efx, sfc_efx_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_sfc_efx, pci_id_sfc_efx_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_sfc_efx, "* igb_uio | uio_pci_generic | vfio-pci");
 RTE_PMD_REGISTER_PARAM_STRING(net_sfc_efx,
+	SFC_KVARG_SWITCH_MODE "=" SFC_KVARG_VALUES_SWITCH_MODE " "
 	SFC_KVARG_RX_DATAPATH "=" SFC_KVARG_VALUES_RX_DATAPATH " "
 	SFC_KVARG_TX_DATAPATH "=" SFC_KVARG_VALUES_TX_DATAPATH " "
 	SFC_KVARG_PERF_PROFILE "=" SFC_KVARG_VALUES_PERF_PROFILE " "

@@ -1164,6 +1164,12 @@ sfc_probe(struct sfc_adapter *sa)
 		goto fail_nic_create;
 	sa->nic = enp;
 
+	if (sa->switchdev) {
+		rc = efx_nic_set_switchdev_mode(sa->nic, B_TRUE);
+		if (rc != 0)
+			goto fail_nic_vadaptor_disable;
+	}
+
 	rc = sfc_mcdi_init(sa);
 	if (rc != 0)
 		goto fail_mcdi_init;
@@ -1180,6 +1186,9 @@ fail_nic_probe:
 	sfc_mcdi_fini(sa);
 
 fail_mcdi_init:
+	efx_nic_set_switchdev_mode(sa->nic, B_FALSE);
+
+fail_nic_vadaptor_disable:
 	sfc_log_init(sa, "destroy nic");
 	sa->nic = NULL;
 	efx_nic_destroy(enp);
