@@ -1,0 +1,75 @@
+Description: Fix external linking info
+ The pkg-config files contain a full path including the toolchain version
+ like /usr/lib/gcc/x86_64-linux-gnu/9/../../../x86_64-linux-gnu/libfdt.so
+ which obviously breaks on toolchain updates.
+ .
+ The reason is that ifpga tries to detect libfdt which has no pkg-config
+ file. Due to that .dependency fails and it falls back to cc.find_library.
+ But that delivers the path to the library, never the less it adds it as-is
+ to ext_deps.
+ .
+ To fix only add to ext_deps as-is if the initial dependency() worked,
+ otherwise use add_project_link_arguments+dpdk_extra_ldflags as other
+ libs without pkg-config already do - and since it is reused in multiple
+ places handle it like other such libs to be checked centrally.
+Forwarded: http://mails.dpdk.org/archives/dev/2020-September/179124.html
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Bug-Debian: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=966921
+Last-Update: 2020-09-01
+
+--- a/drivers/raw/ifpga/meson.build
++++ b/drivers/raw/ifpga/meson.build
+@@ -1,11 +1,7 @@
+ # SPDX-License-Identifier: BSD-3-Clause
+ # Copyright(c) 2018 Intel Corporation
+ 
+-dep = dependency('libfdt', required: false)
+-if not dep.found()
+-	dep = cc.find_library('libfdt', required: false)
+-endif
+-if not dep.found()
++if has_libfdt == 0
+ 	build = false
+ 	reason = 'missing dependency, "libfdt"'
+ endif
+@@ -16,7 +12,6 @@ if build
+ 
+ 	deps += ['ethdev', 'rawdev', 'pci', 'bus_pci', 'kvargs',
+ 		'bus_vdev', 'bus_ifpga', 'net', 'pmd_i40e', 'pmd_ipn3ke']
+-	ext_deps += dep
+ 
+ 	sources = files('ifpga_rawdev.c')
+ 
+--- a/config/meson.build
++++ b/config/meson.build
+@@ -144,6 +144,15 @@ if numa_dep.found() and cc.has_header('n
+ 	dpdk_extra_ldflags += '-lnuma'
+ endif
+ 
++has_libfdt = 0
++fdt_dep = cc.find_library('libfdt', required: false)
++if fdt_dep.found() and cc.has_header('fdt.h')
++	dpdk_conf.set10('RTE_HAS_LIBFDT', true)
++	has_libfdt = 1
++	add_project_link_arguments('-lfdt', language: 'c')
++	dpdk_extra_ldflags += '-lfdt'
++endif
++
+ # check for libbsd
+ libbsd = dependency('libbsd', required: false)
+ if libbsd.found()
+--- a/drivers/net/ipn3ke/meson.build
++++ b/drivers/net/ipn3ke/meson.build
+@@ -9,11 +9,7 @@
+ #  rte_eth_switch_domain_free()
+ #
+ 
+-dep = dependency('libfdt', required: false)
+-if not dep.found()
+-	dep = cc.find_library('libfdt', required: false)
+-endif
+-if not dep.found()
++if has_libfdt == 0
+ 	build = false
+ 	reason = 'missing dependency, "libfdt"'
+ endif
