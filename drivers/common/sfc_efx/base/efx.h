@@ -2977,6 +2977,10 @@ typedef enum efx_rxq_type_e {
  * the driver.
  */
 #define	EFX_RXQ_FLAG_RSS_HASH		0x4
+/*
+ * Request ingress mport field in the Rx prefix of a queue.
+ */
+#define	EFX_RXQ_FLAG_INGRESS_MPORT	0x8
 
 LIBEFX_API
 extern	__checkReturn	efx_rc_t

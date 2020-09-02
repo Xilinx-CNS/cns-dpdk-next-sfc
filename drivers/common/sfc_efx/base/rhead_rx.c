@@ -629,6 +629,11 @@ rhead_rx_qcreate(
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_RSS_HASH_VALID;
 	}
 
+	if (flags & EFX_RXQ_FLAG_INGRESS_MPORT) {
+		/* FIXME: rename to INGRESS_MPORT when updated header is available */
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_INGRESS_VPORT;
+	}
+
 	/*
 	 * LENGTH is required in EF100 host interface, as receive events
 	 * do not include the packet length.
