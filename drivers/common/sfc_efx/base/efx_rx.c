@@ -1752,6 +1752,11 @@ siena_rx_qcreate(
 #endif	/* EFSYS_OPT_RX_SCATTER */
 	}
 
+	if (flags & EFX_RXQ_FLAG_INGRESS_MPORT) {
+		rc = ENOTSUP;
+		goto fail4;
+	}
+
 	/* Set up the new descriptor queue */
 	EFX_POPULATE_OWORD_7(oword,
 	    FRF_AZ_RX_DESCQ_BUF_BASE_ID, id,
@@ -1769,6 +1774,8 @@ siena_rx_qcreate(
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 #if !EFSYS_OPT_RX_SCATTER
 fail3:
 	EFSYS_PROBE(fail3);
