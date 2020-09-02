@@ -2,6 +2,10 @@ dpdk (19.11.4~rc1-1) UNRELEASED; urgency=medium
 
   [ Christian Ehrhardt ]
   * d/t/test-autotest: bump sse feature check
+  * fix libfdt path in pkg-config (Closes: #966921)
+  * d/librte-rawdev20.0.symbols: add new symbol rte_rawdev_dump
+  * d/rules: lintian debian-rules-uses-unnecessary-dh-argument for systemd
+  * d/copyright: fix duplicate-globbing-patterns
 
   [ Luca Boccassi ]
   * New upstream version 19.11.4~rc1
