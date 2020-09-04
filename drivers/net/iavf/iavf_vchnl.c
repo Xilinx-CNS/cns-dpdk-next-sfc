@@ -18,6 +18,7 @@
 #include <rte_ether.h>
 #include <rte_ethdev_driver.h>
 #include <rte_dev.h>
+#include <rte_bus_pci.h>
 
 #include "iavf.h"
 #include "iavf_rxtx.h"
@@ -689,20 +690,53 @@ int
 iavf_config_irq_map(struct iavf_adapter *adapter)
 {
 	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct iavf_cmd_info args;
+	uint8_t *cmd_buffer = NULL;
 	struct virtchnl_irq_map_info *map_info;
 	struct virtchnl_vector_map *vecmap;
-	struct iavf_cmd_info args;
-	int len, i, err;
+	struct rte_eth_dev *dev = adapter->eth_dev;
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
+	uint32_t vec, cmd_buffer_size, max_vectors, nb_msix, msix_base, i;
+	uint16_t rxq_map[vf->vf_res->max_vectors];
+	int err;
 
-	len = sizeof(struct virtchnl_irq_map_info) +
-	      sizeof(struct virtchnl_vector_map) * vf->nb_msix;
+	memset(rxq_map, 0, sizeof(rxq_map));
+	if (dev->data->dev_conf.intr_conf.rxq &&
+		rte_intr_allow_others(intr_handle)) {
+		msix_base = IAVF_RX_VEC_START;
+		max_vectors = vf->vf_res->max_vectors - 1;
+		nb_msix = RTE_MIN(max_vectors, intr_handle->nb_efd);
 
-	map_info = rte_zmalloc("map_info", len, 0);
-	if (!map_info)
-		return -ENOMEM;
+		vec = msix_base;
+		for (i = 0; i < dev->data->nb_rx_queues; i++) {
+			rxq_map[vec] |= 1 << i;
+			intr_handle->intr_vec[i] = vec++;
+			if (vec >= vf->vf_res->max_vectors)
+				vec = msix_base;
+		}
+	} else {
+		msix_base = IAVF_MISC_VEC_ID;
+		nb_msix = 1;
 
-	map_info->num_vectors = vf->nb_msix;
-	for (i = 0; i < vf->nb_msix; i++) {
+		for (i = 0; i < dev->data->nb_rx_queues; i++) {
+			rxq_map[msix_base] |= 1 << i;
+			if (rte_intr_dp_is_en(intr_handle))
+				intr_handle->intr_vec[i] = msix_base;
+		}
+	}
+
+	cmd_buffer_size = sizeof(struct virtchnl_irq_map_info) +
+	      sizeof(struct virtchnl_vector_map) * nb_msix;
+	cmd_buffer = rte_zmalloc("iavf", cmd_buffer_size, 0);
+	if (!cmd_buffer) {
+		PMD_DRV_LOG(ERR, "Failed to allocate memory");
+		return IAVF_ERR_NO_MEMORY;
+	}
+
+	map_info = (struct virtchnl_irq_map_info *)cmd_buffer;
+	map_info->num_vectors = nb_msix;
+	for (i = 0; i < nb_msix; i++) {
 		vecmap = &map_info->vecmap[i];
 		vecmap->vsi_id = vf->vsi_res->vsi_id;
 		vecmap->rxitr_idx = IAVF_ITR_INDEX_DEFAULT;
@@ -712,8 +746,8 @@ iavf_config_irq_map(struct iavf_adapter *adapter)
 	}
 
 	args.ops = VIRTCHNL_OP_CONFIG_IRQ_MAP;
-	args.in_args = (u8 *)map_info;
-	args.in_args_size = len;
+	args.in_args = (u8 *)cmd_buffer;
+	args.in_args_size = cmd_buffer_size;
 	args.out_buffer = vf->aq_resp;
 	args.out_size = IAVF_AQ_BUF_SZ;
 	err = iavf_execute_vf_cmd(adapter, &args);
