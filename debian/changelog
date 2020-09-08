@@ -1,4 +1,4 @@
-dpdk (19.11.4~rc1-1) UNRELEASED; urgency=medium
+dpdk (19.11.4-1) unstable; urgency=medium
 
   [ Christian Ehrhardt ]
   * d/t/test-autotest: bump sse feature check
@@ -10,8 +10,11 @@ dpdk (19.11.4~rc1-1) UNRELEASED; urgency=medium
   [ Luca Boccassi ]
   * New upstream version 19.11.4~rc1
   * Adjust dpdk-doc install path for guides
+  * New upstream version 19.11.4
+  * Drop fix-libfdt-path.patch, merged upstream
+  * Rename Lintian override no-manual-page
 
- -- Luca Boccassi <bluca@debian.org>  Thu, 20 Aug 2020 15:59:10 +0100
+ -- Luca Boccassi <bluca@debian.org>  Tue, 08 Sep 2020 09:57:19 +0100
 
 dpdk (19.11.3-1) unstable; urgency=medium
 
