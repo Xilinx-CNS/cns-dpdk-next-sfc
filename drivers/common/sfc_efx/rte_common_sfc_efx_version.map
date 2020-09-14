@@ -200,6 +200,8 @@ INTERNAL {
 	efx_virtio_qstop;
 	efx_virtio_verify_features;
 
+	sfc_efx_dev_class_get;
+
 	sfc_efx_mcdi_init;
 	sfc_efx_mcdi_fini;
 
