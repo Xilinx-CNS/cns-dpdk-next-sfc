@@ -4379,6 +4379,20 @@ efx_mae_action_set_populate_vlan_push(
 	__in				uint16_t tpid_be,
 	__in				uint16_t tci_be);
 
+/*
+ * There is no argument to pass encap. header ID, thus, one does not
+ * need to allocate an encap. header while parsing application input.
+ * This is useful since building an action set may be done simply to
+ * validate a rule, whilst resource allocation usually consumes time.
+ *
+ * Use efx_mae_action_set_fill_in_eh_id() to set ID of an allocated
+ * encap. header in the specification prior to action set allocation.
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_encap(
+	__in				efx_mae_actions_t *spec);
+
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_flag(
@@ -4489,6 +4503,13 @@ LIBEFX_API
 extern	__checkReturn			efx_rc_t
 efx_mae_encap_header_free(
 	__in				efx_nic_t *enp,
+	__in				const efx_mae_eh_id_t *eh_idp);
+
+/* See description before efx_mae_action_set_populate_encap(). */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_fill_in_eh_id(
+	__in				efx_mae_actions_t *spec,
 	__in				const efx_mae_eh_id_t *eh_idp);
 
 /* Action set ID */

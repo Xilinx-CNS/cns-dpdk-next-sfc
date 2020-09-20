@@ -1754,6 +1754,7 @@ typedef enum efx_mae_action_e {
 	/* These actions are strictly ordered. */
 	EFX_MAE_ACTION_VLAN_POP,
 	EFX_MAE_ACTION_VLAN_PUSH,
+	EFX_MAE_ACTION_ENCAP,
 
 	/*
 	 * These actions are not strictly ordered and can
@@ -1789,6 +1790,7 @@ typedef struct efx_mae_actions_s {
 	unsigned int			emass_n_vlan_tags_to_push;
 	efx_mae_action_vlan_push_t	emass_vlan_push_descs[
 	    EFX_MAE_VLAN_PUSH_MAX_NTAGS];
+	efx_mae_eh_id_t			emass_eh_id;
 	uint32_t			emass_mark_value;
 	efx_mport_sel_t			emass_deliver_mport;
 } efx_mae_actions_t;
