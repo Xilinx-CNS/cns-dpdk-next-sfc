@@ -29,6 +29,8 @@
 #include "sfc_filter.h"
 #include "sfc_sriov.h"
 #include "sfc_mae.h"
+#include "sfc_repr_proxy.h"
+#include "sfc_service.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -249,6 +251,7 @@ struct sfc_adapter {
 	struct sfc_port			port;
 	struct sfc_filter		filter;
 	struct sfc_mae			mae;
+	struct sfc_repr_proxy		repr_proxy;
 
 	struct sfc_flow_list		flow_list;
 
@@ -375,6 +378,14 @@ static inline unsigned int
 sfc_cnt_rxq_num(const struct sfc_adapter_shared *sas)
 {
 	return sas->cnt_rxq_supported ? 1 : 0;
+}
+
+static inline bool
+sfc_repr_supported(const struct sfc_adapter *sa)
+{
+	uint32_t cid = sfc_get_service_lcore(SOCKET_ID_ANY);
+
+	return cid != RTE_MAX_LCORE && sa->switchdev && sa->sriov.num_vfs > 0;
 }
 
 /** Get the number of milliseconds since boot from the default timer */
