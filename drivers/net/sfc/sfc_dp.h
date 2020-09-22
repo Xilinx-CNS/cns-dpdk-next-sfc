@@ -110,6 +110,23 @@ struct sfc_dp *sfc_dp_find_by_caps(struct sfc_dp_list *head,
 				   unsigned int avail_caps);
 int sfc_dp_register(struct sfc_dp_list *head, struct sfc_dp *entry);
 
+/**
+ * Internal mbuf offload flag used to implement port representor transmit.
+ */
+extern uint64_t sfc_dp_mport_override;
+
+/**
+ * Internal mbuf field flag used to implement port representor transmit.
+ * Valid if sfc_dp_mport_override is set.
+ */
+extern int sfc_dp_mport_offset;
+
+/**
+ * Register dynamic mbuf flag and field which can be used to require Tx override
+ * prefix descriptor with egress mport set.
+ */
+extern int sfc_dp_mport_register(void);
+
 #ifdef __cplusplus
 }
 #endif
