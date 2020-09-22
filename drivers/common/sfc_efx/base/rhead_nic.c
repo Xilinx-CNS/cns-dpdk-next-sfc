@@ -347,6 +347,11 @@ rhead_nic_init(
 	efx_rc_t rc;
 	boolean_t alloc_vadaptor = B_TRUE;
 
+#if 1
+	if (EFX_FAMILY_IS_EF100(enp))
+		alloc_vadaptor = B_FALSE;
+#endif
+
 	EFSYS_ASSERT(EFX_FAMILY_IS_EF100(enp));
 	EFSYS_ASSERT3U(edcp->edc_max_piobuf_count, ==, 0);
 
@@ -530,6 +535,11 @@ rhead_nic_fini(
 	__in		efx_nic_t *enp)
 {
 	boolean_t do_vadaptor_free = B_TRUE;
+
+#if 1
+	if (EFX_FAMILY_IS_EF100(enp))
+		do_vadaptor_free = B_FALSE;
+#endif
 
 #if EFSYS_OPT_EVB
 	if (enp->en_vswitchp != NULL) {
