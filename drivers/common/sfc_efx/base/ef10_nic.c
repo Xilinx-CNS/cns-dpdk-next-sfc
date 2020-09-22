@@ -1890,7 +1890,7 @@ efx_mcdi_nic_board_cfg(
 	uint32_t mask;
 	uint32_t pf;
 	uint32_t vf;
-	uint8_t mac_addr[6] = { 0 };
+	uint8_t mac_addr[6] = { 0x02, 0x42, 0x00, 0x00, 0x00, encp->enc_vf };
 	efx_rc_t rc;
 
 	/* Get the (zero-based) MCDI port number */
@@ -1943,6 +1943,10 @@ efx_mcdi_nic_board_cfg(
 #endif /* EFSYS_OPT_ALLOW_UNCONFIGURED_NIC */
 	} else {
 		rc = efx_mcdi_get_mac_address_vf(enp, mac_addr);
+#if 1
+		if (EFX_FAMILY_IS_EF100(enp) == B_TRUE && rc != 0)
+			rc = 0;
+#endif
 	}
 	if (rc != 0)
 		goto fail5;
