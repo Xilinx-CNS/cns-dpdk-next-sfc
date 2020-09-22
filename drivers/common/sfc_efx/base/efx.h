@@ -216,6 +216,12 @@ efx_nic_create(
 	__in		efsys_lock_t *eslp,
 	__deref_out	efx_nic_t **enpp);
 
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_nic_set_switchdev_mode(
+	__in		efx_nic_t *enp,
+	__in		boolean_t enable);
+
 /* EFX_FW_VARIANT codes map one to one on MC_CMD_FW codes */
 typedef enum efx_fw_variant_e {
 	EFX_FW_VARIANT_FULL_FEATURED,
