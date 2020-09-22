@@ -114,6 +114,12 @@ sfc_sriov_vswitch_create(struct sfc_adapter *sa)
 		sfc_log_init(sa, "no VFs enabled");
 		goto done;
 	}
+#if 1
+	if (sa->family == EFX_FAMILY_RIVERHEAD) {
+		sfc_log_init(sa, "ignore EVB init failure");
+		goto done;
+	}
+#endif
 
 	rc = efx_evb_init(sa->nic);
 	if (rc != 0) {
@@ -154,6 +160,10 @@ sfc_sriov_vswitch_destroy(struct sfc_adapter *sa)
 
 	if (sriov->num_vfs == 0)
 		goto done;
+#if 1
+	if (sa->family == EFX_FAMILY_RIVERHEAD)
+		goto done;
+#endif
 
 	rc = efx_evb_vswitch_destroy(sa->nic, sriov->vswitch);
 	if (rc != 0)
