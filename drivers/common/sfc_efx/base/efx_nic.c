@@ -377,6 +377,7 @@ efx_nic_create(
 	enp->en_esip = esip;
 	enp->en_esbp = esbp;
 	enp->en_eslp = eslp;
+	enp->en_switchdev_mode = B_FALSE;
 
 	*enpp = enp;
 
@@ -396,6 +397,19 @@ fail1:
 	EFSYS_PROBE1(fail1, efx_rc_t, rc);
 
 	return (rc);
+}
+
+	__checkReturn	efx_rc_t
+efx_nic_set_switchdev_mode(
+	__in		efx_nic_t *enp,
+	__in		boolean_t enable)
+{
+	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
+	EFSYS_ASSERT(!(enp->en_mod_flags & EFX_MOD_PROBE));
+
+	enp->en_switchdev_mode = enable;
+
+	return (0);
 }
 
 	__checkReturn	efx_rc_t
