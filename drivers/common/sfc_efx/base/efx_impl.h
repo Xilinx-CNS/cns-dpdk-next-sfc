@@ -887,6 +887,7 @@ struct efx_nic_s {
 	efx_rx_scale_context_type_t	en_rss_context_type;
 	uint32_t			en_rss_context;
 #endif	/* EFSYS_OPT_RX_SCALE */
+	boolean_t		en_switchdev_mode;
 	uint32_t		en_vport_id;
 #if EFSYS_OPT_LICENSING
 	const efx_lic_ops_t	*en_elop;

@@ -158,6 +158,7 @@ INTERNAL {
 	efx_nic_set_drv_version;
 	efx_nic_set_fw_subvariant;
 	efx_nic_set_hw_unavailable;
+	efx_nic_set_switchdev_mode;
 	efx_nic_unprobe;
 
 	efx_nvram_erase;

@@ -109,9 +109,10 @@ fail1:
 ef10_mac_addr_set(
 	__in		efx_nic_t *enp)
 {
-	efx_rc_t rc;
+	efx_rc_t rc = ENOTSUP;
 
-	if ((rc = efx_mcdi_vadapter_set_mac(enp)) != 0) {
+	if (enp->en_switchdev_mode ||
+	    (rc = efx_mcdi_vadapter_set_mac(enp)) != 0) {
 		if (rc != ENOTSUP)
 			goto fail1;
 

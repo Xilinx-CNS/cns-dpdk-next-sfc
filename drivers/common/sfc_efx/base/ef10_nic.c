@@ -2423,7 +2423,7 @@ ef10_nic_init(
 	uint32_t i;
 	uint32_t vi_window_size;
 	efx_rc_t rc;
-	boolean_t alloc_vadaptor = B_TRUE;
+	boolean_t alloc_vadaptor = (enp->en_switchdev_mode == B_FALSE);
 
 	EFSYS_ASSERT(EFX_FAMILY_IS_EF10(enp));
 
@@ -2656,7 +2656,7 @@ ef10_nic_fini(
 {
 	uint32_t i;
 	efx_rc_t rc;
-	boolean_t do_vadaptor_free = B_TRUE;
+	boolean_t do_vadaptor_free = (enp->en_switchdev_mode == B_FALSE);
 
 #if EFSYS_OPT_EVB
 	if (enp->en_vswitchp != NULL) {
