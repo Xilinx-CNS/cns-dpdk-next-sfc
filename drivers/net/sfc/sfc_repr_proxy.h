@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#include "efx.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,9 +24,16 @@ extern "C" {
 /* One TxQ is required and sufficient for port representors support */
 #define SFC_REPR_PROXY_NB_TXQ	(1)
 
+struct sfc_repr_proxy_port {
+	uint16_t			rte_port_id;
+	efx_mport_id_t			egress_mport;
+};
+
 struct sfc_repr_proxy {
 	uint32_t			service_core_id;
 	uint32_t			service_id;
+	unsigned int			num_ports;
+	struct sfc_repr_proxy_port	*port;
 };
 
 struct sfc_adapter;

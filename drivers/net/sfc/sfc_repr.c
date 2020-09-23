@@ -15,6 +15,7 @@
 #include "sfc.h"
 #include "sfc_debug.h"
 #include "sfc_repr.h"
+#include "sfc_repr_proxy_api.h"
 
 /** Multi-process shared representor private data */
 struct sfc_repr_shared {
@@ -231,6 +232,19 @@ sfc_repr_dev_infos_get(struct rte_eth_dev *dev,
 	return 0;
 }
 
+static int
+sfc_repr_create_port(struct sfc_adapter *pf_sa, uint16_t repr_id,
+		     uint16_t rte_port_id)
+{
+	return sfc_repr_proxy_add_port(pf_sa, repr_id, rte_port_id);
+}
+
+static int
+sfc_repr_destroy_port(struct sfc_adapter *pf_sa, uint16_t repr_id)
+{
+	return sfc_repr_proxy_del_port(pf_sa, repr_id);
+}
+
 static void
 sfc_repr_close(struct sfc_repr *sr)
 {
@@ -246,6 +260,7 @@ static int
 sfc_repr_dev_close(struct rte_eth_dev *dev)
 {
 	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
 
 	sfcr_info(sr, "%s() entry", __func__);
 
@@ -266,6 +281,8 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 	 * Cleanup all resources.
 	 * Rollback primary process sfc_repr_eth_dev_init() below.
 	 */
+
+	sfc_repr_destroy_port(srs->pf_sa, srs->repr_id);
 
 	dev->dev_ops = NULL;
 
@@ -299,6 +316,11 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
 	struct sfc_repr *sr;
 	int rc;
+
+	rc = sfc_repr_create_port(repr_data->pf_sa, repr_data->repr_id,
+				  dev->data->port_id);
+	if (rc != 0)
+		goto fail_create_port;
 
 	/*
 	 * Allocate process private data from heap, since it should not
@@ -346,6 +368,9 @@ fail_mac_addrs:
 	sfc_repr_unlock(sr);
 
 fail_alloc_sr:
+	sfc_repr_destroy_port(repr_data->pf_sa, repr_data->repr_id);
+
+fail_create_port:
 	SFC_ASSERT(rc >= 0);
 	return -rc;
 }
