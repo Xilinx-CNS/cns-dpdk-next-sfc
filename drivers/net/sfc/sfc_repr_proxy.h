@@ -48,6 +48,7 @@ struct sfc_repr_proxy_port {
 struct sfc_repr_proxy {
 	uint32_t			service_core_id;
 	uint32_t			service_id;
+	efx_mport_id_t			mport_alias;
 	unsigned int			num_ports;
 	struct sfc_repr_proxy_port	*port;
 };

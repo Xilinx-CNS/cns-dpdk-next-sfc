@@ -61,12 +61,18 @@ sfc_repr_proxy_ports_init(struct sfc_adapter *sa)
 						  &rp->port[i].egress_mport);
 		if (rc != 0)
 			goto fail_mport_id;
-
-		rp->port[i].rte_port_id = RTE_MAX_ETHPORTS;
 	}
+
+	rc = efx_mae_mport_alloc_alias(sa->nic, &rp->mport_alias, NULL);
+	if (rc != 0)
+		goto fail_alloc_mport_alias;
+
+	for (i = 0; i < rp->num_ports; i++)
+		rp->port[i].rte_port_id = RTE_MAX_ETHPORTS;
 
 	return 0;
 
+fail_alloc_mport_alias:
 fail_mport_id:
 fail_mport_selector:
 	rte_free(rp->port);
@@ -91,6 +97,7 @@ sfc_repr_proxy_port_fini(struct sfc_adapter *sa)
 		}
 	}
 
+	efx_mae_mport_free(sa->nic, &rp->mport_alias);
 	rte_free(rp->port);
 	rp->port = NULL;
 }
