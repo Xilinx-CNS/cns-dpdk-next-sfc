@@ -369,6 +369,24 @@ sfc_repr_destroy_port(struct sfc_adapter *pf_sa, uint16_t repr_id)
 }
 
 static int
+sfc_repr_dev_link_update(struct rte_eth_dev *dev, int wait_to_complete)
+{
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+	uint16_t pf_port_id = sfc_sa2shared(srs->pf_sa)->port_id;
+	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+	struct rte_eth_link link;
+
+	if (sr->state != SFC_ADAPTER_STARTED)
+		sfc_port_link_mode_to_info(EFX_LINK_UNKNOWN, &link);
+	else if (wait_to_complete)
+		rte_eth_link_get(pf_port_id, &link);
+	else
+		rte_eth_link_get_nowait(pf_port_id, &link);
+
+	return rte_eth_linkstatus_set(dev, &link);
+}
+
+static int
 sfc_repr_ring_create(struct sfc_adapter *pf_sa, uint16_t repr_id,
 		     bool tx, uint16_t qid, uint16_t nb_desc,
 		     unsigned int socket_id, struct rte_ring **ring)
@@ -671,6 +689,7 @@ static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_stop			= sfc_repr_dev_stop,
 	.dev_close			= sfc_repr_dev_close,
 	.dev_infos_get			= sfc_repr_dev_infos_get,
+	.link_update			= sfc_repr_dev_link_update,
 	.rx_queue_setup			= sfc_repr_rx_queue_setup,
 	.rx_queue_release		= sfc_repr_rx_queue_release,
 	.tx_queue_setup			= sfc_repr_tx_queue_setup,
