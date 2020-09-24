@@ -293,3 +293,56 @@ sfc_repr_proxy_del_port(struct sfc_adapter *pf_sa, uint16_t repr_id)
 
 	return 0;
 }
+
+int
+sfc_repr_proxy_add_rxq(struct sfc_adapter *pf_sa, uint16_t repr_id,
+		       uint16_t queue_id, struct rte_ring *rx_ring,
+		       struct rte_mempool *mp)
+{
+	struct sfc_repr_proxy *rp = sfc_repr_proxy_by_pf_sa(pf_sa);
+	struct sfc_repr_proxy_port *port = &rp->port[repr_id];
+	struct sfc_repr_proxy_rxq *rxq = &port->rxq[queue_id];
+
+	rxq->ring = rx_ring;
+	rxq->mb_pool = mp;
+
+	return 0;
+}
+
+void
+sfc_repr_proxy_del_rxq(struct sfc_adapter *pf_sa, uint16_t repr_id,
+		       uint16_t queue_id)
+{
+	struct sfc_repr_proxy *rp = sfc_repr_proxy_by_pf_sa(pf_sa);
+	struct sfc_repr_proxy_port *port = &rp->port[repr_id];
+	struct sfc_repr_proxy_rxq *rxq = &port->rxq[queue_id];
+
+	rxq->ring = NULL;
+	rxq->mb_pool = NULL;
+}
+
+int
+sfc_repr_proxy_add_txq(struct sfc_adapter *pf_sa, uint16_t repr_id,
+		       uint16_t queue_id, struct rte_ring *tx_ring,
+		       efx_mport_id_t *egress_mport)
+{
+	struct sfc_repr_proxy *rp = sfc_repr_proxy_by_pf_sa(pf_sa);
+	struct sfc_repr_proxy_port *port = &rp->port[repr_id];
+	struct sfc_repr_proxy_txq *txq = &port->txq[queue_id];
+
+	txq->ring = tx_ring;
+
+	*egress_mport = port->egress_mport;
+	return 0;
+}
+
+void
+sfc_repr_proxy_del_txq(struct sfc_adapter *pf_sa, uint16_t repr_id,
+		       uint16_t queue_id)
+{
+	struct sfc_repr_proxy *rp = sfc_repr_proxy_by_pf_sa(pf_sa);
+	struct sfc_repr_proxy_port *port = &rp->port[repr_id];
+	struct sfc_repr_proxy_txq *txq = &port->txq[queue_id];
+
+	txq->ring = NULL;
+}

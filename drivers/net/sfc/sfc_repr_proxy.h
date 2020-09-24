@@ -12,7 +12,12 @@
 
 #include <stdint.h>
 
+#include <rte_ring.h>
+#include <rte_mempool.h>
+
 #include "efx.h"
+
+#include "sfc_repr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,9 +29,20 @@ extern "C" {
 /* One TxQ is required and sufficient for port representors support */
 #define SFC_REPR_PROXY_NB_TXQ	(1)
 
+struct sfc_repr_proxy_rxq {
+	struct rte_ring			*ring;
+	struct rte_mempool		*mb_pool;
+};
+
+struct sfc_repr_proxy_txq {
+	struct rte_ring			*ring;
+};
+
 struct sfc_repr_proxy_port {
 	uint16_t			rte_port_id;
 	efx_mport_id_t			egress_mport;
+	struct sfc_repr_proxy_rxq	rxq[SFC_REPR_RXQ_MAX];
+	struct sfc_repr_proxy_txq	txq[SFC_REPR_TXQ_MAX];
 };
 
 struct sfc_repr_proxy {
