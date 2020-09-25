@@ -133,6 +133,16 @@ sfc_repr_lock_fini(__rte_unused struct sfc_repr *sr)
 }
 
 static uint16_t
+sfc_repr_rx_burst(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
+{
+	struct sfc_repr_rxq *rxq = rx_queue;
+	void **objs = (void *)&rx_pkts[0];
+
+	/* mbufs port is already filled correctly by representors proxy */
+	return rte_ring_sc_dequeue_burst(rxq->ring, objs, nb_pkts, NULL);
+}
+
+static uint16_t
 sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_repr_txq *txq = tx_queue;
@@ -701,6 +711,7 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 
 	sfc_repr_destroy_port(srs->pf_sa, srs->repr_id);
 
+	dev->rx_pkt_burst = NULL;
 	dev->tx_pkt_burst = NULL;
 	dev->dev_ops = NULL;
 
@@ -782,6 +793,7 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	dev->data->mac_addrs->addr_bytes[5] = repr_data->repr_id;
 #endif
 
+	dev->rx_pkt_burst = sfc_repr_rx_burst;
 	dev->tx_pkt_burst = sfc_repr_tx_burst;
 	dev->dev_ops = &sfc_repr_dev_ops;
 
