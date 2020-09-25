@@ -119,6 +119,10 @@ struct sfc_rxq_info {
 };
 
 struct sfc_rxq_info *sfc_rxq_info_by_dp_rxq(const struct sfc_dp_rxq *dp_rxq);
+struct sfc_rxq_info *sfc_rxq_info_by_ethdev_qid(struct sfc_adapter_shared *sas,
+					        unsigned int ethdev_qid);
+struct sfc_rxq *sfc_rxq_ctrl_by_ethdev_qid(struct sfc_adapter *sa,
+					   unsigned int ethdev_qid);
 
 int sfc_rx_configure(struct sfc_adapter *sa);
 void sfc_rx_close(struct sfc_adapter *sa);
