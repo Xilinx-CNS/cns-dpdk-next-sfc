@@ -34,6 +34,18 @@
  */
 #define SFC_TX_QFLUSH_POLL_ATTEMPTS	(2000)
 
+struct sfc_txq_info *
+sfc_txq_info_by_ethdev_qid(struct sfc_adapter_shared *sas,
+			   unsigned int ethdev_qid)
+{
+	unsigned int sw_index;
+
+	SFC_ASSERT(ethdev_qid < sas->ethdev_txq_count);
+
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_qid);
+	return &sas->txq_info[sw_index];
+}
+
 static uint64_t
 sfc_tx_get_offload_mask(struct sfc_adapter *sa)
 {
@@ -116,6 +128,8 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	     uint16_t nb_tx_desc, unsigned int socket_id,
 	     const struct rte_eth_txconf *tx_conf)
 {
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	int ethdev_qid = sfc_ethdev_tx_qid_by_txq_sw_index(sas, sw_index);
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	unsigned int txq_entries;
 	unsigned int evq_entries;
@@ -128,7 +142,7 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	uint64_t offloads;
 	struct sfc_dp_tx_hw_limits hw_limits;
 
-	sfc_log_init(sa, "TxQ = %u", sw_index);
+	sfc_log_init(sa, "TxQ = %d (internal %u)", ethdev_qid, sw_index);
 
 	memset(&hw_limits, 0, sizeof(hw_limits));
 	hw_limits.txq_max_entries = sa->txq_max_entries;
@@ -144,8 +158,10 @@ sfc_tx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	SFC_ASSERT(txq_entries >= nb_tx_desc);
 	SFC_ASSERT(txq_max_fill_level <= nb_tx_desc);
 
-	offloads = tx_conf->offloads |
-		sa->eth_dev->data->dev_conf.txmode.offloads;
+	offloads = tx_conf->offloads;
+	if (ethdev_qid >= 0)
+		offloads |= sa->eth_dev->data->dev_conf.txmode.offloads;
+
 	rc = sfc_tx_qcheck_conf(sa, txq_max_fill_level, tx_conf, offloads);
 	if (rc != 0)
 		goto fail_bad_conf;
@@ -225,20 +241,24 @@ fail_ev_qinit:
 
 fail_bad_conf:
 fail_size_up_rings:
-	sfc_log_init(sa, "failed (TxQ = %u, rc = %d)", sw_index, rc);
+	sfc_log_init(sa, "failed (TxQ = %d (internal %u), rc = %d)", ethdev_qid,
+		     sw_index, rc);
 	return rc;
 }
 
 void
 sfc_tx_qfini(struct sfc_adapter *sa, unsigned int sw_index)
 {
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	int ethdev_qid = sfc_ethdev_tx_qid_by_txq_sw_index(sas, sw_index);
 	struct sfc_txq_info *txq_info;
 	struct sfc_txq *txq;
 
-	sfc_log_init(sa, "TxQ = %u", sw_index);
+	sfc_log_init(sa, "TxQ = %d (internal %u)", ethdev_qid, sw_index);
 
 	SFC_ASSERT(sw_index < sfc_sa2shared(sa)->txq_count);
-	sa->eth_dev->data->tx_queues[sw_index] = NULL;
+	if (ethdev_qid >= 0)
+		sa->eth_dev->data->tx_queues[ethdev_qid] = NULL;
 
 	txq_info = &sfc_sa2shared(sa)->txq_info[sw_index];
 
@@ -261,7 +281,10 @@ sfc_tx_qfini(struct sfc_adapter *sa, unsigned int sw_index)
 static int
 sfc_tx_qinit_info(struct sfc_adapter *sa, unsigned int sw_index)
 {
-	sfc_log_init(sa, "TxQ = %u", sw_index);
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	int ethdev_qid = sfc_ethdev_tx_qid_by_txq_sw_index(sas, sw_index);
+
+	sfc_log_init(sa, "TxQ = %d (internal %u)", ethdev_qid, sw_index);
 
 	return 0;
 }
@@ -311,16 +334,21 @@ sfc_tx_fini_queues(struct sfc_adapter *sa, unsigned int nb_tx_queues)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	int sw_index;
+	int ethdev_qid;
 
-	SFC_ASSERT(nb_tx_queues <= sas->txq_count);
+	SFC_ASSERT(nb_tx_queues <= sas->ethdev_txq_count);
 
-	sw_index = sas->txq_count;
-	while (--sw_index >= (int)nb_tx_queues) {
-		if (sas->txq_info[sw_index].state & SFC_TXQ_INITIALIZED)
+	ethdev_qid = sas->ethdev_txq_count;
+	while (--ethdev_qid >= (int)nb_tx_queues) {
+		struct sfc_txq_info *txq_info;
+
+		sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_qid);
+		txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_qid);
+		if (txq_info->state & SFC_TXQ_INITIALIZED)
 			sfc_tx_qfini(sa, sw_index);
 	}
 
-	sas->txq_count = nb_tx_queues;
+	sas->ethdev_txq_count = nb_tx_queues;
 }
 
 int
@@ -333,7 +361,7 @@ sfc_tx_configure(struct sfc_adapter *sa)
 	int rc = 0;
 
 	sfc_log_init(sa, "nb_tx_queues=%u (old %u)",
-		     nb_tx_queues, sas->txq_count);
+		     nb_tx_queues, sas->ethdev_txq_count);
 
 	/*
 	 * The datapath implementation assumes absence of boundary
@@ -371,7 +399,7 @@ sfc_tx_configure(struct sfc_adapter *sa)
 		struct sfc_txq_info *new_txq_info;
 		struct sfc_txq *new_txq_ctrl;
 
-		if (nb_tx_queues < sas->txq_count)
+		if (nb_tx_queues < sas->ethdev_txq_count)
 			sfc_tx_fini_queues(sa, nb_tx_queues);
 
 		new_txq_info =
@@ -387,23 +415,29 @@ sfc_tx_configure(struct sfc_adapter *sa)
 
 		sas->txq_info = new_txq_info;
 		sa->txq_ctrl = new_txq_ctrl;
-		if (nb_tx_queues > sas->txq_count) {
-			memset(&sas->txq_info[sas->txq_count], 0,
-			       (nb_tx_queues - sas->txq_count) *
+		if (nb_tx_queues > sas->ethdev_txq_count) {
+			memset(&sas->txq_info[sas->ethdev_txq_count], 0,
+			       (nb_tx_queues - sas->ethdev_txq_count) *
 			       sizeof(sas->txq_info[0]));
-			memset(&sa->txq_ctrl[sas->txq_count], 0,
-			       (nb_tx_queues - sas->txq_count) *
+			memset(&sa->txq_ctrl[sas->ethdev_txq_count], 0,
+			       (nb_tx_queues - sas->ethdev_txq_count) *
 			       sizeof(sa->txq_ctrl[0]));
 		}
 	}
 
-	while (sas->txq_count < nb_tx_queues) {
-		rc = sfc_tx_qinit_info(sa, sas->txq_count);
+	while (sas->ethdev_txq_count < nb_tx_queues) {
+		unsigned int sw_index;
+
+		sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas,
+				sas->ethdev_txq_count);
+		rc = sfc_tx_qinit_info(sa, sw_index);
 		if (rc != 0)
 			goto fail_tx_qinit_info;
 
-		sas->txq_count++;
+		sas->ethdev_txq_count++;
 	}
+
+	sas->txq_count = sas->ethdev_txq_count;
 
 done:
 	return 0;
@@ -437,9 +471,9 @@ int
 sfc_tx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	int ethdev_qid = sfc_ethdev_tx_qid_by_txq_sw_index(sas, sw_index);
 	uint64_t offloads_supported = sfc_tx_get_dev_offload_caps(sa) |
 				      sfc_tx_get_queue_offload_caps(sa);
-	struct rte_eth_dev_data *dev_data;
 	struct sfc_txq_info *txq_info;
 	struct sfc_txq *txq;
 	struct sfc_evq *evq;
@@ -447,7 +481,7 @@ sfc_tx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 	unsigned int desc_index;
 	int rc = 0;
 
-	sfc_log_init(sa, "TxQ = %u", sw_index);
+	sfc_log_init(sa, "TxQ = %d (internal %u)", ethdev_qid, sw_index);
 
 	SFC_ASSERT(sw_index < sas->txq_count);
 	txq_info = &sas->txq_info[sw_index];
@@ -499,11 +533,17 @@ sfc_tx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 	if (rc != 0)
 		goto fail_dp_qstart;
 
-	/*
-	 * It seems to be used by DPDK for debug purposes only ('rte_ether')
-	 */
-	dev_data = sa->eth_dev->data;
-	dev_data->tx_queue_state[sw_index] = RTE_ETH_QUEUE_STATE_STARTED;
+	if (ethdev_qid >= 0) {
+		struct rte_eth_dev_data *dev_data;
+
+		/*
+		 * It sems to be used by DPDK for debug purposes only
+		 * ('rte_ether').
+		 */
+		dev_data = sa->eth_dev->data;
+		dev_data->tx_queue_state[ethdev_qid] =
+			RTE_ETH_QUEUE_STATE_STARTED;
+	}
 
 	return 0;
 
@@ -522,14 +562,14 @@ void
 sfc_tx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
-	struct rte_eth_dev_data *dev_data;
+	int ethdev_qid = sfc_ethdev_tx_qid_by_txq_sw_index(sas, sw_index);
 	struct sfc_txq_info *txq_info;
 	struct sfc_txq *txq;
 	unsigned int retry_count;
 	unsigned int wait_count;
 	int rc;
 
-	sfc_log_init(sa, "TxQ = %u", sw_index);
+	sfc_log_init(sa, "TxQ = %d (internal %u)", ethdev_qid, sw_index);
 
 	SFC_ASSERT(sw_index < sas->txq_count);
 	txq_info = &sas->txq_info[sw_index];
@@ -571,10 +611,12 @@ sfc_tx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
 			 wait_count++ < SFC_TX_QFLUSH_POLL_ATTEMPTS);
 
 		if (txq_info->state & SFC_TXQ_FLUSHING)
-			sfc_err(sa, "TxQ %u flush timed out", sw_index);
+			sfc_err(sa, "TxQ %d (internal %u) flush timed out",
+				ethdev_qid, sw_index);
 
 		if (txq_info->state & SFC_TXQ_FLUSHED)
-			sfc_notice(sa, "TxQ %u flushed", sw_index);
+			sfc_notice(sa, "TxQ %d (internal %u) flushed",
+				   ethdev_qid, sw_index);
 	}
 
 	sa->priv.dp_tx->qreap(txq_info->dp);
@@ -585,11 +627,17 @@ sfc_tx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
 
 	sfc_ev_qstop(txq->evq);
 
-	/*
-	 * It seems to be used by DPDK for debug purposes only ('rte_ether')
-	 */
-	dev_data = sa->eth_dev->data;
-	dev_data->tx_queue_state[sw_index] = RTE_ETH_QUEUE_STATE_STOPPED;
+	if (ethdev_qid >= 0) {
+		struct rte_eth_dev_data *dev_data;
+
+		/*
+		 * It seems to be used by DPDK for debug purposes only
+		 * ('rte_ether')
+		 */
+		dev_data = sa->eth_dev->data;
+		dev_data->tx_queue_state[ethdev_qid] =
+			RTE_ETH_QUEUE_STATE_STOPPED;
+	}
 }
 
 int
@@ -600,7 +648,8 @@ sfc_tx_start(struct sfc_adapter *sa)
 	unsigned int sw_index;
 	int rc = 0;
 
-	sfc_log_init(sa, "txq_count = %u", sas->txq_count);
+	sfc_log_init(sa, "txq_count = %u (internal %u)",
+		     sas->ethdev_txq_count, sas->txq_count);
 
 	if (sa->tso) {
 		if (!encp->enc_fw_assisted_tso_v2_enabled &&
@@ -650,7 +699,8 @@ sfc_tx_stop(struct sfc_adapter *sa)
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	unsigned int sw_index;
 
-	sfc_log_init(sa, "txq_count = %u", sas->txq_count);
+	sfc_log_init(sa, "txq_count = %u (internal %u)",
+		     sas->ethdev_txq_count, sas->txq_count);
 
 	sw_index = sas->txq_count;
 	while (sw_index-- > 0) {

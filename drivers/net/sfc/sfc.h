@@ -173,6 +173,7 @@ struct sfc_adapter_shared {
 	struct sfc_rxq_info		*rxq_info;
 
 	unsigned int			txq_count;
+	unsigned int			ethdev_txq_count;
 	struct sfc_txq_info		*txq_info;
 
 	struct sfc_rss			rss;

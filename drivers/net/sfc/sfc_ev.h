@@ -117,6 +117,20 @@ sfc_ethdev_rx_qid_by_rxq_sw_index(struct sfc_adapter_shared *sas,
 }
 
 static inline unsigned int
+sfc_txq_sw_index_by_ethdev_tx_qid(__rte_unused struct sfc_adapter_shared *sas,
+				  unsigned int ethdev_tx_qid)
+{
+	return ethdev_tx_qid;
+}
+
+static inline int
+sfc_ethdev_tx_qid_by_txq_sw_index(__rte_unused struct sfc_adapter_shared *sas,
+				  unsigned int txq_sw_index)
+{
+	return txq_sw_index;
+}
+
+static inline unsigned int
 sfc_evq_index_by_rxq_sw_index(struct sfc_adapter *sa,
 			      unsigned int rxq_sw_index)
 {

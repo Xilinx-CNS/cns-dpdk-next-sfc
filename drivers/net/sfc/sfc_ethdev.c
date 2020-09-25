@@ -534,24 +534,28 @@ sfc_rx_queue_release(void *queue)
 }
 
 static int
-sfc_tx_queue_setup(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+sfc_tx_queue_setup(struct rte_eth_dev *dev, uint16_t ethdev_tx_qid,
 		   uint16_t nb_tx_desc, unsigned int socket_id,
 		   const struct rte_eth_txconf *tx_conf)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_txq_info *txq_info;
+	uint16_t sw_index;
 	int rc;
 
 	sfc_log_init(sa, "TxQ = %u, nb_tx_desc = %u, socket_id = %u",
-		     tx_queue_id, nb_tx_desc, socket_id);
+		     ethdev_tx_qid, nb_tx_desc, socket_id);
 
 	sfc_adapter_lock(sa);
 
-	rc = sfc_tx_qinit(sa, tx_queue_id, nb_tx_desc, socket_id, tx_conf);
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_tx_qid);
+	rc = sfc_tx_qinit(sa, sw_index, nb_tx_desc, socket_id, tx_conf);
 	if (rc != 0)
 		goto fail_tx_qinit;
 
-	dev->data->tx_queues[tx_queue_id] = sas->txq_info[tx_queue_id].dp;
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_tx_qid);
+	dev->data->tx_queues[ethdev_tx_qid] = txq_info->dp;
 
 	sfc_adapter_unlock(sa);
 	return 0;
@@ -1218,15 +1222,15 @@ sfc_rx_queue_info_get(struct rte_eth_dev *dev, uint16_t ethdev_rx_qid,
  * use any process-local pointers from the adapter data.
  */
 static void
-sfc_tx_queue_info_get(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+sfc_tx_queue_info_get(struct rte_eth_dev *dev, uint16_t ethdev_tx_qid,
 		      struct rte_eth_txq_info *qinfo)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_txq_info *txq_info;
 
-	SFC_ASSERT(tx_queue_id < sas->txq_count);
+	SFC_ASSERT(ethdev_tx_qid < sas->ethdev_txq_count);
 
-	txq_info = &sas->txq_info[tx_queue_id];
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_tx_qid);
 
 	memset(qinfo, 0, sizeof(*qinfo));
 
@@ -1364,13 +1368,15 @@ sfc_rx_queue_stop(struct rte_eth_dev *dev, uint16_t ethdev_rx_qid)
 }
 
 static int
-sfc_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
+sfc_tx_queue_start(struct rte_eth_dev *dev, uint16_t ethdev_tx_qid)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_txq_info *txq_info;
+	uint16_t sw_index;
 	int rc;
 
-	sfc_log_init(sa, "TxQ = %u", tx_queue_id);
+	sfc_log_init(sa, "TxQ = %u", ethdev_tx_qid);
 
 	sfc_adapter_lock(sa);
 
@@ -1378,14 +1384,16 @@ sfc_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	if (sa->state != SFC_ADAPTER_STARTED)
 		goto fail_not_started;
 
-	if (sas->txq_info[tx_queue_id].state != SFC_TXQ_INITIALIZED)
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_tx_qid);
+	if (txq_info->state != SFC_TXQ_INITIALIZED)
 		goto fail_not_setup;
 
-	rc = sfc_tx_qstart(sa, tx_queue_id);
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_tx_qid);
+	rc = sfc_tx_qstart(sa, sw_index);
 	if (rc != 0)
 		goto fail_tx_qstart;
 
-	sas->txq_info[tx_queue_id].deferred_started = B_TRUE;
+	txq_info->deferred_started = B_TRUE;
 
 	sfc_adapter_unlock(sa);
 	return 0;
@@ -1400,18 +1408,22 @@ fail_not_started:
 }
 
 static int
-sfc_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
+sfc_tx_queue_stop(struct rte_eth_dev *dev, uint16_t ethdev_tx_qid)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_txq_info *txq_info;
+	uint16_t sw_index;
 
-	sfc_log_init(sa, "TxQ = %u", tx_queue_id);
+	sfc_log_init(sa, "TxQ = %u", ethdev_tx_qid);
 
 	sfc_adapter_lock(sa);
 
-	sfc_tx_qstop(sa, tx_queue_id);
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_tx_qid);
+	sfc_tx_qstop(sa, sw_index);
 
-	sas->txq_info[tx_queue_id].deferred_started = B_FALSE;
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_tx_qid);
+	txq_info->deferred_started = B_FALSE;
 
 	sfc_adapter_unlock(sa);
 	return 0;
