@@ -249,6 +249,18 @@ sfc_estimate_resource_limits(struct sfc_adapter *sa)
 		sas->cnt_rxq_supported = false;
 	}
 
+	if (sfc_estimate_repr_supported(sa) &&
+	    evq_allocated > SFC_REPR_PROXY_NB_RXQ + SFC_REPR_PROXY_NB_TXQ &&
+	    rxq_allocated > SFC_REPR_PROXY_NB_RXQ &&
+	    txq_allocated > SFC_REPR_PROXY_NB_TXQ) {
+		txq_allocated -= SFC_REPR_PROXY_NB_TXQ;
+		rxq_allocated -= SFC_REPR_PROXY_NB_RXQ;
+		evq_allocated -= SFC_REPR_PROXY_NB_RXQ + SFC_REPR_PROXY_NB_TXQ;
+		sas->repr_proxy_supported = true;
+	} else {
+		sas->repr_proxy_supported = false;
+	}
+
 	/* Right now we use separate EVQ for Rx and Tx */
 	sa->rxq_max = MIN(rxq_allocated, evq_allocated / 2);
 	sa->txq_max = MIN(txq_allocated, evq_allocated - sa->rxq_max);
@@ -265,18 +277,22 @@ fail_nic_init:
 static int
 sfc_set_drv_limits(struct sfc_adapter *sa)
 {
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
 	const struct rte_eth_dev_data *data = sa->eth_dev->data;
-	uint32_t rxq_reserved = sfc_rxq_reserved(sfc_sa2shared(sa));
+	uint32_t rxq_reserved = sfc_rxq_reserved(sas);
+	uint32_t txq_reserved = sfc_txq_reserved(sas);
 	efx_drv_limits_t lim;
 
 	memset(&lim, 0, sizeof(lim));
 
 	/* Limits are strict since take into account initial estimation */
 	lim.edl_min_evq_count = lim.edl_max_evq_count =
-		1 + data->nb_rx_queues + data->nb_tx_queues + rxq_reserved;
+		1 + data->nb_rx_queues + data->nb_tx_queues +
+		rxq_reserved + txq_reserved;
 	lim.edl_min_rxq_count = lim.edl_max_rxq_count =
 		data->nb_rx_queues + rxq_reserved;
-	lim.edl_min_txq_count = lim.edl_max_txq_count = data->nb_tx_queues;
+	lim.edl_min_txq_count = lim.edl_max_txq_count =
+		data->nb_tx_queues + txq_reserved;
 
 	return efx_nic_set_drv_limits(sa->nic, &lim);
 }

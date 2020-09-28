@@ -30,13 +30,14 @@ sfc_repr_proxy_attach(struct sfc_adapter *sa)
 {
 	static const char * const ser = "port representors proxy";
 
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
 	struct rte_service_spec service;
 	uint32_t cid;
 	uint32_t sid;
 	int rc;
 
-	if (!sfc_repr_supported(sa))
+	if (!sfc_repr_supported(sas))
 		return 0;
 
 	cid = sfc_get_service_lcore(sa->socket_id);
@@ -96,9 +97,10 @@ fail_get_service_lcore:
 void
 sfc_repr_proxy_detach(struct sfc_adapter *sa)
 {
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
 
-	if (!sfc_repr_supported(sa))
+	if (!sfc_repr_supported(sas))
 		return;
 
 	rte_service_map_lcore_set(rp->service_id, rp->service_core_id, 0);
@@ -108,6 +110,7 @@ sfc_repr_proxy_detach(struct sfc_adapter *sa)
 int
 sfc_repr_proxy_start(struct sfc_adapter *sa)
 {
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
 	int rc;
 
@@ -115,7 +118,7 @@ sfc_repr_proxy_start(struct sfc_adapter *sa)
 	 * The condition to start the proxy is insufficient. It will be
 	 * complemented with representor port start/stop support.
 	 */
-	if (!sfc_repr_supported(sa))
+	if (!sfc_repr_supported(sas))
 		return 0;
 
 	/* Service core may be in "stopped" state, start it */
@@ -160,10 +163,11 @@ fail_start_core:
 void
 sfc_repr_proxy_stop(struct sfc_adapter *sa)
 {
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
 	int rc;
 
-	if (!sfc_repr_supported(sa))
+	if (!sfc_repr_supported(sas))
 		return;
 
 	rc = rte_service_runstate_set(rp->service_id, 0);

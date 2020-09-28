@@ -358,6 +358,8 @@ sfc_tx_configure(struct sfc_adapter *sa)
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	const struct rte_eth_conf *dev_conf = &sa->eth_dev->data->dev_conf;
 	const unsigned int nb_tx_queues = sa->eth_dev->data->nb_tx_queues;
+	const unsigned int nb_rsvd_tx_queues = sfc_txq_reserved(sas);
+	const unsigned int nb_txq_total = nb_tx_queues + nb_rsvd_tx_queues;
 	int rc = 0;
 
 	sfc_log_init(sa, "nb_tx_queues=%u (old %u)",
@@ -377,11 +379,11 @@ sfc_tx_configure(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_check_mode;
 
-	if (nb_tx_queues == sas->txq_count)
+	if (nb_txq_total == sas->txq_count)
 		goto done;
 
 	if (sas->txq_info == NULL) {
-		sas->txq_info = rte_calloc_socket("sfc-txqs", nb_tx_queues,
+		sas->txq_info = rte_calloc_socket("sfc-txqs", nb_txq_total,
 						  sizeof(sas->txq_info[0]), 0,
 						  sa->socket_id);
 		if (sas->txq_info == NULL)
@@ -392,7 +394,7 @@ sfc_tx_configure(struct sfc_adapter *sa)
 		 * since it should not be shared.
 		 */
 		rc = ENOMEM;
-		sa->txq_ctrl = calloc(nb_tx_queues, sizeof(sa->txq_ctrl[0]));
+		sa->txq_ctrl = calloc(nb_txq_total, sizeof(sa->txq_ctrl[0]));
 		if (sa->txq_ctrl == NULL)
 			goto fail_txqs_ctrl_alloc;
 	} else {
@@ -404,23 +406,23 @@ sfc_tx_configure(struct sfc_adapter *sa)
 
 		new_txq_info =
 			rte_realloc(sas->txq_info,
-				    nb_tx_queues * sizeof(sas->txq_info[0]), 0);
-		if (new_txq_info == NULL && nb_tx_queues > 0)
+				    nb_txq_total * sizeof(sas->txq_info[0]), 0);
+		if (new_txq_info == NULL && nb_txq_total > 0)
 			goto fail_txqs_realloc;
 
 		new_txq_ctrl = realloc(sa->txq_ctrl,
-				       nb_tx_queues * sizeof(sa->txq_ctrl[0]));
-		if (new_txq_ctrl == NULL && nb_tx_queues > 0)
+				       nb_txq_total * sizeof(sa->txq_ctrl[0]));
+		if (new_txq_ctrl == NULL && nb_txq_total > 0)
 			goto fail_txqs_ctrl_realloc;
 
 		sas->txq_info = new_txq_info;
 		sa->txq_ctrl = new_txq_ctrl;
-		if (nb_tx_queues > sas->ethdev_txq_count) {
-			memset(&sas->txq_info[sas->ethdev_txq_count], 0,
-			       (nb_tx_queues - sas->ethdev_txq_count) *
+		if (nb_txq_total > sas->txq_count) {
+			memset(&sas->txq_info[sas->txq_count], 0,
+			       (nb_txq_total - sas->txq_count) *
 			       sizeof(sas->txq_info[0]));
-			memset(&sa->txq_ctrl[sas->ethdev_txq_count], 0,
-			       (nb_tx_queues - sas->ethdev_txq_count) *
+			memset(&sa->txq_ctrl[sas->txq_count], 0,
+			       (nb_txq_total - sas->txq_count) *
 			       sizeof(sa->txq_ctrl[0]));
 		}
 	}
@@ -437,7 +439,8 @@ sfc_tx_configure(struct sfc_adapter *sa)
 		sas->ethdev_txq_count++;
 	}
 
-	sas->txq_count = sas->ethdev_txq_count;
+	/* Do not initialize reserved queues */
+	sas->txq_count = sas->ethdev_txq_count + nb_rsvd_tx_queues;
 
 done:
 	return 0;

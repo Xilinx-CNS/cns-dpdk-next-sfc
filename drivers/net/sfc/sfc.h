@@ -189,6 +189,7 @@ struct sfc_adapter_shared {
 	char				*dp_tx_name;
 
 	bool				cnt_rxq_supported;
+	bool				repr_proxy_supported;
 };
 
 /* Adapter process private data */
@@ -382,11 +383,29 @@ sfc_cnt_rxq_num(const struct sfc_adapter_shared *sas)
 }
 
 static inline bool
-sfc_repr_supported(const struct sfc_adapter *sa)
+sfc_estimate_repr_supported(const struct sfc_adapter *sa)
 {
 	uint32_t cid = sfc_get_service_lcore(SOCKET_ID_ANY);
 
 	return cid != RTE_MAX_LCORE && sa->switchdev && sa->sriov.num_vfs > 0;
+}
+
+static inline bool
+sfc_repr_supported(const struct sfc_adapter_shared *sas)
+{
+	return sas->repr_proxy_supported;
+}
+
+static inline unsigned int
+sfc_repr_rxq_num(const struct sfc_adapter_shared *sas)
+{
+	return sfc_repr_supported(sas) ? SFC_REPR_PROXY_NB_RXQ : 0;
+}
+
+static inline unsigned int
+sfc_repr_txq_num(const struct sfc_adapter_shared *sas)
+{
+	return sfc_repr_supported(sas) ? SFC_REPR_PROXY_NB_TXQ : 0;
 }
 
 /** Get the number of milliseconds since boot from the default timer */
