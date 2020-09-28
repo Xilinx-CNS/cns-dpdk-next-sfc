@@ -1,3 +1,14 @@
+dpdk (19.11.5-1) unstable; urgency=medium
+
+  * New upstream version 19.11.5
+    - Remote Code Execution in vhost_crypto (VM Escape) (CVE-2020-14374)
+    - Time-of-check time-of-use vulnerabilities throughout (CVE-2020-14375)
+    - Buffer overflow copying iv_data from guest to host (CVE-2020-14376)
+    - write_back_data buffer over read (CVE-2020-14377)
+    - Partial Denial of Service due to Integer Underflow (CVE-2020-14378)
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 28 Sep 2020 15:10:04 +0100
+
 dpdk (19.11.4-1) unstable; urgency=medium
 
   [ Christian Ehrhardt ]
