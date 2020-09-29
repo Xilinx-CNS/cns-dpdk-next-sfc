@@ -32,7 +32,6 @@ enum sfc_mae_switch_port_type {
 struct sfc_mae_switch_port_request {
 	enum sfc_mae_switch_port_type		type;
 	const efx_mport_sel_t			*entity_mportp;
-	const efx_mport_sel_t			*ethdev_mportp;
 	uint16_t				ethdev_port_id;
 };
 
