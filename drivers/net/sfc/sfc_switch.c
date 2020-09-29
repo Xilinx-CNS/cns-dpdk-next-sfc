@@ -498,7 +498,7 @@ sfc_mae_find_switch_port_by_ethdev(uint16_t switch_domain_id,
 
 	TAILQ_FOREACH(port, &domain->ports, switch_domain_ports) {
 		if (port->ethdev_port_id == ethdev_port_id) {
-			*mport_sel = port->ethdev_mport;
+			*mport_sel = port->entity_mport;
 			return 0;
 		}
 	}
