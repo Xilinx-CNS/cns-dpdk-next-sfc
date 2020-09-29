@@ -345,7 +345,7 @@ rhead_nic_init(
 	uint32_t vi_count, vi_base, vi_shift;
 	uint32_t vi_window_size;
 	efx_rc_t rc;
-	boolean_t alloc_vadaptor = (enp->en_switchdev_mode == B_FALSE);
+	boolean_t alloc_vadaptor = B_FALSE; //(enp->en_switchdev_mode == B_FALSE);
 
 	EFSYS_ASSERT(EFX_FAMILY_IS_EF100(enp));
 	EFSYS_ASSERT3U(edcp->edc_max_piobuf_count, ==, 0);

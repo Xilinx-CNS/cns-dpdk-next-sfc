@@ -161,7 +161,9 @@ efx_mac_addr_set(
 	efx_port_t *epp = &(enp->en_port);
 	const efx_mac_ops_t *emop = epp->ep_emop;
 	uint8_t old_addr[6];
+#if 0
 	uint32_t oui;
+#endif
 	efx_rc_t rc;
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
@@ -172,11 +174,13 @@ efx_mac_addr_set(
 		goto fail1;
 	}
 
+#if 0
 	oui = addr[0] << 16 | addr[1] << 8 | addr[2];
 	if (oui == 0x000000) {
 		rc = EINVAL;
 		goto fail2;
 	}
+#endif
 
 	EFX_MAC_ADDR_COPY(old_addr, epp->ep_mac_addr);
 	EFX_MAC_ADDR_COPY(epp->ep_mac_addr, addr);
