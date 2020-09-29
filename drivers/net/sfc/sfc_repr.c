@@ -18,12 +18,14 @@
 #include "sfc_repr.h"
 #include "sfc_repr_proxy_api.h"
 #include "sfc_dp_tx.h"
+#include "sfc_switch.h"
 
 /** Multi-process shared representor private data */
 struct sfc_repr_shared {
 	struct sfc_adapter	*pf_sa;
 	uint16_t		repr_id;
 	uint16_t		switch_domain_id;
+	uint16_t		switch_port_id;
 };
 
 struct sfc_repr_rxq {
@@ -390,7 +392,7 @@ sfc_repr_dev_infos_get(struct rte_eth_dev *dev,
 	dev_info->max_tx_queues = SFC_REPR_TXQ_MAX;
 	dev_info->default_rxconf.rx_drop_en = 1;
 	dev_info->switch_info.domain_id = srs->switch_domain_id;
-	dev_info->switch_info.port_id = srs->repr_id + 1;
+	dev_info->switch_info.port_id = srs->switch_port_id;
 
 	return 0;
 }
@@ -743,6 +745,7 @@ struct sfc_repr_init_data {
 	struct sfc_adapter	*pf_sa;
 	uint16_t		repr_id;
 	uint16_t		switch_domain_id;
+	efx_mport_sel_t		mport_sel;
 };
 
 static int
@@ -750,8 +753,20 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 {
 	const struct sfc_repr_init_data *repr_data = init_params;
 	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+	struct sfc_mae_switch_port_request switch_port_request;
 	struct sfc_repr *sr;
 	int rc;
+
+	memset(&switch_port_request, 0, sizeof(switch_port_request));
+	switch_port_request.type = SFC_MAE_SWITCH_PORT_REPRESENTOR;
+	switch_port_request.entity_mportp = &repr_data->mport_sel;
+	switch_port_request.ethdev_port_id = dev->data->port_id;
+
+	rc = sfc_mae_assign_switch_port(repr_data->switch_domain_id,
+					&switch_port_request,
+					&srs->switch_port_id);
+	if (rc != 0)
+		goto fail_mae_assign_switch_port;
 
 	rc = sfc_repr_create_port(repr_data->pf_sa, repr_data->repr_id,
 				  dev->data->port_id);
@@ -809,6 +824,7 @@ fail_alloc_sr:
 	sfc_repr_destroy_port(repr_data->pf_sa, repr_data->repr_id);
 
 fail_create_port:
+fail_mae_assign_switch_port:
 	SFC_ASSERT(rc >= 0);
 	return -rc;
 }
@@ -830,10 +846,19 @@ sfc_repr_create(struct rte_eth_dev *parent, uint16_t representor_id)
 
 	dev = rte_eth_dev_allocated(name);
 	if (dev == NULL) {
+		const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa_parent->nic);
+		int rc;
+
 		memset(&repr_data, 0, sizeof(repr_data));
 		repr_data.pf_sa = sa_parent;
 		repr_data.repr_id = representor_id;
 		repr_data.switch_domain_id = sa_parent->mae.switch_domain_id;
+
+		rc = efx_mae_mport_by_pcie_function(encp->enc_pf,
+						    representor_id,
+						    &repr_data.mport_sel);
+		if (rc != 0)
+			return -rc;
 
 		return rte_eth_dev_create(parent->device, name,
 					  sizeof(struct sfc_repr_shared),

@@ -27,6 +27,7 @@ enum sfc_mae_switch_port_type {
 	 * and thus refers to its underlying PCIe function
 	 */
 	SFC_MAE_SWITCH_PORT_INDEPENDENT = 0,
+	SFC_MAE_SWITCH_PORT_REPRESENTOR,
 };
 
 struct sfc_mae_switch_port_request {
