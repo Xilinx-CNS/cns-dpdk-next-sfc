@@ -192,6 +192,7 @@ INTERNAL {
 
 	efx_virtio_fini;
 	efx_virtio_get_doorbell_offset;
+	efx_virtio_get_features;
 	efx_virtio_init;
 	efx_virtio_qcreate;
 	efx_virtio_qdestroy;

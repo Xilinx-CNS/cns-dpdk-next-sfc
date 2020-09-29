@@ -4080,6 +4080,12 @@ typedef struct efx_virtio_vq_cfg_s {
 
 typedef struct efx_virtio_vq_s	efx_virtio_vq_t;
 
+typedef enum efx_virtio_device_type_e {
+	EFX_VIRTIO_DEVICE_TYPE_NET,
+	EFX_VIRTIO_DEVICE_TYPE_BLOCK,
+	EFX_VIRTIO_DEVICE_NTYPES
+} efx_virtio_device_type_t;
+
 LIBEFX_API
 extern	__checkReturn	efx_rc_t
 efx_virtio_init(
@@ -4133,6 +4139,13 @@ extern	__checkReturn	efx_rc_t
 efx_virtio_get_doorbell_offset(
 	__in		efx_virtio_vq_t *evvp,
 	__out		uint32_t *offsetp);
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_virtio_get_features(
+	__in		efx_nic_t *enp,
+	__in		efx_virtio_device_type_t type,
+	__out		uint64_t *featuresp);
 
 #endif /* EFSYS_OPT_VIRTIO */
 
