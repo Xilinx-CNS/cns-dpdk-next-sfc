@@ -230,9 +230,8 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	switch_port_request.entity_mportp = &entity_mport;
 	/*
 	 * As of now, the driver does not support representors, so
-	 * RTE ethdev MPORT simply matches that of the entity.
+	 * RTE ethdev port ID is port ID of this adapter.
 	 */
-	switch_port_request.ethdev_mportp = &entity_mport;
 	switch_port_request.ethdev_port_id = sas->port_id;
 	rc = sfc_mae_assign_switch_port(mae->switch_domain_id,
 					&switch_port_request,
