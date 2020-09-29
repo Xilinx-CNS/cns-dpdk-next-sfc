@@ -198,6 +198,7 @@ INTERNAL {
 	efx_virtio_qdestroy;
 	efx_virtio_qstart;
 	efx_virtio_qstop;
+	efx_virtio_verify_features;
 
 	sfc_efx_mcdi_init;
 	sfc_efx_mcdi_fini;
