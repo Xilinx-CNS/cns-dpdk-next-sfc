@@ -52,8 +52,6 @@
 struct sfc_mae_switch_port {
 	TAILQ_ENTRY(sfc_mae_switch_port)	switch_domain_ports;
 
-	/** RTE ethdev MPORT */
-	efx_mport_sel_t				ethdev_mport;
 	/** RTE ethdev port ID */
 	uint16_t				ethdev_port_id;
 
@@ -275,7 +273,6 @@ sfc_mae_assign_switch_port(uint16_t switch_domain_id,
 	TAILQ_INSERT_TAIL(&domain->ports, port, switch_domain_ports);
 
 done:
-	port->ethdev_mport = *req->ethdev_mportp;
 	port->ethdev_port_id = req->ethdev_port_id;
 
 	*switch_port_id = port->id;
