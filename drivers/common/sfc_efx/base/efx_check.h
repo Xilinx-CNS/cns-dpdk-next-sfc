@@ -405,6 +405,9 @@
 # if !EFSYS_OPT_RIVERHEAD
 #  error "VIRTIO requires RIVERHEAD"
 # endif
+# if !EFSYS_HAS_UINT64
+#  error "VIRTIO requires UINT64"
+# endif
 #endif /* EFSYS_OPT_VIRTIO */
 
 #endif /* _SYS_EFX_CHECK_H */
