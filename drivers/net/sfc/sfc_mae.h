@@ -27,6 +27,7 @@ struct sfc_mae_fw_rsrc {
 	union {
 		efx_mae_aset_id_t	aset_id;
 		efx_mae_rule_id_t	rule_id;
+		efx_mae_eh_id_t		eh_id;
 	};
 };
 
@@ -42,10 +43,23 @@ struct sfc_mae_outer_rule {
 
 TAILQ_HEAD(sfc_mae_outer_rules, sfc_mae_outer_rule);
 
+/** Encap. header registry entry */
+struct sfc_mae_encap_header {
+	TAILQ_ENTRY(sfc_mae_encap_header)	entries;
+	unsigned int				refcnt;
+	efx_tunnel_protocol_t			encap_type;
+	uint8_t					*header_data;
+	size_t					header_size;
+	struct sfc_mae_fw_rsrc			fw_rsrc;
+};
+
+TAILQ_HEAD(sfc_mae_encap_headers, sfc_mae_encap_header);
+
 /** Action set registry entry */
 struct sfc_mae_action_set {
 	TAILQ_ENTRY(sfc_mae_action_set)	entries;
 	unsigned int			refcnt;
+	struct sfc_mae_encap_header	*encap_header;
 	efx_mae_actions_t		*spec;
 	struct sfc_mae_fw_rsrc		fw_rsrc;
 };
@@ -89,8 +103,18 @@ struct sfc_mae {
 	struct sfc_mae_rc_cache		action_rc_cache;
 	/** Outer rule registry */
 	struct sfc_mae_outer_rules	outer_rules;
+	/** Encap. header registry */
+	struct sfc_mae_encap_headers	encap_headers;
 	/** Action set registry */
 	struct sfc_mae_action_sets	action_sets;
+	/** Encap. header bounce buffer */
+	uint8_t				*encap_header_buf;
+	/** Encap. header bounce buffer size */
+	size_t				encap_header_buf_size;
+	/** Current encap. header size */
+	size_t				encap_header_size_cur;
+	/** Current encap. header type */
+	efx_tunnel_protocol_t		encap_header_type_cur;
 };
 
 struct sfc_adapter;
