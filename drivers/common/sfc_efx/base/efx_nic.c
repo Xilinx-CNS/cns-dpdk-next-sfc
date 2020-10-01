@@ -456,9 +456,19 @@ efx_nic_probe(
 	if ((rc = efx_phy_probe(enp)) != 0)
 		goto fail2;
 
+	if (EFX_PCI_FUNCTION_IS_VF(encp)) {
+		rc = efx_nic_set_switchdev_mode(enp, B_TRUE);
+		if (rc != 0)
+			goto fail3;
+	}
+
 	enp->en_mod_flags |= EFX_MOD_PROBE;
 
 	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+	efx_phy_unprobe(enp);
 
 fail2:
 	EFSYS_PROBE(fail2);
