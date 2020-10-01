@@ -1334,7 +1334,26 @@ efx_mae_action_set_specs_equal(
 	__in				const efx_mae_actions_t *left,
 	__in				const efx_mae_actions_t *right)
 {
-	return ((memcmp(left, right, sizeof (*left)) == 0) ? B_TRUE : B_FALSE);
+	/*
+	 * Compare the specs field-by-field and ignore fields which are
+	 * resource IDs since the caller may ask to compare a spec that
+	 * doesn't have resource IDs filled in with a spec of an active
+	 * action set (the same fields might contain valid IDs there).
+	 *
+	 * It's responsibility of the caller to compare resources used
+	 * by action sets; this is separate from comparing the specs.
+	 */
+	if (left->emass_actions != right->emass_actions ||
+	    left->emass_n_vlan_tags_to_pop != right->emass_n_vlan_tags_to_pop ||
+	    left->emass_n_vlan_tags_to_push !=
+	    right->emass_n_vlan_tags_to_push ||
+	    memcmp(left->emass_vlan_push_descs, right->emass_vlan_push_descs,
+		    sizeof(left->emass_vlan_push_descs)) != 0 ||
+	    left->emass_mark_value != right->emass_mark_value ||
+	    left->emass_deliver_mport.sel != right->emass_deliver_mport.sel)
+		return B_FALSE;
+
+	return B_TRUE;
 }
 
 	__checkReturn			efx_rc_t

@@ -1782,6 +1782,10 @@ typedef struct efx_mae_action_vlan_push_s {
 	uint16_t			emavp_tci_be;
 } efx_mae_action_vlan_push_t;
 
+/*
+ * Make sure to update efx_mae_action_set_specs_equal()
+ * when adding new fields to this struct.
+ */
 typedef struct efx_mae_actions_s {
 	/* Bitmap of actions in spec, indexed by action type */
 	uint32_t			emass_actions;
