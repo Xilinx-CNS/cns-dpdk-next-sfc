@@ -775,6 +775,7 @@ sfc_repr_create(struct rte_eth_dev *parent, uint16_t representor_id)
 	struct sfc_adapter *sa_parent = sfc_adapter_by_eth_dev(parent);
 	struct sfc_repr_init_data repr_data;
 	char name[RTE_ETH_NAME_MAX_LEN];
+	struct rte_eth_dev *dev;
 
 	if (!sfc_repr_supported(sfc_sa2shared(sa_parent)))
 		return -ENOTSUP;
@@ -783,13 +784,18 @@ sfc_repr_create(struct rte_eth_dev *parent, uint16_t representor_id)
 		     parent->device->name, representor_id) >= (int)sizeof(name))
 		return -ENAMETOOLONG;
 
-	memset(&repr_data, 0, sizeof(repr_data));
-	repr_data.pf_sa = sa_parent;
-	repr_data.repr_id = representor_id;
-	repr_data.switch_domain_id = sa_parent->mae.switch_domain_id;
+	dev = rte_eth_dev_allocated(name);
+	if (dev == NULL) {
+		memset(&repr_data, 0, sizeof(repr_data));
+		repr_data.pf_sa = sa_parent;
+		repr_data.repr_id = representor_id;
+		repr_data.switch_domain_id = sa_parent->mae.switch_domain_id;
 
-	return rte_eth_dev_create(parent->device, name,
-				  sizeof(struct sfc_repr_shared),
-				  NULL, NULL,
-				  sfc_repr_eth_dev_init, &repr_data);
+		return rte_eth_dev_create(parent->device, name,
+					  sizeof(struct sfc_repr_shared),
+					  NULL, NULL,
+					  sfc_repr_eth_dev_init, &repr_data);
+	}
+
+	return 0;
 }

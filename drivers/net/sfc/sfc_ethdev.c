@@ -2420,16 +2420,23 @@ static int sfc_eth_dev_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 			return rc;
 	}
 
-	rc = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
-				sizeof(struct sfc_adapter_shared),
-				eth_dev_pci_specific_init, pci_dev,
-				sfc_eth_dev_init, NULL);
-	if (rc != 0)
-		return rc;
-
+	/*
+	 * Check if the device is already allocated. If it is allocated,
+	 * only representors creation may be required.
+	 */
 	dev = rte_eth_dev_allocated(pci_dev->device.name);
-	if (dev == NULL)
-		return -ENODEV;
+	if (dev == NULL) {
+		rc = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
+					sizeof(struct sfc_adapter_shared),
+					eth_dev_pci_specific_init, pci_dev,
+					sfc_eth_dev_init, NULL);
+		if (rc != 0)
+			return rc;
+
+		dev = rte_eth_dev_allocated(pci_dev->device.name);
+		if (dev == NULL)
+			return -ENODEV;
+	}
 
 	sa = sfc_adapter_by_eth_dev(dev);
 
@@ -2452,7 +2459,8 @@ static struct rte_pci_driver sfc_efx_pmd = {
 	.id_table = pci_id_sfc_efx_map,
 	.drv_flags =
 		RTE_PCI_DRV_INTR_LSC |
-		RTE_PCI_DRV_NEED_MAPPING,
+		RTE_PCI_DRV_NEED_MAPPING |
+		RTE_PCI_DRV_PROBE_AGAIN,
 	.probe = sfc_eth_dev_pci_probe,
 	.remove = sfc_eth_dev_pci_remove,
 };
