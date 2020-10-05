@@ -65,6 +65,9 @@ efx_mae_get_capabilities(
 	maep->em_max_nfields =
 	    MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_MATCH_FIELD_COUNT);
 
+	maep->em_max_counters =
+	    MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_COUNTERS);
+
 	return (0);
 
 fail2:
@@ -2304,6 +2307,127 @@ fail2:
 	EFSYS_PROBE(fail2);
 fail1:
 	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_alloc(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__out_ecount(n_counters)	uint32_t *counter_ids)
+{
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_MAE_COUNTER_ALLOC_IN_LEN,
+			     MC_CMD_MAE_COUNTER_ALLOC_OUT_LENMAX_MCDI2);
+	efx_mae_t *maep = enp->en_maep;
+	efx_mcdi_req_t req;
+	unsigned int i;
+	efx_rc_t rc;
+
+	if (n_counters > maep->em_max_counters ||
+	    n_counters < MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_MINNUM ||
+	    n_counters > MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_MAXNUM_MCDI2) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_COUNTER_ALLOC;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTER_ALLOC_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTER_ALLOC_OUT_LEN(n_counters);
+
+	MCDI_IN_SET_DWORD(req, MAE_COUNTER_ALLOC_IN_REQUESTED_COUNT,
+			  n_counters);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_COUNTER_ALLOC_OUT_LEN(n_counters)) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
+	for (i = 0; i < n_counters; i++) {
+		counter_ids[i] = MCDI_OUT_INDEXED_DWORD(req,
+				    MAE_COUNTER_ALLOC_OUT_COUNTER_ID, i);
+	}
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_free(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__in_ecount(n_counters)		uint32_t *counter_ids)
+{
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_MAE_COUNTER_FREE_IN_LENMAX_MCDI2,
+			     MC_CMD_MAE_COUNTER_FREE_OUT_LENMAX_MCDI2);
+	efx_mae_t *maep = enp->en_maep;
+	efx_mcdi_req_t req;
+	unsigned int i;
+	efx_rc_t rc;
+
+	if (n_counters > maep->em_max_counters ||
+	    n_counters < MC_CMD_MAE_COUNTER_FREE_IN_FREE_COUNTER_ID_MINNUM ||
+	    n_counters >
+	    MC_CMD_MAE_COUNTER_FREE_IN_FREE_COUNTER_ID_MAXNUM_MCDI2) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_COUNTER_FREE;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTER_FREE_IN_LEN(n_counters);
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTER_FREE_OUT_LEN(n_counters);
+
+	for (i = 0; i < n_counters; i++) {
+		MCDI_IN_SET_INDEXED_DWORD(req,
+		    MAE_COUNTER_FREE_IN_FREE_COUNTER_ID, i, counter_ids[i]);
+	}
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_COUNTER_FREE_OUT_LEN(n_counters)) {
+		/*
+		 * The MCDI returns the IDs of freed counters in the out buffer.
+		 * It can fail to free some of the counters. Ensure that all
+		 * counters are freed for the simplicity of the wrapper.
+		 */
+		rc = EFAULT;
+		goto fail3;
+	}
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
 	return (rc);
 }
 

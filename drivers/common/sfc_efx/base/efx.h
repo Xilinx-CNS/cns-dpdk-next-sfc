@@ -4526,6 +4526,20 @@ efx_mae_action_set_alloc(
 
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
+efx_mae_counters_alloc(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__out_ecount(n_counters)	uint32_t *counters);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_counters_free(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__in_ecount(n_counters)		uint32_t *counter_ids);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
 efx_mae_action_set_free(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_aset_id_t *aset_idp);
