@@ -73,6 +73,7 @@ SFC EFX PMD has support for:
 
 - SR-IOV PF
 
+- Port representors (see :ref: switch_representation)
 
 Non-supported Features
 ----------------------
@@ -370,6 +371,14 @@ boolean parameters value.
   software virtual switch (for example, Open vSwtich) makes the decision.
   Software virtual switch may install MAE rules to pass established traffic
   flows via hardware and offload software datapath as the result.
+
+- ``representor`` parameter [list]
+
+  Instantiate port representor Ethernet devices for specified Virtual
+  Functions list.
+
+  It is a standard parameter whose format is described in
+  :ref:`ethernet_device_standard_device_arguments`.
 
 - ``rx_datapath`` [auto|efx|ef10|ef10_esps] (default **auto**)
 

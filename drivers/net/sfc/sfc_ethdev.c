@@ -28,6 +28,7 @@
 #include "sfc_flow.h"
 #include "sfc_dp.h"
 #include "sfc_dp_rx.h"
+#include "sfc_repr.h"
 
 uint32_t sfc_logtype_driver;
 
@@ -2229,7 +2230,7 @@ fail_kvargs:
 }
 
 static int
-sfc_eth_dev_init(struct rte_eth_dev *dev)
+sfc_eth_dev_init(struct rte_eth_dev *dev, __rte_unused void *init_params)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
@@ -2406,8 +2407,40 @@ static const struct rte_pci_id pci_id_sfc_efx_map[] = {
 static int sfc_eth_dev_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct rte_pci_device *pci_dev)
 {
-	return rte_eth_dev_pci_generic_probe(pci_dev,
-		sizeof(struct sfc_adapter_shared), sfc_eth_dev_init);
+	struct rte_eth_devargs eth_da = { .nb_representor_ports = 0 };
+	struct rte_eth_dev *dev;
+	struct sfc_adapter *sa;
+	unsigned int i;
+	int rc;
+
+	if (pci_dev->device.devargs != NULL) {
+		rc = rte_eth_devargs_parse(pci_dev->device.devargs->args,
+					   &eth_da);
+		if (rc != 0)
+			return rc;
+	}
+
+	rc = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
+				sizeof(struct sfc_adapter_shared),
+				eth_dev_pci_specific_init, pci_dev,
+				sfc_eth_dev_init, NULL);
+	if (rc != 0)
+		return rc;
+
+	dev = rte_eth_dev_allocated(pci_dev->device.name);
+	if (dev == NULL)
+		return -ENODEV;
+
+	sa = sfc_adapter_by_eth_dev(dev);
+
+	for (i = 0; i < eth_da.nb_representor_ports; ++i) {
+		rc = sfc_repr_create(dev, eth_da.representor_ports[i]);
+		if (rc != 0)
+			sfc_err(sa, "cannot create representor %u: %s - ignore",
+				eth_da.representor_ports[i], rte_strerror(-rc));
+	}
+
+	return 0;
 }
 
 static int sfc_eth_dev_pci_remove(struct rte_pci_device *pci_dev)
