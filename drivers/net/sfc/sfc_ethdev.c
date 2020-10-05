@@ -28,6 +28,7 @@
 #include "sfc_flow.h"
 #include "sfc_dp.h"
 #include "sfc_dp_rx.h"
+#include "sfc_repr.h"
 
 uint32_t sfc_logtype_driver;
 
@@ -1880,6 +1881,10 @@ static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.pool_ops_supported		= sfc_pool_ops_supported,
 };
 
+struct sfc_ethdev_init_data {
+	uint16_t		nb_representors;
+};
+
 /**
  * Duplicate a string in potentially shared memory required for
  * multi-process support.
@@ -2161,7 +2166,7 @@ sfc_register_dp(void)
 }
 
 static int
-sfc_parse_switch_mode(struct sfc_adapter *sa)
+sfc_parse_switch_mode(struct sfc_adapter *sa, bool has_representors)
 {
 	const char *switch_mode = NULL;
 	int rc;
@@ -2173,9 +2178,9 @@ sfc_parse_switch_mode(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_kvargs;
 
-	/* Check representors when supported */
-	if (switch_mode == NULL ||
-	    strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_LEGACY) == 0) {
+	if (switch_mode == NULL) {
+		sa->switchdev = has_representors;
+	} else if (strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_LEGACY) == 0) {
 		sa->switchdev = false;
 	} else if (strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_SWITCHDEV) == 0) {
 		sa->switchdev = true;
@@ -2196,10 +2201,11 @@ fail_kvargs:
 }
 
 static int
-sfc_eth_dev_init(struct rte_eth_dev *dev)
+sfc_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
+	struct sfc_ethdev_init_data *init_data = init_params;
 	uint32_t logtype_main;
 	struct sfc_adapter *sa;
 	int rc;
@@ -2280,7 +2286,7 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 	sfc_adapter_lock_init(sa);
 	sfc_adapter_lock(sa);
 
-	rc = sfc_parse_switch_mode(sa);
+	rc = sfc_parse_switch_mode(sa, init_data->nb_representors > 0);
 	if (rc != 0)
 		goto fail_switch_mode;
 
@@ -2374,8 +2380,65 @@ static const struct rte_pci_id pci_id_sfc_efx_map[] = {
 static int sfc_eth_dev_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	struct rte_pci_device *pci_dev)
 {
-	return rte_eth_dev_pci_generic_probe(pci_dev,
-		sizeof(struct sfc_adapter_shared), sfc_eth_dev_init);
+	struct rte_eth_devargs eth_da = { .nb_representor_ports = 0 };
+	struct sfc_ethdev_init_data init_data;
+	struct rte_eth_dev *dev;
+	struct sfc_adapter *sa;
+	unsigned int i;
+	int rc;
+
+	if (pci_dev->device.devargs != NULL) {
+		rc = rte_eth_devargs_parse(pci_dev->device.devargs->args,
+					   &eth_da);
+		if (rc != 0)
+			return rc;
+
+		init_data.nb_representors = eth_da.nb_representor_ports;
+	}
+
+	rc = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
+				sizeof(struct sfc_adapter_shared),
+				eth_dev_pci_specific_init, pci_dev,
+				sfc_eth_dev_init, &init_data);
+	if (rc != 0)
+		return rc;
+
+	dev = rte_eth_dev_allocated(pci_dev->device.name);
+	if (dev == NULL)
+		return -ENODEV;
+
+	sa = sfc_adapter_by_eth_dev(dev);
+
+	if (eth_da.nb_representor_ports > 0 &&
+	    (!sa->switchdev ||
+	     !sfc_repr_supported(sfc_sa2shared(sa)))) {
+		sfc_err(sa, "cannot create representors: unsupported");
+		return -ENOTSUP;
+	}
+
+	for (i = 0; i < eth_da.nb_representor_ports; ++i) {
+		const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+		efx_mport_sel_t mport_sel;
+
+
+		rc = efx_mae_mport_by_pcie_function(encp->enc_pf,
+						    eth_da.representor_ports[i],
+						    &mport_sel);
+		if (rc != 0) {
+			sfc_err(sa,
+				"failed to get representor m-port: %s - ignore",
+				rte_strerror(-rc));
+			continue;
+		}
+
+		rc = sfc_repr_create(dev, eth_da.representor_ports[i],
+				     sa->mae.switch_domain_id, &mport_sel);
+		if (rc != 0)
+			sfc_err(sa, "cannot create representor %u: %s - ignore",
+				eth_da.representor_ports[i], rte_strerror(-rc));
+	}
+
+	return 0;
 }
 
 static int sfc_eth_dev_pci_remove(struct rte_pci_device *pci_dev)
