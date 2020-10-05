@@ -127,10 +127,13 @@ struct sfc_mae_counter_registry {
 	uint32_t			service_id;
 };
 
+/** MAE rules used for forwarding port representor traffic (one for each VF) */
+#define SFC_MAE_NB_REPR_RULES_MAX	(64)
 /** Rules to forward traffic from PHY port to PF and from PF to PHY port */
 #define SFC_MAE_NB_SWITCHDEV_RULES	(2)
 /** Maximum required internal MAE rules */
-#define SFC_MAE_NB_RULES_MAX		(SFC_MAE_NB_SWITCHDEV_RULES)
+#define SFC_MAE_NB_RULES_MAX		(SFC_MAE_NB_SWITCHDEV_RULES + \
+					 SFC_MAE_NB_REPR_RULES_MAX)
 
 struct sfc_mae_rule {
 	efx_mae_match_spec_t		*spec;

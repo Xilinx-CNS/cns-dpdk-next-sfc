@@ -37,6 +37,9 @@ int sfc_repr_proxy_add_txq(struct sfc_adapter *pf_sa, uint16_t repr_id,
 void sfc_repr_proxy_del_txq(struct sfc_adapter *pf_sa, uint16_t repr_id,
 			    uint16_t queue_id);
 
+int sfc_repr_proxy_start_id(struct sfc_adapter *pf_sa, uint16_t repr_id);
+void sfc_repr_proxy_stop_id(struct sfc_adapter *pf_sa, uint16_t repr_id);
+
 #ifdef __cplusplus
 }
 #endif

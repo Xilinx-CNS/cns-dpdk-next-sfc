@@ -18,6 +18,8 @@
 #include "efx.h"
 
 #include "sfc_repr.h"
+#include "sfc_flow.h"
+#include "sfc_mae.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,17 +40,28 @@ struct sfc_repr_proxy_txq {
 	struct rte_ring			*ring;
 };
 
+struct sfc_repr_proxy_filter {
+	/*
+	 * 2 filters are required to match all incoming traffic, unknown
+	 * unicast and unknown multicast.
+	 */
+	efx_filter_spec_t specs[2];
+};
+
 struct sfc_repr_proxy_port {
 	uint16_t			rte_port_id;
 	efx_mport_id_t			egress_mport;
 	struct sfc_repr_proxy_rxq	rxq[SFC_REPR_RXQ_MAX];
 	struct sfc_repr_proxy_txq	txq[SFC_REPR_TXQ_MAX];
+	struct sfc_mae_rule		*mae_rule;
+	bool				enabled;
 };
 
 struct sfc_repr_proxy {
 	uint32_t			service_core_id;
 	uint32_t			service_id;
 	efx_mport_id_t			mport_alias;
+	struct sfc_repr_proxy_filter	mport_filter;
 	unsigned int			num_ports;
 	struct sfc_repr_proxy_port	*port;
 };

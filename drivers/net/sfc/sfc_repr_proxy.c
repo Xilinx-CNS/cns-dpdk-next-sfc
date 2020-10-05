@@ -33,6 +33,121 @@ sfc_repr_proxy_routine(void *arg)
 }
 
 static int
+sfc_repr_proxy_mae_rule_insert(struct sfc_adapter *sa, uint16_t repr_id)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	efx_mport_sel_t mport_alias_selector;
+	efx_mport_sel_t mport_vf_selector;
+	struct sfc_mae_rule *mae_rule;
+	int rc;
+
+	rc = efx_mae_mport_by_id(&rp->port[repr_id].egress_mport,
+				 &mport_vf_selector);
+	if (rc != 0)
+		goto fail_get_vf;
+
+	rc = efx_mae_mport_by_id(&rp->mport_alias, &mport_alias_selector);
+	if (rc != 0)
+		goto fail_get_alias;
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &mport_vf_selector,
+						  &mport_alias_selector, -1,
+						  &mae_rule);
+	if (rc != 0)
+		goto fail_rule_add;
+
+	rp->port[repr_id].mae_rule = mae_rule;
+
+	return 0;
+
+fail_rule_add:
+fail_get_alias:
+fail_get_vf:
+	return rc;
+}
+
+static void
+sfc_repr_proxy_mae_rule_remove(struct sfc_adapter *sa, uint16_t repr_id)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_mae_rule *mae_rule = rp->port[repr_id].mae_rule;
+
+	sfc_mae_rule_del(sa, mae_rule);
+}
+
+static int
+sfc_repr_proxy_mport_filter_insert(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_filter *filter = &rp->mport_filter;
+	efx_mport_sel_t mport_alias_selector;
+	static const efx_filter_match_flags_t flags[RTE_DIM(filter->specs)] = {
+		EFX_FILTER_MATCH_UNKNOWN_UCAST_DST,
+		EFX_FILTER_MATCH_UNKNOWN_MCAST_DST };
+	unsigned int i;
+	int rc;
+
+	rc = efx_mae_mport_by_id(&rp->mport_alias, &mport_alias_selector);
+	if (rc != 0)
+		goto fail_get_selector;
+
+	for (i = 0; i < RTE_DIM(filter->specs); i++) {
+		memset(&filter->specs[i], 0, sizeof(filter->specs[0]));
+		filter->specs[i].efs_priority = EFX_FILTER_PRI_MANUAL;
+		filter->specs[i].efs_flags = EFX_FILTER_FLAG_RX;
+		/* FIXME: populate RxQ index */
+		filter->specs[i].efs_match_flags = flags[i];
+		filter->specs[i].efs_ingress_mport = mport_alias_selector.sel;
+		filter->specs[i].efs_match_flags |= EFX_FILTER_MATCH_MPORT;
+
+		rc = efx_filter_insert(sa->nic, &filter->specs[i]);
+		if (rc != 0)
+			goto fail_insert;
+	}
+
+	return 0;
+
+fail_insert:
+	while (i-- > 0)
+		efx_filter_remove(sa->nic, &filter->specs[i]);
+
+fail_get_selector:
+	return rc;
+}
+
+static void
+sfc_repr_proxy_mport_filter_remove(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_filter *filter = &rp->mport_filter;
+	unsigned int i;
+
+	for (i = 0; i < RTE_DIM(filter->specs); i++)
+		efx_filter_remove(sa->nic, &filter->specs[i]);
+}
+
+static int
+sfc_repr_proxy_filter_insert(struct sfc_adapter *sa, uint16_t repr_id)
+{
+	int rc;
+
+	rc = sfc_repr_proxy_mae_rule_insert(sa, repr_id);
+	if (rc != 0)
+		goto fail_mae_rule_insert;
+
+	return 0;
+
+fail_mae_rule_insert:
+	return rc;
+}
+
+static void
+sfc_repr_proxy_filter_remove(struct sfc_adapter *sa, uint16_t repr_id)
+{
+	sfc_repr_proxy_mae_rule_remove(sa, repr_id);
+}
+
+static int
 sfc_repr_proxy_ports_init(struct sfc_adapter *sa)
 {
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
@@ -192,18 +307,56 @@ sfc_repr_proxy_detach(struct sfc_adapter *sa)
 	sfc_repr_proxy_port_fini(sa);
 }
 
+static int
+sfc_repr_proxy_do_start_id(struct sfc_adapter *sa, uint16_t repr_id)
+{
+	int rc;
+
+	rc = sfc_repr_proxy_filter_insert(sa, repr_id);
+	if (rc != 0)
+		goto fail_filter_insert;
+
+	return 0;
+
+fail_filter_insert:
+	return rc;
+}
+
+static void
+sfc_repr_proxy_do_stop_id(struct sfc_adapter *sa, uint16_t repr_id)
+{
+	sfc_repr_proxy_filter_remove(sa, repr_id);
+}
+
+static bool
+sfc_repr_proxy_port_enabled(struct sfc_repr_proxy_port *port)
+{
+	return port->rte_port_id != RTE_MAX_ETHPORTS && port->enabled;
+}
+
+static bool
+sfc_repr_proxy_ports_disabled(struct sfc_repr_proxy *rp)
+{
+	unsigned int i;
+
+	for (i = 0; i < rp->num_ports; i++) {
+		if (sfc_repr_proxy_port_enabled(&rp->port[i]))
+			break;
+	}
+
+	return i == rp->num_ports;
+}
+
 int
 sfc_repr_proxy_start(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	unsigned int port_i;
 	int rc;
 
-	/*
-	 * The condition to start the proxy is insufficient. It will be
-	 * complemented with representor port start/stop support.
-	 */
-	if (!sfc_repr_supported(sas))
+	/* Representor proxy is not started when no representors are started */
+	if (!sfc_repr_supported(sas) || sfc_repr_proxy_ports_disabled(rp))
 		return 0;
 
 	/* Service core may be in "stopped" state, start it */
@@ -233,7 +386,30 @@ sfc_repr_proxy_start(struct sfc_adapter *sa)
 			rte_strerror(rc));
 		goto fail_runstate_set;
 	}
+
+	for (port_i = 0; port_i < rp->num_ports; port_i++) {
+		if (!sfc_repr_proxy_port_enabled(&rp->port[port_i]))
+			continue;
+
+		rc = sfc_repr_proxy_do_start_id(sa, port_i);
+		if (rc != 0)
+			goto fail_start_id;
+	}
+
+	rc = sfc_repr_proxy_mport_filter_insert(sa);
+	if (rc != 0)
+		goto fail_mport_filter_insert;
+
 	return 0;
+
+fail_mport_filter_insert:
+fail_start_id:
+	while (port_i-- > 0) {
+		if (sfc_repr_proxy_port_enabled(&rp->port[port_i]))
+			sfc_repr_proxy_do_stop_id(sa, port_i);
+	}
+
+	rte_service_runstate_set(rp->service_id, 0);
 
 fail_runstate_set:
 	rte_service_component_runstate_set(rp->service_id, 0);
@@ -250,10 +426,20 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	unsigned int i;
 	int rc;
 
-	if (!sfc_repr_supported(sas))
+	if (!sfc_repr_supported(sas) || sfc_repr_proxy_ports_disabled(rp))
 		return;
+
+	for (i = 0; i < rp->num_ports; i++) {
+		if (!sfc_repr_proxy_port_enabled(&rp->port[i]))
+			continue;
+
+		sfc_repr_proxy_do_stop_id(sa, i);
+	}
+
+	sfc_repr_proxy_mport_filter_remove(sa);
 
 	rc = rte_service_runstate_set(rp->service_id, 0);
 	if (rc < 0) {
@@ -352,4 +538,74 @@ sfc_repr_proxy_del_txq(struct sfc_adapter *pf_sa, uint16_t repr_id,
 	struct sfc_repr_proxy_txq *txq = &port->txq[queue_id];
 
 	txq->ring = NULL;
+}
+
+int
+sfc_repr_proxy_start_id(struct sfc_adapter *pf_sa, uint16_t repr_id)
+{
+	struct sfc_repr_proxy *rp = sfc_repr_proxy_by_pf_sa(pf_sa);
+	struct sfc_repr_proxy_port *port = &rp->port[repr_id];
+	bool proxy_start_required = false;
+	int rc;
+
+	if (port->enabled)
+		return EALREADY;
+
+	if (pf_sa->state == SFC_ADAPTER_STARTED) {
+		if (sfc_repr_proxy_ports_disabled(rp)) {
+			proxy_start_required = true;
+		} else {
+			rc = sfc_repr_proxy_do_start_id(pf_sa, repr_id);
+			if (rc != 0)
+				goto fail_start_id;
+		}
+	}
+
+	port->enabled = true;
+
+	if (proxy_start_required) {
+		rc = sfc_repr_proxy_start(pf_sa);
+		if (rc != 0)
+			goto fail_proxy_start;
+	}
+
+	return 0;
+
+fail_proxy_start:
+	port->enabled = false;
+
+fail_start_id:
+	return rc;
+}
+
+void
+sfc_repr_proxy_stop_id(struct sfc_adapter *pf_sa, uint16_t repr_id)
+{
+	struct sfc_repr_proxy *rp = sfc_repr_proxy_by_pf_sa(pf_sa);
+	struct sfc_repr_proxy_port *port = &rp->port[repr_id];
+	unsigned int i;
+
+	if (!port->enabled)
+		return;
+
+	if (pf_sa->state == SFC_ADAPTER_STARTED) {
+		bool last_enabled = true;
+
+		for (i = 0; i < rp->num_ports; i++) {
+			if (i == repr_id)
+				continue;
+
+			if (sfc_repr_proxy_port_enabled(&rp->port[i])) {
+				last_enabled = false;
+				break;
+			}
+		}
+
+		if (last_enabled)
+			sfc_repr_proxy_stop(pf_sa);
+		else
+			sfc_repr_proxy_do_stop_id(pf_sa, repr_id);
+	}
+
+	port->enabled = false;
 }
