@@ -29,6 +29,30 @@ sfc_mae_assign_entity_mport(struct sfc_adapter *sa,
 					      mportp);
 }
 
+static int
+sfc_mae_counter_registry_init(struct sfc_adapter *sa,
+			      struct sfc_mae_counter_registry *registry)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+
+	registry->pending_counter = EFX_MAE_COUNTER_ID_INVALID;
+
+	return sfc_mae_counters_init(&registry->counters, sa->socket_id,
+				     sas->port_id);
+}
+
+static void
+sfc_mae_counter_registry_fini(struct sfc_adapter *sa,
+			      struct sfc_mae_counter_registry *registry)
+{
+	if (registry->pending_counter != EFX_MAE_COUNTER_ID_INVALID) {
+		(void)efx_mae_counters_free(sa->nic, 1,
+					    &registry->pending_counter);
+	}
+
+	sfc_mae_counters_fini(&registry->counters);
+}
+
 int
 sfc_mae_attach(struct sfc_adapter *sa)
 {
@@ -62,6 +86,11 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	rc = efx_mae_get_limits(sa->nic, &limits);
 	if (rc != 0)
 		goto fail_mae_get_limits;
+
+	sfc_log_init(sa, "init MAE counter registry");
+	rc = sfc_mae_counter_registry_init(sa, &mae->counter_registry);
+	if (rc != 0)
+		goto fail_counter_registry_init;
 
 	sfc_log_init(sa, "assign entity MPORT");
 	rc = sfc_mae_assign_entity_mport(sa, &entity_mport);
@@ -111,6 +140,9 @@ fail_mae_allocate_encap_header_buf:
 fail_mae_assign_switch_port:
 fail_mae_assign_switch_domain:
 fail_mae_assign_entity_mport:
+	sfc_mae_counter_registry_fini(sa, &mae->counter_registry);
+
+fail_counter_registry_init:
 fail_mae_get_limits:
 	efx_mae_fini(sa->nic);
 
@@ -141,6 +173,8 @@ sfc_mae_detach(struct sfc_adapter *sa)
 
 	SFC_ASSERT(mae->action_rc_cache.class_handle.h == EFX_MAE_HANDLE_NULL);
 	SFC_ASSERT(mae->action_rc_cache.match_spec == NULL);
+
+	sfc_mae_counter_registry_fini(sa, &mae->counter_registry);
 
 	efx_mae_fini(sa->nic);
 
@@ -562,6 +596,26 @@ sfc_mae_action_set_disable(struct sfc_adapter *sa,
 	return 0;
 }
 
+static int
+sfc_mae_counter_remove(struct sfc_adapter *sa, uint32_t mae_counter_id)
+{
+	int rc;
+	uint32_t id_to_free;
+
+	if (mae_counter_id == EFX_MAE_COUNTER_ID_INVALID)
+		return 0;
+
+	rc = sfc_mae_counter_del(&sa->mae.counter_registry.counters,
+				 mae_counter_id, &id_to_free);
+	if (rc != 0)
+		return rc;
+
+	if (id_to_free != EFX_MAE_COUNTER_ID_INVALID)
+		(void)efx_mae_counters_free(sa->nic, 1, &id_to_free);
+
+	return 0;
+}
+
 void
 sfc_mae_flow_cleanup(struct sfc_adapter *sa,
 		     struct rte_flow *flow)
@@ -589,6 +643,8 @@ sfc_mae_flow_cleanup(struct sfc_adapter *sa,
 
 	if (spec_mae->match_spec != NULL)
 		efx_mae_match_spec_fini(sa->nic, spec_mae->match_spec);
+
+	sfc_mae_counter_remove(sa, spec_mae->counter_id);
 }
 
 static int
@@ -2280,6 +2336,60 @@ sfc_mae_rule_parse_action_mark(const struct rte_flow_action_mark *conf,
 }
 
 static int
+sfc_mae_rule_parse_action_count(struct sfc_adapter *sa,
+				const struct rte_flow_action_count *conf,
+				uint32_t *counter_id,
+				efx_mae_actions_t *spec)
+{
+	struct sfc_mae_counter_registry *counter_registry =
+		&sa->mae.counter_registry;
+	int pending_counter_rc = 0;
+	efx_counter_t mae_id;
+	int rc;
+
+	/*
+	 * Always try to allocate pending counter if it is not already present.
+	 * It may or may not be consumed by counter add operation.
+	 */
+	if (counter_registry->pending_counter == EFX_MAE_COUNTER_ID_INVALID) {
+		pending_counter_rc = efx_mae_counters_alloc(sa->nic, 1,
+				&counter_registry->pending_counter);
+		/* Do not fail since counter add may not need a new counter */
+		if (pending_counter_rc != 0) {
+			counter_registry->pending_counter =
+				EFX_MAE_COUNTER_ID_INVALID;
+		}
+	}
+
+	rc = sfc_mae_counter_add(&counter_registry->counters, conf->shared,
+				 conf->id, counter_registry->pending_counter,
+				 &mae_id.id);
+	if (rc != 0)
+		goto fail_counter_add;
+
+	rc = efx_mae_action_set_populate_count(spec, &mae_id);
+	if (rc != 0)
+		goto fail_populate_count;
+
+	/* Check if passed counter was consumed by the add operation */
+	if (mae_id.id == counter_registry->pending_counter)
+		counter_registry->pending_counter = EFX_MAE_COUNTER_ID_INVALID;
+
+	*counter_id = mae_id.id;
+
+	return 0;
+
+fail_populate_count:
+	sfc_mae_counter_remove(sa, mae_id.id);
+
+fail_counter_add:
+	sfc_log_init(sa, "failed %d", rc);
+
+	return rc;
+}
+
+
+static int
 sfc_mae_rule_parse_action_phy_port(const struct rte_flow_action_phy_port *conf,
 				   efx_mae_actions_t *spec)
 {
@@ -2343,6 +2453,7 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 			  const struct rte_flow_action *action,
 			  struct sfc_mae_actions_bundle *bundle,
 			  efx_mae_actions_t *spec,
+			  uint32_t *counter_id,
 			  struct rte_flow_error *error)
 {
 	int rc = 0;
@@ -2373,6 +2484,12 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 				       bundle->actions_mask);
 		rc = sfc_mae_rule_parse_action_vxlan_encap(sa, action->conf,
 							   spec);
+		break;
+	case RTE_FLOW_ACTION_TYPE_COUNT:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_COUNT,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_count(sa, action->conf,
+						     counter_id, spec);
 		break;
 	case RTE_FLOW_ACTION_TYPE_FLAG:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_FLAG,
@@ -2453,7 +2570,7 @@ out:
 int
 sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			   const struct rte_flow_action actions[],
-			   struct sfc_mae_action_set **action_setp,
+			   struct sfc_flow_spec_mae *spec_mae,
 			   struct rte_flow_error *error)
 {
 	struct sfc_mae_encap_header *encap_header = NULL;
@@ -2462,6 +2579,8 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	efx_mae_actions_t *spec;
 	struct sfc_mae *mae = &sa->mae;
 	int rc;
+
+	spec_mae->counter_id = EFX_MAE_COUNTER_ID_INVALID;
 
 	if (actions == NULL) {
 		return rte_flow_error_set(error, EINVAL,
@@ -2479,8 +2598,8 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 		if (rc != 0)
 			goto fail_rule_parse_action;
 
-		rc = sfc_mae_rule_parse_action(sa, action, &bundle,
-					       spec, error);
+		rc = sfc_mae_rule_parse_action(sa, action, &bundle, spec,
+					       &spec_mae->counter_id, error);
 		if (rc != 0)
 			goto fail_rule_parse_action;
 	}
@@ -2493,15 +2612,18 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_process_encap_header;
 
-	*action_setp = sfc_mae_action_set_attach(mae, encap_header, spec);
-	if (*action_setp != NULL) {
+	spec_mae->action_set = sfc_mae_action_set_attach(mae, encap_header,
+							 spec);
+	if (spec_mae->action_set != NULL) {
 		if (encap_header != NULL)
 			sfc_mae_encap_header_del(sa, encap_header);
+
 		efx_mae_action_set_spec_fini(sa->nic, spec);
 		return 0;
 	}
 
-	rc = sfc_mae_action_set_add(mae, encap_header, spec, action_setp);
+	rc = sfc_mae_action_set_add(mae, encap_header, spec,
+				    &spec_mae->action_set);
 	if (rc != 0)
 		goto fail_action_set_add;
 
@@ -2513,6 +2635,7 @@ fail_action_set_add:
 
 fail_process_encap_header:
 fail_rule_parse_action:
+	sfc_mae_counter_remove(sa, spec_mae->counter_id);
 	efx_mae_action_set_spec_fini(sa->nic, spec);
 
 fail_action_set_spec_init:
@@ -2713,6 +2836,12 @@ sfc_mae_flow_insert(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_action_set_enable;
 
+	if (spec_mae->counter_id != EFX_MAE_COUNTER_ID_INVALID) {
+		rc = sfc_mae_count_start(sa);
+		if (rc != 0)
+			goto fail_mae_count_start;
+	}
+
 	rc = efx_mae_action_rule_insert(sa->nic, spec_mae->match_spec,
 					NULL, &fw_rsrc->aset_id,
 					&spec_mae->rule_id);
@@ -2738,6 +2867,7 @@ sfc_mae_flow_insert(struct sfc_adapter *sa,
 	return 0;
 
 fail_action_rule_insert:
+fail_mae_count_start:
 	(void)sfc_mae_action_set_disable(sa, action_set);
 
 fail_action_set_enable:

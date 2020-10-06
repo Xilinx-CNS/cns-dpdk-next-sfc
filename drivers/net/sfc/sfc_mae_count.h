@@ -36,6 +36,19 @@ void sfc_mae_count_rxq_detach(struct sfc_adapter *sa);
 int sfc_mae_count_rxq_init(struct sfc_adapter *sa);
 void sfc_mae_count_rxq_fini(struct sfc_adapter *sa);
 
+int sfc_mae_counters_init(struct sfc_mae_counters *counters, int socket_id,
+			  uint16_t port_id);
+void sfc_mae_counters_fini(struct sfc_mae_counters *counters);
+int sfc_mae_counter_add(struct sfc_mae_counters *counters, bool shared,
+			uint32_t rte_id, uint32_t pending_counter,
+			uint32_t *added_counter_id);
+int sfc_mae_counter_del(struct sfc_mae_counters *counters,
+			uint32_t mae_counter_id,
+			uint32_t *counter_id_to_free);
+
+int sfc_mae_count_start(struct sfc_adapter *sa);
+void sfc_mae_count_stop(struct sfc_adapter *sa);
+
 #ifdef __cplusplus
 }
 #endif

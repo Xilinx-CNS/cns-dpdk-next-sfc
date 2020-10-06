@@ -75,6 +75,13 @@ struct sfc_flow_spec_mae {
 	struct sfc_mae_action_set	*action_set;
 	/* Firmware-allocated rule ID */
 	efx_mae_rule_id_t		rule_id;
+	/* Explicitly registered class */
+	efx_mae_rc_handle_t		rule_class;
+	/*
+	 * ID of a counter associated with a rule.
+	 * EFX_MAE_COUNTER_ID_INVALID indicates that no counter is associated.
+	 */
+	uint32_t			counter_id;
 };
 
 /* Flow specification */

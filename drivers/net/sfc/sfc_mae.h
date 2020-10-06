@@ -84,6 +84,49 @@ struct sfc_mae_rc_cache {
 	efx_mae_rc_handle_t		class_handle;
 };
 
+/** Counter collection entry */
+struct sfc_mae_counter {
+	bool				shared;
+	unsigned int			refcnt;
+	uint32_t			rte_id;
+	uint64_t			hits;
+	uint64_t			bytes;
+};
+
+struct sfc_mae_counters {
+	/** Lock acquired every time the counter collection is accessed */
+	rte_spinlock_t			lock;
+	/** Collection of all counters */
+	struct rte_hash			*hash_table;
+};
+
+struct sfc_mae_counter_registry {
+	/* Common counter information */
+	/** Counters collection */
+	struct sfc_mae_counters		counters;
+
+	/* Information used by counter update service */
+	/** Callback to get packets from RxQ */
+	eth_rx_burst_t			rx_pkt_burst;
+	/** Data for the callback to get packets */
+	struct sfc_dp_rxq		*rx_dp;
+	/** Number of buffers pushed to the RxQ */
+	unsigned int			pushed_buffers;
+	/** Are credits used by counter stream */
+	bool				use_credits;
+
+	/* Information used by configuration routines */
+	/**
+	 * May contain the next counter ID to be assigned to a flow rule.
+	 * Required by counter add operation.
+	 */
+	uint32_t			pending_counter;
+	/** Counter service core ID */
+	uint32_t			service_core_id;
+	/** Counter service ID */
+	uint32_t			service_id;
+};
+
 struct sfc_mae {
 	/** Assigned switch domain identifier */
 	uint16_t			switch_domain_id;
@@ -117,6 +160,8 @@ struct sfc_mae {
 	efx_tunnel_protocol_t		encap_header_type_cur;
 	/** Flag indicating whether counter-only RxQ is running */
 	bool				cnt_rxq_running;
+	/** Counter registry */
+	struct sfc_mae_counter_registry	counter_registry;
 };
 
 struct sfc_adapter;
@@ -240,7 +285,7 @@ void sfc_mae_validation_cache_drop(struct sfc_adapter *sa,
 				   struct sfc_mae_rc_cache *rc_cache);
 int sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			       const struct rte_flow_action actions[],
-			       struct sfc_mae_action_set **action_setp,
+			       struct sfc_flow_spec_mae *spec_mae,
 			       struct rte_flow_error *error);
 sfc_flow_verify_cb_t sfc_mae_flow_verify;
 sfc_flow_insert_cb_t sfc_mae_flow_insert;

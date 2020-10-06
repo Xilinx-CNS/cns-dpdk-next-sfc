@@ -2442,8 +2442,7 @@ sfc_flow_parse_rte_to_mae(struct rte_eth_dev *dev,
 	if (rc != 0)
 		return rc;
 
-	rc = sfc_mae_rule_parse_actions(sa, actions, &spec_mae->action_set,
-					error);
+	rc = sfc_mae_rule_parse_actions(sa, actions, spec_mae, error);
 	if (rc != 0)
 		return rc;
 
@@ -2787,6 +2786,12 @@ sfc_flow_stop(struct sfc_adapter *sa)
 
 	sfc_mae_validation_cache_drop(sa, &mae->outer_rc_cache);
 	sfc_mae_validation_cache_drop(sa, &mae->action_rc_cache);
+
+	/*
+	 * MAE counter service is not stopped on flow rule remove to avoid
+	 * extra work. Make sure that it is stopped here.
+	 */
+	sfc_mae_count_stop(sa);
 }
 
 int
