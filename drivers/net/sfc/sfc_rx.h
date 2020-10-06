@@ -129,6 +129,7 @@ void sfc_rx_close(struct sfc_adapter *sa);
 int sfc_rx_start(struct sfc_adapter *sa);
 void sfc_rx_stop(struct sfc_adapter *sa);
 
+int sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int rxq_index);
 int sfc_rx_qinit(struct sfc_adapter *sa, unsigned int rx_queue_id,
 		 uint16_t nb_rx_desc, unsigned int socket_id,
 		 const struct rte_eth_rxconf *rx_conf,

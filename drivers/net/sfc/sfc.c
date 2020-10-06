@@ -20,6 +20,7 @@
 #include "sfc_log.h"
 #include "sfc_ev.h"
 #include "sfc_rx.h"
+#include "sfc_mae_count.h"
 #include "sfc_tx.h"
 #include "sfc_kvargs.h"
 #include "sfc_tweak.h"
@@ -174,6 +175,7 @@ static int
 sfc_estimate_resource_limits(struct sfc_adapter *sa)
 {
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
 	efx_drv_limits_t limits;
 	int rc;
 	uint32_t evq_allocated;
@@ -239,6 +241,14 @@ sfc_estimate_resource_limits(struct sfc_adapter *sa)
 	SFC_ASSERT(evq_allocated > 0);
 	evq_allocated--;
 
+	if (encp->enc_mae_supported && rxq_allocated > 1 && evq_allocated > 1) {
+		rxq_allocated--;
+		evq_allocated--;
+		sas->cnt_rxq_supported = true;
+	} else {
+		sas->cnt_rxq_supported = false;
+	}
+
 	/* Right now we use separate EVQ for Rx and Tx */
 	sa->rxq_max = MIN(rxq_allocated, evq_allocated / 2);
 	sa->txq_max = MIN(txq_allocated, evq_allocated - sa->rxq_max);
@@ -256,14 +266,16 @@ static int
 sfc_set_drv_limits(struct sfc_adapter *sa)
 {
 	const struct rte_eth_dev_data *data = sa->eth_dev->data;
+	uint32_t rxq_reserved = sfc_rxq_reserved(sfc_sa2shared(sa));
 	efx_drv_limits_t lim;
 
 	memset(&lim, 0, sizeof(lim));
 
 	/* Limits are strict since take into account initial estimation */
 	lim.edl_min_evq_count = lim.edl_max_evq_count =
-		1 + data->nb_rx_queues + data->nb_tx_queues;
-	lim.edl_min_rxq_count = lim.edl_max_rxq_count = data->nb_rx_queues;
+		1 + data->nb_rx_queues + data->nb_tx_queues + rxq_reserved;
+	lim.edl_min_rxq_count = lim.edl_max_rxq_count =
+		data->nb_rx_queues + rxq_reserved;
 	lim.edl_min_txq_count = lim.edl_max_txq_count = data->nb_tx_queues;
 
 	return efx_nic_set_drv_limits(sa->nic, &lim);
@@ -857,6 +869,10 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_filter_attach;
 
+	rc = sfc_mae_count_rxq_attach(sa);
+	if (rc != 0)
+		goto fail_mae_count_rxq_attach;
+
 	rc = sfc_mae_attach(sa);
 	if (rc != 0)
 		goto fail_mae_attach;
@@ -885,6 +901,9 @@ fail_sriov_vswitch_create:
 	sfc_mae_detach(sa);
 
 fail_mae_attach:
+	sfc_mae_count_rxq_detach(sa);
+
+fail_mae_count_rxq_attach:
 	sfc_filter_detach(sa);
 
 fail_filter_attach:
@@ -926,6 +945,7 @@ sfc_detach(struct sfc_adapter *sa)
 	sfc_flow_fini(sa);
 
 	sfc_mae_detach(sa);
+	sfc_mae_count_rxq_detach(sa);
 	sfc_filter_detach(sa);
 	sfc_rss_detach(sa);
 	sfc_port_detach(sa);

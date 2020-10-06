@@ -115,6 +115,8 @@ struct sfc_mae {
 	size_t				encap_header_size_cur;
 	/** Current encap. header type */
 	efx_tunnel_protocol_t		encap_header_type_cur;
+	/** Flag indicating whether counter-only RxQ is running */
+	bool				cnt_rxq_running;
 };
 
 struct sfc_adapter;

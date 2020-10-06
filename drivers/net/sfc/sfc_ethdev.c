@@ -1197,7 +1197,6 @@ sfc_rx_queue_info_get(struct rte_eth_dev *dev, uint16_t ethdev_rx_qid,
 		      struct rte_eth_rxq_info *qinfo)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct sfc_rxq_info *rxq_info;
 
 	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, ethdev_rx_qid);
@@ -1322,7 +1321,7 @@ sfc_rx_queue_start(struct rte_eth_dev *dev, uint16_t ethdev_rx_qid)
 	if (rxq_info->state != SFC_RXQ_INITIALIZED)
 		goto fail_not_setup;
 
-	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sa, ethdev_rx_qid);
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, ethdev_rx_qid);
 	rc = sfc_rx_qstart(sa, sw_index);
 	if (rc != 0)
 		goto fail_rx_qstart;
@@ -1353,7 +1352,7 @@ sfc_rx_queue_stop(struct rte_eth_dev *dev, uint16_t ethdev_rx_qid)
 
 	sfc_adapter_lock(sa);
 
-	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sa, ethdev_rx_qid);
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, ethdev_rx_qid);
 	sfc_rx_qstop(sa, sw_index);
 
 	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, ethdev_rx_qid);
