@@ -26,6 +26,7 @@ struct sfc_repr_shared {
 	uint16_t		repr_id;
 	uint16_t		switch_domain_id;
 	uint16_t		switch_port_id;
+	struct rte_eth_stats	stats;
 };
 
 struct sfc_repr_rxq {
@@ -139,15 +140,28 @@ sfc_repr_rx_burst(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_repr_rxq *rxq = rx_queue;
 	void **objs = (void *)&rx_pkts[0];
+	unsigned int n_bytes = 0;
+	unsigned int n_rx;
+	unsigned int i;
 
 	/* mbufs port is already filled correctly by representors proxy */
-	return rte_ring_sc_dequeue_burst(rxq->ring, objs, nb_pkts, NULL);
+	n_rx = rte_ring_sc_dequeue_burst(rxq->ring, objs, nb_pkts, NULL);
+
+	for (i = 0; i < n_rx; i++)
+		n_bytes += rx_pkts[i]->pkt_len;
+
+	rxq->srs->stats.ipackets += n_rx;
+	rxq->srs->stats.ibytes += n_bytes;
+
+	return n_rx;
 }
 
 static uint16_t
 sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_repr_txq *txq = tx_queue;
+	unsigned int n_bytes = 0;
+	unsigned int n_tx;
 	void **objs;
 	uint16_t i;
 
@@ -168,10 +182,19 @@ sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		*RTE_MBUF_DYNFIELD(m, sfc_dp_mport_offset,
 				   typeof(&((efx_mport_id_t *)0)->id)) =
 						txq->egress_mport.id;
+		n_bytes += tx_pkts[i]->pkt_len;
 	}
 
 	objs = (void *)&tx_pkts[0];
-	return rte_ring_sp_enqueue_burst(txq->ring, objs, nb_pkts, NULL);
+	n_tx = rte_ring_sp_enqueue_burst(txq->ring, objs, nb_pkts, NULL);
+
+	for (i = n_tx; i < nb_pkts; ++i)
+		n_bytes -= tx_pkts[i]->pkt_len;
+
+	txq->srs->stats.opackets += n_tx;
+	txq->srs->stats.obytes += n_bytes;
+
+	return n_tx;
 }
 
 static int
@@ -731,6 +754,16 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 	return 0;
 }
 
+static int
+sfc_repr_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
+{
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+
+	*stats = srs->stats;
+
+	return 0;
+}
+
 static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_configure			= sfc_repr_dev_configure,
 	.dev_start			= sfc_repr_dev_start,
@@ -738,6 +771,7 @@ static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_close			= sfc_repr_dev_close,
 	.dev_infos_get			= sfc_repr_dev_infos_get,
 	.link_update			= sfc_repr_dev_link_update,
+	.stats_get			= sfc_repr_stats_get,
 	.rx_queue_setup			= sfc_repr_rx_queue_setup,
 	.rx_queue_release		= sfc_repr_rx_queue_release,
 	.tx_queue_setup			= sfc_repr_tx_queue_setup,
