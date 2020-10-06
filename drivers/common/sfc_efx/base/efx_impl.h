@@ -1763,6 +1763,13 @@ typedef enum efx_mae_action_e {
 	 * However, these enumerants must be kept compactly
 	 * in the end of the enumeration (before DELIVER).
 	 */
+	EFX_MAE_ACTION_COUNT, /*<
+			       * Counter that is associated by that action
+			       * always count bytes of a matched packet *after*
+			       * any of the actions that modify the packet
+			       * length (e.g. VLAN_PUSH) regardless of the
+			       * action order.
+			       */
 	EFX_MAE_ACTION_FLAG,
 	EFX_MAE_ACTION_MARK,
 
@@ -1798,6 +1805,7 @@ typedef struct efx_mae_actions_s {
 	efx_mae_eh_id_t			emass_eh_id;
 	uint32_t			emass_mark_value;
 	efx_mport_sel_t			emass_deliver_mport;
+	uint32_t			emass_counter_id;
 } efx_mae_actions_t;
 
 #endif /* EFSYS_OPT_MAE */

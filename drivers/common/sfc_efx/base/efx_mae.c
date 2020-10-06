@@ -892,11 +892,16 @@ efx_mae_action_set_spec_init(
 	efx_mae_actions_t *spec;
 	efx_rc_t rc;
 
+	EFX_STATIC_ASSERT(EFX_MAE_COUNTER_ID_INVALID ==
+			  MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_NULL);
+
 	EFSYS_KMEM_ALLOC(enp->en_esip, sizeof (*spec), spec);
 	if (spec == NULL) {
 		rc = ENOMEM;
 		goto fail1;
 	}
+
+	spec->emass_counter_id = EFX_MAE_COUNTER_ID_INVALID;
 
 	*specp = spec;
 
@@ -1028,6 +1033,35 @@ fail1:
 }
 
 static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_count(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	if (arg_size != sizeof (spec->emass_counter_id)) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg == NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	memcpy(&spec->emass_counter_id, arg, arg_size);
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
 efx_mae_action_set_add_flag(
 	__in				efx_mae_actions_t *spec,
 	__in				size_t arg_size,
@@ -1132,6 +1166,9 @@ static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
 	[EFX_MAE_ACTION_ENCAP] = {
 		.emad_add = efx_mae_action_set_add_encap
 	},
+	[EFX_MAE_ACTION_COUNT] = {
+		.emad_add = efx_mae_action_set_add_count
+	},
 	[EFX_MAE_ACTION_FLAG] = {
 		.emad_add = efx_mae_action_set_add_flag
 	},
@@ -1147,6 +1184,7 @@ static const uint32_t efx_mae_action_ordered_map =
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
 	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
 	(1U << EFX_MAE_ACTION_ENCAP) |
+	(1U << EFX_MAE_ACTION_COUNT) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK) |
 	(1U << EFX_MAE_ACTION_DELIVER);
@@ -1157,6 +1195,7 @@ static const uint32_t efx_mae_action_ordered_map =
  * strictly ordered actions.
  */
 static const uint32_t efx_mae_action_nonstrict_map =
+	(1U << EFX_MAE_ACTION_COUNT) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK);
 
@@ -1186,6 +1225,7 @@ efx_mae_action_set_spec_populate(
 	    (sizeof (efx_mae_action_repeat_map) * 8));
 
 	EFX_STATIC_ASSERT(EFX_MAE_ACTION_DELIVER + 1 == EFX_MAE_NACTIONS);
+	EFX_STATIC_ASSERT(EFX_MAE_ACTION_COUNT + 1 == EFX_MAE_ACTION_FLAG);
 	EFX_STATIC_ASSERT(EFX_MAE_ACTION_FLAG + 1 == EFX_MAE_ACTION_MARK);
 	EFX_STATIC_ASSERT(EFX_MAE_ACTION_MARK + 1 == EFX_MAE_ACTION_DELIVER);
 
@@ -1288,6 +1328,30 @@ efx_mae_action_set_populate_mark(
 
 	return (efx_mae_action_set_spec_populate(spec,
 	    EFX_MAE_ACTION_MARK, sizeof (mark_value), arg));
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_count(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_counter_t *counter_idp)
+{
+	const uint8_t *arg;
+	efx_rc_t rc;
+
+	if (counter_idp == NULL) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	arg = (const uint8_t *)&counter_idp->id;
+
+	return (efx_mae_action_set_spec_populate(spec, EFX_MAE_ACTION_COUNT,
+						 sizeof (counter_idp->id),
+						 arg));
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
 }
 
 	__checkReturn			efx_rc_t
@@ -1969,8 +2033,6 @@ efx_mae_action_set_alloc(
 	 */
 	MCDI_IN_SET_DWORD(req,
 	    MAE_ACTION_SET_ALLOC_IN_COUNTER_LIST_ID, EFX_MAE_RSRC_ID_INVALID);
-	MCDI_IN_SET_DWORD(req,
-	    MAE_ACTION_SET_ALLOC_IN_COUNTER_ID, EFX_MAE_RSRC_ID_INVALID);
 
 	MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
 	    MAE_ACTION_SET_ALLOC_IN_VLAN_POP, spec->emass_n_vlan_tags_to_pop);
@@ -2010,6 +2072,9 @@ efx_mae_action_set_alloc(
 	}
 
 	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID, eh_id);
+
+	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_COUNTER_ID,
+	    spec->emass_counter_id);
 
 	if ((spec->emass_actions & (1U << EFX_MAE_ACTION_FLAG)) != 0) {
 		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,

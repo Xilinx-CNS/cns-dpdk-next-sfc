@@ -4277,6 +4277,8 @@ typedef struct efx_mport_sel_s {
 
 #define	EFX_MPORT_NULL			(0U)
 
+#define	EFX_MAE_COUNTER_ID_INVALID	EFX_MAE_RSRC_ID_INVALID
+
 /*
  * Get MPORT selector of a physical port.
  *
@@ -4392,6 +4394,16 @@ LIBEFX_API
 extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_encap(
 	__in				efx_mae_actions_t *spec);
+
+typedef struct efx_counter_s {
+	uint32_t id;
+} efx_counter_t;
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_count(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_counter_t *counter_idp);
 
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
