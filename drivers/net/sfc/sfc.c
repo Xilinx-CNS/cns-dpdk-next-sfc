@@ -241,7 +241,8 @@ sfc_estimate_resource_limits(struct sfc_adapter *sa)
 	SFC_ASSERT(evq_allocated > 0);
 	evq_allocated--;
 
-	if (encp->enc_mae_supported && rxq_allocated > 1 && evq_allocated > 1) {
+	if (encp->enc_mae_supported && EFX_PCI_FUNCTION_IS_PF(encp) &&
+	    rxq_allocated > 1 && evq_allocated > 1) {
 		rxq_allocated--;
 		evq_allocated--;
 		sas->cnt_rxq_supported = true;
