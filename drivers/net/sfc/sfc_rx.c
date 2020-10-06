@@ -1158,7 +1158,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	else
 		rxq_info->type = EFX_RXQ_TYPE_DEFAULT;
 
-	rxq_info->type_flags =
+	rxq_info->type_flags |=
 		(offloads & DEV_RX_OFFLOAD_SCATTER) ?
 		EFX_RXQ_FLAG_SCATTER : EFX_RXQ_FLAG_NONE;
 
@@ -1595,7 +1595,8 @@ sfc_rx_stop(struct sfc_adapter *sa)
 }
 
 int
-sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int rxq_index)
+sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int rxq_index,
+		  unsigned int extra_efx_type_flags)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_rxq_info *rxq_info = &sas->rxq_info[rxq_index];
@@ -1606,6 +1607,7 @@ sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int rxq_index)
 	SFC_ASSERT(rte_is_power_of_2(max_entries));
 
 	rxq_info->max_entries = max_entries;
+	rxq_info->type_flags = extra_efx_type_flags;
 
 	return 0;
 }
@@ -1773,7 +1775,7 @@ sfc_rx_configure(struct sfc_adapter *sa)
 
 		sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas,
 							sas->ethdev_rxq_count);
-		rc = sfc_rx_qinit_info(sa, sw_index);
+		rc = sfc_rx_qinit_info(sa, sw_index, 0);
 		if (rc != 0)
 			goto fail_rx_qinit_info;
 
@@ -1786,6 +1788,10 @@ sfc_rx_configure(struct sfc_adapter *sa)
 		rc = sfc_mae_count_rxq_init(sa);
 		if (rc != 0)
 			goto fail_count_rxq_init;
+
+		rc = sfc_repr_proxy_rxq_init(sa);
+		if (rc != 0)
+			goto fail_repr_proxy_rxq_init;
 	}
 
 configure_rss:
@@ -1808,6 +1814,10 @@ configure_rss:
 	return 0;
 
 fail_rx_process_adv_conf_rss:
+	if (!reconfigure)
+		sfc_repr_proxy_rxq_fini(sa);
+
+fail_repr_proxy_rxq_init:
 	if (!reconfigure)
 		sfc_mae_count_rxq_fini(sa);
 
@@ -1836,6 +1846,7 @@ sfc_rx_close(struct sfc_adapter *sa)
 
 	sfc_rx_fini_queues(sa, 0);
 	sfc_mae_count_rxq_fini(sa);
+	sfc_repr_proxy_rxq_fini(sa);
 
 	rss->channels = 0;
 

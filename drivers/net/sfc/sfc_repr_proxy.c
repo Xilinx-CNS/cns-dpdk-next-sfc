@@ -17,6 +17,7 @@
 #include "sfc.h"
 #include "sfc_ev.h"
 #include "sfc_tx.h"
+#include "sfc_rx.h"
 
 static struct sfc_repr_proxy *
 sfc_repr_proxy_by_pf_sa(struct sfc_adapter *pf_sa)
@@ -137,7 +138,6 @@ sfc_repr_proxy_txq_start(struct sfc_adapter *sa)
 {
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
 	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
-	int rc;
 
 	sfc_log_init(sa, "representor TxQ");
 
@@ -152,6 +152,167 @@ sfc_repr_proxy_txq_start(struct sfc_adapter *sa)
 static void
 sfc_repr_proxy_txq_stop(__rte_unused struct sfc_adapter *sa)
 {
+}
+
+static int
+sfc_repr_proxy_rxq_attach(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	char name[RTE_MEMPOOL_NAMESIZE];
+	struct rte_mempool *mp;
+	unsigned int n_elements;
+	unsigned int cache_size;
+	/* The mempool is internal and private area is not required */
+	const uint16_t priv_size = 0;
+	/*
+	 * Elements count is 1 less than the number of descriptors to avoid
+	 * head and tail element collisions.
+	 */
+	const uint16_t data_room_size = RTE_PKTMBUF_HEADROOM +
+		SFC_REPR_PROXY_MPOOL_DATA_ROOM_SIZE;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	/*
+	 * At least one element in the ring is always unused to distinguish
+	 * between empty and full ring cases.
+	 */
+	n_elements = SFC_REPR_PROXY_RX_DESC_COUNT - 1;
+
+	/*
+	 * The cache must have sufficient space to put received buckets
+	 * before they're reused on refill.
+	 */
+	cache_size = rte_align32pow2(SFC_REPR_PROXY_RXQ_REFILL_LEVEL +
+				     SFC_REPR_PROXY_RX_BURST - 1);
+
+	if (snprintf(name, sizeof(name), "repr-rxq-pool-%u", sas->port_id) >=
+	    (int)sizeof(name))
+		return ENAMETOOLONG;
+
+	/*
+	 * It could be single-producer single-consumer ring mempool which
+	 * requires minimal barriers. However, cache size and refill/burst
+	 * policy are aligned, therefore it does not matter which
+	 * mempool backend is chosen since backend is unused in fact.
+	 */
+	mp = rte_pktmbuf_pool_create(name, n_elements, cache_size,
+				     priv_size, data_room_size, sa->socket_id);
+	if (mp == NULL) {
+		rc = rte_errno;
+		goto fail_mp_create;
+	}
+
+	rp->dp_rxq.sw_index = sfc_repr_rxq_sw_index(sas);
+	rp->dp_rxq.mp = mp;
+
+	return 0;
+
+fail_mp_create:
+	sfc_log_init(sa, "failed %d", rc);
+
+	return rc;
+}
+
+static void
+sfc_repr_proxy_rxq_detach(struct sfc_adapter *sa)
+{
+	sfc_log_init(sa, "entry");
+
+	rte_mempool_free(sa->repr_proxy.dp_rxq.mp);
+	sa->repr_proxy.dp_rxq.mp = NULL;
+}
+
+static struct sfc_rxq_info *
+sfc_repr_proxy_rxq_info_get(struct sfc_adapter *sa)
+{
+	return &sfc_sa2shared(sa)->rxq_info[sa->repr_proxy.dp_rxq.sw_index];
+}
+
+int
+sfc_repr_proxy_rxq_init(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	uint16_t nb_rx_desc = SFC_REPR_PROXY_RX_DESC_COUNT;
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_rxq *rxq = &rp->dp_rxq;
+	struct sfc_rxq_info *rxq_info;
+	struct rte_eth_rxconf rxconf = {
+		.rx_free_thresh = SFC_REPR_PROXY_RXQ_REFILL_LEVEL,
+		.rx_drop_en = 1,
+	};
+	int rc;
+
+	if (!sfc_repr_supported(sas))
+		return 0;
+
+	rxq_info = &sas->rxq_info[rxq->sw_index];
+	if (rxq_info->state == SFC_RXQ_INITIALIZED)
+		return 0;
+
+	sfc_log_init(sa, "entry");
+
+	nb_rx_desc = RTE_MIN(nb_rx_desc, sa->rxq_max_entries);
+	nb_rx_desc = RTE_MAX(nb_rx_desc, sa->rxq_min_entries);
+
+	rc = sfc_rx_qinit_info(sa, rxq->sw_index, EFX_RXQ_FLAG_INGRESS_MPORT);
+	if (rc != 0)
+		goto fail_repr_rxq_init_info;
+
+	rc = sfc_rx_qinit(sa, rxq->sw_index, nb_rx_desc, sa->socket_id, &rxconf,
+			  rxq->mp);
+	if (rc != 0)
+		goto fail_repr_rxq_init;
+
+	return 0;
+
+fail_repr_rxq_init:
+fail_repr_rxq_init_info:
+	sfc_log_init(sa, "failed %d", rc);
+
+	return rc;
+}
+
+void
+sfc_repr_proxy_rxq_fini(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_rxq *rxq = &rp->dp_rxq;
+	struct sfc_rxq_info *rxq_info;
+
+	if (!sfc_repr_supported(sas))
+		return;
+
+	rxq_info = &sas->rxq_info[rxq->sw_index];
+	if (rxq_info->state != SFC_RXQ_INITIALIZED)
+		return;
+
+	sfc_rx_qfini(sa, rxq->sw_index);
+}
+
+static int
+sfc_repr_proxy_rxq_start(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_rxq *rxq = &rp->dp_rxq;
+
+	sfc_log_init(sa, "entry");
+
+	rxq->dp = sfc_repr_proxy_rxq_info_get(sa)->dp;
+	rxq->pkt_burst = sa->eth_dev->rx_pkt_burst;
+	rxq->available = 0;
+	rxq->transmitted = 0;
+
+	return 0;
+}
+
+static void
+sfc_repr_proxy_rxq_stop(struct sfc_adapter *sa)
+{
+	sfc_log_init(sa, "entry");
 }
 
 static int
@@ -217,7 +378,7 @@ sfc_repr_proxy_mport_filter_insert(struct sfc_adapter *sa)
 		memset(&filter->specs[i], 0, sizeof(filter->specs[0]));
 		filter->specs[i].efs_priority = EFX_FILTER_PRI_MANUAL;
 		filter->specs[i].efs_flags = EFX_FILTER_FLAG_RX;
-		/* FIXME: populate RxQ index */
+		filter->specs[i].efs_dmaq_id = rp->dp_rxq.sw_index;
 		filter->specs[i].efs_match_flags = flags[i];
 		filter->specs[i].efs_ingress_mport = mport_alias_selector.sel;
 		filter->specs[i].efs_match_flags |= EFX_FILTER_MATCH_MPORT;
@@ -358,6 +519,10 @@ sfc_repr_proxy_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_txq_attach;
 
+	rc = sfc_repr_proxy_rxq_attach(sa);
+	if (rc != 0)
+		goto fail_rxq_attach;
+
 	rc = sfc_repr_proxy_ports_init(sa);
 	if (rc != 0)
 		goto fail_port_init;
@@ -416,6 +581,9 @@ fail_get_service_lcore:
 	sfc_repr_proxy_port_fini(sa);
 
 fail_port_init:
+	sfc_repr_proxy_rxq_detach(sa);
+
+fail_rxq_attach:
 	sfc_repr_proxy_txq_detach(sa);
 
 fail_txq_attach:
@@ -434,6 +602,7 @@ sfc_repr_proxy_detach(struct sfc_adapter *sa)
 	rte_service_map_lcore_set(rp->service_id, rp->service_core_id, 0);
 	rte_service_component_unregister(rp->service_id);
 	sfc_repr_proxy_port_fini(sa);
+	sfc_repr_proxy_rxq_detach(sa);
 	sfc_repr_proxy_txq_detach(sa);
 }
 
@@ -492,6 +661,10 @@ sfc_repr_proxy_start(struct sfc_adapter *sa)
 	rc = sfc_repr_proxy_txq_start(sa);
 	if (rc != 0)
 		goto fail_txq_start;
+
+	rc = sfc_repr_proxy_rxq_start(sa);
+	if (rc != 0)
+		goto fail_rxq_start;
 
 	/* Service core may be in "stopped" state, start it */
 	rc = rte_service_lcore_start(rp->service_core_id);
@@ -552,6 +725,9 @@ fail_component_runstate_set:
 	/* Service lcore may be shared and we never stop it */
 
 fail_start_core:
+	sfc_repr_proxy_rxq_stop(sa);
+
+fail_rxq_start:
 	sfc_repr_proxy_txq_stop(sa);
 
 fail_txq_start:
@@ -606,6 +782,7 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 		rte_delay_ms(1);
 	}
 	sfc_repr_proxy_txq_stop(sa);
+	sfc_repr_proxy_rxq_stop(sa);
 }
 
 int

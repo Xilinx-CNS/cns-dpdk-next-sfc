@@ -109,6 +109,12 @@ sfc_repr_txq_sw_index(const struct sfc_adapter_shared *sas)
 	return sfc_repr_supported(sas) ? 0 : -1;
 }
 
+static inline int
+sfc_repr_rxq_sw_index(const struct sfc_adapter_shared *sas)
+{
+       return sfc_cnt_rxq_sw_index(sas) + sfc_repr_rxq_num(sas);
+}
+
 /*
  * Functions below define event queue to transmit/receive queue and vice
  * versa mapping.

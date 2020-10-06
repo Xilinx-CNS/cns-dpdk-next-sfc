@@ -576,7 +576,7 @@ sfc_mae_count_rxq_init(struct sfc_adapter *sa)
 	nb_rx_desc = RTE_MIN(nb_rx_desc, sa->rxq_max_entries);
 	nb_rx_desc = RTE_MAX(nb_rx_desc, sa->rxq_min_entries);
 
-	rc = sfc_rx_qinit_info(sa, sa->cnt_rxq.rxq_index);
+	rc = sfc_rx_qinit_info(sa, sa->cnt_rxq.rxq_index, 0);
 	if (rc != 0)
 		goto fail_cnt_rxq_init_info;
 
