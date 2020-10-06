@@ -10,6 +10,7 @@
 #include <stdbool.h>
 
 #include <rte_common.h>
+#include <rte_vxlan.h>
 
 #include "efx.h"
 
