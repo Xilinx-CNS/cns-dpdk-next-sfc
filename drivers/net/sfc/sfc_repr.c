@@ -153,6 +153,9 @@ sfc_repr_rx_burst(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 	rxq->srs->stats.ipackets += n_rx;
 	rxq->srs->stats.ibytes += n_bytes;
 
+	if (n_rx != 0)
+		fprintf(stderr, "%s: %d %u packets received\n", __func__, __LINE__, n_rx);
+
 	return n_rx;
 }
 

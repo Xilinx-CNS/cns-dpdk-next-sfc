@@ -96,6 +96,8 @@ sfc_repr_proxy_routine(void *arg)
 		if (rte_ring_sp_enqueue_burst(port->rxq[0].ring, (void **)&m_copy,
 					      1, NULL) == 0)
 			break;
+
+		fprintf(stderr, "%s: %d a packet received\n", __func__, __LINE__);
 	}
 
 	if (rxq->available == rxq->transmitted)
