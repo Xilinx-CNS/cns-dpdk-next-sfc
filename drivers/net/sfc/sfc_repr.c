@@ -268,6 +268,7 @@ sfc_repr_dev_stop(struct rte_eth_dev *dev)
 	sfcr_info(sr, "%s() done", __func__);
 }
 
+#if 0
 static int
 sfc_repr_check_conf(struct sfc_repr *sr, const struct rte_eth_conf *conf)
 {
@@ -329,24 +330,27 @@ sfc_repr_check_conf(struct sfc_repr *sr, const struct rte_eth_conf *conf)
 
 	return rc;
 }
+#endif
 
 
 static int
 sfc_repr_configure(struct sfc_repr *sr, const struct rte_eth_conf *conf)
 {
-	int rc;
+	int rc = 0;
 
 	sfcr_info(sr, "%s() entry", __func__);
-
+#if 0
 	rc = sfc_repr_check_conf(sr, conf);
 	if (rc != 0)
 		goto fail_check_conf;
+#endif
 
 	sr->state = SFC_ADAPTER_CONFIGURED;
 
 	sfcr_info(sr, "%s() done", __func__);
-
+#if 0
 fail_check_conf:
+#endif
 	return rc;
 }
 
