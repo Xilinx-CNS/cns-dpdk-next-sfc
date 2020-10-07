@@ -69,6 +69,7 @@ sfc_repr_proxy_routine(void *arg)
 	for (i = rxq->transmitted; i < rxq->available; i++, rxq->transmitted++) {
 		struct sfc_repr_proxy_port *port = NULL;
 		struct rte_mbuf *m = rxq->rx_pkts[i];
+		struct rte_mbuf *m_copy;
 		efx_mport_id_t mport_id;
 		unsigned int j;
 
@@ -88,8 +89,11 @@ sfc_repr_proxy_routine(void *arg)
 		if (port->rxq[0].ring == NULL)
 			continue;
 
-		m->ol_flags &= ~sfc_dp_mport_override;
-		if (rte_ring_sp_enqueue_burst(port->rxq[0].ring, (void **)&m,
+		m_copy = rte_pktmbuf_copy(m, port->rxq[0].mb_pool, 0, UINT32_MAX);
+		rte_pktmbuf_free(m);
+
+		m_copy->ol_flags &= ~sfc_dp_mport_override;
+		if (rte_ring_sp_enqueue_burst(port->rxq[0].ring, (void **)&m_copy,
 					      1, NULL) == 0)
 			break;
 	}
