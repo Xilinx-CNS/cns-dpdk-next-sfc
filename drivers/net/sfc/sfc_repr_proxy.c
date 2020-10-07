@@ -15,6 +15,8 @@
 #include "sfc_repr_proxy.h"
 #include "sfc_repr_proxy_api.h"
 #include "sfc.h"
+#include "sfc_ev.h"
+#include "sfc_tx.h"
 
 static struct sfc_repr_proxy *
 sfc_repr_proxy_by_pf_sa(struct sfc_adapter *pf_sa)
@@ -26,10 +28,130 @@ static int32_t
 sfc_repr_proxy_routine(void *arg)
 {
 	struct sfc_repr_proxy *rp = arg;
+	unsigned int i;
 
-	/* Representor proxy boilerplate will be here */
+	for (i = 0; i < rp->num_ports; i++) {
+		struct sfc_repr_proxy_port *port = &rp->port[i];
+		struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+
+		/* FIXME: thread safety */
+		if (port->txq[0].ring == NULL)
+			continue;
+
+		if (txq->available < RTE_DIM(txq->tx_pkts)) {
+			txq->available += rte_ring_sc_dequeue_burst(port->txq[0].ring,
+					(void **)(&txq->tx_pkts[txq->available]),
+					RTE_DIM(txq->tx_pkts) - txq->available, NULL);
+			if (txq->available == txq->transmitted)
+				continue;
+		}
+
+		txq->transmitted += txq->pkt_burst(txq->dp,
+				&txq->tx_pkts[txq->transmitted],
+				txq->available - txq->transmitted);
+		if (txq->available == txq->transmitted) {
+			txq->available = 0;
+			txq->transmitted = 0;
+		}
+	}
 
 	return 0;
+}
+
+static struct sfc_txq_info *
+sfc_repr_proxy_txq_info_get(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+
+	return &sas->txq_info[sa->repr_proxy.dp_txq.sw_index];
+}
+
+static int
+sfc_repr_proxy_txq_attach(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+
+	txq->sw_index = sfc_repr_txq_sw_index(sas);
+
+	return 0;
+}
+
+static void
+sfc_repr_proxy_txq_detach(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+
+	txq->sw_index = 0;
+}
+
+int
+sfc_repr_proxy_txq_init(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+	const struct rte_eth_txconf tx_conf = {
+		.tx_free_thresh = SFC_REPR_PROXY_TXQ_REFILL_LEVEL,
+	};
+	struct sfc_txq_info *txq_info;
+
+	if (!sfc_repr_supported(sas))
+		return 0;
+
+	txq_info = &sfc_sa2shared(sa)->txq_info[txq->sw_index];
+	if (txq_info->state == SFC_TXQ_INITIALIZED)
+		return 0;
+
+	sfc_log_init(sa, "representor TxQ");
+
+	sfc_tx_qinit_info(sa, txq->sw_index);
+
+	return sfc_tx_qinit(sa, txq->sw_index,
+			    SFC_REPR_PROXY_TX_DESC_COUNT, sa->socket_id,
+			    &tx_conf);
+}
+
+void
+sfc_repr_proxy_txq_fini(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+	struct sfc_txq_info *txq_info;
+
+	if (!sfc_repr_supported(sas))
+		return;
+
+	txq_info = &sfc_sa2shared(sa)->txq_info[txq->sw_index];
+	if (txq_info->state != SFC_TXQ_INITIALIZED)
+		return;
+
+	sfc_tx_qfini(sa, txq->sw_index);
+}
+
+static int
+sfc_repr_proxy_txq_start(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+	int rc;
+
+	sfc_log_init(sa, "representor TxQ");
+
+	txq->dp = sfc_repr_proxy_txq_info_get(sa)->dp;
+	txq->pkt_burst = sa->eth_dev->tx_pkt_burst;
+	txq->available = 0;
+	txq->transmitted = 0;
+
+	return 0;
+}
+
+static void
+sfc_repr_proxy_txq_stop(__rte_unused struct sfc_adapter *sa)
+{
 }
 
 static int
@@ -232,6 +354,10 @@ sfc_repr_proxy_attach(struct sfc_adapter *sa)
 	if (!sfc_repr_supported(sas))
 		return 0;
 
+	rc = sfc_repr_proxy_txq_attach(sa);
+	if (rc != 0)
+		goto fail_txq_attach;
+
 	rc = sfc_repr_proxy_ports_init(sa);
 	if (rc != 0)
 		goto fail_port_init;
@@ -290,6 +416,9 @@ fail_get_service_lcore:
 	sfc_repr_proxy_port_fini(sa);
 
 fail_port_init:
+	sfc_repr_proxy_txq_detach(sa);
+
+fail_txq_attach:
 	return rc;
 }
 
@@ -305,6 +434,7 @@ sfc_repr_proxy_detach(struct sfc_adapter *sa)
 	rte_service_map_lcore_set(rp->service_id, rp->service_core_id, 0);
 	rte_service_component_unregister(rp->service_id);
 	sfc_repr_proxy_port_fini(sa);
+	sfc_repr_proxy_txq_detach(sa);
 }
 
 static int
@@ -358,6 +488,10 @@ sfc_repr_proxy_start(struct sfc_adapter *sa)
 	/* Representor proxy is not started when no representors are started */
 	if (!sfc_repr_supported(sas) || sfc_repr_proxy_ports_disabled(rp))
 		return 0;
+
+	rc = sfc_repr_proxy_txq_start(sa);
+	if (rc != 0)
+		goto fail_txq_start;
 
 	/* Service core may be in "stopped" state, start it */
 	rc = rte_service_lcore_start(rp->service_core_id);
@@ -418,6 +552,9 @@ fail_component_runstate_set:
 	/* Service lcore may be shared and we never stop it */
 
 fail_start_core:
+	sfc_repr_proxy_txq_stop(sa);
+
+fail_txq_start:
 	return rc;
 }
 
@@ -426,6 +563,7 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	const unsigned int wait_ms_total = 10000;
 	unsigned int i;
 	int rc;
 
@@ -456,6 +594,18 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 	}
 
 	/* Service lcore may be shared and we never stop it */
+
+	/*
+	 * Wait for the representor proxy routine to finish the last iteration.
+	 * Give up on timeout.
+	 */
+	for (i = 0; i < wait_ms_total; i++) {
+		if (rte_service_may_be_active(rp->service_id) == 0)
+			break;
+
+		rte_delay_ms(1);
+	}
+	sfc_repr_proxy_txq_stop(sa);
 }
 
 int

@@ -278,7 +278,7 @@ sfc_tx_qfini(struct sfc_adapter *sa, unsigned int sw_index)
 	txq->evq = NULL;
 }
 
-static int
+int
 sfc_tx_qinit_info(struct sfc_adapter *sa, unsigned int sw_index)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
@@ -360,6 +360,7 @@ sfc_tx_configure(struct sfc_adapter *sa)
 	const unsigned int nb_tx_queues = sa->eth_dev->data->nb_tx_queues;
 	const unsigned int nb_rsvd_tx_queues = sfc_txq_reserved(sas);
 	const unsigned int nb_txq_total = nb_tx_queues + nb_rsvd_tx_queues;
+	bool reconfigure;
 	int rc = 0;
 
 	sfc_log_init(sa, "nb_tx_queues=%u (old %u)",
@@ -383,6 +384,7 @@ sfc_tx_configure(struct sfc_adapter *sa)
 		goto done;
 
 	if (sas->txq_info == NULL) {
+		reconfigure = false;
 		sas->txq_info = rte_calloc_socket("sfc-txqs", nb_txq_total,
 						  sizeof(sas->txq_info[0]), 0,
 						  sa->socket_id);
@@ -400,6 +402,8 @@ sfc_tx_configure(struct sfc_adapter *sa)
 	} else {
 		struct sfc_txq_info *new_txq_info;
 		struct sfc_txq *new_txq_ctrl;
+
+		reconfigure = true;
 
 		if (nb_tx_queues < sas->ethdev_txq_count)
 			sfc_tx_fini_queues(sa, nb_tx_queues);
@@ -439,12 +443,18 @@ sfc_tx_configure(struct sfc_adapter *sa)
 		sas->ethdev_txq_count++;
 	}
 
-	/* Do not initialize reserved queues */
 	sas->txq_count = sas->ethdev_txq_count + nb_rsvd_tx_queues;
+
+	if (!reconfigure) {
+		rc = sfc_repr_proxy_txq_init(sa);
+		if (rc != 0)
+			goto fail_repr_proxy_txq_init;
+	}
 
 done:
 	return 0;
 
+fail_repr_proxy_txq_init:
 fail_tx_qinit_info:
 fail_txqs_ctrl_realloc:
 fail_txqs_realloc:
@@ -462,6 +472,7 @@ void
 sfc_tx_close(struct sfc_adapter *sa)
 {
 	sfc_tx_fini_queues(sa, 0);
+	sfc_repr_proxy_txq_fini(sa);
 
 	free(sa->txq_ctrl);
 	sa->txq_ctrl = NULL;

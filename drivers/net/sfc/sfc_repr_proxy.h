@@ -31,6 +31,10 @@ extern "C" {
 /* One TxQ is required and sufficient for port representors support */
 #define SFC_REPR_PROXY_NB_TXQ	(1)
 
+#define SFC_REPR_PROXY_TX_DESC_COUNT	256
+#define SFC_REPR_PROXY_TXQ_REFILL_LEVEL	(SFC_REPR_PROXY_TX_DESC_COUNT / 4)
+#define SFC_REPR_PROXY_TX_BURST		32
+
 struct sfc_repr_proxy_rxq {
 	struct rte_ring			*ring;
 	struct rte_mempool		*mb_pool;
@@ -57,6 +61,16 @@ struct sfc_repr_proxy_port {
 	bool				enabled;
 };
 
+struct sfc_repr_proxy_dp_txq {
+	unsigned int			sw_index;
+	eth_tx_burst_t			pkt_burst;
+	struct sfc_dp_txq		*dp;
+
+	struct rte_mbuf			*tx_pkts[SFC_REPR_PROXY_TX_BURST];
+	unsigned int			available;
+	unsigned int			transmitted;
+};
+
 struct sfc_repr_proxy {
 	uint32_t			service_core_id;
 	uint32_t			service_id;
@@ -64,12 +78,17 @@ struct sfc_repr_proxy {
 	struct sfc_repr_proxy_filter	mport_filter;
 	unsigned int			num_ports;
 	struct sfc_repr_proxy_port	*port;
+	struct sfc_repr_proxy_dp_txq	dp_txq;
 };
 
 struct sfc_adapter;
 
 int sfc_repr_proxy_attach(struct sfc_adapter *sa);
 void sfc_repr_proxy_detach(struct sfc_adapter *sa);
+
+int sfc_repr_proxy_txq_init(struct sfc_adapter *sa);
+void sfc_repr_proxy_txq_fini(struct sfc_adapter *sa);
+
 int sfc_repr_proxy_start(struct sfc_adapter *sa);
 void sfc_repr_proxy_stop(struct sfc_adapter *sa);
 
