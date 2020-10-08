@@ -2388,6 +2388,8 @@ sfc_mae_rule_parse_action_vxlan_encap(
 			vxlan = (struct rte_vxlan_hdr *)buf_cur;
 
 			udp->dst_port = RTE_BE16(RTE_VXLAN_DEFAULT_PORT);
+			udp->dgram_len = RTE_BE16(sizeof(*udp) +
+						  sizeof(*vxlan));
 			udp->dgram_cksum = 0;
 
 			exp_items = 0;
@@ -2415,11 +2417,14 @@ sfc_mae_rule_parse_action_vxlan_encap(
 	/* One of the pointers (ipv4, ipv6) referes to a dummy area. */
 	ipv4->version_ihl = RTE_IPV4_VHL_DEF;
 	ipv4->time_to_live = SFC_IPV4_TTL_DEF;
+	ipv4->total_length = RTE_BE16(sizeof(*ipv4) + sizeof(*udp) +
+				      sizeof(*vxlan));
 	ipv4->hdr_checksum = 0;
 	ipv4->hdr_checksum = rte_ipv4_cksum(ipv4);
 
 	ipv6->vtc_flow = RTE_BE32(SFC_IPV6_VTC_FLOW_DEF);
 	ipv6->hop_limits = SFC_IPV6_HOP_LIMITS_DEF;
+	ipv6->payload_len = udp->dgram_len;
 
 	vxlan->vx_flags = RTE_BE32(SFC_VXLAN_FLAGS_DEF);
 
