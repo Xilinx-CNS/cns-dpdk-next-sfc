@@ -388,6 +388,18 @@ pkt_burst_transmit(struct fwd_stream *fs)
 	if (nb_pkt == 0)
 		return;
 
+	{
+		struct rte_mbuf *rx_pkts_burst[MAX_PKT_BURST];
+		uint16_t nb_rx;
+		uint16_t i;
+
+		nb_rx = rte_eth_rx_burst(fs->rx_port, 0, rx_pkts_burst,
+					 nb_pkt_per_burst);
+
+		for (i = 0; i < nb_rx; i++)
+			rte_pktmbuf_free(rx_pkts_burst[i]);
+	}
+
 	nb_tx = rte_eth_tx_burst(fs->tx_port, fs->tx_queue, pkts_burst, nb_pkt);
 
 	/*
