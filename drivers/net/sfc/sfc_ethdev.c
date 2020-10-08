@@ -260,8 +260,6 @@ sfc_dev_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 	struct rte_eth_link current_link;
 	int ret;
 
-	sfc_log_init(sa, "entry");
-
 	if (sa->state != SFC_ADAPTER_STARTED) {
 		sfc_port_link_mode_to_info(EFX_LINK_UNKNOWN, &current_link);
 	} else if (wait_to_complete) {
