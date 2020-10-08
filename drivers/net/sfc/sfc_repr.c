@@ -12,6 +12,7 @@
 #include <rte_mbuf.h>
 #include <rte_ethdev.h>
 #include <rte_ethdev_driver.h>
+#include <rte_flow.h>
 
 #include "sfc.h"
 #include "sfc_debug.h"
@@ -23,6 +24,7 @@
 /** Multi-process shared representor private data */
 struct sfc_repr_shared {
 	struct sfc_adapter	*pf_sa;
+	uint16_t		pf_port_id;
 	uint16_t		repr_id;
 	uint16_t		switch_domain_id;
 	uint16_t		switch_port_id;
@@ -764,6 +766,85 @@ sfc_repr_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	return 0;
 }
 
+static int
+sfc_repr_flow_validate(struct rte_eth_dev *dev,
+		       const struct rte_flow_attr *attr,
+		       const struct rte_flow_item pattern[],
+		       const struct rte_flow_action actions[],
+		       struct rte_flow_error *error)
+{
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+
+	return rte_flow_validate(srs->pf_port_id, attr, pattern,
+				 actions, error);;
+}
+
+static struct rte_flow *
+sfc_repr_flow_create(struct rte_eth_dev *dev,
+		     const struct rte_flow_attr *attr,
+		     const struct rte_flow_item pattern[],
+		     const struct rte_flow_action actions[],
+		     struct rte_flow_error *error)
+{
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+
+	return rte_flow_create(srs->pf_port_id, attr, pattern, actions, error);
+}
+
+static int
+sfc_repr_flow_destroy(struct rte_eth_dev *dev,
+		      struct rte_flow *flow,
+		      struct rte_flow_error *error)
+{
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+
+	return rte_flow_destroy(srs->pf_port_id, flow, error);
+}
+
+static int
+sfc_repr_flow_query(struct rte_eth_dev *dev,
+		    struct rte_flow *flow,
+		    const struct rte_flow_action *action,
+		    void *data,
+		    struct rte_flow_error *error)
+{
+	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+
+	return rte_flow_query(srs->pf_port_id, flow, action, data, error);
+}
+
+const struct rte_flow_ops sfc_repr_flow_ops = {
+	.validate = sfc_repr_flow_validate,
+	.create = sfc_repr_flow_create,
+	.destroy = sfc_repr_flow_destroy,
+	.query = sfc_repr_flow_query,
+};
+
+static int
+sfc_repr_filter_ctrl(struct rte_eth_dev *dev, enum rte_filter_type filter_type,
+		     enum rte_filter_op filter_op, void *arg)
+{
+	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+	int rc = ENOTSUP;
+
+	switch (filter_type) {
+	case RTE_ETH_FILTER_GENERIC:
+		if (filter_op != RTE_ETH_FILTER_GET) {
+			rc = EINVAL;
+		} else {
+			*(const void **)arg = &sfc_repr_flow_ops;
+			rc = 0;
+		}
+		break;
+	default:
+		sfcr_err(sr, "Generic filter type is the only supported");
+		break;
+	}
+
+	SFC_ASSERT(rc >= 0);
+	return -rc;
+}
+
 static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_configure			= sfc_repr_dev_configure,
 	.dev_start			= sfc_repr_dev_start,
@@ -776,11 +857,13 @@ static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.rx_queue_release		= sfc_repr_rx_queue_release,
 	.tx_queue_setup			= sfc_repr_tx_queue_setup,
 	.tx_queue_release		= sfc_repr_tx_queue_release,
+	.filter_ctrl			= sfc_repr_filter_ctrl,
 };
 
 
 struct sfc_repr_init_data {
 	struct sfc_adapter	*pf_sa;
+	uint16_t		pf_port_id;
 	uint16_t		repr_id;
 	uint16_t		switch_domain_id;
 	efx_mport_sel_t		mport_sel;
@@ -827,6 +910,7 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	dev->process_private = sr;
 
 	srs->pf_sa = repr_data->pf_sa;
+	srs->pf_port_id = repr_data->pf_port_id;
 	srs->repr_id = repr_data->repr_id;
 	srs->switch_domain_id = repr_data->switch_domain_id;
 
@@ -889,6 +973,7 @@ sfc_repr_create(struct rte_eth_dev *parent, uint16_t representor_id)
 
 		memset(&repr_data, 0, sizeof(repr_data));
 		repr_data.pf_sa = sa_parent;
+		repr_data.pf_port_id = parent->data->port_id;
 		repr_data.repr_id = representor_id;
 		repr_data.switch_domain_id = sa_parent->mae.switch_domain_id;
 
