@@ -2527,6 +2527,8 @@ efx_mae_counters_free(
 		MCDI_IN_SET_INDEXED_DWORD(req,
 		    MAE_COUNTER_FREE_IN_FREE_COUNTER_ID, i, counter_ids[i]);
 	}
+	MCDI_IN_SET_DWORD(req, MAE_COUNTER_FREE_IN_COUNTER_ID_COUNT,
+			  n_counters);
 
 	efx_mcdi_execute(enp, &req);
 
