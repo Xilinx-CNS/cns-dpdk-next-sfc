@@ -1772,8 +1772,6 @@ sfc_dev_filter_ctrl(struct rte_eth_dev *dev, enum rte_filter_type filter_type,
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	int rc = ENOTSUP;
 
-	sfc_log_init(sa, "entry");
-
 	switch (filter_type) {
 	case RTE_ETH_FILTER_GENERIC:
 		if (filter_op != RTE_ETH_FILTER_GET) {
@@ -1788,7 +1786,6 @@ sfc_dev_filter_ctrl(struct rte_eth_dev *dev, enum rte_filter_type filter_type,
 		break;
 	}
 
-	sfc_log_init(sa, "exit: %d", -rc);
 	SFC_ASSERT(rc >= 0);
 	return -rc;
 }
