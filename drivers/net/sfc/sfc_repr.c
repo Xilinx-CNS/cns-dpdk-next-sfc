@@ -778,6 +778,13 @@ sfc_repr_flow_validate(struct rte_eth_dev *dev,
 {
 	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
 
+	if (attr->transfer == 0) {
+		rte_flow_error_set(error, ENOTSUP,
+				   RTE_FLOW_ERROR_TYPE_ATTR_TRANSFER, attr,
+				   "Non-transfer is not supported");
+		return -ENOTSUP;
+	}
+
 	return rte_flow_validate(srs->pf_port_id, attr, pattern,
 				 actions, error);;
 }
@@ -790,6 +797,13 @@ sfc_repr_flow_create(struct rte_eth_dev *dev,
 		     struct rte_flow_error *error)
 {
 	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
+
+	if (attr->transfer == 0) {
+		rte_flow_error_set(error, ENOTSUP,
+				   RTE_FLOW_ERROR_TYPE_ATTR_TRANSFER, attr,
+				   "Non-transfer is not supported");
+		return NULL;
+	}
 
 	return rte_flow_create(srs->pf_port_id, attr, pattern, actions, error);
 }
