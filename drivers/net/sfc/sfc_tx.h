@@ -58,7 +58,8 @@ struct sfc_txq {
 };
 
 struct sfc_txq *sfc_txq_by_dp_txq(const struct sfc_dp_txq *dp_txq);
-
+struct sfc_txq_info *sfc_txq_info_by_ethdev_qid(struct sfc_adapter_shared *sas,
+						unsigned int ethdev_qid);
 /**
  * Transmit queue information used on libefx-based data path.
  * Allocated on the socket specified on the queue setup.
