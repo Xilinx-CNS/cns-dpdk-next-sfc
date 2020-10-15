@@ -203,6 +203,12 @@ New Features
   * Added support for abstract socket address.
   * Changed default socket address type to abstract.
 
+* **Updated Mellanox mlx5 driver.**
+
+  Updated Mellanox mlx5 driver with new features and improvements, including:
+
+  * Added support for matching on fragmented/non-fragmented IPv4 packets.
+
 * **Added Ice Lake (Gen4) support for Intel NTB.**
 
   Added NTB device support (4th generation) for Intel Ice Lake platform.
