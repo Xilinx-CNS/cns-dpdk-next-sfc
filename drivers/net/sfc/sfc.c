@@ -443,7 +443,7 @@ sfc_try_start(struct sfc_adapter *sa)
 	sfc_log_init(sa, "entry");
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
-	SFC_ASSERT(sa->state == SFC_ADAPTER_STARTING);
+	SFC_ASSERT(sa->state == SFC_ETHDEV_STARTING);
 
 	sfc_log_init(sa, "set FW subvariant");
 	rc = sfc_set_fw_subvariant(sa);
@@ -548,9 +548,9 @@ sfc_start(struct sfc_adapter *sa)
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
 	switch (sa->state) {
-	case SFC_ADAPTER_CONFIGURED:
+	case SFC_ETHDEV_CONFIGURED:
 		break;
-	case SFC_ADAPTER_STARTED:
+	case SFC_ETHDEV_STARTED:
 		sfc_notice(sa, "already started");
 		return 0;
 	default:
@@ -558,7 +558,7 @@ sfc_start(struct sfc_adapter *sa)
 		goto fail_bad_state;
 	}
 
-	sa->state = SFC_ADAPTER_STARTING;
+	sa->state = SFC_ETHDEV_STARTING;
 
 	rc = 0;
 	do {
@@ -581,13 +581,13 @@ sfc_start(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_try_start;
 
-	sa->state = SFC_ADAPTER_STARTED;
+	sa->state = SFC_ETHDEV_STARTED;
 	sfc_log_init(sa, "done");
 	return 0;
 
 fail_try_start:
 fail_sriov_vswitch_create:
-	sa->state = SFC_ADAPTER_CONFIGURED;
+	sa->state = SFC_ETHDEV_CONFIGURED;
 fail_bad_state:
 	sfc_log_init(sa, "failed %d", rc);
 	return rc;
@@ -601,9 +601,9 @@ sfc_stop(struct sfc_adapter *sa)
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
 	switch (sa->state) {
-	case SFC_ADAPTER_STARTED:
+	case SFC_ETHDEV_STARTED:
 		break;
-	case SFC_ADAPTER_CONFIGURED:
+	case SFC_ETHDEV_CONFIGURED:
 		sfc_notice(sa, "already stopped");
 		return;
 	default:
@@ -612,7 +612,7 @@ sfc_stop(struct sfc_adapter *sa)
 		return;
 	}
 
-	sa->state = SFC_ADAPTER_STOPPING;
+	sa->state = SFC_ETHDEV_STOPPING;
 
 	sfc_repr_proxy_stop(sa);
 	sfc_flow_stop(sa);
@@ -623,7 +623,7 @@ sfc_stop(struct sfc_adapter *sa)
 	sfc_intr_stop(sa);
 	efx_nic_fini(sa->nic);
 
-	sa->state = SFC_ADAPTER_CONFIGURED;
+	sa->state = SFC_ETHDEV_CONFIGURED;
 	sfc_log_init(sa, "done");
 }
 
@@ -634,7 +634,7 @@ sfc_restart(struct sfc_adapter *sa)
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
-	if (sa->state != SFC_ADAPTER_STARTED)
+	if (sa->state != SFC_ETHDEV_STARTED)
 		return EINVAL;
 
 	sfc_stop(sa);
@@ -655,7 +655,7 @@ sfc_restart_if_required(void *arg)
 	if (rte_atomic32_cmpset((volatile uint32_t *)&sa->restart_required,
 				1, 0)) {
 		sfc_adapter_lock(sa);
-		if (sa->state == SFC_ADAPTER_STARTED)
+		if (sa->state == SFC_ETHDEV_STARTED)
 			(void)sfc_restart(sa);
 		sfc_adapter_unlock(sa);
 	}
@@ -688,9 +688,9 @@ sfc_configure(struct sfc_adapter *sa)
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
-	SFC_ASSERT(sa->state == SFC_ADAPTER_INITIALIZED ||
-		   sa->state == SFC_ADAPTER_CONFIGURED);
-	sa->state = SFC_ADAPTER_CONFIGURING;
+	SFC_ASSERT(sa->state == SFC_ETHDEV_INITIALIZED ||
+		   sa->state == SFC_ETHDEV_CONFIGURED);
+	sa->state = SFC_ETHDEV_CONFIGURING;
 
 	rc = sfc_check_conf(sa);
 	if (rc != 0)
@@ -716,7 +716,7 @@ sfc_configure(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_sw_xstats_configure;
 
-	sa->state = SFC_ADAPTER_CONFIGURED;
+	sa->state = SFC_ETHDEV_CONFIGURED;
 	sfc_log_init(sa, "done");
 	return 0;
 
@@ -734,7 +734,7 @@ fail_port_configure:
 
 fail_intr_configure:
 fail_check_conf:
-	sa->state = SFC_ADAPTER_INITIALIZED;
+	sa->state = SFC_ETHDEV_INITIALIZED;
 	sfc_log_init(sa, "failed %d", rc);
 	return rc;
 }
@@ -746,8 +746,8 @@ sfc_close(struct sfc_adapter *sa)
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
-	SFC_ASSERT(sa->state == SFC_ADAPTER_CONFIGURED);
-	sa->state = SFC_ADAPTER_CLOSING;
+	SFC_ASSERT(sa->state == SFC_ETHDEV_CONFIGURED);
+	sa->state = SFC_ETHDEV_CLOSING;
 
 	sfc_sw_xstats_close(sa);
 	sfc_tx_close(sa);
@@ -755,7 +755,7 @@ sfc_close(struct sfc_adapter *sa)
 	sfc_port_close(sa);
 	sfc_intr_close(sa);
 
-	sa->state = SFC_ADAPTER_INITIALIZED;
+	sa->state = SFC_ETHDEV_INITIALIZED;
 	sfc_log_init(sa, "done");
 }
 
@@ -996,7 +996,7 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_sriov_vswitch_create;
 
-	sa->state = SFC_ADAPTER_INITIALIZED;
+	sa->state = SFC_ETHDEV_INITIALIZED;
 
 	sfc_log_init(sa, "done");
 	return 0;
@@ -1070,7 +1070,7 @@ sfc_detach(struct sfc_adapter *sa)
 	efx_tunnel_fini(sa->nic);
 	sfc_sriov_detach(sa);
 
-	sa->state = SFC_ADAPTER_UNINITIALIZED;
+	sa->state = SFC_ETHDEV_UNINITIALIZED;
 }
 
 static int
@@ -1328,7 +1328,7 @@ sfc_unprobe(struct sfc_adapter *sa)
 	sfc_mem_bar_fini(sa);
 
 	sfc_flow_fini(sa);
-	sa->state = SFC_ADAPTER_UNINITIALIZED;
+	sa->state = SFC_ETHDEV_UNINITIALIZED;
 }
 
 uint32_t
