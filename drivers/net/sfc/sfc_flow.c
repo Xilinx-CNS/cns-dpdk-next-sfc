@@ -2636,7 +2636,7 @@ sfc_flow_create(struct rte_eth_dev *dev,
 
 	TAILQ_INSERT_TAIL(&sa->flow_list, flow, entries);
 
-	if (sa->state == SFC_ADAPTER_STARTED) {
+	if (sa->state == SFC_ETHDEV_STARTED) {
 		rc = sfc_flow_insert(sa, flow, error);
 		if (rc != 0)
 			goto fail_flow_insert;
@@ -2679,7 +2679,7 @@ sfc_flow_destroy(struct rte_eth_dev *dev,
 		goto fail_bad_value;
 	}
 
-	if (sa->state == SFC_ADAPTER_STARTED)
+	if (sa->state == SFC_ETHDEV_STARTED)
 		rc = sfc_flow_remove(sa, flow, error);
 
 	TAILQ_REMOVE(&sa->flow_list, flow, entries);
@@ -2702,7 +2702,7 @@ sfc_flow_flush(struct rte_eth_dev *dev,
 	sfc_adapter_lock(sa);
 
 	while ((flow = TAILQ_FIRST(&sa->flow_list)) != NULL) {
-		if (sa->state == SFC_ADAPTER_STARTED) {
+		if (sa->state == SFC_ETHDEV_STARTED) {
 			int rc;
 
 			rc = sfc_flow_remove(sa, flow, error);
@@ -2762,7 +2762,7 @@ sfc_flow_isolate(struct rte_eth_dev *dev, int enable,
 	int ret = 0;
 
 	sfc_adapter_lock(sa);
-	if (sa->state != SFC_ADAPTER_INITIALIZED) {
+	if (sa->state != SFC_ETHDEV_INITIALIZED) {
 		rte_flow_error_set(error, EBUSY,
 				   RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
 				   NULL, "please close the port first");
