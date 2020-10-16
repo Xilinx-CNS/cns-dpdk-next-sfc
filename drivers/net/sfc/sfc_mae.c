@@ -3192,6 +3192,9 @@ sfc_mae_switchdev_init(struct sfc_adapter *sa)
 		goto fail_no_mae;
 	}
 
+	if (!EFX_PCI_FUNCTION_IS_PF(encp))
+		return 0;
+
 	rc = efx_mae_mport_by_pcie_function(encp->enc_pf, EFX_PCI_VF_INVALID,
 					    &pf);
 	if (rc != 0)
@@ -3226,9 +3229,10 @@ fail_no_mae:
 void
 sfc_mae_switchdev_fini(struct sfc_adapter *sa)
 {
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	struct sfc_mae *mae = &sa->mae;
 
-	if (!sa->switchdev)
+	if (!sa->switchdev || !EFX_PCI_FUNCTION_IS_PF(encp))
 		return;
 
 	sfc_mae_rule_del(sa, mae->switchdev_rules[0]);
