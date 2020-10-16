@@ -45,7 +45,7 @@ sfc_port_update_mac_stats(struct sfc_adapter *sa)
 
 	SFC_ASSERT(rte_spinlock_is_locked(&port->mac_stats_lock));
 
-	if (sa->state != SFC_ADAPTER_STARTED)
+	if (sa->state != SFC_ETHDEV_STARTED)
 		return EINVAL;
 
 	/*
