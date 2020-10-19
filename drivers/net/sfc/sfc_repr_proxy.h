@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 
+#include "efx.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,9 +26,18 @@ extern "C" {
 #define SFC_REPR_PROXY_NB_TXQ_MIN	(1)
 #define SFC_REPR_PROXY_NB_TXQ_MAX	(1)
 
+struct sfc_repr_proxy_port {
+	uint16_t			rte_port_id;
+	efx_mport_id_t			egress_mport;
+};
+
 struct sfc_repr_proxy {
+	bool				lock_acquired;
 	uint32_t			service_core_id;
 	uint32_t			service_id;
+	efx_mport_id_t			mport_alias;
+	unsigned int			num_ports;
+	struct sfc_repr_proxy_port	*ports;
 };
 
 struct sfc_adapter;
