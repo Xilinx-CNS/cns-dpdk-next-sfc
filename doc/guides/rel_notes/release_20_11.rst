@@ -208,6 +208,9 @@ New Features
   Updated Mellanox mlx5 driver with new features and improvements, including:
 
   * Added support for matching on fragmented/non-fragmented IPv4/IPv6 packets.
+  * Updated the supported timeout for Age action to the maximal value supported
+    by rte_flow API.
+  * Added support of Age action query.
 
 * **Added Ice Lake (Gen4) support for Intel NTB.**
 
