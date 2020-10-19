@@ -213,6 +213,12 @@ New Features
     by rte_flow API.
   * Added support of Age action query.
 
+* **Added Wangxun txgbe PMD.**
+
+  Added a new PMD driver for Wangxun 10 Gigabit Ethernet NICs.
+
+  See the :doc:`../nics/txgbe` for more details.
+
 * **Added Ice Lake (Gen4) support for Intel NTB.**
 
   Added NTB device support (4th generation) for Intel Ice Lake platform.
