@@ -81,6 +81,15 @@ sfc_evq_reserved(const struct sfc_adapter_shared *sas)
 	return 1 + sfc_rxq_reserved(sas) + sfc_txq_reserved(sas);
 }
 
+/*
+ * The mapping functions that return index rely on relative order of
+ * reserved queues. If a queue is not reserved, the function that
+ * returns its index will give the index of the last valid queue
+ * from the dependency chain or -1, if no previous valid queues exist.
+ * This way, if some queues are not reserved, the indices for reserved
+ * queues shrink and always stay valid.
+ */
+
 static inline int
 sfc_mgmt_evq_index(__rte_unused const struct sfc_adapter_shared *sas)
 {
@@ -97,6 +106,13 @@ static inline int
 sfc_repr_rxq_sw_index(const struct sfc_adapter_shared *sas)
 {
 	return sfc_cnt_rxq_sw_index(sas) + sfc_repr_rxq_num(sas);
+}
+
+static inline int
+sfc_repr_txq_sw_index(const struct sfc_adapter_shared *sas)
+{
+	/* Reserved TxQ for representors is the first reserved TxQ */
+	return sfc_repr_supported(sas) ? 0 : -1;
 }
 
 /*

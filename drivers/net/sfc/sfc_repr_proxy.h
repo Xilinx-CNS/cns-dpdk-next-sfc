@@ -35,6 +35,10 @@ extern "C" {
 #define SFC_REPR_PROXY_RXQ_REFILL_LEVEL	(SFC_REPR_PROXY_RX_DESC_COUNT / 4)
 #define SFC_REPR_PROXY_RX_BURST		32
 
+#define SFC_REPR_PROXY_TX_DESC_COUNT	256
+#define SFC_REPR_PROXY_TXQ_REFILL_LEVEL	(SFC_REPR_PROXY_TX_DESC_COUNT / 4)
+#define SFC_REPR_PROXY_TX_BURST		32
+
 struct sfc_repr_proxy_rxq {
 	struct rte_ring			*ring;
 	struct rte_mempool		*mb_pool;
@@ -57,6 +61,10 @@ struct sfc_repr_proxy_dp_rxq {
 	unsigned int			ref_count;
 };
 
+struct sfc_repr_proxy_dp_txq {
+	unsigned int			sw_index;
+};
+
 struct sfc_repr_proxy {
 	bool				lock_acquired;
 	uint32_t			service_core_id;
@@ -65,6 +73,7 @@ struct sfc_repr_proxy {
 	unsigned int			num_ports;
 	struct sfc_repr_proxy_port	*ports;
 	struct sfc_repr_proxy_dp_rxq	dp_rxq;
+	struct sfc_repr_proxy_dp_txq	dp_txq;
 };
 
 struct sfc_adapter;
@@ -74,6 +83,9 @@ void sfc_repr_proxy_detach(struct sfc_adapter *sa);
 
 int sfc_repr_proxy_rxq_init(struct sfc_adapter *sa, struct rte_mempool *mp);
 void sfc_repr_proxy_rxq_fini(struct sfc_adapter *sa);
+
+int sfc_repr_proxy_txq_init(struct sfc_adapter *sa);
+void sfc_repr_proxy_txq_fini(struct sfc_adapter *sa);
 
 int sfc_repr_proxy_start(struct sfc_adapter *sa);
 void sfc_repr_proxy_stop(struct sfc_adapter *sa);

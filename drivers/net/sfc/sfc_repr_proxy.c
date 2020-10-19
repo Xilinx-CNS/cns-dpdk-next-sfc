@@ -17,6 +17,7 @@
 #include "sfc.h"
 #include "sfc_ev.h"
 #include "sfc_rx.h"
+#include "sfc_tx.h"
 
 static struct sfc_repr_proxy *
 sfc_repr_proxy_by_adapter(struct sfc_adapter *sa)
@@ -61,6 +62,99 @@ sfc_repr_proxy_routine(void *arg)
 	RTE_SET_USED(rp);
 
 	return 0;
+}
+
+
+static int
+sfc_repr_proxy_txq_attach(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+	int sw_index = sfc_repr_txq_sw_index(sas);
+
+	sfc_log_init(sa, "entry");
+
+	SFC_ASSERT(sw_index >= 0);
+	txq->sw_index = sw_index;
+
+	return 0;
+}
+
+static void
+sfc_repr_proxy_txq_detach(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+
+	sfc_log_init(sa, "entry");
+
+	txq->sw_index = 0;
+}
+
+int
+sfc_repr_proxy_txq_init(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+	const struct rte_eth_txconf tx_conf = {
+		.tx_free_thresh = SFC_REPR_PROXY_TXQ_REFILL_LEVEL,
+	};
+	struct sfc_txq_info *txq_info;
+
+	if (!sfc_repr_supported(sas))
+		return 0;
+
+	txq_info = &sfc_sa2shared(sa)->txq_info[txq->sw_index];
+	if (txq_info->state == SFC_TXQ_INITIALIZED)
+		return 0;
+
+	sfc_log_init(sa, "entry");
+
+	sfc_tx_qinit_info(sa, txq->sw_index);
+
+	return sfc_tx_qinit(sa, txq->sw_index,
+			    SFC_REPR_PROXY_TX_DESC_COUNT, sa->socket_id,
+			    &tx_conf);
+}
+
+void
+sfc_repr_proxy_txq_fini(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+	struct sfc_txq_info *txq_info;
+
+	if (!sfc_repr_supported(sas))
+		return;
+
+	txq_info = &sfc_sa2shared(sa)->txq_info[txq->sw_index];
+	if (txq_info->state != SFC_TXQ_INITIALIZED)
+		return;
+
+	sfc_log_init(sa, "entry");
+
+	sfc_tx_qfini(sa, txq->sw_index);
+}
+
+static int
+sfc_repr_proxy_txq_start(struct sfc_adapter *sa)
+{
+	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+
+	sfc_log_init(sa, "entry");
+
+	RTE_SET_USED(txq);
+
+	return 0;
+}
+
+static void
+sfc_repr_proxy_txq_stop(__rte_unused struct sfc_adapter *sa)
+{
 }
 
 static int
@@ -251,6 +345,10 @@ sfc_repr_proxy_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_rxq_attach;
 
+	rc = sfc_repr_proxy_txq_attach(sa);
+	if (rc != 0)
+		goto fail_txq_attach;
+
 	rc = sfc_repr_proxy_ports_init(sa);
 	if (rc != 0)
 		goto fail_ports_init;
@@ -309,6 +407,9 @@ fail_get_service_lcore:
 	sfc_repr_proxy_ports_fini(sa);
 
 fail_ports_init:
+	sfc_repr_proxy_txq_detach(sa);
+
+fail_txq_attach:
 	sfc_repr_proxy_rxq_detach(sa);
 
 fail_rxq_attach:
@@ -328,6 +429,7 @@ sfc_repr_proxy_detach(struct sfc_adapter *sa)
 	rte_service_component_unregister(rp->service_id);
 	sfc_repr_proxy_ports_fini(sa);
 	sfc_repr_proxy_rxq_detach(sa);
+	sfc_repr_proxy_txq_detach(sa);
 }
 
 int
@@ -347,6 +449,10 @@ sfc_repr_proxy_start(struct sfc_adapter *sa)
 	rc = sfc_repr_proxy_rxq_start(sa);
 	if (rc != 0)
 		goto fail_rxq_start;
+
+	rc = sfc_repr_proxy_txq_start(sa);
+	if (rc != 0)
+		goto fail_txq_start;
 
 	/* Service core may be in "stopped" state, start it */
 	rc = rte_service_lcore_start(rp->service_core_id);
@@ -384,6 +490,9 @@ fail_component_runstate_set:
 	/* Service lcore may be shared and we never stop it */
 
 fail_start_core:
+	sfc_repr_proxy_txq_stop(sa);
+
+fail_txq_start:
 	sfc_repr_proxy_rxq_stop(sa);
 
 fail_rxq_start:
@@ -417,6 +526,7 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 	/* Service lcore may be shared and we never stop it */
 
 	sfc_repr_proxy_rxq_stop(sa);
+	sfc_repr_proxy_txq_stop(sa);
 }
 
 int
