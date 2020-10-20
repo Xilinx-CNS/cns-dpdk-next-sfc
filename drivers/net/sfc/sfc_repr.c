@@ -142,6 +142,51 @@ sfc_repr_lock_fini(__rte_unused struct sfc_repr *sr)
 	/* Just for symmetry of the API */
 }
 
+static uint16_t
+sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
+{
+	struct sfc_repr_txq *txq = tx_queue;
+	unsigned int n_tx;
+	void **objs;
+	uint16_t i;
+
+	/*
+	 * mbuf is likely cache-hot. Set flag and egress m-port here
+	 * instead of doing that in representors proxy.
+	 * Also, it should help to avoid cache bounce.
+	 * Moreover, potentially, it allows to use one multi-producer
+	 * single-consumer ring for all representors.
+	 *
+	 * The only potential problem is doing so many times if enqueue
+	 * fails and sender retries.
+	 */
+	for (i = 0; i < nb_pkts; ++i) {
+		struct rte_mbuf *m = tx_pkts[i];
+
+		m->ol_flags |= sfc_dp_mport_override;
+		*RTE_MBUF_DYNFIELD(m, sfc_dp_mport_offset,
+				   typeof(&((efx_mport_id_t *)0)->id)) =
+						txq->egress_mport.id;
+	}
+
+	objs = (void *)&tx_pkts[0];
+	n_tx = rte_ring_sp_enqueue_burst(txq->ring, objs, nb_pkts, NULL);
+
+	/*
+	 * Remove m-port override flag from packets that were not enqueued
+	 * Setting the flag only for enqueued packets after the burst is
+	 * not possible since the ownership of enqueued packets is
+	 * transferred to representor proxy.
+	 */
+	for (i = n_tx; i < nb_pkts; ++i) {
+		struct rte_mbuf *m = tx_pkts[i];
+
+		m->ol_flags &= ~sfc_dp_mport_override;
+	}
+
+	return n_tx;
+}
+
 static int
 sfc_repr_start(struct rte_eth_dev *dev)
 {
@@ -653,6 +698,7 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 
 	(void)sfc_repr_proxy_del_port(srs->pf_port_id, srs->repr_id);
 
+	dev->tx_pkt_burst = NULL;
 	dev->dev_ops = NULL;
 
 	sfc_repr_unlock(sr);
@@ -765,6 +811,7 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	dev->data->mac_addrs->addr_bytes[5] = repr_data->repr_id;
 #endif
 
+	dev->tx_pkt_burst = sfc_repr_tx_burst;
 	dev->dev_ops = &sfc_repr_dev_ops;
 
 	sr->state = SFC_ADAPTER_INITIALIZED;
