@@ -192,7 +192,7 @@ New Features
 
 * **Updated Intel ice driver.**
 
-  Updated the Intel ice driver to use write combining stores.
+  * Added acl filter support for Intel DCF.
 
 * **Updated Intel qat driver.**
 
