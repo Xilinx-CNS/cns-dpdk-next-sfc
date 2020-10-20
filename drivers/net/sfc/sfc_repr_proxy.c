@@ -57,13 +57,43 @@ static int32_t
 sfc_repr_proxy_routine(void *arg)
 {
 	struct sfc_repr_proxy *rp = arg;
+	unsigned int i;
 
-	/* Representor proxy boilerplate will be here */
-	RTE_SET_USED(rp);
+	for (i = 0; i < rp->num_ports; i++) {
+		struct sfc_repr_proxy_port *port = &rp->ports[i];
+		struct sfc_repr_proxy_dp_txq *txq = &rp->dp_txq;
+
+		/* FIXME: thread safety */
+		if (port->txq[0].ring == NULL)
+			continue;
+
+		if (txq->available < RTE_DIM(txq->tx_pkts)) {
+			txq->available += rte_ring_sc_dequeue_burst(port->txq[0].ring,
+					(void **)(&txq->tx_pkts[txq->available]),
+					RTE_DIM(txq->tx_pkts) - txq->available, NULL);
+			if (txq->available == txq->transmitted)
+				continue;
+		}
+
+		txq->transmitted += txq->pkt_burst(txq->dp,
+				&txq->tx_pkts[txq->transmitted],
+				txq->available - txq->transmitted);
+		if (txq->available == txq->transmitted) {
+			txq->available = 0;
+			txq->transmitted = 0;
+		}
+	}
 
 	return 0;
 }
 
+static struct sfc_txq_info *
+sfc_repr_proxy_txq_info_get(struct sfc_adapter *sa)
+{
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+
+	return &sas->txq_info[sa->repr_proxy.dp_txq.sw_index];
+}
 
 static int
 sfc_repr_proxy_txq_attach(struct sfc_adapter *sa)
@@ -147,7 +177,10 @@ sfc_repr_proxy_txq_start(struct sfc_adapter *sa)
 
 	sfc_log_init(sa, "entry");
 
-	RTE_SET_USED(txq);
+	txq->dp = sfc_repr_proxy_txq_info_get(sa)->dp;
+	txq->pkt_burst = sa->eth_dev->tx_pkt_burst;
+	txq->available = 0;
+	txq->transmitted = 0;
 
 	return 0;
 }
@@ -681,6 +714,7 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_repr_proxy *rp = &sa->repr_proxy;
+	const unsigned int wait_ms_total = 10000;
 	unsigned int i;
 	int rc;
 
@@ -712,6 +746,16 @@ sfc_repr_proxy_stop(struct sfc_adapter *sa)
 
 	/* Service lcore may be shared and we never stop it */
 
+	/*
+	 * Wait for the representor proxy routine to finish the last iteration.
+	 * Give up on timeout.
+	 */
+	for (i = 0; i < wait_ms_total; i++) {
+		if (rte_service_may_be_active(rp->service_id) == 0)
+			break;
+
+		rte_delay_ms(1);
+	}
 	sfc_repr_proxy_rxq_stop(sa);
 	sfc_repr_proxy_txq_stop(sa);
 }
