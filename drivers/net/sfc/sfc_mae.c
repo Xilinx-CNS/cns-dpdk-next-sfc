@@ -10,6 +10,7 @@
 #include <stdbool.h>
 
 #include <rte_common.h>
+#include <rte_vxlan.h>
 
 #include "efx.h"
 
@@ -35,6 +36,7 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	efx_mport_sel_t entity_mport;
 	struct sfc_mae *mae = &sa->mae;
+	struct sfc_mae_bounce_eh *bounce_eh = &mae->bounce_eh;
 	efx_mae_limits_t limits;
 	int rc;
 
@@ -80,17 +82,26 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mae_assign_switch_port;
 
+	sfc_log_init(sa, "allocate encap. header bounce buffer");
+	bounce_eh->buf_size = limits.eml_encap_header_size_limit;
+	bounce_eh->buf = rte_malloc("sfc_mae_bounce_eh",
+				    bounce_eh->buf_size, 0);
+	if (bounce_eh->buf == NULL)
+		goto fail_mae_alloc_bounce_eh;
+
 	mae->status = SFC_MAE_STATUS_SUPPORTED;
 	mae->nb_outer_rule_prios_max = limits.eml_max_n_outer_prios;
 	mae->nb_action_rule_prios_max = limits.eml_max_n_action_prios;
 	mae->encap_types_supported = limits.eml_encap_types_supported;
 	TAILQ_INIT(&mae->outer_rules);
+	TAILQ_INIT(&mae->encap_headers);
 	TAILQ_INIT(&mae->action_sets);
 
 	sfc_log_init(sa, "done");
 
 	return 0;
 
+fail_mae_alloc_bounce_eh:
 fail_mae_assign_switch_port:
 fail_mae_assign_switch_domain:
 fail_mae_assign_entity_mport:
@@ -116,6 +127,8 @@ sfc_mae_detach(struct sfc_adapter *sa)
 
 	if (status_prev != SFC_MAE_STATUS_SUPPORTED)
 		return;
+
+	rte_free(mae->bounce_eh.buf);
 
 	efx_mae_fini(sa->nic);
 
@@ -254,8 +267,165 @@ sfc_mae_outer_rule_disable(struct sfc_adapter *sa,
 	return 0;
 }
 
+static struct sfc_mae_encap_header *
+sfc_mae_encap_header_attach(struct sfc_adapter *sa,
+			    const struct sfc_mae_bounce_eh *bounce_eh)
+{
+	struct sfc_mae_encap_header *encap_header;
+	struct sfc_mae *mae = &sa->mae;
+
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	TAILQ_FOREACH(encap_header, &mae->encap_headers, entries) {
+		if (encap_header->size == bounce_eh->size &&
+		    memcmp(encap_header->buf, bounce_eh->buf,
+			   bounce_eh->size) == 0) {
+			++(encap_header->refcnt);
+			return encap_header;
+		}
+	}
+
+	return NULL;
+}
+
+static int
+sfc_mae_encap_header_add(struct sfc_adapter *sa,
+			 const struct sfc_mae_bounce_eh *bounce_eh,
+			 struct sfc_mae_encap_header **encap_headerp)
+{
+	struct sfc_mae_encap_header *encap_header;
+	struct sfc_mae *mae = &sa->mae;
+
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	encap_header = rte_zmalloc("sfc_mae_encap_header",
+				   sizeof(*encap_header), 0);
+	if (encap_header == NULL)
+		return ENOMEM;
+
+	encap_header->size = bounce_eh->size;
+
+	encap_header->buf = rte_malloc("sfc_mae_encap_header_buf",
+				       encap_header->size, 0);
+	if (encap_header->buf == NULL) {
+		rte_free(encap_header);
+		return ENOMEM;
+	}
+
+	rte_memcpy(encap_header->buf, bounce_eh->buf, bounce_eh->size);
+
+	encap_header->refcnt = 1;
+	encap_header->type = bounce_eh->type;
+	encap_header->fw_rsrc.eh_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	TAILQ_INSERT_TAIL(&mae->encap_headers, encap_header, entries);
+
+	*encap_headerp = encap_header;
+
+	return 0;
+}
+
+static void
+sfc_mae_encap_header_del(struct sfc_adapter *sa,
+		       struct sfc_mae_encap_header *encap_header)
+{
+	struct sfc_mae *mae = &sa->mae;
+
+	if (encap_header == NULL)
+		return;
+
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+	SFC_ASSERT(encap_header->refcnt != 0);
+
+	--(encap_header->refcnt);
+
+	if (encap_header->refcnt != 0)
+		return;
+
+	SFC_ASSERT(encap_header->fw_rsrc.eh_id.id == EFX_MAE_RSRC_ID_INVALID);
+	SFC_ASSERT(encap_header->fw_rsrc.refcnt == 0);
+
+	TAILQ_REMOVE(&mae->encap_headers, encap_header, entries);
+	rte_free(encap_header->buf);
+	rte_free(encap_header);
+}
+
+static int
+sfc_mae_encap_header_enable(struct sfc_adapter *sa,
+			    struct sfc_mae_encap_header *encap_header,
+			    efx_mae_actions_t *action_set_spec)
+{
+	struct sfc_mae_fw_rsrc *fw_rsrc;
+	int rc;
+
+	if (encap_header == NULL)
+		return 0;
+
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	fw_rsrc = &encap_header->fw_rsrc;
+
+	if (fw_rsrc->refcnt == 0) {
+		SFC_ASSERT(fw_rsrc->eh_id.id == EFX_MAE_RSRC_ID_INVALID);
+		SFC_ASSERT(encap_header->buf != NULL);
+		SFC_ASSERT(encap_header->size != 0);
+
+		rc = efx_mae_encap_header_alloc(sa->nic, encap_header->type,
+						encap_header->buf,
+						encap_header->size,
+						&fw_rsrc->eh_id);
+		if (rc != 0)
+			return rc;
+	}
+
+	rc = efx_mae_action_set_fill_in_eh_id(action_set_spec,
+					      &fw_rsrc->eh_id);
+	if (rc != 0) {
+		if (fw_rsrc->refcnt == 0) {
+			(void)efx_mae_encap_header_free(sa->nic,
+							&fw_rsrc->eh_id);
+		}
+		return rc;
+	}
+
+	++(fw_rsrc->refcnt);
+
+	return 0;
+}
+
+static int
+sfc_mae_encap_header_disable(struct sfc_adapter *sa,
+			     struct sfc_mae_encap_header *encap_header)
+{
+	struct sfc_mae_fw_rsrc *fw_rsrc;
+	int rc;
+
+	if (encap_header == NULL)
+		return 0;
+
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	fw_rsrc = &encap_header->fw_rsrc;
+
+	SFC_ASSERT(fw_rsrc->eh_id.id != EFX_MAE_RSRC_ID_INVALID);
+	SFC_ASSERT(fw_rsrc->refcnt != 0);
+
+	if (fw_rsrc->refcnt == 1) {
+		rc = efx_mae_encap_header_free(sa->nic, &fw_rsrc->eh_id);
+		if (rc != 0)
+			return rc;
+
+		fw_rsrc->eh_id.id = EFX_MAE_RSRC_ID_INVALID;
+	}
+
+	--(fw_rsrc->refcnt);
+
+	return 0;
+}
+
 static struct sfc_mae_action_set *
 sfc_mae_action_set_attach(struct sfc_adapter *sa,
+			  const struct sfc_mae_encap_header *encap_header,
 			  const efx_mae_actions_t *spec)
 {
 	struct sfc_mae_action_set *action_set;
@@ -264,7 +434,8 @@ sfc_mae_action_set_attach(struct sfc_adapter *sa,
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
 	TAILQ_FOREACH(action_set, &mae->action_sets, entries) {
-		if (efx_mae_action_set_specs_equal(action_set->spec, spec)) {
+		if (action_set->encap_header == encap_header &&
+		    efx_mae_action_set_specs_equal(action_set->spec, spec)) {
 			++(action_set->refcnt);
 			return action_set;
 		}
@@ -276,6 +447,7 @@ sfc_mae_action_set_attach(struct sfc_adapter *sa,
 static int
 sfc_mae_action_set_add(struct sfc_adapter *sa,
 		       efx_mae_actions_t *spec,
+		       struct sfc_mae_encap_header *encap_header,
 		       struct sfc_mae_action_set **action_setp)
 {
 	struct sfc_mae_action_set *action_set;
@@ -288,6 +460,7 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 		return ENOMEM;
 
 	action_set->refcnt = 1;
+	action_set->encap_header = encap_header;
 	action_set->spec = spec;
 
 	action_set->fw_rsrc.aset_id.id = EFX_MAE_RSRC_ID_INVALID;
@@ -317,7 +490,9 @@ sfc_mae_action_set_del(struct sfc_adapter *sa,
 	SFC_ASSERT(action_set->fw_rsrc.refcnt == 0);
 
 	efx_mae_action_set_spec_fini(sa->nic, action_set->spec);
+	sfc_mae_encap_header_del(sa, action_set->encap_header);
 	TAILQ_REMOVE(&mae->action_sets, action_set, entries);
+
 	rte_free(action_set);
 }
 
@@ -325,6 +500,7 @@ static int
 sfc_mae_action_set_enable(struct sfc_adapter *sa,
 			  struct sfc_mae_action_set *action_set)
 {
+	struct sfc_mae_encap_header *encap_header = action_set->encap_header;
 	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
 	int rc;
 
@@ -334,10 +510,18 @@ sfc_mae_action_set_enable(struct sfc_adapter *sa,
 		SFC_ASSERT(fw_rsrc->aset_id.id == EFX_MAE_RSRC_ID_INVALID);
 		SFC_ASSERT(action_set->spec != NULL);
 
-		rc = efx_mae_action_set_alloc(sa->nic, action_set->spec,
-					      &fw_rsrc->aset_id);
+		rc = sfc_mae_encap_header_enable(sa, encap_header,
+						 action_set->spec);
 		if (rc != 0)
 			return rc;
+
+		rc = efx_mae_action_set_alloc(sa->nic, action_set->spec,
+					      &fw_rsrc->aset_id);
+		if (rc != 0) {
+			(void)sfc_mae_encap_header_disable(sa, encap_header);
+
+			return rc;
+		}
 	}
 
 	++(fw_rsrc->refcnt);
@@ -362,6 +546,10 @@ sfc_mae_action_set_disable(struct sfc_adapter *sa,
 			return rc;
 
 		fw_rsrc->aset_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+		rc = sfc_mae_encap_header_disable(sa, action_set->encap_header);
+		if (rc != 0)
+			return rc;
 	}
 
 	--(fw_rsrc->refcnt);
@@ -1934,6 +2122,247 @@ sfc_mae_rule_parse_action_of_set_vlan_pcp(
 	bundle->vlan_push_tci |= rte_cpu_to_be_16(vlan_tci_pcp);
 }
 
+struct sfc_mae_parsed_item {
+	const struct rte_flow_item	*item;
+	size_t				proto_header_size;
+};
+
+/*
+ * For each 16-bit word of the given header, override
+ * bits enforced by the corresponding 16-bit mask.
+ */
+static void
+sfc_mae_header_force_item_masks(uint8_t *header_buf,
+				const struct sfc_mae_parsed_item *parsed_items,
+				unsigned int nb_parsed_items)
+{
+	unsigned int item_idx;
+
+	for (item_idx = 0; item_idx < nb_parsed_items; ++item_idx) {
+		const struct sfc_mae_parsed_item *parsed_item;
+		const struct rte_flow_item *item;
+		size_t proto_header_size;
+		unsigned int w_idx;
+
+		parsed_item = &parsed_items[item_idx];
+		proto_header_size = parsed_item->proto_header_size;
+		item = parsed_item->item;
+
+		for (w_idx = 0; w_idx < (proto_header_size >> 1); ++w_idx) {
+			rte_be16_t *wp = (rte_be16_t *)header_buf + w_idx;
+			const rte_be16_t *w_maskp;
+			const rte_be16_t *w_valp;
+
+			w_maskp = (const rte_be16_t *)item->mask + w_idx;
+			w_valp = (const rte_be16_t *)item->spec + w_idx;
+
+			*wp &= ~(*w_maskp);
+			*wp |= (*w_valp & *w_maskp);
+		}
+
+		header_buf += proto_header_size;
+	}
+}
+
+#define SFC_IPV4_TTL_DEF	0x40
+#define SFC_IPV6_VTC_FLOW_DEF	0x60000000
+#define SFC_IPV6_HOP_LIMITS_DEF	0xff
+#define SFC_VXLAN_FLAGS_DEF	0x08000000
+
+static int
+sfc_mae_rule_parse_action_vxlan_encap(
+			    struct sfc_mae *mae,
+			    const struct rte_flow_action_vxlan_encap *conf,
+			    efx_mae_actions_t *spec)
+{
+	struct sfc_mae_bounce_eh *bounce_eh = &mae->bounce_eh;
+	struct rte_flow_item *pattern = conf->definition;
+	uint8_t *buf = bounce_eh->buf;
+
+	/* This array will keep track of non-VOID pattern items. */
+	struct sfc_mae_parsed_item parsed_items[1 /* Ethernet */ +
+						2 /* VLAN tags */ +
+						1 /* IPv4 or IPv6 */ +
+						1 /* UDP */ +
+						1 /* VXLAN */];
+	unsigned int nb_parsed_items = 0;
+
+	size_t eth_ethertype_ofst = offsetof(struct rte_ether_hdr, ether_type);
+	uint8_t dummy_buf[RTE_MAX(sizeof(struct rte_ipv4_hdr),
+				  sizeof(struct rte_ipv6_hdr))];
+	struct rte_ipv4_hdr *ipv4 = (void *)dummy_buf;
+	struct rte_ipv6_hdr *ipv6 = (void *)dummy_buf;
+	struct rte_vxlan_hdr *vxlan = NULL;
+	struct rte_udp_hdr *udp = NULL;
+	unsigned int nb_vlan_tags = 0;
+	size_t next_proto_ofst = 0;
+	size_t ethertype_ofst = 0;
+	size_t proto_header_size;
+	uint8_t *next_protop;
+	uint64_t exp_items;
+
+	if (pattern == NULL)
+		return EINVAL;
+
+	bounce_eh->type = EFX_TUNNEL_PROTOCOL_VXLAN;
+	bounce_eh->size = 0;
+
+	/*
+	 * Process pattern items and remember non-VOID ones.
+	 * For now, don't care about the masks.
+	 */
+	exp_items = (1ULL << RTE_FLOW_ITEM_TYPE_ETH);
+
+	for (; pattern->type != RTE_FLOW_ITEM_TYPE_END; ++pattern) {
+		unsigned int nb_parsed_items_new = nb_parsed_items + 1;
+		struct sfc_mae_parsed_item parsed_item_dummy;
+		struct sfc_mae_parsed_item *parsed_item;
+		uint64_t exp_items_extra_vlan[] = {
+			(1ULL << RTE_FLOW_ITEM_TYPE_VLAN), 0
+		};
+		rte_be16_t *ethertypep;
+		uint8_t *buf_cur;
+
+		SFC_ASSERT(pattern->spec != NULL);
+		SFC_ASSERT(pattern->last == NULL);
+		SFC_ASSERT(pattern->mask != NULL);
+
+		exp_items |= (1ULL << RTE_FLOW_ITEM_TYPE_VOID);
+
+		if ((exp_items & (1ULL << pattern->type)) == 0)
+			return ENOTSUP;
+
+		parsed_item = &parsed_items[nb_parsed_items];
+		buf_cur = buf + bounce_eh->size;
+
+		switch (pattern->type) {
+		case RTE_FLOW_ITEM_TYPE_ETH:
+			proto_header_size = sizeof(struct rte_ether_hdr);
+
+			ethertype_ofst = eth_ethertype_ofst;
+
+			exp_items = (1ULL << RTE_FLOW_ITEM_TYPE_VLAN) |
+				    (1ULL << RTE_FLOW_ITEM_TYPE_IPV4) |
+				    (1ULL << RTE_FLOW_ITEM_TYPE_IPV6);
+			break;
+		case RTE_FLOW_ITEM_TYPE_VLAN:
+			proto_header_size = sizeof(struct rte_vlan_hdr);
+
+			ethertypep = (rte_be16_t *)(buf + eth_ethertype_ofst);
+			*ethertypep = RTE_BE16(RTE_ETHER_TYPE_QINQ);
+
+			ethertypep = (rte_be16_t *)(buf + ethertype_ofst);
+			*ethertypep = RTE_BE16(RTE_ETHER_TYPE_VLAN);
+
+			ethertype_ofst =
+			    bounce_eh->size +
+			    offsetof(struct rte_vlan_hdr, eth_proto);
+
+			exp_items = (1ULL << RTE_FLOW_ITEM_TYPE_IPV4) |
+				    (1ULL << RTE_FLOW_ITEM_TYPE_IPV6);
+			exp_items |= exp_items_extra_vlan[nb_vlan_tags];
+
+			++nb_vlan_tags;
+			break;
+		case RTE_FLOW_ITEM_TYPE_IPV4:
+			proto_header_size = sizeof(struct rte_ipv4_hdr);
+
+			ethertypep = (rte_be16_t *)(buf + ethertype_ofst);
+			*ethertypep = RTE_BE16(RTE_ETHER_TYPE_IPV4);
+
+			next_proto_ofst =
+			    bounce_eh->size +
+			    offsetof(struct rte_ipv4_hdr, next_proto_id);
+
+			ipv4 = (struct rte_ipv4_hdr *)buf_cur;
+
+			exp_items = (1ULL << RTE_FLOW_ITEM_TYPE_UDP);
+			break;
+		case RTE_FLOW_ITEM_TYPE_IPV6:
+			proto_header_size = sizeof(struct rte_ipv6_hdr);
+
+			ethertypep = (rte_be16_t *)(buf + ethertype_ofst);
+			*ethertypep = RTE_BE16(RTE_ETHER_TYPE_IPV6);
+
+			next_proto_ofst = bounce_eh->size +
+					  offsetof(struct rte_ipv6_hdr, proto);
+
+			ipv6 = (struct rte_ipv6_hdr *)buf_cur;
+
+			exp_items = (1ULL << RTE_FLOW_ITEM_TYPE_UDP);
+			break;
+		case RTE_FLOW_ITEM_TYPE_UDP:
+			proto_header_size = sizeof(struct rte_udp_hdr);
+
+			next_protop = buf + next_proto_ofst;
+			*next_protop = IPPROTO_UDP;
+
+			udp = (struct rte_udp_hdr *)buf_cur;
+
+			exp_items = (1ULL << RTE_FLOW_ITEM_TYPE_VXLAN);
+			break;
+		case RTE_FLOW_ITEM_TYPE_VXLAN:
+			proto_header_size = sizeof(struct rte_vxlan_hdr);
+
+			vxlan = (struct rte_vxlan_hdr *)buf_cur;
+
+			udp->dst_port = RTE_BE16(RTE_VXLAN_DEFAULT_PORT);
+			udp->dgram_len = RTE_BE16(sizeof(*udp) +
+						  sizeof(*vxlan));
+			udp->dgram_cksum = 0;
+
+			exp_items = 0;
+			break;
+		case RTE_FLOW_ITEM_TYPE_VOID:
+			/* Avoid copying header data. */
+			proto_header_size = 0;
+
+			/* Prevent this item from being remembered. */
+			parsed_item = &parsed_item_dummy;
+			nb_parsed_items_new = nb_parsed_items;
+			break;
+		default:
+			SFC_ASSERT(B_FALSE);
+		}
+
+		if (bounce_eh->size + proto_header_size > bounce_eh->buf_size)
+			return E2BIG;
+
+		rte_memcpy(buf_cur, pattern->spec, proto_header_size);
+		bounce_eh->size += proto_header_size;
+
+		parsed_item->item = pattern;
+		parsed_item->proto_header_size = proto_header_size;
+		nb_parsed_items = nb_parsed_items_new;
+	}
+
+	exp_items &= ~(1ULL << RTE_FLOW_ITEM_TYPE_VOID);
+	if (exp_items != 0) {
+		/* Parsing item VXLAN would have reset exp_items to 0. */
+		return ENOTSUP;
+	}
+
+	/* One of the pointers (ipv4, ipv6) referes to a dummy area. */
+	ipv4->version_ihl = RTE_IPV4_VHL_DEF;
+	ipv4->time_to_live = SFC_IPV4_TTL_DEF;
+	ipv4->total_length = RTE_BE16(sizeof(*ipv4) + sizeof(*udp) +
+				      sizeof(*vxlan));
+	/* The HW cannot compute this checksum. */
+	ipv4->hdr_checksum = 0;
+	ipv4->hdr_checksum = rte_ipv4_cksum(ipv4);
+
+	ipv6->vtc_flow = RTE_BE32(SFC_IPV6_VTC_FLOW_DEF);
+	ipv6->hop_limits = SFC_IPV6_HOP_LIMITS_DEF;
+	ipv6->payload_len = udp->dgram_len;
+
+	vxlan->vx_flags = RTE_BE32(SFC_VXLAN_FLAGS_DEF);
+
+	/* Care about the masks. */
+	sfc_mae_header_force_item_masks(buf, parsed_items, nb_parsed_items);
+
+	return (spec != NULL) ? efx_mae_action_set_populate_encap(spec) : 0;
+}
+
 static int
 sfc_mae_rule_parse_action_mark(const struct rte_flow_action_mark *conf,
 			       efx_mae_actions_t *spec)
@@ -2037,6 +2466,12 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 				       bundle->actions_mask);
 		sfc_mae_rule_parse_action_of_set_vlan_pcp(action->conf, bundle);
 		break;
+	case RTE_FLOW_ACTION_TYPE_VXLAN_ENCAP:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_VXLAN_ENCAP,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_vxlan_encap(&sa->mae,
+							   action->conf, spec);
+		break;
 	case RTE_FLOW_ACTION_TYPE_FLAG:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_FLAG,
 				       bundle->actions_mask);
@@ -2088,14 +2523,39 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 	return rc;
 }
 
+static void
+sfc_mae_bounce_eh_invalidate(struct sfc_mae_bounce_eh *bounce_eh)
+{
+	bounce_eh->type = EFX_TUNNEL_PROTOCOL_NONE;
+}
+
+static int
+sfc_mae_process_encap_header(struct sfc_adapter *sa,
+			     const struct sfc_mae_bounce_eh *bounce_eh,
+			     struct sfc_mae_encap_header **encap_headerp)
+{
+	if (bounce_eh->type == EFX_TUNNEL_PROTOCOL_NONE) {
+		encap_headerp = NULL;
+		return 0;
+	}
+
+	*encap_headerp = sfc_mae_encap_header_attach(sa, bounce_eh);
+	if (*encap_headerp != NULL)
+		return 0;
+
+	return sfc_mae_encap_header_add(sa, bounce_eh, encap_headerp);
+}
+
 int
 sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			   const struct rte_flow_action actions[],
 			   struct sfc_mae_action_set **action_setp,
 			   struct rte_flow_error *error)
 {
+	struct sfc_mae_encap_header *encap_header = NULL;
 	struct sfc_mae_actions_bundle bundle = {0};
 	const struct rte_flow_action *action;
+	struct sfc_mae *mae = &sa->mae;
 	efx_mae_actions_t *spec;
 	int rc;
 
@@ -2108,6 +2568,9 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	rc = efx_mae_action_set_spec_init(sa->nic, &spec);
 	if (rc != 0)
 		goto fail_action_set_spec_init;
+
+	/* Cleanup after previous encap. header bounce buffer usage. */
+	sfc_mae_bounce_eh_invalidate(&mae->bounce_eh);
 
 	for (action = actions;
 	     action->type != RTE_FLOW_ACTION_TYPE_END; ++action) {
@@ -2125,19 +2588,27 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_rule_parse_action;
 
-	*action_setp = sfc_mae_action_set_attach(sa, spec);
+	rc = sfc_mae_process_encap_header(sa, &mae->bounce_eh, &encap_header);
+	if (rc != 0)
+		goto fail_process_encap_header;
+
+	*action_setp = sfc_mae_action_set_attach(sa, encap_header, spec);
 	if (*action_setp != NULL) {
+		sfc_mae_encap_header_del(sa, encap_header);
 		efx_mae_action_set_spec_fini(sa->nic, spec);
 		return 0;
 	}
 
-	rc = sfc_mae_action_set_add(sa, spec, action_setp);
+	rc = sfc_mae_action_set_add(sa, spec, encap_header, action_setp);
 	if (rc != 0)
 		goto fail_action_set_add;
 
 	return 0;
 
 fail_action_set_add:
+	sfc_mae_encap_header_del(sa, encap_header);
+
+fail_process_encap_header:
 fail_rule_parse_action:
 	efx_mae_action_set_spec_fini(sa->nic, spec);
 
