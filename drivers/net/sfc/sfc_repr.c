@@ -396,6 +396,14 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 		goto fail_mac_addrs;
 	}
 
+#if 1
+	int i;
+	for (i = 0; i < RTE_ETHER_ADDR_LEN; i++)
+		dev->data->mac_addrs->addr_bytes[i] = i;
+
+	dev->data->mac_addrs->addr_bytes[5] = repr_data->repr_id;
+#endif
+
 	dev->dev_ops = &sfc_repr_dev_ops;
 
 	sr->state = SFC_ADAPTER_INITIALIZED;
