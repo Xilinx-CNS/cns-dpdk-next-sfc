@@ -18,6 +18,7 @@
 #include "sfc_ev.h"
 #include "sfc_rx.h"
 #include "sfc_tx.h"
+#include "sfc_dp_rx.h"
 
 static struct sfc_repr_proxy *
 sfc_repr_proxy_by_adapter(struct sfc_adapter *sa)
@@ -57,6 +58,7 @@ static int32_t
 sfc_repr_proxy_routine(void *arg)
 {
 	struct sfc_repr_proxy *rp = arg;
+	struct sfc_repr_proxy_dp_rxq *rxq = &rp->dp_rxq;
 	unsigned int i;
 
 	for (i = 0; i < rp->num_ports; i++) {
@@ -83,6 +85,45 @@ sfc_repr_proxy_routine(void *arg)
 			txq->transmitted = 0;
 		}
 	}
+
+	if (rxq->available < RTE_DIM(rxq->rx_pkts)) {
+		rxq->available += rxq->pkt_burst(rxq->dp,
+				&rxq->rx_pkts[rxq->available],
+				RTE_DIM(rxq->rx_pkts) - rxq->available);
+		if (rxq->available == rxq->transmitted)
+			return 0;
+	}
+
+	for (i = rxq->transmitted; i < rxq->available; i++, rxq->transmitted++) {
+		struct sfc_repr_proxy_port *port = NULL;
+		struct rte_mbuf *m = rxq->rx_pkts[i];
+		efx_mport_id_t mport_id;
+		unsigned int j;
+
+		mport_id.id = *RTE_MBUF_DYNFIELD(m, sfc_dp_mport_offset,
+					typeof(&((efx_mport_id_t *)0)->id));
+		for (j = 0; j < rp->num_ports; j++) {
+			port = &rp->ports[j];
+			if (port->egress_mport.id == mport_id.id) {
+				m->port = port->rte_port_id;
+				break;
+			}
+		}
+		if (j == rp->num_ports)
+			continue;
+
+		/* FIXME: thread safety */
+		if (port->rxq[0].ring == NULL)
+			continue;
+
+		m->ol_flags &= ~sfc_dp_mport_override;
+		if (rte_ring_sp_enqueue_burst(port->rxq[0].ring, (void **)&m,
+					      1, NULL) == 0)
+			break;
+	}
+
+	if (rxq->available == rxq->transmitted)
+		rxq->available = rxq->transmitted = 0;
 
 	return 0;
 }
@@ -211,6 +252,12 @@ sfc_repr_proxy_rxq_detach(struct sfc_adapter *sa)
 	sfc_log_init(sa, "entry");
 }
 
+static struct sfc_rxq_info *
+sfc_repr_proxy_rxq_info_get(struct sfc_adapter *sa)
+{
+	return &sfc_sa2shared(sa)->rxq_info[sa->repr_proxy.dp_rxq.sw_index];
+}
+
 int
 sfc_repr_proxy_rxq_init(struct sfc_adapter *sa, struct rte_mempool *mp)
 {
@@ -289,6 +336,11 @@ sfc_repr_proxy_rxq_start(struct sfc_adapter *sa)
 	rc = sfc_rx_qstart(sa, rxq->sw_index);
 	if (rc != 0)
 		goto fail_start;
+
+	rxq->dp = sfc_repr_proxy_rxq_info_get(sa)->dp;
+	rxq->pkt_burst = sa->eth_dev->rx_pkt_burst;
+	rxq->available = 0;
+	rxq->transmitted = 0;
 
 	return 0;
 
