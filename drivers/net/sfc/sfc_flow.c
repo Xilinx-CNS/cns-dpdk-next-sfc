@@ -24,6 +24,7 @@
 #include "sfc_flow.h"
 #include "sfc_log.h"
 #include "sfc_dp_rx.h"
+#include "sfc_mae_count.h"
 
 struct sfc_flow_ops_by_spec {
 	sfc_flow_parse_cb_t	*parse;

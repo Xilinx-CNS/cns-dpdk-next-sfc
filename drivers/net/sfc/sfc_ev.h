@@ -60,42 +60,74 @@ struct sfc_evq {
 	unsigned int			entries;
 };
 
+/* Return the number of Rx queues reserved for driver's internal use */
+static inline unsigned int
+sfc_rxq_reserved(const struct sfc_adapter_shared *sas)
+{
+	return sfc_cnt_rxq_num(sas);
+}
+
+static inline unsigned int
+sfc_evq_reserved(const struct sfc_adapter_shared *sas)
+{
+	/* An EvQ is required for each reserved RxQ */
+	return 1 + sfc_rxq_reserved(sas);
+}
+
+static inline int
+sfc_mgmt_evq_index(__rte_unused const struct sfc_adapter_shared *sas)
+{
+	return 0;
+}
+
+static inline int
+sfc_cnt_rxq_sw_index(const struct sfc_adapter_shared *sas)
+{
+	return sas->cnt_rxq_supported ? 0 : -1;
+}
+
 /*
  * Functions below define event queue to transmit/receive queue and vice
  * versa mapping.
  * Own event queue is allocated for management, each Rx and each Tx queue.
  * Zero event queue is used for management events.
- * Rx event queues from 1 to RxQ number follow management event queue.
+ * When counters are supported, one Rx event queue is reserved.
+ * Rx event queues follow reserved event queues.
  * Tx event queues follow Rx event queues.
  */
 
 static inline unsigned int
-sfc_evq_index_by_rxq_sw_index(__rte_unused struct sfc_adapter *sa,
-			      unsigned int rxq_sw_index)
-{
-	return 1 + rxq_sw_index;
-}
-
-static inline unsigned int
 sfc_evq_index_by_txq_sw_index(struct sfc_adapter *sa, unsigned int txq_sw_index)
 {
-	return 1 + sa->eth_dev->data->nb_rx_queues + txq_sw_index;
+	return sfc_evq_reserved(sfc_sa2shared(sa)) +
+		sa->eth_dev->data->nb_rx_queues + txq_sw_index;
 }
 
 static inline unsigned int
-sfc_rxq_sw_index_by_ethdev_rx_qid(__rte_unused struct sfc_adapter_shared *sas,
+sfc_rxq_sw_index_by_ethdev_rx_qid(struct sfc_adapter_shared *sas,
 				  unsigned int ethdev_rx_qid)
 {
-	/* Only ethdev queues are present for now */
-	return ethdev_rx_qid;
+	return sfc_rxq_reserved(sas) + ethdev_rx_qid;
 }
 
 static inline int
-sfc_ethdev_rx_qid_by_rxq_sw_index(__rte_unused struct sfc_adapter_shared *sas,
+sfc_ethdev_rx_qid_by_rxq_sw_index(struct sfc_adapter_shared *sas,
 				  unsigned int rxq_sw_index)
 {
-	/* Only ethdev queues are present for now */
-	return rxq_sw_index;
+	return rxq_sw_index - sfc_rxq_reserved(sas);
+}
+
+static inline unsigned int
+sfc_evq_index_by_rxq_sw_index(struct sfc_adapter *sa,
+			      unsigned int rxq_sw_index)
+{
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	int ethdev_qid = sfc_ethdev_rx_qid_by_rxq_sw_index(sas, rxq_sw_index);
+
+	if (ethdev_qid < 0)
+		return 1 + rxq_sw_index;
+
+	return sfc_evq_reserved(sas) + ethdev_qid;
 }
 
 static inline unsigned int
