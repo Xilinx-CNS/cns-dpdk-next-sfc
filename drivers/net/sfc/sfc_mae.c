@@ -220,6 +220,14 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mae_assign_entity_mport;
 
+#if 1
+	/*
+	 * Override entity mport with corresponding PHY port
+	 * to bring OVS offload alive.
+	 */
+	(void)efx_mae_mport_by_phy_port(encp->enc_assigned_port, &entity_mport);
+#endif
+
 	sfc_log_init(sa, "assign RTE switch domain");
 	rc = sfc_mae_assign_switch_domain(sa, &mae->switch_domain_id);
 	if (rc != 0)
