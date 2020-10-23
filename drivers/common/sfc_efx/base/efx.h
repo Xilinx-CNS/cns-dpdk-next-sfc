@@ -4271,6 +4271,10 @@ extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_encap(
 	__in				efx_mae_actions_t *spec);
 
+typedef struct efx_counter_s {
+	uint32_t id;
+} efx_counter_t;
+
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_flag(
@@ -4377,6 +4381,22 @@ efx_mae_action_set_alloc(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_actions_t *spec,
 	__out				efx_mae_aset_id_t *aset_idp);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_counters_alloc(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__out_ecount(n_counters)	efx_counter_t *countersp,
+	__out_opt			uint32_t *gen_countp);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_counters_free(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__in_ecount(n_counters)		const efx_counter_t *countersp,
+	__out_opt			uint32_t *gen_countp);
 
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
