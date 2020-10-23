@@ -2176,7 +2176,11 @@ sfc_parse_switch_mode(struct sfc_adapter *sa, bool has_representors)
 		goto fail_kvargs;
 
 	if (switch_mode == NULL) {
+#if 0
 		sa->switchdev = has_representors;
+#else
+		sa->switchdev = true;
+#endif
 	} else if (strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_LEGACY) == 0) {
 		sa->switchdev = false;
 	} else if (strcmp(switch_mode, SFC_KVARG_SWITCH_MODE_SWITCHDEV) == 0) {
