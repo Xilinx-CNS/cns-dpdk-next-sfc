@@ -221,6 +221,7 @@ int sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 			       struct rte_flow_error *error);
 int sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			       const struct rte_flow_action actions[],
+			       const struct sfc_mae_outer_rule *outer_rule,
 			       struct sfc_mae_action_set **action_setp,
 			       struct rte_flow_error *error);
 sfc_flow_verify_cb_t sfc_mae_flow_verify;
