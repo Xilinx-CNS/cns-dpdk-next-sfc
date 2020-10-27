@@ -356,6 +356,7 @@ efx_mae_get_limits(
 	emlp->eml_max_n_outer_prios = maep->em_max_n_outer_prios;
 	emlp->eml_max_n_action_prios = maep->em_max_n_action_prios;
 	emlp->eml_encap_types_supported = maep->em_encap_types_supported;
+	emlp->eml_max_n_counters = maep->em_max_ncounters;
 
 	return (0);
 
