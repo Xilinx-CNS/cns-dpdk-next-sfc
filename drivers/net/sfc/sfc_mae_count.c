@@ -660,3 +660,29 @@ fail_counter_stream:
 
 	return rc;
 }
+
+int
+sfc_mae_counter_get(struct sfc_mae_counters *counters,
+		    const struct sfc_mae_counter_id *counter,
+		    struct rte_flow_query_count *data)
+{
+	struct sfc_mae_counter *p;
+	union sfc_mae_counter_value value;
+
+	p = &counters->mae_counters[counter->mae_id.id];
+
+	value.hits_bytes.int128 = __atomic_load_n(&p->value.hits_bytes.int128,
+						  __ATOMIC_ACQUIRE);
+
+	data->hits_set = 1;
+	data->bytes_set = 1;
+	data->hits = value.hits - p->reset.hits;
+	data->bytes = value.bytes - p->reset.bytes;
+
+	if (data->reset != 0) {
+		p->reset.hits = value.hits;
+		p->reset.bytes = value.bytes;
+	}
+
+	return 0;
+}
