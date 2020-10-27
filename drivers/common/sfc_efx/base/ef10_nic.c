@@ -1870,7 +1870,10 @@ efx_mcdi_nic_board_cfg(
 
 	/* MAC address for this function */
 	if (EFX_PCI_FUNCTION_IS_PF(encp)) {
-		rc = efx_mcdi_get_mac_address_pf(enp, mac_addr);
+		/* rc = efx_mcdi_get_mac_address_pf(enp, mac_addr); */
+		mac_addr[1] = 0x00;
+		mac_addr[5] = 0x02;
+		rc = 0;
 #if EFSYS_OPT_ALLOW_UNCONFIGURED_NIC
 		/*
 		 * Disable static config checking, ONLY for manufacturing test
