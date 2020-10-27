@@ -569,3 +569,28 @@ fail_counter_stream:
 
 	return rc;
 }
+
+int
+sfc_mae_counter_get(struct sfc_mae_counters *counters,
+		    const struct sfc_mae_counter_id *counter,
+		    struct rte_flow_query_count *data)
+{
+	struct sfc_mae_counter *p;
+
+	p = &counters->mae_counters[counter->mae_id.id];
+
+	rte_spinlock_lock(&counters->lock);
+
+	data->hits_set = 1;
+	data->bytes_set = 1;
+	data->hits = p->hits;
+	data->bytes = p->bytes;
+	if (data->reset != 0) {
+		p->hits = 0;
+		p->bytes = 0;
+	}
+
+	rte_spinlock_unlock(&counters->lock);
+
+	return 0;
+}
