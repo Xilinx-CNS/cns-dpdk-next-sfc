@@ -225,6 +225,10 @@ New Features
     ``has_more_vlan`` in the vlan item.
   * Added support for PMD level multiple-thread flow insertion.
 
+  Updated Mellanox mlx5 vDPA driver:
+
+  * Added support of vDPA VirtQ error handling.
+
 * **Added Wangxun txgbe PMD.**
 
   Added a new PMD driver for Wangxun 10 Gigabit Ethernet NICs.
