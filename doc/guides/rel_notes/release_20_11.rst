@@ -223,6 +223,7 @@ New Features
   * Added support for QinQ packets matching.
   * Added support for the new vlan fields ``has_vlan`` in the eth item and
     ``has_more_vlan`` in the vlan item.
+  * Added support for PMD level multiple-thread flow insertion.
 
 * **Added Wangxun txgbe PMD.**
 
