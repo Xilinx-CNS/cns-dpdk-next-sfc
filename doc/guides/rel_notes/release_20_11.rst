@@ -195,6 +195,10 @@ New Features
 
   * Added acl filter support for Intel DCF.
 
+* **Added support of vector instructions on IAVF.**
+
+  Added support of AVX512 instructions in IAVF RX and TX path.
+
 * **Updated Intel qat driver.**
 
   Updated the Intel qat driver to use write combining stores.
