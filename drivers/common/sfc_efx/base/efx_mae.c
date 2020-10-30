@@ -994,6 +994,8 @@ efx_mae_action_set_spec_init(
 		goto fail1;
 	}
 
+	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+
 	*specp = spec;
 
 	return (0);
@@ -1078,6 +1080,50 @@ efx_mae_action_set_add_vlan_push(
 
 fail3:
 	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_count(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_MAE_RSRC_ID_INVALID ==
+			  MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_NULL);
+
+	/*
+	 * Preparing an action set spec to update a counter requires
+	 * two steps: first add this action to the action spec, and then
+	 * add the counter ID to the spec. This allows validity checking
+	 * and resource allocation to be done separately.
+	 * Mark the counter ID as invalid in the spec to ensure that the
+	 * caller must also invoke efx_mae_action_set_fill_in_counter_id()
+	 * before action set allocation.
+	 */
+	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	/* Nothing else is supposed to take place over here. */
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	++(spec->ema_n_count_actions);
+
+	return (0);
+
 fail2:
 	EFSYS_PROBE(fail2);
 fail1:
@@ -1187,6 +1233,9 @@ static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
 	[EFX_MAE_ACTION_VLAN_PUSH] = {
 		.emad_add = efx_mae_action_set_add_vlan_push
 	},
+	[EFX_MAE_ACTION_COUNT] = {
+		.emad_add = efx_mae_action_set_add_count
+	},
 	[EFX_MAE_ACTION_FLAG] = {
 		.emad_add = efx_mae_action_set_add_flag
 	},
@@ -1201,6 +1250,12 @@ static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
 static const uint32_t efx_mae_action_ordered_map =
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
 	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
+	/*
+	 * HW will conduct action COUNT after
+	 * the matching packet has been modified by
+	 * length-affecting actions except for ENCAP.
+	 */
+	(1U << EFX_MAE_ACTION_COUNT) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK) |
 	(1U << EFX_MAE_ACTION_DELIVER);
@@ -1216,7 +1271,8 @@ static const uint32_t efx_mae_action_nonstrict_map =
 
 static const uint32_t efx_mae_action_repeat_map =
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
-	(1U << EFX_MAE_ACTION_VLAN_PUSH);
+	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
+	(1U << EFX_MAE_ACTION_COUNT);
 
 /*
  * Add an action to an action set.
@@ -1318,6 +1374,20 @@ efx_mae_action_set_populate_vlan_push(
 }
 
 	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_count(
+	__in				efx_mae_actions_t *spec)
+{
+	/*
+	 * There is no argument to pass counter ID, thus, one does not
+	 * need to allocate a counter while parsing application input.
+	 * This is useful since building an action set may be done simply to
+	 * validate a rule, whilst resource allocation usually consumes time.
+	 */
+	return (efx_mae_action_set_spec_populate(spec,
+	    EFX_MAE_ACTION_COUNT, 0, NULL));
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_flag(
 	__in				efx_mae_actions_t *spec)
 {
@@ -1389,7 +1459,22 @@ efx_mae_action_set_specs_equal(
 	__in				const efx_mae_actions_t *left,
 	__in				const efx_mae_actions_t *right)
 {
-	return ((memcmp(left, right, sizeof (*left)) == 0) ? B_TRUE : B_FALSE);
+	size_t cmp_size = EFX_FIELD_OFFSET(efx_mae_actions_t, ema_rsrc);
+
+	/*
+	 * An action set specification consists of two parts. The first part
+	 * indicates what actions are included in the action set, as well as
+	 * extra quantitative values (in example, the number of VLAN tags to
+	 * push). The second part comprises resource IDs used by the actions.
+	 *
+	 * A resource, in example, a counter, is allocated from the hardware
+	 * by the client, and it's the client who is responsible for keeping
+	 * track of allocated resources and comparing resource IDs if needed.
+	 *
+	 * In this API, don't compare resource IDs in the two specifications.
+	 */
+
+	return ((memcmp(left, right, cmp_size) == 0) ? B_TRUE : B_FALSE);
 }
 
 	__checkReturn			efx_rc_t
@@ -1735,8 +1820,6 @@ efx_mae_action_set_alloc(
 	MCDI_IN_SET_DWORD(req,
 	    MAE_ACTION_SET_ALLOC_IN_COUNTER_LIST_ID, EFX_MAE_RSRC_ID_INVALID);
 	MCDI_IN_SET_DWORD(req,
-	    MAE_ACTION_SET_ALLOC_IN_COUNTER_ID, EFX_MAE_RSRC_ID_INVALID);
-	MCDI_IN_SET_DWORD(req,
 	    MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID, EFX_MAE_RSRC_ID_INVALID);
 
 	MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
@@ -1766,6 +1849,9 @@ efx_mae_action_set_alloc(
 		MCDI_IN_SET_WORD(req, MAE_ACTION_SET_ALLOC_IN_VLAN0_TCI_BE,
 		    spec->ema_vlan_push_descs[outer_tag_idx].emavp_tci_be);
 	}
+
+	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_COUNTER_ID,
+	    spec->ema_rsrc.emar_counter_id.id);
 
 	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_FLAG)) != 0) {
 		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
@@ -2012,6 +2098,64 @@ efx_mae_action_rule_remove(
 
 	return (0);
 
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			unsigned int
+efx_mae_action_set_get_nb_count(
+	__in				const efx_mae_actions_t *spec)
+{
+	return (spec->ema_n_count_actions);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_fill_in_counter_id(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_counter_t *counter_idp)
+{
+	efx_rc_t rc;
+
+	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_COUNT)) == 0) {
+		/*
+		 * Invalid to add counter ID if spec does not have COUNT action.
+		 */
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (spec->ema_n_count_actions != 1) {
+		/*
+		 * Having multiple COUNT actions in the spec requires a counter
+		 * list to be used. This API must only be used for a single
+		 * counter per spec. Turn down the request as inappropriate.
+		 */
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	if (spec->ema_rsrc.emar_counter_id.id != EFX_MAE_RSRC_ID_INVALID) {
+		/* The caller attempts to indicate counter ID twice. */
+		rc = EALREADY;
+		goto fail3;
+	}
+
+	if (counter_idp->id == EFX_MAE_RSRC_ID_INVALID) {
+		rc = EINVAL;
+		goto fail4;
+	}
+
+	spec->ema_rsrc.emar_counter_id.id = counter_idp->id;
+
+	return (0);
+
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
