@@ -207,6 +207,12 @@ New Features
 
   Updated the Intel qat driver to use write combining stores.
 
+* **Updated Intel iavf driver.**
+
+  Updated iavf PMD with new features and improvements, including:
+
+  * Added support for flexible descriptor metadata extraction.
+
 * **Updated Memif PMD.**
 
   * Added support for abstract socket address.
