@@ -242,6 +242,12 @@ New Features
 
   See the :doc:`../nics/txgbe` for more details.
 
+* **Updated the Amazon ena driver.**
+
+  Updated the ena PMD with new features and improvements, including:
+
+  * Added network interface metrics which can be read using xstats.
+
 * **Added Ice Lake (Gen4) support for Intel NTB.**
 
   Added NTB device support (4th generation) for Intel Ice Lake platform.
