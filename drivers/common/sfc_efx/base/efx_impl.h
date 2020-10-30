@@ -1730,6 +1730,7 @@ typedef enum efx_mae_action_e {
 	/* These actions are strictly ordered. */
 	EFX_MAE_ACTION_VLAN_POP,
 	EFX_MAE_ACTION_VLAN_PUSH,
+	EFX_MAE_ACTION_COUNT,
 
 	/*
 	 * These actions are not strictly ordered and can
@@ -1757,6 +1758,10 @@ typedef struct efx_mae_action_vlan_push_s {
 	uint16_t			emavp_tci_be;
 } efx_mae_action_vlan_push_t;
 
+typedef struct efx_mae_actions_rsrc_s {
+	efx_counter_t			emar_counter_id;
+} efx_mae_actions_rsrc_t;
+
 struct efx_mae_actions_s {
 	/* Bitmap of actions in spec, indexed by action type */
 	uint32_t			ema_actions;
@@ -1767,6 +1772,14 @@ struct efx_mae_actions_s {
 	    EFX_MAE_VLAN_PUSH_MAX_NTAGS];
 	uint32_t			ema_mark_value;
 	efx_mport_sel_t			ema_deliver_mport;
+	unsigned int			ema_n_count_actions;
+
+	/*
+	 * Always keep this at the end of the struct since
+	 * efx_mae_action_set_specs_equal() relies on that
+	 * to make sure that resource IDs are not compared.
+	 */
+	efx_mae_actions_rsrc_t		ema_rsrc;
 };
 
 #endif /* EFSYS_OPT_MAE */
