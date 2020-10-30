@@ -167,6 +167,7 @@ struct sfc_rss {
 /* Adapter private data shared by primary and secondary processes */
 struct sfc_adapter_shared {
 	unsigned int			rxq_count;
+	unsigned int			ethdev_rxq_count;
 	struct sfc_rxq_info		*rxq_info;
 
 	unsigned int			txq_count;
