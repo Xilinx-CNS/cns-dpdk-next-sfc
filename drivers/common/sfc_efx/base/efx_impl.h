@@ -1734,6 +1734,11 @@ typedef enum efx_mae_action_e {
 	EFX_MAE_ACTION_DECAP,
 	EFX_MAE_ACTION_VLAN_POP,
 	EFX_MAE_ACTION_VLAN_PUSH,
+	EFX_MAE_ACTION_COUNT, /*<
+			       * HW will conduct action COUNT after
+			       * the matching packet has been modified by
+			       * length-affecting actions except for ENCAP.
+			       */
 	EFX_MAE_ACTION_ENCAP,
 
 	/*
@@ -1764,6 +1769,7 @@ typedef struct efx_mae_action_vlan_push_s {
 
 typedef struct efx_mae_actions_rsrc_s {
 	efx_mae_eh_id_t			emar_eh_id;
+	efx_counter_t			emar_counter_id;
 } efx_mae_actions_rsrc_t;
 
 struct efx_mae_actions_s {
@@ -1776,6 +1782,7 @@ struct efx_mae_actions_s {
 	    EFX_MAE_VLAN_PUSH_MAX_NTAGS];
 	uint32_t			ema_mark_value;
 	efx_mport_sel_t			ema_deliver_mport;
+	unsigned int			ema_n_count_actions;
 
 	/*
 	 * Always keep this at the end of the struct since

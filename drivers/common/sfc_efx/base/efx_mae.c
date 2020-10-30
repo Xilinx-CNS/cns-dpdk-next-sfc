@@ -898,6 +898,8 @@ efx_mae_action_set_spec_init(
 		goto fail1;
 	}
 
+	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+
 	*specp = spec;
 
 	return (0);
@@ -1059,6 +1061,49 @@ fail1:
 }
 
 static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_count(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_MAE_RSRC_ID_INVALID ==
+			  MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_NULL);
+
+	/*
+	 * Adding this specific action to an action set spec and setting counter
+	 * ID in the spec are two individual steps; this is on purpose.
+	 * For now, mark counter ID as invalid; the caller will invoke
+	 * efx_mae_action_set_fill_in_counter_id() to override the field prior
+	 * to action set allocation; otherwise, the allocation will fail.
+	 */
+	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	/* Nothing else is supposed to take place over here. */
+
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	++(spec->ema_n_count_actions);
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
 efx_mae_action_set_add_flag(
 	__in				efx_mae_actions_t *spec,
 	__in				size_t arg_size,
@@ -1163,6 +1208,9 @@ static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
 	[EFX_MAE_ACTION_VLAN_PUSH] = {
 		.emad_add = efx_mae_action_set_add_vlan_push
 	},
+	[EFX_MAE_ACTION_COUNT] = {
+		.emad_add = efx_mae_action_set_add_count
+	},
 	[EFX_MAE_ACTION_ENCAP] = {
 		.emad_add = efx_mae_action_set_add_encap
 	},
@@ -1181,6 +1229,7 @@ static const uint32_t efx_mae_action_ordered_map =
 	(1U << EFX_MAE_ACTION_DECAP) |
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
 	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
+	(1U << EFX_MAE_ACTION_COUNT) |
 	(1U << EFX_MAE_ACTION_ENCAP) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK) |
@@ -1197,7 +1246,8 @@ static const uint32_t efx_mae_action_nonstrict_map =
 
 static const uint32_t efx_mae_action_repeat_map =
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
-	(1U << EFX_MAE_ACTION_VLAN_PUSH);
+	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
+	(1U << EFX_MAE_ACTION_COUNT);
 
 /*
  * Add an action to an action set.
@@ -1313,6 +1363,15 @@ efx_mae_action_set_populate_encap(
 	return (efx_mae_action_set_spec_populate(spec,
 	    EFX_MAE_ACTION_ENCAP, 0, NULL));
 }
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_count(
+	__in				efx_mae_actions_t *spec)
+{
+	return (efx_mae_action_set_spec_populate(spec,
+	    EFX_MAE_ACTION_COUNT, 0, NULL));
+}
+
 
 	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_flag(
@@ -1726,8 +1785,6 @@ efx_mae_action_set_alloc(
 	 */
 	MCDI_IN_SET_DWORD(req,
 	    MAE_ACTION_SET_ALLOC_IN_COUNTER_LIST_ID, EFX_MAE_RSRC_ID_INVALID);
-	MCDI_IN_SET_DWORD(req,
-	    MAE_ACTION_SET_ALLOC_IN_COUNTER_ID, EFX_MAE_RSRC_ID_INVALID);
 
 	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_DECAP)) != 0) {
 		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
@@ -1772,6 +1829,9 @@ efx_mae_action_set_alloc(
 	}
 
 	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID, eh_id);
+
+	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_COUNTER_ID,
+	    spec->ema_rsrc.emar_counter_id.id);
 
 	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_FLAG)) != 0) {
 		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
@@ -2213,6 +2273,65 @@ efx_mae_action_set_fill_in_eh_id(
 
 	return (0);
 
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			unsigned int
+efx_mae_action_set_get_nb_count(
+	__in				const efx_mae_actions_t *spec)
+{
+	return (spec->ema_n_count_actions);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_fill_in_counter_id(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_counter_t *counter_idp)
+{
+	efx_rc_t rc;
+
+	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_COUNT)) == 0) {
+		/*
+		 * The caller has not intended to have action COUNT originally,
+		 * hence, this attempt to indicate counter ID is invalid.
+		 */
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (spec->ema_n_count_actions != 1) {
+		/*
+		 * Having multiple COUNT actions tracked by the spec suggests
+		 * that the caller indicate a counter list ID rather than an
+		 * ordinary counter ID. Turn down the request as inappropriate.
+		 */
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	if (spec->ema_rsrc.emar_counter_id.id != EFX_MAE_RSRC_ID_INVALID) {
+		/* The caller attempts to indicate counter ID twice. */
+		rc = EALREADY;
+		goto fail3;
+	}
+
+	if (counter_idp->id == EFX_MAE_RSRC_ID_INVALID) {
+		rc = EINVAL;
+		goto fail4;
+	}
+
+	spec->ema_rsrc.emar_counter_id.id = counter_idp->id;
+
+	return (0);
+
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
