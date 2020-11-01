@@ -231,6 +231,8 @@ New Features
   * Added support for the new vlan fields ``has_vlan`` in the eth item and
     ``has_more_vlan`` in the vlan item.
   * Added support for PMD level multiple-thread flow insertion.
+  * Added vectorized Multi-Packet Rx Queue burst.
+  * Added support for 2 new miniCQE formats: Flow Tag and L3/L4 header.
 
   Updated Mellanox mlx5 vDPA driver:
 
