@@ -20,6 +20,7 @@
  * Perform an FC operation
  */
 #define	MC_CMD_FC 0x9
+#define	MC_CMD_FC_MSGSET 0x9
 
 /* MC_CMD_FC_IN msgrequest */
 #define	MC_CMD_FC_IN_LEN 4
@@ -2391,6 +2392,7 @@
  * AOE operations on MC
  */
 #define	MC_CMD_AOE 0xa
+#define	MC_CMD_AOE_MSGSET 0xa
 
 /* MC_CMD_AOE_IN msgrequest */
 #define	MC_CMD_AOE_IN_LEN 4
