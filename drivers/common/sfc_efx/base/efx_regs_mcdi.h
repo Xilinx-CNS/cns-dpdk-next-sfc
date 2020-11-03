@@ -1384,6 +1384,7 @@
  * has additional checks to reject insecure calls.
  */
 #define	MC_CMD_READ32 0x1
+#define	MC_CMD_READ32_MSGSET 0x1
 #undef	MC_CMD_0x1_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -1413,6 +1414,7 @@
  * Write multiple 32byte words to MC memory.
  */
 #define	MC_CMD_WRITE32 0x2
+#define	MC_CMD_WRITE32_MSGSET 0x2
 #undef	MC_CMD_0x2_PRIVILEGE_CTG
 
 #define	MC_CMD_0x2_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -1442,6 +1444,7 @@
  * has additional checks to reject insecure calls.
  */
 #define	MC_CMD_COPYCODE 0x3
+#define	MC_CMD_COPYCODE_MSGSET 0x3
 #undef	MC_CMD_0x3_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -1505,6 +1508,7 @@
  * Select function for function-specific commands.
  */
 #define	MC_CMD_SET_FUNC 0x4
+#define	MC_CMD_SET_FUNC_MSGSET 0x4
 #undef	MC_CMD_0x4_PRIVILEGE_CTG
 
 #define	MC_CMD_0x4_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -1524,6 +1528,7 @@
  * Get the instruction address from which the MC booted.
  */
 #define	MC_CMD_GET_BOOT_STATUS 0x5
+#define	MC_CMD_GET_BOOT_STATUS_MSGSET 0x5
 #undef	MC_CMD_0x5_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -1558,6 +1563,7 @@
  * fields will only be present if OUT.GLOBAL_FLAGS != NO_FAILS
  */
 #define	MC_CMD_GET_ASSERTS 0x6
+#define	MC_CMD_GET_ASSERTS_MSGSET 0x6
 #undef	MC_CMD_0x6_PRIVILEGE_CTG
 
 #define	MC_CMD_0x6_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -1705,6 +1711,7 @@
  * sensor notifications and MCDI completions
  */
 #define	MC_CMD_LOG_CTRL 0x7
+#define	MC_CMD_LOG_CTRL_MSGSET 0x7
 #undef	MC_CMD_0x7_PRIVILEGE_CTG
 
 #define	MC_CMD_0x7_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -1731,6 +1738,7 @@
  * Get version information about adapter components.
  */
 #define	MC_CMD_GET_VERSION 0x8
+#define	MC_CMD_GET_VERSION_MSGSET 0x8
 #undef	MC_CMD_0x8_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -1892,6 +1900,7 @@
  * Perform PTP operation
  */
 #define	MC_CMD_PTP 0xb
+#define	MC_CMD_PTP_MSGSET 0xb
 #undef	MC_CMD_0xb_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -2745,6 +2754,7 @@
  * Read 32bit words from the indirect memory map.
  */
 #define	MC_CMD_CSR_READ32 0xc
+#define	MC_CMD_CSR_READ32_MSGSET 0xc
 #undef	MC_CMD_0xc_PRIVILEGE_CTG
 
 #define	MC_CMD_0xc_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -2778,6 +2788,7 @@
  * Write 32bit dwords to the indirect memory map.
  */
 #define	MC_CMD_CSR_WRITE32 0xd
+#define	MC_CMD_CSR_WRITE32_MSGSET 0xd
 #undef	MC_CMD_0xd_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -2811,6 +2822,7 @@
  * MCDI command to avoid creating too many MCDI commands.
  */
 #define	MC_CMD_HP 0x54
+#define	MC_CMD_HP_MSGSET 0x54
 #undef	MC_CMD_0x54_PRIVILEGE_CTG
 
 #define	MC_CMD_0x54_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -2858,6 +2870,7 @@
  * Get stack information.
  */
 #define	MC_CMD_STACKINFO 0xf
+#define	MC_CMD_STACKINFO_MSGSET 0xf
 #undef	MC_CMD_0xf_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -2884,6 +2897,7 @@
  * MDIO register read.
  */
 #define	MC_CMD_MDIO_READ 0x10
+#define	MC_CMD_MDIO_READ_MSGSET 0x10
 #undef	MC_CMD_0x10_PRIVILEGE_CTG
 
 #define	MC_CMD_0x10_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -2932,6 +2946,7 @@
  * MDIO register write.
  */
 #define	MC_CMD_MDIO_WRITE 0x11
+#define	MC_CMD_MDIO_WRITE_MSGSET 0x11
 #undef	MC_CMD_0x11_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -2980,6 +2995,7 @@
  * Write DBI register(s).
  */
 #define	MC_CMD_DBI_WRITE 0x12
+#define	MC_CMD_DBI_WRITE_MSGSET 0x12
 #undef	MC_CMD_0x12_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -3033,6 +3049,7 @@
  * access is implied by the Shared memory channel used.
  */
 #define	MC_CMD_PORT_READ32 0x14
+#define	MC_CMD_PORT_READ32_MSGSET 0x14
 
 /* MC_CMD_PORT_READ32_IN msgrequest */
 #define	MC_CMD_PORT_READ32_IN_LEN 4
@@ -3056,6 +3073,7 @@
  * access is implied by the Shared memory channel used.
  */
 #define	MC_CMD_PORT_WRITE32 0x15
+#define	MC_CMD_PORT_WRITE32_MSGSET 0x15
 
 /* MC_CMD_PORT_WRITE32_IN msgrequest */
 #define	MC_CMD_PORT_WRITE32_IN_LEN 8
@@ -3079,6 +3097,7 @@
  * access is implied by the Shared memory channel used.
  */
 #define	MC_CMD_PORT_READ128 0x16
+#define	MC_CMD_PORT_READ128_MSGSET 0x16
 
 /* MC_CMD_PORT_READ128_IN msgrequest */
 #define	MC_CMD_PORT_READ128_IN_LEN 4
@@ -3102,6 +3121,7 @@
  * access is implied by the Shared memory channel used.
  */
 #define	MC_CMD_PORT_WRITE128 0x17
+#define	MC_CMD_PORT_WRITE128_MSGSET 0x17
 
 /* MC_CMD_PORT_WRITE128_IN msgrequest */
 #define	MC_CMD_PORT_WRITE128_IN_LEN 20
@@ -3150,6 +3170,7 @@
  * Returns the MC firmware configuration structure.
  */
 #define	MC_CMD_GET_BOARD_CFG 0x18
+#define	MC_CMD_GET_BOARD_CFG_MSGSET 0x18
 #undef	MC_CMD_0x18_PRIVILEGE_CTG
 
 #define	MC_CMD_0x18_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -3225,6 +3246,7 @@
  * Read DBI register(s) -- extended functionality
  */
 #define	MC_CMD_DBI_READX 0x19
+#define	MC_CMD_DBI_READX_MSGSET 0x19
 #undef	MC_CMD_0x19_PRIVILEGE_CTG
 
 #define	MC_CMD_0x19_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -3283,6 +3305,7 @@
  * Set the 16byte seed for the MC pseudo-random generator.
  */
 #define	MC_CMD_SET_RAND_SEED 0x1a
+#define	MC_CMD_SET_RAND_SEED_MSGSET 0x1a
 #undef	MC_CMD_0x1a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1a_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -3302,6 +3325,7 @@
  * Retrieve the history of the LTSSM, if the build supports it.
  */
 #define	MC_CMD_LTSSM_HIST 0x1b
+#define	MC_CMD_LTSSM_HIST_MSGSET 0x1b
 
 /* MC_CMD_LTSSM_HIST_IN msgrequest */
 #define	MC_CMD_LTSSM_HIST_IN_LEN 0
@@ -3330,6 +3354,7 @@
  * platforms.
  */
 #define	MC_CMD_DRV_ATTACH 0x1c
+#define	MC_CMD_DRV_ATTACH_MSGSET 0x1c
 #undef	MC_CMD_0x1c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -3524,6 +3549,7 @@
  * Route UART output to circular buffer in shared memory instead.
  */
 #define	MC_CMD_SHMUART 0x1f
+#define	MC_CMD_SHMUART_MSGSET 0x1f
 
 /* MC_CMD_SHMUART_IN msgrequest */
 #define	MC_CMD_SHMUART_IN_LEN 4
@@ -3542,6 +3568,7 @@
  * use MC_CMD_ENTITY_RESET instead.
  */
 #define	MC_CMD_PORT_RESET 0x20
+#define	MC_CMD_PORT_RESET_MSGSET 0x20
 #undef	MC_CMD_0x20_PRIVILEGE_CTG
 
 #define	MC_CMD_0x20_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -3560,6 +3587,7 @@
  * extended version of the deprecated MC_CMD_PORT_RESET with added fields.
  */
 #define	MC_CMD_ENTITY_RESET 0x20
+#define	MC_CMD_ENTITY_RESET_MSGSET 0x20
 /*      MC_CMD_0x20_PRIVILEGE_CTG SRIOV_CTG_GENERAL */
 
 /* MC_CMD_ENTITY_RESET_IN msgrequest */
@@ -3582,6 +3610,7 @@
  * Read instantaneous and minimum flow control thresholds.
  */
 #define	MC_CMD_PCIE_CREDITS 0x21
+#define	MC_CMD_PCIE_CREDITS_MSGSET 0x21
 
 /* MC_CMD_PCIE_CREDITS_IN msgrequest */
 #define	MC_CMD_PCIE_CREDITS_IN_LEN 8
@@ -3617,6 +3646,7 @@
  * Get histogram of RX queue fill level.
  */
 #define	MC_CMD_RXD_MONITOR 0x22
+#define	MC_CMD_RXD_MONITOR_MSGSET 0x22
 
 /* MC_CMD_RXD_MONITOR_IN msgrequest */
 #define	MC_CMD_RXD_MONITOR_IN_LEN 12
@@ -3676,6 +3706,7 @@
  * Copy the given ASCII string out onto UART and/or out of the network port.
  */
 #define	MC_CMD_PUTS 0x23
+#define	MC_CMD_PUTS_MSGSET 0x23
 #undef	MC_CMD_0x23_PRIVILEGE_CTG
 
 #define	MC_CMD_0x23_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -3712,6 +3743,7 @@
  * 'zombie' state. Locks required: None
  */
 #define	MC_CMD_GET_PHY_CFG 0x24
+#define	MC_CMD_GET_PHY_CFG_MSGSET 0x24
 #undef	MC_CMD_0x24_PRIVILEGE_CTG
 
 #define	MC_CMD_0x24_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -3868,6 +3900,7 @@
  * Return code: 0, EINVAL, EACCES (if PHY_LOCK is not held)
  */
 #define	MC_CMD_START_BIST 0x25
+#define	MC_CMD_START_BIST_MSGSET 0x25
 #undef	MC_CMD_0x25_PRIVILEGE_CTG
 
 #define	MC_CMD_0x25_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -3908,6 +3941,7 @@
  * EACCES (if PHY_LOCK is not held).
  */
 #define	MC_CMD_POLL_BIST 0x26
+#define	MC_CMD_POLL_BIST_MSGSET 0x26
 #undef	MC_CMD_0x26_PRIVILEGE_CTG
 
 #define	MC_CMD_0x26_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -4077,6 +4111,7 @@
  * returns). The driver must still wait for flush done/failure events as usual.
  */
 #define	MC_CMD_FLUSH_RX_QUEUES 0x27
+#define	MC_CMD_FLUSH_RX_QUEUES_MSGSET 0x27
 
 /* MC_CMD_FLUSH_RX_QUEUES_IN msgrequest */
 #define	MC_CMD_FLUSH_RX_QUEUES_IN_LENMIN 4
@@ -4099,6 +4134,7 @@
  * Returns a bitmask of loopback modes available at each speed.
  */
 #define	MC_CMD_GET_LOOPBACK_MODES 0x28
+#define	MC_CMD_GET_LOOPBACK_MODES_MSGSET 0x28
 #undef	MC_CMD_0x28_PRIVILEGE_CTG
 
 #define	MC_CMD_0x28_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -4395,6 +4431,7 @@
  * ETIME.
  */
 #define	MC_CMD_GET_LINK 0x29
+#define	MC_CMD_GET_LINK_MSGSET 0x29
 #undef	MC_CMD_0x29_PRIVILEGE_CTG
 
 #define	MC_CMD_0x29_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -4596,6 +4633,7 @@
  * code: 0, EINVAL, ETIME, EAGAIN
  */
 #define	MC_CMD_SET_LINK 0x2a
+#define	MC_CMD_SET_LINK_MSGSET 0x2a
 #undef	MC_CMD_0x2a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x2a_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -4686,6 +4724,7 @@
  * Set identification LED state. Locks required: None. Return code: 0, EINVAL
  */
 #define	MC_CMD_SET_ID_LED 0x2b
+#define	MC_CMD_SET_ID_LED_MSGSET 0x2b
 #undef	MC_CMD_0x2b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x2b_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -4708,6 +4747,7 @@
  * Set MAC configuration. Locks required: None. Return code: 0, EINVAL
  */
 #define	MC_CMD_SET_MAC 0x2c
+#define	MC_CMD_SET_MAC_MSGSET 0x2c
 #undef	MC_CMD_0x2c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x2c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -4839,6 +4879,7 @@
  * Returns: 0, ETIME
  */
 #define	MC_CMD_PHY_STATS 0x2d
+#define	MC_CMD_PHY_STATS_MSGSET 0x2d
 #undef	MC_CMD_0x2d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x2d_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -4921,6 +4962,7 @@
  * effect. Returns: 0, ETIME
  */
 #define	MC_CMD_MAC_STATS 0x2e
+#define	MC_CMD_MAC_STATS_MSGSET 0x2e
 #undef	MC_CMD_0x2e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x2e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -5266,6 +5308,7 @@
  * to be documented
  */
 #define	MC_CMD_SRIOV 0x30
+#define	MC_CMD_SRIOV_MSGSET 0x30
 
 /* MC_CMD_SRIOV_IN msgrequest */
 #define	MC_CMD_SRIOV_IN_LEN 12
@@ -5338,6 +5381,7 @@
  * Returns: 0, EINVAL (invalid RID)
  */
 #define	MC_CMD_MEMCPY 0x31
+#define	MC_CMD_MEMCPY_MSGSET 0x31
 
 /* MC_CMD_MEMCPY_IN msgrequest */
 #define	MC_CMD_MEMCPY_IN_LENMIN 32
@@ -5361,6 +5405,7 @@
  * Set a WoL filter.
  */
 #define	MC_CMD_WOL_FILTER_SET 0x32
+#define	MC_CMD_WOL_FILTER_SET_MSGSET 0x32
 #undef	MC_CMD_0x32_PRIVILEGE_CTG
 
 #define	MC_CMD_0x32_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -5476,6 +5521,7 @@
  * Remove a WoL filter. Locks required: None. Returns: 0, EINVAL, ENOSYS
  */
 #define	MC_CMD_WOL_FILTER_REMOVE 0x33
+#define	MC_CMD_WOL_FILTER_REMOVE_MSGSET 0x33
 #undef	MC_CMD_0x33_PRIVILEGE_CTG
 
 #define	MC_CMD_0x33_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -5495,6 +5541,7 @@
  * ENOSYS
  */
 #define	MC_CMD_WOL_FILTER_RESET 0x34
+#define	MC_CMD_WOL_FILTER_RESET_MSGSET 0x34
 #undef	MC_CMD_0x34_PRIVILEGE_CTG
 
 #define	MC_CMD_0x34_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -5515,6 +5562,7 @@
  * Set the MCAST hash value without otherwise reconfiguring the MAC
  */
 #define	MC_CMD_SET_MCAST_HASH 0x35
+#define	MC_CMD_SET_MCAST_HASH_MSGSET 0x35
 
 /* MC_CMD_SET_MCAST_HASH_IN msgrequest */
 #define	MC_CMD_SET_MCAST_HASH_IN_LEN 32
@@ -5533,6 +5581,7 @@
  * Locks required: none. Returns: 0
  */
 #define	MC_CMD_NVRAM_TYPES 0x36
+#define	MC_CMD_NVRAM_TYPES_MSGSET 0x36
 #undef	MC_CMD_0x36_PRIVILEGE_CTG
 
 #define	MC_CMD_0x36_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -5595,6 +5644,7 @@
  * EINVAL (bad type).
  */
 #define	MC_CMD_NVRAM_INFO 0x37
+#define	MC_CMD_NVRAM_INFO_MSGSET 0x37
 #undef	MC_CMD_0x37_PRIVILEGE_CTG
 
 #define	MC_CMD_0x37_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -5692,6 +5742,7 @@
  * EPERM.
  */
 #define	MC_CMD_NVRAM_UPDATE_START 0x38
+#define	MC_CMD_NVRAM_UPDATE_START_MSGSET 0x38
 #undef	MC_CMD_0x38_PRIVILEGE_CTG
 
 #define	MC_CMD_0x38_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -5732,6 +5783,7 @@
  * PHY_LOCK required and not held)
  */
 #define	MC_CMD_NVRAM_READ 0x39
+#define	MC_CMD_NVRAM_READ_MSGSET 0x39
 #undef	MC_CMD_0x39_PRIVILEGE_CTG
 
 #define	MC_CMD_0x39_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -5803,6 +5855,7 @@
  * PHY_LOCK required and not held)
  */
 #define	MC_CMD_NVRAM_WRITE 0x3a
+#define	MC_CMD_NVRAM_WRITE_MSGSET 0x3a
 #undef	MC_CMD_0x3a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3a_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -5838,6 +5891,7 @@
  * PHY_LOCK required and not held)
  */
 #define	MC_CMD_NVRAM_ERASE 0x3b
+#define	MC_CMD_NVRAM_ERASE_MSGSET 0x3b
 #undef	MC_CMD_0x3b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3b_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -5868,6 +5922,7 @@
  * the error EPERM.
  */
 #define	MC_CMD_NVRAM_UPDATE_FINISH 0x3c
+#define	MC_CMD_NVRAM_UPDATE_FINISH_MSGSET 0x3c
 #undef	MC_CMD_0x3c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3c_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -6036,6 +6091,7 @@
  * DATALEN=0
  */
 #define	MC_CMD_REBOOT 0x3d
+#define	MC_CMD_REBOOT_MSGSET 0x3d
 #undef	MC_CMD_0x3d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3d_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -6057,6 +6113,7 @@
  * thread address.
  */
 #define	MC_CMD_SCHEDINFO 0x3e
+#define	MC_CMD_SCHEDINFO_MSGSET 0x3e
 #undef	MC_CMD_0x3e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3e_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -6083,6 +6140,7 @@
  * mode to the specified value. Returns the old mode.
  */
 #define	MC_CMD_REBOOT_MODE 0x3f
+#define	MC_CMD_REBOOT_MODE_MSGSET 0x3f
 #undef	MC_CMD_0x3f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x3f_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -6141,6 +6199,7 @@
  * Locks required: None Returns: 0
  */
 #define	MC_CMD_SENSOR_INFO 0x41
+#define	MC_CMD_SENSOR_INFO_MSGSET 0x41
 #undef	MC_CMD_0x41_PRIVILEGE_CTG
 
 #define	MC_CMD_0x41_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -6445,6 +6504,7 @@
  * STATE_WARNING. Otherwise the board should not be expected to function.
  */
 #define	MC_CMD_READ_SENSORS 0x42
+#define	MC_CMD_READ_SENSORS_MSGSET 0x42
 #undef	MC_CMD_0x42_PRIVILEGE_CTG
 
 #define	MC_CMD_0x42_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -6540,6 +6600,7 @@
  * code: 0
  */
 #define	MC_CMD_GET_PHY_STATE 0x43
+#define	MC_CMD_GET_PHY_STATE_MSGSET 0x43
 #undef	MC_CMD_0x43_PRIVILEGE_CTG
 
 #define	MC_CMD_0x43_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -6563,6 +6624,7 @@
  * disable 802.Qbb for a given priority.
  */
 #define	MC_CMD_SETUP_8021QBB 0x44
+#define	MC_CMD_SETUP_8021QBB_MSGSET 0x44
 
 /* MC_CMD_SETUP_8021QBB_IN msgrequest */
 #define	MC_CMD_SETUP_8021QBB_IN_LEN 32
@@ -6578,6 +6640,7 @@
  * Retrieve ID of any WoL filters. Locks required: None. Returns: 0, ENOSYS
  */
 #define	MC_CMD_WOL_FILTER_GET 0x45
+#define	MC_CMD_WOL_FILTER_GET_MSGSET 0x45
 #undef	MC_CMD_0x45_PRIVILEGE_CTG
 
 #define	MC_CMD_0x45_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -6597,6 +6660,7 @@
  * Returns: 0, ENOSYS
  */
 #define	MC_CMD_ADD_LIGHTSOUT_OFFLOAD 0x46
+#define	MC_CMD_ADD_LIGHTSOUT_OFFLOAD_MSGSET 0x46
 #undef	MC_CMD_0x46_PRIVILEGE_CTG
 
 #define	MC_CMD_0x46_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -6649,6 +6713,7 @@
  * None. Returns: 0, ENOSYS
  */
 #define	MC_CMD_REMOVE_LIGHTSOUT_OFFLOAD 0x47
+#define	MC_CMD_REMOVE_LIGHTSOUT_OFFLOAD_MSGSET 0x47
 #undef	MC_CMD_0x47_PRIVILEGE_CTG
 
 #define	MC_CMD_0x47_PRIVILEGE_CTG SRIOV_CTG_LINK
@@ -6669,6 +6734,7 @@
  * Restore MAC after block reset. Locks required: None. Returns: 0.
  */
 #define	MC_CMD_MAC_RESET_RESTORE 0x48
+#define	MC_CMD_MAC_RESET_RESTORE_MSGSET 0x48
 
 /* MC_CMD_MAC_RESET_RESTORE_IN msgrequest */
 #define	MC_CMD_MAC_RESET_RESTORE_IN_LEN 0
@@ -6684,6 +6750,7 @@
  * required: None Returns: 0
  */
 #define	MC_CMD_TESTASSERT 0x49
+#define	MC_CMD_TESTASSERT_MSGSET 0x49
 #undef	MC_CMD_0x49_PRIVILEGE_CTG
 
 #define	MC_CMD_0x49_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -6727,6 +6794,7 @@
  * basis. Locks required: None. Returns: 0, EINVAL .
  */
 #define	MC_CMD_WORKAROUND 0x4a
+#define	MC_CMD_WORKAROUND_MSGSET 0x4a
 #undef	MC_CMD_0x4a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x4a_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -6790,6 +6858,7 @@
  * Anything else: currently undefined. Locks required: None. Return code: 0.
  */
 #define	MC_CMD_GET_PHY_MEDIA_INFO 0x4b
+#define	MC_CMD_GET_PHY_MEDIA_INFO_MSGSET 0x4b
 #undef	MC_CMD_0x4b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x4b_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -6821,6 +6890,7 @@
  * on the type of partition).
  */
 #define	MC_CMD_NVRAM_TEST 0x4c
+#define	MC_CMD_NVRAM_TEST_MSGSET 0x4c
 #undef	MC_CMD_0x4c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x4c_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -6851,6 +6921,7 @@
  * they are configured first. Locks required: None. Return code: 0, EINVAL.
  */
 #define	MC_CMD_MRSFP_TWEAK 0x4d
+#define	MC_CMD_MRSFP_TWEAK_MSGSET 0x4d
 
 /* MC_CMD_MRSFP_TWEAK_IN_EQ_CONFIG msgrequest */
 #define	MC_CMD_MRSFP_TWEAK_IN_EQ_CONFIG_LEN 16
@@ -6894,6 +6965,7 @@
  * of range.
  */
 #define	MC_CMD_SENSOR_SET_LIMS 0x4e
+#define	MC_CMD_SENSOR_SET_LIMS_MSGSET 0x4e
 #undef	MC_CMD_0x4e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x4e_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -6925,6 +6997,7 @@
 /* MC_CMD_GET_RESOURCE_LIMITS
  */
 #define	MC_CMD_GET_RESOURCE_LIMITS 0x4f
+#define	MC_CMD_GET_RESOURCE_LIMITS_MSGSET 0x4f
 
 /* MC_CMD_GET_RESOURCE_LIMITS_IN msgrequest */
 #define	MC_CMD_GET_RESOURCE_LIMITS_IN_LEN 0
@@ -6947,6 +7020,7 @@
  * none. Returns: 0, EINVAL (bad type).
  */
 #define	MC_CMD_NVRAM_PARTITIONS 0x51
+#define	MC_CMD_NVRAM_PARTITIONS_MSGSET 0x51
 #undef	MC_CMD_0x51_PRIVILEGE_CTG
 
 #define	MC_CMD_0x51_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -6977,6 +7051,7 @@
  * none. Returns: 0, EINVAL (bad type).
  */
 #define	MC_CMD_NVRAM_METADATA 0x52
+#define	MC_CMD_NVRAM_METADATA_MSGSET 0x52
 #undef	MC_CMD_0x52_PRIVILEGE_CTG
 
 #define	MC_CMD_0x52_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -7035,6 +7110,7 @@
  * Returns the base MAC, count and stride for the requesting function
  */
 #define	MC_CMD_GET_MAC_ADDRESSES 0x55
+#define	MC_CMD_GET_MAC_ADDRESSES_MSGSET 0x55
 #undef	MC_CMD_0x55_PRIVILEGE_CTG
 
 #define	MC_CMD_0x55_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -7066,6 +7142,7 @@
  * SF-120509-TC and SF-117282-PS.
  */
 #define	MC_CMD_CLP 0x56
+#define	MC_CMD_CLP_MSGSET 0x56
 #undef	MC_CMD_0x56_PRIVILEGE_CTG
 
 #define	MC_CMD_0x56_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -7188,6 +7265,7 @@
  * Perform a MUM operation
  */
 #define	MC_CMD_MUM 0x57
+#define	MC_CMD_MUM_MSGSET 0x57
 #undef	MC_CMD_0x57_PRIVILEGE_CTG
 
 #define	MC_CMD_0x57_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -7986,6 +8064,7 @@
  * sensor_query SPHINX service.
  */
 #define	MC_CMD_DYNAMIC_SENSORS_LIST 0x66
+#define	MC_CMD_DYNAMIC_SENSORS_LIST_MSGSET 0x66
 #undef	MC_CMD_0x66_PRIVILEGE_CTG
 
 #define	MC_CMD_0x66_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -8031,6 +8110,7 @@
  * `get_descriptions` in the sensor_query SPHINX service.
  */
 #define	MC_CMD_DYNAMIC_SENSORS_GET_DESCRIPTIONS 0x67
+#define	MC_CMD_DYNAMIC_SENSORS_GET_DESCRIPTIONS_MSGSET 0x67
 #undef	MC_CMD_0x67_PRIVILEGE_CTG
 
 #define	MC_CMD_0x67_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -8080,6 +8160,7 @@
  * in the sensor_query SPHINX service.
  */
 #define	MC_CMD_DYNAMIC_SENSORS_GET_READINGS 0x68
+#define	MC_CMD_DYNAMIC_SENSORS_GET_READINGS_MSGSET 0x68
 #undef	MC_CMD_0x68_PRIVILEGE_CTG
 
 #define	MC_CMD_0x68_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -8117,6 +8198,7 @@
  * receive (Riverhead).
  */
 #define	MC_CMD_EVENT_CTRL 0x69
+#define	MC_CMD_EVENT_CTRL_MSGSET 0x69
 #undef	MC_CMD_0x69_PRIVILEGE_CTG
 
 #define	MC_CMD_0x69_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -8617,6 +8699,7 @@
  * Get a dump of the MCPU registers
  */
 #define	MC_CMD_READ_REGS 0x50
+#define	MC_CMD_READ_REGS_MSGSET 0x50
 #undef	MC_CMD_0x50_PRIVILEGE_CTG
 
 #define	MC_CMD_0x50_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -8643,6 +8726,7 @@
  * end with an address for each 4k of host memory required to back the EVQ.
  */
 #define	MC_CMD_INIT_EVQ 0x80
+#define	MC_CMD_INIT_EVQ_MSGSET 0x80
 #undef	MC_CMD_0x80_PRIVILEGE_CTG
 
 #define	MC_CMD_0x80_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -8900,6 +8984,7 @@
  * the RXQ.
  */
 #define	MC_CMD_INIT_RXQ 0x81
+#define	MC_CMD_INIT_RXQ_MSGSET 0x81
 #undef	MC_CMD_0x81_PRIVILEGE_CTG
 
 #define	MC_CMD_0x81_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -9497,6 +9582,7 @@
 /* MC_CMD_INIT_TXQ
  */
 #define	MC_CMD_INIT_TXQ 0x82
+#define	MC_CMD_INIT_TXQ_MSGSET 0x82
 #undef	MC_CMD_0x82_PRIVILEGE_CTG
 
 #define	MC_CMD_0x82_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -9674,6 +9760,7 @@
  * or the operation will fail with EBUSY
  */
 #define	MC_CMD_FINI_EVQ 0x83
+#define	MC_CMD_FINI_EVQ_MSGSET 0x83
 #undef	MC_CMD_0x83_PRIVILEGE_CTG
 
 #define	MC_CMD_0x83_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -9695,6 +9782,7 @@
  * Teardown a RXQ.
  */
 #define	MC_CMD_FINI_RXQ 0x84
+#define	MC_CMD_FINI_RXQ_MSGSET 0x84
 #undef	MC_CMD_0x84_PRIVILEGE_CTG
 
 #define	MC_CMD_0x84_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -9714,6 +9802,7 @@
  * Teardown a TXQ.
  */
 #define	MC_CMD_FINI_TXQ 0x85
+#define	MC_CMD_FINI_TXQ_MSGSET 0x85
 #undef	MC_CMD_0x85_PRIVILEGE_CTG
 
 #define	MC_CMD_0x85_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -9733,6 +9822,7 @@
  * Generate an event on an EVQ belonging to the function issuing the command.
  */
 #define	MC_CMD_DRIVER_EVENT 0x86
+#define	MC_CMD_DRIVER_EVENT_MSGSET 0x86
 #undef	MC_CMD_0x86_PRIVILEGE_CTG
 
 #define	MC_CMD_0x86_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -9760,6 +9850,7 @@
  * MC_CMD_SET_FUNC, which remains available for Siena but now deprecated.
  */
 #define	MC_CMD_PROXY_CMD 0x5b
+#define	MC_CMD_PROXY_CMD_MSGSET 0x5b
 #undef	MC_CMD_0x5b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5b_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -9828,6 +9919,7 @@
  * a designated admin function
  */
 #define	MC_CMD_PROXY_CONFIGURE 0x58
+#define	MC_CMD_PROXY_CONFIGURE_MSGSET 0x58
 #undef	MC_CMD_0x58_PRIVILEGE_CTG
 
 #define	MC_CMD_0x58_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -9936,6 +10028,7 @@
  * MC_CMD_PROXY_CONFIGURE).
  */
 #define	MC_CMD_PROXY_COMPLETE 0x5f
+#define	MC_CMD_PROXY_COMPLETE_MSGSET 0x5f
 #undef	MC_CMD_0x5f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5f_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -9974,6 +10067,7 @@
  * cannot do so). The buffer table entries will initially be zeroed.
  */
 #define	MC_CMD_ALLOC_BUFTBL_CHUNK 0x87
+#define	MC_CMD_ALLOC_BUFTBL_CHUNK_MSGSET 0x87
 #undef	MC_CMD_0x87_PRIVILEGE_CTG
 
 #define	MC_CMD_0x87_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -10005,6 +10099,7 @@
  * Reprogram a set of buffer table entries in the specified chunk.
  */
 #define	MC_CMD_PROGRAM_BUFTBL_ENTRIES 0x88
+#define	MC_CMD_PROGRAM_BUFTBL_ENTRIES_MSGSET 0x88
 #undef	MC_CMD_0x88_PRIVILEGE_CTG
 
 #define	MC_CMD_0x88_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -10040,6 +10135,7 @@
 /* MC_CMD_FREE_BUFTBL_CHUNK
  */
 #define	MC_CMD_FREE_BUFTBL_CHUNK 0x89
+#define	MC_CMD_FREE_BUFTBL_CHUNK_MSGSET 0x89
 #undef	MC_CMD_0x89_PRIVILEGE_CTG
 
 #define	MC_CMD_0x89_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -10058,6 +10154,7 @@
  * Multiplexed MCDI call for filter operations
  */
 #define	MC_CMD_FILTER_OP 0x8a
+#define	MC_CMD_FILTER_OP_MSGSET 0x8a
 #undef	MC_CMD_0x8a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8a_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -10878,6 +10975,7 @@
  * Get information related to the parser-dispatcher subsystem
  */
 #define	MC_CMD_GET_PARSER_DISP_INFO 0xe4
+#define	MC_CMD_GET_PARSER_DISP_INFO_MSGSET 0xe4
 #undef	MC_CMD_0xe4_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe4_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11025,6 +11123,7 @@
  * permitted.
  */
 #define	MC_CMD_PARSER_DISP_RW 0xe5
+#define	MC_CMD_PARSER_DISP_RW_MSGSET 0xe5
 #undef	MC_CMD_0xe5_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe5_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -11115,6 +11214,7 @@
  * Get number of PFs on the device.
  */
 #define	MC_CMD_GET_PF_COUNT 0xb6
+#define	MC_CMD_GET_PF_COUNT_MSGSET 0xb6
 #undef	MC_CMD_0xb6_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb6_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11134,6 +11234,7 @@
  * Set number of PFs on the device.
  */
 #define	MC_CMD_SET_PF_COUNT 0xb7
+#define	MC_CMD_SET_PF_COUNT_MSGSET 0xb7
 
 /* MC_CMD_SET_PF_COUNT_IN msgrequest */
 #define	MC_CMD_SET_PF_COUNT_IN_LEN 4
@@ -11150,6 +11251,7 @@
  * Get port assignment for current PCI function.
  */
 #define	MC_CMD_GET_PORT_ASSIGNMENT 0xb8
+#define	MC_CMD_GET_PORT_ASSIGNMENT_MSGSET 0xb8
 #undef	MC_CMD_0xb8_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb8_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11175,6 +11277,7 @@
  * Set port assignment for current PCI function.
  */
 #define	MC_CMD_SET_PORT_ASSIGNMENT 0xb9
+#define	MC_CMD_SET_PORT_ASSIGNMENT_MSGSET 0xb9
 #undef	MC_CMD_0xb9_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb9_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -11194,6 +11297,7 @@
  * Allocate VIs for current PCI function.
  */
 #define	MC_CMD_ALLOC_VIS 0x8b
+#define	MC_CMD_ALLOC_VIS_MSGSET 0x8b
 #undef	MC_CMD_0x8b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8b_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11241,6 +11345,7 @@
  * but not freed.
  */
 #define	MC_CMD_FREE_VIS 0x8c
+#define	MC_CMD_FREE_VIS_MSGSET 0x8c
 #undef	MC_CMD_0x8c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11257,6 +11362,7 @@
  * Get SRIOV config for this PF.
  */
 #define	MC_CMD_GET_SRIOV_CFG 0xba
+#define	MC_CMD_GET_SRIOV_CFG_MSGSET 0xba
 #undef	MC_CMD_0xba_PRIVILEGE_CTG
 
 #define	MC_CMD_0xba_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11290,6 +11396,7 @@
  * Set SRIOV config for this PF.
  */
 #define	MC_CMD_SET_SRIOV_CFG 0xbb
+#define	MC_CMD_SET_SRIOV_CFG_MSGSET 0xbb
 #undef	MC_CMD_0xbb_PRIVILEGE_CTG
 
 #define	MC_CMD_0xbb_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -11328,6 +11435,7 @@
  * function.
  */
 #define	MC_CMD_GET_VI_ALLOC_INFO 0x8d
+#define	MC_CMD_GET_VI_ALLOC_INFO_MSGSET 0x8d
 #undef	MC_CMD_0x8d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11355,6 +11463,7 @@
  * For CmdClient use. Dump pertinent information on a specific absolute VI.
  */
 #define	MC_CMD_DUMP_VI_STATE 0x8e
+#define	MC_CMD_DUMP_VI_STATE_MSGSET 0x8e
 #undef	MC_CMD_0x8e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11481,6 +11590,7 @@
  * Allocate a push I/O buffer for later use with a tx queue.
  */
 #define	MC_CMD_ALLOC_PIOBUF 0x8f
+#define	MC_CMD_ALLOC_PIOBUF_MSGSET 0x8f
 #undef	MC_CMD_0x8f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x8f_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -11500,6 +11610,7 @@
  * Free a push I/O buffer.
  */
 #define	MC_CMD_FREE_PIOBUF 0x90
+#define	MC_CMD_FREE_PIOBUF_MSGSET 0x90
 #undef	MC_CMD_0x90_PRIVILEGE_CTG
 
 #define	MC_CMD_0x90_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -11519,6 +11630,7 @@
  * Get TLP steering and ordering information for a VI.
  */
 #define	MC_CMD_GET_VI_TLP_PROCESSING 0xb0
+#define	MC_CMD_GET_VI_TLP_PROCESSING_MSGSET 0xb0
 #undef	MC_CMD_0xb0_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb0_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11558,6 +11670,7 @@
  * Set TLP steering and ordering information for a VI.
  */
 #define	MC_CMD_SET_VI_TLP_PROCESSING 0xb1
+#define	MC_CMD_SET_VI_TLP_PROCESSING_MSGSET 0xb1
 #undef	MC_CMD_0xb1_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb1_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -11597,6 +11710,7 @@
  * Get global PCIe steering and transaction processing configuration.
  */
 #define	MC_CMD_GET_TLP_PROCESSING_GLOBALS 0xbc
+#define	MC_CMD_GET_TLP_PROCESSING_GLOBALS_MSGSET 0xbc
 #undef	MC_CMD_0xbc_PRIVILEGE_CTG
 
 #define	MC_CMD_0xbc_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -11681,6 +11795,7 @@
  * Set global PCIe steering and transaction processing configuration.
  */
 #define	MC_CMD_SET_TLP_PROCESSING_GLOBALS 0xbd
+#define	MC_CMD_SET_TLP_PROCESSING_GLOBALS_MSGSET 0xbd
 #undef	MC_CMD_0xbd_PRIVILEGE_CTG
 
 #define	MC_CMD_0xbd_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -11746,6 +11861,7 @@
  * Download a new set of images to the satellite CPUs from the host.
  */
 #define	MC_CMD_SATELLITE_DOWNLOAD 0x91
+#define	MC_CMD_SATELLITE_DOWNLOAD_MSGSET 0x91
 #undef	MC_CMD_0x91_PRIVILEGE_CTG
 
 #define	MC_CMD_0x91_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -11873,6 +11989,7 @@
  * reference inherent device capabilities as opposed to current NVRAM config.
  */
 #define	MC_CMD_GET_CAPABILITIES 0xbe
+#define	MC_CMD_GET_CAPABILITIES_MSGSET 0xbe
 #undef	MC_CMD_0xbe_PRIVILEGE_CTG
 
 #define	MC_CMD_0xbe_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16386,6 +16503,7 @@
  * Encapsulation for a v2 extended command
  */
 #define	MC_CMD_V2_EXTN 0x7f
+#define	MC_CMD_V2_EXTN_MSGSET 0x7f
 
 /* MC_CMD_V2_EXTN_IN msgrequest */
 #define	MC_CMD_V2_EXTN_IN_LEN 4
@@ -16417,6 +16535,7 @@
  * Allocate a pacer bucket (for qau rp or a snapper test)
  */
 #define	MC_CMD_TCM_BUCKET_ALLOC 0xb2
+#define	MC_CMD_TCM_BUCKET_ALLOC_MSGSET 0xb2
 #undef	MC_CMD_0xb2_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb2_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16436,6 +16555,7 @@
  * Free a pacer bucket
  */
 #define	MC_CMD_TCM_BUCKET_FREE 0xb3
+#define	MC_CMD_TCM_BUCKET_FREE_MSGSET 0xb3
 #undef	MC_CMD_0xb3_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb3_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16455,6 +16575,7 @@
  * Initialise pacer bucket with a given rate
  */
 #define	MC_CMD_TCM_BUCKET_INIT 0xb4
+#define	MC_CMD_TCM_BUCKET_INIT_MSGSET 0xb4
 #undef	MC_CMD_0xb4_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb4_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16489,6 +16610,7 @@
  * Initialise txq in pacer with given options or set options
  */
 #define	MC_CMD_TCM_TXQ_INIT 0xb5
+#define	MC_CMD_TCM_TXQ_INIT_MSGSET 0xb5
 #undef	MC_CMD_0xb5_PRIVILEGE_CTG
 
 #define	MC_CMD_0xb5_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16579,6 +16701,7 @@
  * Link a push I/O buffer to a TxQ
  */
 #define	MC_CMD_LINK_PIOBUF 0x92
+#define	MC_CMD_LINK_PIOBUF_MSGSET 0x92
 #undef	MC_CMD_0x92_PRIVILEGE_CTG
 
 #define	MC_CMD_0x92_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -16601,6 +16724,7 @@
  * Unlink a push I/O buffer from a TxQ
  */
 #define	MC_CMD_UNLINK_PIOBUF 0x93
+#define	MC_CMD_UNLINK_PIOBUF_MSGSET 0x93
 #undef	MC_CMD_0x93_PRIVILEGE_CTG
 
 #define	MC_CMD_0x93_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -16620,6 +16744,7 @@
  * allocate and initialise a v-switch.
  */
 #define	MC_CMD_VSWITCH_ALLOC 0x94
+#define	MC_CMD_VSWITCH_ALLOC_MSGSET 0x94
 #undef	MC_CMD_0x94_PRIVILEGE_CTG
 
 #define	MC_CMD_0x94_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16667,6 +16792,7 @@
  * de-allocate a v-switch.
  */
 #define	MC_CMD_VSWITCH_FREE 0x95
+#define	MC_CMD_VSWITCH_FREE_MSGSET 0x95
 #undef	MC_CMD_0x95_PRIVILEGE_CTG
 
 #define	MC_CMD_0x95_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16688,6 +16814,7 @@
  * not, then the command returns ENOENT).
  */
 #define	MC_CMD_VSWITCH_QUERY 0x63
+#define	MC_CMD_VSWITCH_QUERY_MSGSET 0x63
 #undef	MC_CMD_0x63_PRIVILEGE_CTG
 
 #define	MC_CMD_0x63_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16707,6 +16834,7 @@
  * allocate a v-port.
  */
 #define	MC_CMD_VPORT_ALLOC 0x96
+#define	MC_CMD_VPORT_ALLOC_MSGSET 0x96
 #undef	MC_CMD_0x96_PRIVILEGE_CTG
 
 #define	MC_CMD_0x96_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16774,6 +16902,7 @@
  * de-allocate a v-port.
  */
 #define	MC_CMD_VPORT_FREE 0x97
+#define	MC_CMD_VPORT_FREE_MSGSET 0x97
 #undef	MC_CMD_0x97_PRIVILEGE_CTG
 
 #define	MC_CMD_0x97_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16793,6 +16922,7 @@
  * allocate a v-adaptor.
  */
 #define	MC_CMD_VADAPTOR_ALLOC 0x98
+#define	MC_CMD_VADAPTOR_ALLOC_MSGSET 0x98
 #undef	MC_CMD_0x98_PRIVILEGE_CTG
 
 #define	MC_CMD_0x98_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16841,6 +16971,7 @@
  * de-allocate a v-adaptor.
  */
 #define	MC_CMD_VADAPTOR_FREE 0x99
+#define	MC_CMD_VADAPTOR_FREE_MSGSET 0x99
 #undef	MC_CMD_0x99_PRIVILEGE_CTG
 
 #define	MC_CMD_0x99_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16860,6 +16991,7 @@
  * assign a new MAC address to a v-adaptor.
  */
 #define	MC_CMD_VADAPTOR_SET_MAC 0x5d
+#define	MC_CMD_VADAPTOR_SET_MAC_MSGSET 0x5d
 #undef	MC_CMD_0x5d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16882,6 +17014,7 @@
  * read the MAC address assigned to a v-adaptor.
  */
 #define	MC_CMD_VADAPTOR_GET_MAC 0x5e
+#define	MC_CMD_VADAPTOR_GET_MAC_MSGSET 0x5e
 #undef	MC_CMD_0x5e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16904,6 +17037,7 @@
  * read some config of v-adaptor.
  */
 #define	MC_CMD_VADAPTOR_QUERY 0x61
+#define	MC_CMD_VADAPTOR_QUERY_MSGSET 0x61
 #undef	MC_CMD_0x61_PRIVILEGE_CTG
 
 #define	MC_CMD_0x61_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16932,6 +17066,7 @@
  * assign a port to a PCI function.
  */
 #define	MC_CMD_EVB_PORT_ASSIGN 0x9a
+#define	MC_CMD_EVB_PORT_ASSIGN_MSGSET 0x9a
 #undef	MC_CMD_0x9a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x9a_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -16960,6 +17095,7 @@
  * Assign the 64 bit region addresses.
  */
 #define	MC_CMD_RDWR_A64_REGIONS 0x9b
+#define	MC_CMD_RDWR_A64_REGIONS_MSGSET 0x9b
 #undef	MC_CMD_0x9b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x9b_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -16999,6 +17135,7 @@
  * Allocate an Onload stack ID.
  */
 #define	MC_CMD_ONLOAD_STACK_ALLOC 0x9c
+#define	MC_CMD_ONLOAD_STACK_ALLOC_MSGSET 0x9c
 #undef	MC_CMD_0x9c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x9c_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -17021,6 +17158,7 @@
  * Free an Onload stack ID.
  */
 #define	MC_CMD_ONLOAD_STACK_FREE 0x9d
+#define	MC_CMD_ONLOAD_STACK_FREE_MSGSET 0x9d
 #undef	MC_CMD_0x9d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x9d_PRIVILEGE_CTG SRIOV_CTG_ONLOAD
@@ -17040,6 +17178,7 @@
  * Allocate an RSS context.
  */
 #define	MC_CMD_RSS_CONTEXT_ALLOC 0x9e
+#define	MC_CMD_RSS_CONTEXT_ALLOC_MSGSET 0x9e
 #undef	MC_CMD_0x9e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x9e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17140,6 +17279,7 @@
  * Free an RSS context.
  */
 #define	MC_CMD_RSS_CONTEXT_FREE 0x9f
+#define	MC_CMD_RSS_CONTEXT_FREE_MSGSET 0x9f
 #undef	MC_CMD_0x9f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x9f_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17159,6 +17299,7 @@
  * Set the Toeplitz hash key for an RSS context.
  */
 #define	MC_CMD_RSS_CONTEXT_SET_KEY 0xa0
+#define	MC_CMD_RSS_CONTEXT_SET_KEY_MSGSET 0xa0
 #undef	MC_CMD_0xa0_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa0_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17181,6 +17322,7 @@
  * Get the Toeplitz hash key for an RSS context.
  */
 #define	MC_CMD_RSS_CONTEXT_GET_KEY 0xa1
+#define	MC_CMD_RSS_CONTEXT_GET_KEY_MSGSET 0xa1
 #undef	MC_CMD_0xa1_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa1_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17205,6 +17347,7 @@
  * when the RSS context is allocated without specifying a table size.
  */
 #define	MC_CMD_RSS_CONTEXT_SET_TABLE 0xa2
+#define	MC_CMD_RSS_CONTEXT_SET_TABLE_MSGSET 0xa2
 #undef	MC_CMD_0xa2_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa2_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17229,6 +17372,7 @@
  * when the RSS context is allocated without specifying a table size.
  */
 #define	MC_CMD_RSS_CONTEXT_GET_TABLE 0xa3
+#define	MC_CMD_RSS_CONTEXT_GET_TABLE_MSGSET 0xa3
 #undef	MC_CMD_0xa3_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa3_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17253,6 +17397,7 @@
  * RSS_SELECTABLE_TABLE_SIZE bit is set in MC_CMD_GET_CAPABILITIES.
  */
 #define	MC_CMD_RSS_CONTEXT_WRITE_TABLE 0x13e
+#define	MC_CMD_RSS_CONTEXT_WRITE_TABLE_MSGSET 0x13e
 #undef	MC_CMD_0x13e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x13e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17299,6 +17444,7 @@
  * RSS_SELECTABLE_TABLE_SIZE bit is set in MC_CMD_GET_CAPABILITIES.
  */
 #define	MC_CMD_RSS_CONTEXT_READ_TABLE 0x13f
+#define	MC_CMD_RSS_CONTEXT_READ_TABLE_MSGSET 0x13f
 #undef	MC_CMD_0x13f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x13f_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17338,6 +17484,7 @@
  * Set various control flags for an RSS context.
  */
 #define	MC_CMD_RSS_CONTEXT_SET_FLAGS 0xe1
+#define	MC_CMD_RSS_CONTEXT_SET_FLAGS_MSGSET 0xe1
 #undef	MC_CMD_0xe1_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe1_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17404,6 +17551,7 @@
  * Get various control flags for an RSS context.
  */
 #define	MC_CMD_RSS_CONTEXT_GET_FLAGS 0xe2
+#define	MC_CMD_RSS_CONTEXT_GET_FLAGS_MSGSET 0xe2
 #undef	MC_CMD_0xe2_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe2_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17471,6 +17619,7 @@
  * Allocate a .1p mapping.
  */
 #define	MC_CMD_DOT1P_MAPPING_ALLOC 0xa4
+#define	MC_CMD_DOT1P_MAPPING_ALLOC_MSGSET 0xa4
 #undef	MC_CMD_0xa4_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa4_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -17504,6 +17653,7 @@
  * Free a .1p mapping.
  */
 #define	MC_CMD_DOT1P_MAPPING_FREE 0xa5
+#define	MC_CMD_DOT1P_MAPPING_FREE_MSGSET 0xa5
 #undef	MC_CMD_0xa5_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa5_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -17523,6 +17673,7 @@
  * Set the mapping table for a .1p mapping.
  */
 #define	MC_CMD_DOT1P_MAPPING_SET_TABLE 0xa6
+#define	MC_CMD_DOT1P_MAPPING_SET_TABLE_MSGSET 0xa6
 #undef	MC_CMD_0xa6_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa6_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -17547,6 +17698,7 @@
  * Get the mapping table for a .1p mapping.
  */
 #define	MC_CMD_DOT1P_MAPPING_GET_TABLE 0xa7
+#define	MC_CMD_DOT1P_MAPPING_GET_TABLE_MSGSET 0xa7
 #undef	MC_CMD_0xa7_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa7_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -17571,6 +17723,7 @@
  * Get Interrupt Vector config for this PF.
  */
 #define	MC_CMD_GET_VECTOR_CFG 0xbf
+#define	MC_CMD_GET_VECTOR_CFG_MSGSET 0xbf
 #undef	MC_CMD_0xbf_PRIVILEGE_CTG
 
 #define	MC_CMD_0xbf_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17596,6 +17749,7 @@
  * Set Interrupt Vector config for this PF.
  */
 #define	MC_CMD_SET_VECTOR_CFG 0xc0
+#define	MC_CMD_SET_VECTOR_CFG_MSGSET 0xc0
 #undef	MC_CMD_0xc0_PRIVILEGE_CTG
 
 #define	MC_CMD_0xc0_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17623,6 +17777,7 @@
  * Add a MAC address to a v-port
  */
 #define	MC_CMD_VPORT_ADD_MAC_ADDRESS 0xa8
+#define	MC_CMD_VPORT_ADD_MAC_ADDRESS_MSGSET 0xa8
 #undef	MC_CMD_0xa8_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa8_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17645,6 +17800,7 @@
  * Delete a MAC address from a v-port
  */
 #define	MC_CMD_VPORT_DEL_MAC_ADDRESS 0xa9
+#define	MC_CMD_VPORT_DEL_MAC_ADDRESS_MSGSET 0xa9
 #undef	MC_CMD_0xa9_PRIVILEGE_CTG
 
 #define	MC_CMD_0xa9_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17667,6 +17823,7 @@
  * Delete a MAC address from a v-port
  */
 #define	MC_CMD_VPORT_GET_MAC_ADDRESSES 0xaa
+#define	MC_CMD_VPORT_GET_MAC_ADDRESSES_MSGSET 0xaa
 #undef	MC_CMD_0xaa_PRIVILEGE_CTG
 
 #define	MC_CMD_0xaa_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17701,6 +17858,7 @@
  * function will be reset before applying the changes.
  */
 #define	MC_CMD_VPORT_RECONFIGURE 0xeb
+#define	MC_CMD_VPORT_RECONFIGURE_MSGSET 0xeb
 #undef	MC_CMD_0xeb_PRIVILEGE_CTG
 
 #define	MC_CMD_0xeb_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17756,6 +17914,7 @@
  * read some config of v-port.
  */
 #define	MC_CMD_EVB_PORT_QUERY 0x62
+#define	MC_CMD_EVB_PORT_QUERY_MSGSET 0x62
 #undef	MC_CMD_0x62_PRIVILEGE_CTG
 
 #define	MC_CMD_0x62_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17786,6 +17945,7 @@
  * lifted in future.
  */
 #define	MC_CMD_DUMP_BUFTBL_ENTRIES 0xab
+#define	MC_CMD_DUMP_BUFTBL_ENTRIES_MSGSET 0xab
 #undef	MC_CMD_0xab_PRIVILEGE_CTG
 
 #define	MC_CMD_0xab_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -17818,6 +17978,7 @@
  * Set global RXDP configuration settings
  */
 #define	MC_CMD_SET_RXDP_CONFIG 0xc1
+#define	MC_CMD_SET_RXDP_CONFIG_MSGSET 0xc1
 #undef	MC_CMD_0xc1_PRIVILEGE_CTG
 
 #define	MC_CMD_0xc1_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -17848,6 +18009,7 @@
  * Get global RXDP configuration settings
  */
 #define	MC_CMD_GET_RXDP_CONFIG 0xc2
+#define	MC_CMD_GET_RXDP_CONFIG_MSGSET 0xc2
 #undef	MC_CMD_0xc2_PRIVILEGE_CTG
 
 #define	MC_CMD_0xc2_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17874,6 +18036,7 @@
  * Return the system and PDCPU clock frequencies.
  */
 #define	MC_CMD_GET_CLOCK 0xac
+#define	MC_CMD_GET_CLOCK_MSGSET 0xac
 #undef	MC_CMD_0xac_PRIVILEGE_CTG
 
 #define	MC_CMD_0xac_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -17896,6 +18059,7 @@
  * Control the system and DPCPU clock frequencies. Changes are lost reboot.
  */
 #define	MC_CMD_SET_CLOCK 0xad
+#define	MC_CMD_SET_CLOCK_MSGSET 0xad
 #undef	MC_CMD_0xad_PRIVILEGE_CTG
 
 #define	MC_CMD_0xad_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -17982,6 +18146,7 @@
  * Send an arbitrary DPCPU message.
  */
 #define	MC_CMD_DPCPU_RPC 0xae
+#define	MC_CMD_DPCPU_RPC_MSGSET 0xae
 #undef	MC_CMD_0xae_PRIVILEGE_CTG
 
 #define	MC_CMD_0xae_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -18100,6 +18265,7 @@
  * Trigger an interrupt by prodding the BIU.
  */
 #define	MC_CMD_TRIGGER_INTERRUPT 0xe3
+#define	MC_CMD_TRIGGER_INTERRUPT_MSGSET 0xe3
 #undef	MC_CMD_0xe3_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe3_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -18119,6 +18285,7 @@
  * Special operations to support (for now) shmboot.
  */
 #define	MC_CMD_SHMBOOT_OP 0xe6
+#define	MC_CMD_SHMBOOT_OP_MSGSET 0xe6
 #undef	MC_CMD_0xe6_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe6_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -18140,6 +18307,7 @@
  * Read multiple 64bit words from capture block memory
  */
 #define	MC_CMD_CAP_BLK_READ 0xe7
+#define	MC_CMD_CAP_BLK_READ_MSGSET 0xe7
 #undef	MC_CMD_0xe7_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe7_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -18173,6 +18341,7 @@
  * Take a dump of the DUT state
  */
 #define	MC_CMD_DUMP_DO 0xe8
+#define	MC_CMD_DUMP_DO_MSGSET 0xe8
 #undef	MC_CMD_0xe8_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe8_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -18253,6 +18422,7 @@
  * Configure unsolicited dumps
  */
 #define	MC_CMD_DUMP_CONFIGURE_UNSOLICITED 0xe9
+#define	MC_CMD_DUMP_CONFIGURE_UNSOLICITED_MSGSET 0xe9
 #undef	MC_CMD_0xe9_PRIVILEGE_CTG
 
 #define	MC_CMD_0xe9_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -18322,6 +18492,7 @@
  * the parameter is out of range.
  */
 #define	MC_CMD_SET_PSU 0xea
+#define	MC_CMD_SET_PSU_MSGSET 0xea
 #undef	MC_CMD_0xea_PRIVILEGE_CTG
 
 #define	MC_CMD_0xea_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -18348,6 +18519,7 @@
  * Get function information. PF and VF number.
  */
 #define	MC_CMD_GET_FUNCTION_INFO 0xec
+#define	MC_CMD_GET_FUNCTION_INFO_MSGSET 0xec
 #undef	MC_CMD_0xec_PRIVILEGE_CTG
 
 #define	MC_CMD_0xec_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -18370,6 +18542,7 @@
  * reboot.
  */
 #define	MC_CMD_ENABLE_OFFLINE_BIST 0xed
+#define	MC_CMD_ENABLE_OFFLINE_BIST_MSGSET 0xed
 #undef	MC_CMD_0xed_PRIVILEGE_CTG
 
 #define	MC_CMD_0xed_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -18388,6 +18561,7 @@
  * forget.
  */
 #define	MC_CMD_UART_SEND_DATA 0xee
+#define	MC_CMD_UART_SEND_DATA_MSGSET 0xee
 #undef	MC_CMD_0xee_PRIVILEGE_CTG
 
 #define	MC_CMD_0xee_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -18426,6 +18600,7 @@
  * subject to change and not currently implemented.
  */
 #define	MC_CMD_UART_RECV_DATA 0xef
+#define	MC_CMD_UART_RECV_DATA_MSGSET 0xef
 #undef	MC_CMD_0xef_PRIVILEGE_CTG
 
 #define	MC_CMD_0xef_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -18475,6 +18650,7 @@
  * Read data programmed into the device One-Time-Programmable (OTP) Fuses
  */
 #define	MC_CMD_READ_FUSES 0xf0
+#define	MC_CMD_READ_FUSES_MSGSET 0xf0
 #undef	MC_CMD_0xf0_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf0_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -18510,6 +18686,7 @@
  * Get or set KR Serdes RXEQ and TX Driver settings
  */
 #define	MC_CMD_KR_TUNE 0xf1
+#define	MC_CMD_KR_TUNE_MSGSET 0xf1
 #undef	MC_CMD_0xf1_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf1_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -19066,6 +19243,7 @@
  * Get or set PCIE Serdes RXEQ and TX Driver settings
  */
 #define	MC_CMD_PCIE_TUNE 0xf2
+#define	MC_CMD_PCIE_TUNE_MSGSET 0xf2
 #undef	MC_CMD_0xf2_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf2_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -19323,6 +19501,7 @@
  * - not used for V3 licensing
  */
 #define	MC_CMD_LICENSING 0xf3
+#define	MC_CMD_LICENSING_MSGSET 0xf3
 #undef	MC_CMD_0xf3_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf3_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19379,6 +19558,7 @@
  * - V3 licensing (Medford)
  */
 #define	MC_CMD_LICENSING_V3 0xd0
+#define	MC_CMD_LICENSING_V3_MSGSET 0xd0
 #undef	MC_CMD_0xd0_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd0_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19449,6 +19629,7 @@
  * partition - V3 licensing (Medford)
  */
 #define	MC_CMD_LICENSING_GET_ID_V3 0xd1
+#define	MC_CMD_LICENSING_GET_ID_V3_MSGSET 0xd1
 #undef	MC_CMD_0xd1_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd1_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19482,6 +19663,7 @@
  * This will fail on a single-core system.
  */
 #define	MC_CMD_MC2MC_PROXY 0xf4
+#define	MC_CMD_MC2MC_PROXY_MSGSET 0xf4
 #undef	MC_CMD_0xf4_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf4_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19500,6 +19682,7 @@
  * or a reboot of the MC.) Not used for V3 licensing
  */
 #define	MC_CMD_GET_LICENSED_APP_STATE 0xf5
+#define	MC_CMD_GET_LICENSED_APP_STATE_MSGSET 0xf5
 #undef	MC_CMD_0xf5_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf5_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19528,6 +19711,7 @@
  * operation or a reboot of the MC.) Used for V3 licensing (Medford)
  */
 #define	MC_CMD_GET_LICENSED_V3_APP_STATE 0xd2
+#define	MC_CMD_GET_LICENSED_V3_APP_STATE_MSGSET 0xd2
 #undef	MC_CMD_0xd2_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd2_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19560,6 +19744,7 @@
  * operation or a reboot of the MC.) Used for V3 licensing (Medford)
  */
 #define	MC_CMD_GET_LICENSED_V3_FEATURE_STATES 0xd3
+#define	MC_CMD_GET_LICENSED_V3_FEATURE_STATES_MSGSET 0xd3
 #undef	MC_CMD_0xd3_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd3_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19589,6 +19774,7 @@
  * licensing.
  */
 #define	MC_CMD_LICENSED_APP_OP 0xf6
+#define	MC_CMD_LICENSED_APP_OP_MSGSET 0xf6
 #undef	MC_CMD_0xf6_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf6_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19672,6 +19858,7 @@
  * (Medford)
  */
 #define	MC_CMD_LICENSED_V3_VALIDATE_APP 0xd4
+#define	MC_CMD_LICENSED_V3_VALIDATE_APP_MSGSET 0xd4
 #undef	MC_CMD_0xd4_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd4_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19725,6 +19912,7 @@
  * Mask features - V3 licensing (Medford)
  */
 #define	MC_CMD_LICENSED_V3_MASK_FEATURES 0xd5
+#define	MC_CMD_LICENSED_V3_MASK_FEATURES_MSGSET 0xd5
 #undef	MC_CMD_0xd5_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd5_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -19757,6 +19945,7 @@
  * erased when the adapter is power cycled
  */
 #define	MC_CMD_LICENSING_V3_TEMPORARY 0xd6
+#define	MC_CMD_LICENSING_V3_TEMPORARY_MSGSET 0xd6
 #undef	MC_CMD_0xd6_PRIVILEGE_CTG
 
 #define	MC_CMD_0xd6_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -19827,6 +20016,7 @@
  * delivered to a specific queue, or a set of queues with RSS.
  */
 #define	MC_CMD_SET_PORT_SNIFF_CONFIG 0xf7
+#define	MC_CMD_SET_PORT_SNIFF_CONFIG_MSGSET 0xf7
 #undef	MC_CMD_0xf7_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf7_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -19870,6 +20060,7 @@
  * the configuration.
  */
 #define	MC_CMD_GET_PORT_SNIFF_CONFIG 0xf8
+#define	MC_CMD_GET_PORT_SNIFF_CONFIG_MSGSET 0xf8
 #undef	MC_CMD_0xf8_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf8_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19908,6 +20099,7 @@
  * Change configuration related to the parser-dispatcher subsystem.
  */
 #define	MC_CMD_SET_PARSER_DISP_CONFIG 0xf9
+#define	MC_CMD_SET_PARSER_DISP_CONFIG_MSGSET 0xf9
 #undef	MC_CMD_0xf9_PRIVILEGE_CTG
 
 #define	MC_CMD_0xf9_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19953,6 +20145,7 @@
  * Read configuration related to the parser-dispatcher subsystem.
  */
 #define	MC_CMD_GET_PARSER_DISP_CONFIG 0xfa
+#define	MC_CMD_GET_PARSER_DISP_CONFIG_MSGSET 0xfa
 #undef	MC_CMD_0xfa_PRIVILEGE_CTG
 
 #define	MC_CMD_0xfa_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -19997,6 +20190,7 @@
  * dedicated as TX sniff receivers.
  */
 #define	MC_CMD_SET_TX_PORT_SNIFF_CONFIG 0xfb
+#define	MC_CMD_SET_TX_PORT_SNIFF_CONFIG_MSGSET 0xfb
 #undef	MC_CMD_0xfb_PRIVILEGE_CTG
 
 #define	MC_CMD_0xfb_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -20037,6 +20231,7 @@
  * the configuration.
  */
 #define	MC_CMD_GET_TX_PORT_SNIFF_CONFIG 0xfc
+#define	MC_CMD_GET_TX_PORT_SNIFF_CONFIG_MSGSET 0xfc
 #undef	MC_CMD_0xfc_PRIVILEGE_CTG
 
 #define	MC_CMD_0xfc_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20072,6 +20267,7 @@
  * Per queue rx error stats.
  */
 #define	MC_CMD_RMON_STATS_RX_ERRORS 0xfe
+#define	MC_CMD_RMON_STATS_RX_ERRORS_MSGSET 0xfe
 #undef	MC_CMD_0xfe_PRIVILEGE_CTG
 
 #define	MC_CMD_0xfe_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20104,6 +20300,7 @@
  * Find out about available PCIE resources
  */
 #define	MC_CMD_GET_PCIE_RESOURCE_INFO 0xfd
+#define	MC_CMD_GET_PCIE_RESOURCE_INFO_MSGSET 0xfd
 #undef	MC_CMD_0xfd_PRIVILEGE_CTG
 
 #define	MC_CMD_0xfd_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20143,6 +20340,7 @@
  * Find out about available port modes
  */
 #define	MC_CMD_GET_PORT_MODES 0xff
+#define	MC_CMD_GET_PORT_MODES_MSGSET 0xff
 #undef	MC_CMD_0xff_PRIVILEGE_CTG
 
 #define	MC_CMD_0xff_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20199,6 +20397,7 @@
  * the new port mode, as the override does not affect PF configuration.
  */
 #define	MC_CMD_OVERRIDE_PORT_MODE 0x137
+#define	MC_CMD_OVERRIDE_PORT_MODE_MSGSET 0x137
 #undef	MC_CMD_0x137_PRIVILEGE_CTG
 
 #define	MC_CMD_0x137_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -20223,6 +20422,7 @@
  * Sample voltages on the ATB
  */
 #define	MC_CMD_READ_ATB 0x100
+#define	MC_CMD_READ_ATB_MSGSET 0x100
 #undef	MC_CMD_0x100_PRIVILEGE_CTG
 
 #define	MC_CMD_0x100_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20253,6 +20453,7 @@
  * enums here must correspond with those in MC_CMD_WORKAROUND.
  */
 #define	MC_CMD_GET_WORKAROUNDS 0x59
+#define	MC_CMD_GET_WORKAROUNDS_MSGSET 0x59
 #undef	MC_CMD_0x59_PRIVILEGE_CTG
 
 #define	MC_CMD_0x59_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20290,6 +20491,7 @@
  * Read/set privileges of an arbitrary PCIe function
  */
 #define	MC_CMD_PRIVILEGE_MASK 0x5a
+#define	MC_CMD_PRIVILEGE_MASK_MSGSET 0x5a
 #undef	MC_CMD_0x5a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5a_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20349,6 +20551,8 @@
  * SF-117064-DG for background).
  */
 #define	MC_CMD_PRIVILEGE_MASK_IN_GRP_ADMIN_TSA_UNBOUND 0x8000
+/* enum: Control the Match-Action Engine if present. See mcdi_mae.yml. */
+#define	MC_CMD_PRIVILEGE_MASK_IN_GRP_MAE 0x10000
 /* enum: Set this bit to indicate that a new privilege mask is to be set,
  * otherwise the command will only read the existing mask.
  */
@@ -20366,6 +20570,7 @@
  * Read/set link state mode of a VF
  */
 #define	MC_CMD_LINK_STATE_MODE 0x5c
+#define	MC_CMD_LINK_STATE_MODE_MSGSET 0x5c
 #undef	MC_CMD_0x5c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x5c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20405,6 +20610,7 @@
  * parameter to MC_CMD_INIT_RXQ.
  */
 #define	MC_CMD_GET_SNAPSHOT_LENGTH 0x101
+#define	MC_CMD_GET_SNAPSHOT_LENGTH_MSGSET 0x101
 #undef	MC_CMD_0x101_PRIVILEGE_CTG
 
 #define	MC_CMD_0x101_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -20427,6 +20633,7 @@
  * Additional fuse diagnostics
  */
 #define	MC_CMD_FUSE_DIAGS 0x102
+#define	MC_CMD_FUSE_DIAGS_MSGSET 0x102
 #undef	MC_CMD_0x102_PRIVILEGE_CTG
 
 #define	MC_CMD_0x102_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20481,6 +20688,7 @@
  * included in one of the masks provided.
  */
 #define	MC_CMD_PRIVILEGE_MODIFY 0x60
+#define	MC_CMD_PRIVILEGE_MODIFY_MSGSET 0x60
 #undef	MC_CMD_0x60_PRIVILEGE_CTG
 
 #define	MC_CMD_0x60_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -20525,6 +20733,7 @@
  * Read XPM memory
  */
 #define	MC_CMD_XPM_READ_BYTES 0x103
+#define	MC_CMD_XPM_READ_BYTES_MSGSET 0x103
 #undef	MC_CMD_0x103_PRIVILEGE_CTG
 
 #define	MC_CMD_0x103_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -20557,6 +20766,7 @@
  * Write XPM memory
  */
 #define	MC_CMD_XPM_WRITE_BYTES 0x104
+#define	MC_CMD_XPM_WRITE_BYTES_MSGSET 0x104
 #undef	MC_CMD_0x104_PRIVILEGE_CTG
 
 #define	MC_CMD_0x104_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20589,6 +20799,7 @@
  * Read XPM sector
  */
 #define	MC_CMD_XPM_READ_SECTOR 0x105
+#define	MC_CMD_XPM_READ_SECTOR_MSGSET 0x105
 #undef	MC_CMD_0x105_PRIVILEGE_CTG
 
 #define	MC_CMD_0x105_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20629,6 +20840,7 @@
  * Write XPM sector
  */
 #define	MC_CMD_XPM_WRITE_SECTOR 0x106
+#define	MC_CMD_XPM_WRITE_SECTOR_MSGSET 0x106
 #undef	MC_CMD_0x106_PRIVILEGE_CTG
 
 #define	MC_CMD_0x106_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20675,6 +20887,7 @@
  * Invalidate XPM sector
  */
 #define	MC_CMD_XPM_INVALIDATE_SECTOR 0x107
+#define	MC_CMD_XPM_INVALIDATE_SECTOR_MSGSET 0x107
 #undef	MC_CMD_0x107_PRIVILEGE_CTG
 
 #define	MC_CMD_0x107_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20694,6 +20907,7 @@
  * Blank-check XPM memory and report bad locations
  */
 #define	MC_CMD_XPM_BLANK_CHECK 0x108
+#define	MC_CMD_XPM_BLANK_CHECK_MSGSET 0x108
 #undef	MC_CMD_0x108_PRIVILEGE_CTG
 
 #define	MC_CMD_0x108_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20731,6 +20945,7 @@
  * Blank-check and repair XPM memory
  */
 #define	MC_CMD_XPM_REPAIR 0x109
+#define	MC_CMD_XPM_REPAIR_MSGSET 0x109
 #undef	MC_CMD_0x109_PRIVILEGE_CTG
 
 #define	MC_CMD_0x109_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20754,6 +20969,7 @@
  * be performed on an unprogrammed part.
  */
 #define	MC_CMD_XPM_DECODER_TEST 0x10a
+#define	MC_CMD_XPM_DECODER_TEST_MSGSET 0x10a
 #undef	MC_CMD_0x10a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x10a_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20774,6 +20990,7 @@
  * first available location to use, or fail with ENOSPC if none left.
  */
 #define	MC_CMD_XPM_WRITE_TEST 0x10b
+#define	MC_CMD_XPM_WRITE_TEST_MSGSET 0x10b
 #undef	MC_CMD_0x10b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x10b_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -20795,6 +21012,7 @@
  * does match, otherwise it will respond with success before it jumps to IMEM.
  */
 #define	MC_CMD_EXEC_SIGNED 0x10c
+#define	MC_CMD_EXEC_SIGNED_MSGSET 0x10c
 #undef	MC_CMD_0x10c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x10c_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -20825,6 +21043,7 @@
  * MC_CMD_EXEC_SIGNED.
  */
 #define	MC_CMD_PREPARE_SIGNED 0x10d
+#define	MC_CMD_PREPARE_SIGNED_MSGSET 0x10d
 #undef	MC_CMD_0x10d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x10d_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -20848,6 +21067,7 @@
  * will be removed once it is regarded as stable.
  */
 #define	MC_CMD_SET_SECURITY_RULE 0x10f
+#define	MC_CMD_SET_SECURITY_RULE_MSGSET 0x10f
 #undef	MC_CMD_0x10f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x10f_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21038,6 +21258,7 @@
  * development. This note will be removed once it is regarded as stable.
  */
 #define	MC_CMD_RESET_SECURITY_RULES 0x110
+#define	MC_CMD_RESET_SECURITY_RULES_MSGSET 0x110
 #undef	MC_CMD_0x110_PRIVILEGE_CTG
 
 #define	MC_CMD_0x110_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21064,6 +21285,7 @@
  * will be removed once it is regarded as stable.
  */
 #define	MC_CMD_GET_SECURITY_RULESET_VERSION 0x111
+#define	MC_CMD_GET_SECURITY_RULESET_VERSION_MSGSET 0x111
 #undef	MC_CMD_0x111_PRIVILEGE_CTG
 
 #define	MC_CMD_0x111_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -21094,6 +21316,7 @@
  * removed once it is regarded as stable.
  */
 #define	MC_CMD_SECURITY_RULE_COUNTER_ALLOC 0x112
+#define	MC_CMD_SECURITY_RULE_COUNTER_ALLOC_MSGSET 0x112
 #undef	MC_CMD_0x112_PRIVILEGE_CTG
 
 #define	MC_CMD_0x112_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21132,6 +21355,7 @@
  * removed once it is regarded as stable.
  */
 #define	MC_CMD_SECURITY_RULE_COUNTER_FREE 0x113
+#define	MC_CMD_SECURITY_RULE_COUNTER_FREE_MSGSET 0x113
 #undef	MC_CMD_0x113_PRIVILEGE_CTG
 
 #define	MC_CMD_0x113_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21167,6 +21391,7 @@
  * will be removed once it is regarded as stable.
  */
 #define	MC_CMD_SUBNET_MAP_SET_NODE 0x114
+#define	MC_CMD_SUBNET_MAP_SET_NODE_MSGSET 0x114
 #undef	MC_CMD_0x114_PRIVILEGE_CTG
 
 #define	MC_CMD_0x114_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21222,6 +21447,7 @@
  * will be removed once it is regarded as stable.
  */
 #define	MC_CMD_REMOTE_PORTRANGE_MAP_SET_TREE 0x115
+#define	MC_CMD_REMOTE_PORTRANGE_MAP_SET_TREE_MSGSET 0x115
 #undef	MC_CMD_0x115_PRIVILEGE_CTG
 
 #define	MC_CMD_0x115_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21256,6 +21482,7 @@
  * will be removed once it is regarded as stable.
  */
 #define	MC_CMD_LOCAL_PORTRANGE_MAP_SET_TREE 0x116
+#define	MC_CMD_LOCAL_PORTRANGE_MAP_SET_TREE_MSGSET 0x116
 #undef	MC_CMD_0x116_PRIVILEGE_CTG
 
 #define	MC_CMD_0x116_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21309,6 +21536,7 @@
  * cause all functions to see a reset. (Available on Medford only.)
  */
 #define	MC_CMD_SET_TUNNEL_ENCAP_UDP_PORTS 0x117
+#define	MC_CMD_SET_TUNNEL_ENCAP_UDP_PORTS_MSGSET 0x117
 #undef	MC_CMD_0x117_PRIVILEGE_CTG
 
 #define	MC_CMD_0x117_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -21355,6 +21583,7 @@
  * priority.
  */
 #define	MC_CMD_RX_BALANCING 0x118
+#define	MC_CMD_RX_BALANCING_MSGSET 0x118
 #undef	MC_CMD_0x118_PRIVILEGE_CTG
 
 #define	MC_CMD_0x118_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -21384,6 +21613,7 @@
  * info in respect to the binding protocol.
  */
 #define	MC_CMD_TSA_BIND 0x119
+#define	MC_CMD_TSA_BIND_MSGSET 0x119
 #undef	MC_CMD_0x119_PRIVILEGE_CTG
 
 #define	MC_CMD_0x119_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -21949,6 +22179,7 @@
  * OP_GET_CACHED_VERSION. All other sub-operations are prohibited.
  */
 #define	MC_CMD_MANAGE_SECURITY_RULESET_CACHE 0x11a
+#define	MC_CMD_MANAGE_SECURITY_RULESET_CACHE_MSGSET 0x11a
 #undef	MC_CMD_0x11a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11a_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -22005,6 +22236,7 @@
  * if the tag is already present.
  */
 #define	MC_CMD_NVRAM_PRIVATE_APPEND 0x11c
+#define	MC_CMD_NVRAM_PRIVATE_APPEND_MSGSET 0x11c
 #undef	MC_CMD_0x11c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11c_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -22039,6 +22271,7 @@
  * correctly at ATE.
  */
 #define	MC_CMD_XPM_VERIFY_CONTENTS 0x11b
+#define	MC_CMD_XPM_VERIFY_CONTENTS_MSGSET 0x11b
 #undef	MC_CMD_0x11b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11b_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -22082,6 +22315,7 @@
  * and TMR_RELOAD_ACT_NS).
  */
 #define	MC_CMD_SET_EVQ_TMR 0x120
+#define	MC_CMD_SET_EVQ_TMR_MSGSET 0x120
 #undef	MC_CMD_0x120_PRIVILEGE_CTG
 
 #define	MC_CMD_0x120_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22120,6 +22354,7 @@
  * Query properties about the event queue timers.
  */
 #define	MC_CMD_GET_EVQ_TMR_PROPERTIES 0x122
+#define	MC_CMD_GET_EVQ_TMR_PROPERTIES_MSGSET 0x122
 #undef	MC_CMD_0x122_PRIVILEGE_CTG
 
 #define	MC_CMD_0x122_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22189,6 +22424,7 @@
  * non used switch buffers.
  */
 #define	MC_CMD_ALLOCATE_TX_VFIFO_CP 0x11d
+#define	MC_CMD_ALLOCATE_TX_VFIFO_CP_MSGSET 0x11d
 #undef	MC_CMD_0x11d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22241,6 +22477,7 @@
  * previously allocated common pools.
  */
 #define	MC_CMD_ALLOCATE_TX_VFIFO_VFIFO 0x11e
+#define	MC_CMD_ALLOCATE_TX_VFIFO_VFIFO_MSGSET 0x11e
 #undef	MC_CMD_0x11e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22294,6 +22531,7 @@
  * ready to be re-used.
  */
 #define	MC_CMD_TEARDOWN_TX_VFIFO_VF 0x11f
+#define	MC_CMD_TEARDOWN_TX_VFIFO_VF_MSGSET 0x11f
 #undef	MC_CMD_0x11f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x11f_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22314,6 +22552,7 @@
  * it ready to be re-used.
  */
 #define	MC_CMD_DEALLOCATE_TX_VFIFO_CP 0x121
+#define	MC_CMD_DEALLOCATE_TX_VFIFO_CP_MSGSET 0x121
 #undef	MC_CMD_0x121_PRIVILEGE_CTG
 
 #define	MC_CMD_0x121_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22342,6 +22581,7 @@
  * or 0 if there has not been a previous rekey.
  */
 #define	MC_CMD_REKEY 0x123
+#define	MC_CMD_REKEY_MSGSET 0x123
 #undef	MC_CMD_0x123_PRIVILEGE_CTG
 
 #define	MC_CMD_0x123_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -22366,6 +22606,7 @@
  * not yet assigned.
  */
 #define	MC_CMD_SWITCH_GET_UNASSIGNED_BUFFERS 0x124
+#define	MC_CMD_SWITCH_GET_UNASSIGNED_BUFFERS_MSGSET 0x124
 #undef	MC_CMD_0x124_PRIVILEGE_CTG
 
 #define	MC_CMD_0x124_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -22394,6 +22635,7 @@
  * the required bits were not set.
  */
 #define	MC_CMD_SET_SECURITY_FUSES 0x126
+#define	MC_CMD_SET_SECURITY_FUSES_MSGSET 0x126
 #undef	MC_CMD_0x126_PRIVILEGE_CTG
 
 #define	MC_CMD_0x126_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -22436,6 +22678,7 @@
  * SF-117371-SW
  */
 #define	MC_CMD_TSA_INFO 0x127
+#define	MC_CMD_TSA_INFO_MSGSET 0x127
 #undef	MC_CMD_0x127_PRIVILEGE_CTG
 
 #define	MC_CMD_0x127_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -22612,6 +22855,7 @@
  * Doxbox reference SF-117371-SW
  */
 #define	MC_CMD_HOST_INFO 0x128
+#define	MC_CMD_HOST_INFO_MSGSET 0x128
 #undef	MC_CMD_0x128_PRIVILEGE_CTG
 
 #define	MC_CMD_0x128_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -22679,6 +22923,7 @@
  * section 'Adapter Information'
  */
 #define	MC_CMD_TSAN_INFO 0x129
+#define	MC_CMD_TSAN_INFO_MSGSET 0x129
 #undef	MC_CMD_0x129_PRIVILEGE_CTG
 
 #define	MC_CMD_0x129_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -22778,6 +23023,7 @@
  * TSA adapter statistics operations.
  */
 #define	MC_CMD_TSA_STATISTICS 0x130
+#define	MC_CMD_TSA_STATISTICS_MSGSET 0x130
 #undef	MC_CMD_0x130_PRIVILEGE_CTG
 
 #define	MC_CMD_0x130_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -22902,6 +23148,7 @@
  * installing TSA binding certificates. See SF-117631-TC.
  */
 #define	MC_CMD_ERASE_INITIAL_NIC_SECRET 0x131
+#define	MC_CMD_ERASE_INITIAL_NIC_SECRET_MSGSET 0x131
 #undef	MC_CMD_0x131_PRIVILEGE_CTG
 
 #define	MC_CMD_0x131_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -22919,6 +23166,7 @@
  * NIC for TSA binding.
  */
 #define	MC_CMD_TSA_CONFIG 0x64
+#define	MC_CMD_TSA_CONFIG_MSGSET 0x64
 #undef	MC_CMD_0x64_PRIVILEGE_CTG
 
 #define	MC_CMD_0x64_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -23036,6 +23284,7 @@
  * to a TSA adapter.
  */
 #define	MC_CMD_TSA_IPADDR 0x65
+#define	MC_CMD_TSA_IPADDR_MSGSET 0x65
 #undef	MC_CMD_0x65_PRIVILEGE_CTG
 
 #define	MC_CMD_0x65_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -23133,6 +23382,7 @@
  * disabled.
  */
 #define	MC_CMD_SECURE_NIC_INFO 0x132
+#define	MC_CMD_SECURE_NIC_INFO_MSGSET 0x132
 #undef	MC_CMD_0x132_PRIVILEGE_CTG
 
 #define	MC_CMD_0x132_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -23226,6 +23476,7 @@
  * parameters in request or response.
  */
 #define	MC_CMD_TSA_TEST 0x125
+#define	MC_CMD_TSA_TEST_MSGSET 0x125
 #undef	MC_CMD_0x125_PRIVILEGE_CTG
 
 #define	MC_CMD_0x125_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -23247,6 +23498,7 @@
  * rule-set transitions.
  */
 #define	MC_CMD_TSA_RULESET_OVERRIDE 0x12a
+#define	MC_CMD_TSA_RULESET_OVERRIDE_MSGSET 0x12a
 #undef	MC_CMD_0x12a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12a_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -23279,6 +23531,7 @@
  * Specific usage is determined by the TYPE field.
  */
 #define	MC_CMD_TSAC_REQUEST 0x12b
+#define	MC_CMD_TSAC_REQUEST_MSGSET 0x12b
 #undef	MC_CMD_0x12b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12b_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -23303,6 +23556,7 @@
  * Get the version of the SUC
  */
 #define	MC_CMD_SUC_VERSION 0x134
+#define	MC_CMD_SUC_VERSION_MSGSET 0x134
 #undef	MC_CMD_0x134_PRIVILEGE_CTG
 
 #define	MC_CMD_0x134_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -23348,6 +23602,7 @@
  * Operations to support manftest on SUC based systems.
  */
 #define	MC_CMD_SUC_MANFTEST 0x135
+#define	MC_CMD_SUC_MANFTEST_MSGSET 0x135
 #undef	MC_CMD_0x135_PRIVILEGE_CTG
 
 #define	MC_CMD_0x135_PRIVILEGE_CTG SRIOV_CTG_ADMIN_TSA_UNBOUND
@@ -23544,6 +23799,7 @@
  * Request a certificate.
  */
 #define	MC_CMD_GET_CERTIFICATE 0x12c
+#define	MC_CMD_GET_CERTIFICATE_MSGSET 0x12c
 #undef	MC_CMD_0x12c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -23618,6 +23874,7 @@
  * Get a global value which applies to all PCI functions
  */
 #define	MC_CMD_GET_NIC_GLOBAL 0x12d
+#define	MC_CMD_GET_NIC_GLOBAL_MSGSET 0x12d
 #undef	MC_CMD_0x12d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -23645,6 +23902,7 @@
  * appropriate error otherwise (see key descriptions).
  */
 #define	MC_CMD_SET_NIC_GLOBAL 0x12e
+#define	MC_CMD_SET_NIC_GLOBAL_MSGSET 0x12e
 #undef	MC_CMD_0x12e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12e_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -23692,6 +23950,7 @@
  * firmware buffer for later extraction.
  */
 #define	MC_CMD_LTSSM_TRACE_POLL 0x12f
+#define	MC_CMD_LTSSM_TRACE_POLL_MSGSET 0x12f
 #undef	MC_CMD_0x12f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x12f_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -23763,6 +24022,7 @@
  * firmware variant.
  */
 #define	MC_CMD_TELEMETRY_ENABLE 0x138
+#define	MC_CMD_TELEMETRY_ENABLE_MSGSET 0x138
 #undef	MC_CMD_0x138_PRIVILEGE_CTG
 
 #define	MC_CMD_0x138_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -23854,6 +24114,7 @@
  * Reference - SF-120569-SW Telemetry Firmware Design.
  */
 #define	MC_CMD_TELEMETRY_CONFIG 0x139
+#define	MC_CMD_TELEMETRY_CONFIG_MSGSET 0x139
 #undef	MC_CMD_0x139_PRIVILEGE_CTG
 
 #define	MC_CMD_0x139_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -23923,6 +24184,7 @@
  * due to resource constraints, returns ENOSPC.
  */
 #define	MC_CMD_GET_RX_PREFIX_ID 0x13b
+#define	MC_CMD_GET_RX_PREFIX_ID_MSGSET 0x13b
 #undef	MC_CMD_0x13b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x13b_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24054,6 +24316,7 @@
  * created with that prefix id
  */
 #define	MC_CMD_QUERY_RX_PREFIX_ID 0x13c
+#define	MC_CMD_QUERY_RX_PREFIX_ID_MSGSET 0x13c
 #undef	MC_CMD_0x13c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x13c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24090,6 +24353,7 @@
  * A command to perform various bundle-related operations on insecure cards.
  */
 #define	MC_CMD_BUNDLE 0x13d
+#define	MC_CMD_BUNDLE_MSGSET 0x13d
 #undef	MC_CMD_0x13d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x13d_PRIVILEGE_CTG SRIOV_CTG_INSECURE
@@ -24152,6 +24416,7 @@
  * Read all VPD starting from a given address
  */
 #define	MC_CMD_GET_VPD 0x165
+#define	MC_CMD_GET_VPD_MSGSET 0x165
 #undef	MC_CMD_0x165_PRIVILEGE_CTG
 
 #define	MC_CMD_0x165_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24183,6 +24448,7 @@
  * Provide information about the NC-SI stack
  */
 #define	MC_CMD_GET_NCSI_INFO 0x167
+#define	MC_CMD_GET_NCSI_INFO_MSGSET 0x167
 #undef	MC_CMD_0x167_PRIVILEGE_CTG
 
 #define	MC_CMD_0x167_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24254,6 +24520,7 @@
  * System lockdown, when enabled firmware updates are blocked.
  */
 #define	MC_CMD_FIRMWARE_SET_LOCKDOWN 0x16f
+#define	MC_CMD_FIRMWARE_SET_LOCKDOWN_MSGSET 0x16f
 #undef	MC_CMD_0x16f_PRIVILEGE_CTG
 
 #define	MC_CMD_0x16f_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -24276,6 +24543,7 @@
  * documentation.
  */
 #define	MC_CMD_GET_TEST_FEATURES 0x1ac
+#define	MC_CMD_GET_TEST_FEATURES_MSGSET 0x1ac
 #undef	MC_CMD_0x1ac_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1ac_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24347,6 +24615,7 @@
  * Get information about the device clocks
  */
 #define	MC_CMD_GET_CLOCKS_INFO 0x166
+#define	MC_CMD_GET_CLOCKS_INFO_MSGSET 0x166
 #undef	MC_CMD_0x166_PRIVILEGE_CTG
 
 #define	MC_CMD_0x166_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24385,6 +24654,7 @@
  * returns ENOSPC if the caller's table is full.
  */
 #define	MC_CMD_VNIC_ENCAP_RULE_ADD 0x16d
+#define	MC_CMD_VNIC_ENCAP_RULE_ADD_MSGSET 0x16d
 #undef	MC_CMD_0x16d_PRIVILEGE_CTG
 
 #define	MC_CMD_0x16d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24467,6 +24737,7 @@
  * if the input HANDLE doesn't correspond to an existing rule.
  */
 #define	MC_CMD_VNIC_ENCAP_RULE_REMOVE 0x16e
+#define	MC_CMD_VNIC_ENCAP_RULE_REMOVE_MSGSET 0x16e
 #undef	MC_CMD_0x16e_PRIVILEGE_CTG
 
 #define	MC_CMD_0x16e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24505,6 +24776,23 @@
 #define	UUID_NODE_LEN 6
 #define	UUID_NODE_LBN 80
 #define	UUID_NODE_WIDTH 48
+
+/* PLUGIN_SERVICE structuredef: Used within MC_CMD_PLUGIN_GET_ALL to describe
+ * an individual service.
+ */
+#define	PLUGIN_SERVICE_LEN 20
+#define	PLUGIN_SERVICE_UUID_OFST 0
+#define	PLUGIN_SERVICE_UUID_LEN 16
+#define	PLUGIN_SERVICE_UUID_LBN 0
+#define	PLUGIN_SERVICE_UUID_WIDTH 128
+#define	PLUGIN_SERVICE_ADMIN_GROUP_OFST 16
+#define	PLUGIN_SERVICE_ADMIN_GROUP_LEN 1
+#define	PLUGIN_SERVICE_ADMIN_GROUP_LBN 128
+#define	PLUGIN_SERVICE_ADMIN_GROUP_WIDTH 8
+#define	PLUGIN_SERVICE_RESERVED_OFST 17
+#define	PLUGIN_SERVICE_RESERVED_LEN 3
+#define	PLUGIN_SERVICE_RESERVED_LBN 136
+#define	PLUGIN_SERVICE_RESERVED_WIDTH 24
 
 /* MC_CMD_DEVEL_DUMP_VI_ENTRY structuredef */
 #define	MC_CMD_DEVEL_DUMP_VI_ENTRY_LEN 28
@@ -24562,6 +24850,7 @@
  * Dump various parts of the hardware's state for a VI.
  */
 #define	MC_CMD_DEVEL_DUMP_VI 0x1b5
+#define	MC_CMD_DEVEL_DUMP_VI_MSGSET 0x1b5
 #undef	MC_CMD_0x1b5_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1b5_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24747,6 +25036,24 @@
 #define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_SSS_RP_PACKETS_IN_TBL 0x25
 /* enum: Number of packets removed from fifo. */
 #define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_SSS_RP_PACKETS_OUT_TBL 0x26
+/* enum: Information about the most recent drop */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_QDMA_C2H_DROP_STATUS_REG 0x27
+/* enum: Virt IO alert register for virtIO related errors and fatals */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_DMAC_ALERT2_REG 0x28
+/* enum: VirtualIO TSO alert register for GSO related errors and fatals */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_DMAC_ALERT3_REG 0x29
+/* enum: Collection of fatal stickies */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_DMAC_ERR_STICKY_REG 0x2a
+/* enum: Stats for credits given to QDMA for H2C */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_DMAC_H2C_CRDT_CTR_REG 0x2b
+/* enum: Counter of all packets delivered to C2H. Includes MC as well. */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_DMAC_C2H_PKTCNT_REG 0x2c
+/* enum: S2IC Converter Status register */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_H2C_S2IC_STATUS 0x2d
+/* enum: Event Controller Debug FIFO status register. Empty status of various
+ * FIFOs in the EVC and egress interface of EVC.
+ */
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_EVC_DBG_FIFO_STAT 0x2e
 #define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_REG_LBN 0
 #define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_ENTRY_REG_WIDTH 32
 /* If REG is a table, the table row. */
@@ -24771,6 +25078,7 @@
  * Dump an assortment of hopefully useful riverhead debug registers
  */
 #define	MC_CMD_DEVEL_DUMP_RHEAD_REGS 0x1b6
+#define	MC_CMD_DEVEL_DUMP_RHEAD_REGS_MSGSET 0x1b6
 #undef	MC_CMD_0x1b6_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1b6_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24837,6 +25145,7 @@
  * Get a list of the virtio features supported by the device.
  */
 #define	MC_CMD_VIRTIO_GET_FEATURES 0x168
+#define	MC_CMD_VIRTIO_GET_FEATURES_MSGSET 0x168
 #undef	MC_CMD_0x168_PRIVILEGE_CTG
 
 #define	MC_CMD_0x168_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24875,6 +25184,7 @@
  * the driver fails to request a feature which the device requires.
  */
 #define	MC_CMD_VIRTIO_TEST_FEATURES 0x169
+#define	MC_CMD_VIRTIO_TEST_FEATURES_MSGSET 0x169
 #undef	MC_CMD_0x169_PRIVILEGE_CTG
 
 #define	MC_CMD_0x169_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -24910,6 +25220,7 @@
  * invalid.
  */
 #define	MC_CMD_VIRTIO_INIT_QUEUE 0x16a
+#define	MC_CMD_VIRTIO_INIT_QUEUE_MSGSET 0x16a
 #undef	MC_CMD_0x16a_PRIVILEGE_CTG
 
 #define	MC_CMD_0x16a_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -25021,6 +25332,7 @@
  * Destroy a virtio virtqueue
  */
 #define	MC_CMD_VIRTIO_FINI_QUEUE 0x16b
+#define	MC_CMD_VIRTIO_FINI_QUEUE_MSGSET 0x16b
 #undef	MC_CMD_0x16b_PRIVILEGE_CTG
 
 #define	MC_CMD_0x16b_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -25061,6 +25373,7 @@
  * queue(s) to be allocated.
  */
 #define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET 0x16c
+#define	MC_CMD_VIRTIO_GET_DOORBELL_OFFSET_MSGSET 0x16c
 #undef	MC_CMD_0x16c_PRIVILEGE_CTG
 
 #define	MC_CMD_0x16c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -25155,6 +25468,7 @@
  * MC_CMD_DESC_PROXY_FUNC_COMMIT_IN.
  */
 #define	MC_CMD_DESC_PROXY_FUNC_CREATE 0x172
+#define	MC_CMD_DESC_PROXY_FUNC_CREATE_MSGSET 0x172
 #undef	MC_CMD_0x172_PRIVILEGE_CTG
 
 #define	MC_CMD_0x172_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25203,6 +25517,7 @@
  * ownership is released.
  */
 #define	MC_CMD_DESC_PROXY_FUNC_DESTROY 0x173
+#define	MC_CMD_DESC_PROXY_FUNC_DESTROY_MSGSET 0x173
 #undef	MC_CMD_0x173_PRIVILEGE_CTG
 
 #define	MC_CMD_0x173_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25443,6 +25758,7 @@
  * not persisted until the caller commits with MC_CMD_DESC_PROXY_FUNC_COMMIT_IN
  */
 #define	MC_CMD_DESC_PROXY_FUNC_CONFIG_SET 0x174
+#define	MC_CMD_DESC_PROXY_FUNC_CONFIG_SET_MSGSET 0x174
 #undef	MC_CMD_0x174_PRIVILEGE_CTG
 
 #define	MC_CMD_0x174_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25483,6 +25799,7 @@
  * delivered to callers MCDI event queue.
  */
 #define	MC_CMD_DESC_PROXY_FUNC_COMMIT 0x175
+#define	MC_CMD_DESC_PROXY_FUNC_COMMIT_MSGSET 0x175
 #undef	MC_CMD_0x175_PRIVILEGE_CTG
 
 #define	MC_CMD_0x175_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25516,6 +25833,7 @@
  * cycle. Returns ENODEV if no function with given label exists.
  */
 #define	MC_CMD_DESC_PROXY_FUNC_OPEN 0x176
+#define	MC_CMD_DESC_PROXY_FUNC_OPEN_MSGSET 0x176
 #undef	MC_CMD_0x176_PRIVILEGE_CTG
 
 #define	MC_CMD_0x176_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25586,6 +25904,7 @@
  * error (for virtio, DEVICE_NEEDS_RESET flag would be set on the host side)
  */
 #define	MC_CMD_DESC_PROXY_FUNC_CLOSE 0x1a1
+#define	MC_CMD_DESC_PROXY_FUNC_CLOSE_MSGSET 0x1a1
 #undef	MC_CMD_0x1a1_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1a1_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25629,6 +25948,7 @@
  * Enumerate existing descriptor proxy functions
  */
 #define	MC_CMD_DESC_PROXY_FUNC_ENUM 0x177
+#define	MC_CMD_DESC_PROXY_FUNC_ENUM_MSGSET 0x177
 #undef	MC_CMD_0x177_PRIVILEGE_CTG
 
 #define	MC_CMD_0x177_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25668,6 +25988,7 @@
  * function.
  */
 #define	MC_CMD_DESC_PROXY_FUNC_ENABLE 0x178
+#define	MC_CMD_DESC_PROXY_FUNC_ENABLE_MSGSET 0x178
 #undef	MC_CMD_0x178_PRIVILEGE_CTG
 
 #define	MC_CMD_0x178_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25700,6 +26021,7 @@
  * Disable descriptor proxying for function
  */
 #define	MC_CMD_DESC_PROXY_FUNC_DISABLE 0x179
+#define	MC_CMD_DESC_PROXY_FUNC_DISABLE_MSGSET 0x179
 #undef	MC_CMD_0x179_PRIVILEGE_CTG
 
 #define	MC_CMD_0x179_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -25723,6 +26045,7 @@
  * descriptors.
  */
 #define	MC_CMD_GET_ADDR_SPC_ID 0x1a0
+#define	MC_CMD_GET_ADDR_SPC_ID_MSGSET 0x1a0
 #undef	MC_CMD_0x1a0_PRIVILEGE_CTG
 
 #define	MC_CMD_0x1a0_PRIVILEGE_CTG SRIOV_CTG_ADMIN
@@ -26744,6 +27067,7 @@
  * Describes capabilities of the MAE (Match-Action Engine)
  */
 #define	MC_CMD_MAE_GET_CAPS 0x140
+#define	MC_CMD_MAE_GET_CAPS_MSGSET 0x140
 #undef	MC_CMD_0x140_PRIVILEGE_CTG
 
 #define	MC_CMD_0x140_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -26821,9 +27145,10 @@
  * Get a level of support for match fields when used in match-action rules
  */
 #define	MC_CMD_MAE_GET_AR_CAPS 0x141
+#define	MC_CMD_MAE_GET_AR_CAPS_MSGSET 0x141
 #undef	MC_CMD_0x141_PRIVILEGE_CTG
 
-#define	MC_CMD_0x141_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x141_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_GET_AR_CAPS_IN msgrequest */
 #define	MC_CMD_MAE_GET_AR_CAPS_IN_LEN 0
@@ -26853,9 +27178,10 @@
  * Get a level of support for fields used in outer rule keys.
  */
 #define	MC_CMD_MAE_GET_OR_CAPS 0x142
+#define	MC_CMD_MAE_GET_OR_CAPS_MSGSET 0x142
 #undef	MC_CMD_0x142_PRIVILEGE_CTG
 
-#define	MC_CMD_0x142_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x142_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_GET_OR_CAPS_IN msgrequest */
 #define	MC_CMD_MAE_GET_OR_CAPS_IN_LEN 0
@@ -26883,9 +27209,10 @@
  * Rules.
  */
 #define	MC_CMD_MAE_COUNTER_ALLOC 0x143
+#define	MC_CMD_MAE_COUNTER_ALLOC_MSGSET 0x143
 #undef	MC_CMD_0x143_PRIVILEGE_CTG
 
-#define	MC_CMD_0x143_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x143_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_COUNTER_ALLOC_IN msgrequest */
 #define	MC_CMD_MAE_COUNTER_ALLOC_IN_LEN 4
@@ -26926,9 +27253,10 @@
  * Free match-action-engine counters
  */
 #define	MC_CMD_MAE_COUNTER_FREE 0x144
+#define	MC_CMD_MAE_COUNTER_FREE_MSGSET 0x144
 #undef	MC_CMD_0x144_PRIVILEGE_CTG
 
-#define	MC_CMD_0x144_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x144_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_COUNTER_FREE_IN msgrequest */
 #define	MC_CMD_MAE_COUNTER_FREE_IN_LENMIN 8
@@ -26993,6 +27321,10 @@
  * delivering packets to the current queue first.
  */
 #define	MC_CMD_MAE_COUNTERS_STREAM_START 0x151
+#define	MC_CMD_MAE_COUNTERS_STREAM_START_MSGSET 0x151
+#undef	MC_CMD_0x151_PRIVILEGE_CTG
+
+#define	MC_CMD_0x151_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_COUNTERS_STREAM_START_IN msgrequest */
 #define	MC_CMD_MAE_COUNTERS_STREAM_START_IN_LEN 8
@@ -27026,6 +27358,10 @@
  * Stop streaming counter values to the specified RxQ.
  */
 #define	MC_CMD_MAE_COUNTERS_STREAM_STOP 0x152
+#define	MC_CMD_MAE_COUNTERS_STREAM_STOP_MSGSET 0x152
+#undef	MC_CMD_0x152_PRIVILEGE_CTG
+
+#define	MC_CMD_0x152_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_COUNTERS_STREAM_STOP_IN msgrequest */
 #define	MC_CMD_MAE_COUNTERS_STREAM_STOP_IN_LEN 2
@@ -27052,6 +27388,10 @@
  * MAE_COUNTERS_PACKETISER_STREAM_START/PACKET_SIZE and rung the doorbell.
  */
 #define	MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS 0x153
+#define	MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_MSGSET 0x153
+#undef	MC_CMD_0x153_PRIVILEGE_CTG
+
+#define	MC_CMD_0x153_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_IN msgrequest */
 #define	MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_IN_LEN 4
@@ -27068,9 +27408,10 @@
  * Allocate encap action metadata
  */
 #define	MC_CMD_MAE_ENCAP_HEADER_ALLOC 0x148
+#define	MC_CMD_MAE_ENCAP_HEADER_ALLOC_MSGSET 0x148
 #undef	MC_CMD_0x148_PRIVILEGE_CTG
 
-#define	MC_CMD_0x148_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x148_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN msgrequest */
 #define	MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN_LENMIN 4
@@ -27101,9 +27442,10 @@
  * Update encap action metadata
  */
 #define	MC_CMD_MAE_ENCAP_HEADER_UPDATE 0x149
+#define	MC_CMD_MAE_ENCAP_HEADER_UPDATE_MSGSET 0x149
 #undef	MC_CMD_0x149_PRIVILEGE_CTG
 
-#define	MC_CMD_0x149_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x149_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ENCAP_HEADER_UPDATE_IN msgrequest */
 #define	MC_CMD_MAE_ENCAP_HEADER_UPDATE_IN_LENMIN 8
@@ -27130,9 +27472,10 @@
  * Free encap action metadata
  */
 #define	MC_CMD_MAE_ENCAP_HEADER_FREE 0x14a
+#define	MC_CMD_MAE_ENCAP_HEADER_FREE_MSGSET 0x14a
 #undef	MC_CMD_0x14a_PRIVILEGE_CTG
 
-#define	MC_CMD_0x14a_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x14a_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ENCAP_HEADER_FREE_IN msgrequest */
 #define	MC_CMD_MAE_ENCAP_HEADER_FREE_IN_LENMIN 4
@@ -27168,9 +27511,10 @@
  * same MAC address twice (but instead reuse its ID).
  */
 #define	MC_CMD_MAE_MAC_ADDR_ALLOC 0x15e
+#define	MC_CMD_MAE_MAC_ADDR_ALLOC_MSGSET 0x15e
 #undef	MC_CMD_0x15e_PRIVILEGE_CTG
 
-#define	MC_CMD_0x15e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x15e_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_MAC_ADDR_ALLOC_IN msgrequest */
 #define	MC_CMD_MAE_MAC_ADDR_ALLOC_IN_LEN 6
@@ -27193,9 +27537,10 @@
  * Free MAC address.
  */
 #define	MC_CMD_MAE_MAC_ADDR_FREE 0x15f
+#define	MC_CMD_MAE_MAC_ADDR_FREE_MSGSET 0x15f
 #undef	MC_CMD_0x15f_PRIVILEGE_CTG
 
-#define	MC_CMD_0x15f_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x15f_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_MAC_ADDR_FREE_IN msgrequest */
 #define	MC_CMD_MAE_MAC_ADDR_FREE_IN_LENMIN 4
@@ -27230,9 +27575,10 @@
  * Action Rule, or as part of an Action Set List.
  */
 #define	MC_CMD_MAE_ACTION_SET_ALLOC 0x14d
+#define	MC_CMD_MAE_ACTION_SET_ALLOC_MSGSET 0x14d
 #undef	MC_CMD_0x14d_PRIVILEGE_CTG
 
-#define	MC_CMD_0x14d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x14d_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_SET_ALLOC_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_SET_ALLOC_IN_LEN 44
@@ -27315,9 +27661,10 @@
 /* MC_CMD_MAE_ACTION_SET_FREE
  */
 #define	MC_CMD_MAE_ACTION_SET_FREE 0x14e
+#define	MC_CMD_MAE_ACTION_SET_FREE_MSGSET 0x14e
 #undef	MC_CMD_0x14e_PRIVILEGE_CTG
 
-#define	MC_CMD_0x14e_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x14e_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_SET_FREE_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_SET_FREE_IN_LENMIN 4
@@ -27353,9 +27700,10 @@
  * matching the rule every action set in the list is applied.
  */
 #define	MC_CMD_MAE_ACTION_SET_LIST_ALLOC 0x14f
+#define	MC_CMD_MAE_ACTION_SET_LIST_ALLOC_MSGSET 0x14f
 #undef	MC_CMD_0x14f_PRIVILEGE_CTG
 
-#define	MC_CMD_0x14f_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x14f_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_SET_LIST_ALLOC_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_SET_LIST_ALLOC_IN_LENMIN 8
@@ -27396,9 +27744,10 @@
  * Free match-action-engine redirect_lists
  */
 #define	MC_CMD_MAE_ACTION_SET_LIST_FREE 0x150
+#define	MC_CMD_MAE_ACTION_SET_LIST_FREE_MSGSET 0x150
 #undef	MC_CMD_0x150_PRIVILEGE_CTG
 
-#define	MC_CMD_0x150_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x150_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_SET_LIST_FREE_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_SET_LIST_FREE_IN_LENMIN 4
@@ -27433,9 +27782,10 @@
  * influence the Lookup Sequence.
  */
 #define	MC_CMD_MAE_OUTER_RULE_INSERT 0x15a
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_MSGSET 0x15a
 #undef	MC_CMD_0x15a_PRIVILEGE_CTG
 
-#define	MC_CMD_0x15a_PRIVILEGE_CTG SRIOV_CTG_ADMIN
+#define	MC_CMD_0x15a_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_OUTER_RULE_INSERT_IN msgrequest */
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_LENMIN 16
@@ -27493,9 +27843,10 @@
 /* MC_CMD_MAE_OUTER_RULE_REMOVE
  */
 #define	MC_CMD_MAE_OUTER_RULE_REMOVE 0x15b
+#define	MC_CMD_MAE_OUTER_RULE_REMOVE_MSGSET 0x15b
 #undef	MC_CMD_0x15b_PRIVILEGE_CTG
 
-#define	MC_CMD_0x15b_PRIVILEGE_CTG SRIOV_CTG_ADMIN
+#define	MC_CMD_0x15b_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_OUTER_RULE_REMOVE_IN msgrequest */
 #define	MC_CMD_MAE_OUTER_RULE_REMOVE_IN_LENMIN 4
@@ -27575,9 +27926,10 @@
  * MC_CMD_MAE_GET_MATCH_FIELD_CAPABILITIES.
  */
 #define	MC_CMD_MAE_ACTION_RULE_INSERT 0x15c
+#define	MC_CMD_MAE_ACTION_RULE_INSERT_MSGSET 0x15c
 #undef	MC_CMD_0x15c_PRIVILEGE_CTG
 
-#define	MC_CMD_0x15c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x15c_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_RULE_INSERT_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_RULE_INSERT_IN_LENMIN 28
@@ -27616,9 +27968,10 @@
  * ENOTSUP, in which case the driver should DELETE/INSERT.
  */
 #define	MC_CMD_MAE_ACTION_RULE_UPDATE 0x15d
+#define	MC_CMD_MAE_ACTION_RULE_UPDATE_MSGSET 0x15d
 #undef	MC_CMD_0x15d_PRIVILEGE_CTG
 
-#define	MC_CMD_0x15d_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x15d_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_RULE_UPDATE_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_RULE_UPDATE_IN_LEN 24
@@ -27637,9 +27990,10 @@
 /* MC_CMD_MAE_ACTION_RULE_DELETE
  */
 #define	MC_CMD_MAE_ACTION_RULE_DELETE 0x155
+#define	MC_CMD_MAE_ACTION_RULE_DELETE_MSGSET 0x155
 #undef	MC_CMD_0x155_PRIVILEGE_CTG
 
-#define	MC_CMD_0x155_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x155_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_ACTION_RULE_DELETE_IN msgrequest */
 #define	MC_CMD_MAE_ACTION_RULE_DELETE_IN_LENMIN 4
@@ -27673,6 +28027,7 @@
  * Return the m-port corresponding to a selector.
  */
 #define	MC_CMD_MAE_MPORT_LOOKUP 0x160
+#define	MC_CMD_MAE_MPORT_LOOKUP_MSGSET 0x160
 #undef	MC_CMD_0x160_PRIVILEGE_CTG
 
 #define	MC_CMD_0x160_PRIVILEGE_CTG SRIOV_CTG_GENERAL
@@ -27694,9 +28049,10 @@
  * match or delivery argument.
  */
 #define	MC_CMD_MAE_MPORT_ALLOC 0x163
+#define	MC_CMD_MAE_MPORT_ALLOC_MSGSET 0x163
 #undef	MC_CMD_0x163_PRIVILEGE_CTG
 
-#define	MC_CMD_0x163_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x163_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_MPORT_ALLOC_IN msgrequest */
 #define	MC_CMD_MAE_MPORT_ALLOC_IN_LEN 20
@@ -27801,9 +28157,10 @@
  * Free a m-port which was previously allocated by the driver.
  */
 #define	MC_CMD_MAE_MPORT_FREE 0x164
+#define	MC_CMD_MAE_MPORT_FREE_MSGSET 0x164
 #undef	MC_CMD_0x164_PRIVILEGE_CTG
 
-#define	MC_CMD_0x164_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+#define	MC_CMD_0x164_PRIVILEGE_CTG SRIOV_CTG_MAE
 
 /* MC_CMD_MAE_MPORT_FREE_IN msgrequest */
 #define	MC_CMD_MAE_MPORT_FREE_IN_LEN 4
@@ -27907,6 +28264,10 @@
 /* MC_CMD_MAE_MPORT_ENUMERATE
  */
 #define	MC_CMD_MAE_MPORT_ENUMERATE 0x17c
+#define	MC_CMD_MAE_MPORT_ENUMERATE_MSGSET 0x17c
+#undef	MC_CMD_0x17c_PRIVILEGE_CTG
+
+#define	MC_CMD_0x17c_PRIVILEGE_CTG SRIOV_CTG_GENERAL
 
 /* MC_CMD_MAE_MPORT_ENUMERATE_IN msgrequest */
 #define	MC_CMD_MAE_MPORT_ENUMERATE_IN_LEN 0
