@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 
+#include <rte_mbuf.h>
 #include <rte_ethdev.h>
 #include <rte_ethdev_driver.h>
 #include <rte_malloc.h>
@@ -19,6 +20,7 @@
 #include "sfc_adapter_state.h"
 #include "sfc_repr_proxy_api.h"
 #include "sfc_switch.h"
+#include "sfc_dp_tx.h"
 
 /** Multi-process shared representor private data */
 struct sfc_repr_shared {
@@ -138,6 +140,107 @@ static inline void
 sfc_repr_lock_fini(__rte_unused struct sfc_repr *sr)
 {
 	/* Just for symmetry of the API */
+}
+
+static int
+sfc_repr_start(struct rte_eth_dev *dev)
+{
+	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+	struct sfc_repr_shared *srs;
+	int ret;
+
+	sfcr_info(sr, "%s() entry", __func__);
+
+	SFC_ASSERT(sfc_repr_lock_is_locked(sr));
+
+	switch (sr->state) {
+	case SFC_ADAPTER_CONFIGURED:
+		break;
+	case SFC_ADAPTER_STARTED:
+		sfcr_info(sr, "already started");
+		return 0;
+	default:
+		ret = -EINVAL;
+		goto fail_bad_state;
+	}
+
+	sr->state = SFC_ADAPTER_STARTING;
+
+	srs = sfc_repr_shared_by_eth_dev(dev);
+	ret = sfc_repr_proxy_start_id(srs->pf_port_id, srs->repr_id);
+	if (ret == 0) {
+		sr->state = SFC_ADAPTER_STARTED;
+	} else {
+		SFC_ASSERT(ret > 0);
+		ret = -ret;
+		sr->state = SFC_ADAPTER_CONFIGURED;
+	}
+
+fail_bad_state:
+	sfcr_info(sr, "%s() done %s", __func__, rte_strerror(-ret));
+	return ret;
+}
+
+static int
+sfc_repr_dev_start(struct rte_eth_dev *dev)
+{
+	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+	int ret;
+
+	sfcr_info(sr, "%s() entry", __func__);
+
+	sfc_repr_lock(sr);
+	ret = sfc_repr_start(dev);
+	sfc_repr_unlock(sr);
+
+	sfcr_info(sr, "%s() done %s", __func__, rte_strerror(-ret));
+
+	return ret;
+}
+
+static void
+sfc_repr_stop(struct rte_eth_dev *dev)
+{
+	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+	struct sfc_repr_shared *srs;
+
+	sfcr_info(sr, "%s() entry", __func__);
+
+	SFC_ASSERT(sfc_repr_lock_is_locked(sr));
+
+	switch (sr->state) {
+	case SFC_ADAPTER_STARTED:
+		break;
+	case SFC_ADAPTER_CONFIGURED:
+		sfcr_info(sr, "already stopped");
+		return;
+	default:
+		sfcr_err(sr, "stop in unexpected state %u", sr->state);
+		SFC_ASSERT(B_FALSE);
+		return;
+	}
+
+	srs = sfc_repr_shared_by_eth_dev(dev);
+	sfc_repr_proxy_stop_id(srs->pf_port_id, srs->repr_id);
+
+	sr->state = SFC_ADAPTER_CONFIGURED;
+	sfcr_info(sr, "%s() done", __func__);
+}
+
+static int
+sfc_repr_dev_stop(struct rte_eth_dev *dev)
+{
+	struct sfc_repr *sr = sfc_repr_by_eth_dev(dev);
+
+	sfcr_info(sr, "%s() entry", __func__);
+
+	sfc_repr_lock(sr);
+	sfc_repr_stop(dev);
+	sfc_repr_unlock(sr);
+
+	sfcr_info(sr, "%s() done", __func__);
+
+	return 0;
 }
 
 static int
@@ -500,6 +603,10 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 
 	sfc_repr_lock(sr);
 	switch (sr->state) {
+	case SFC_ADAPTER_STARTED:
+		sfc_repr_stop(dev);
+		SFC_ASSERT(sr->state == SFC_ADAPTER_CONFIGURED);
+		/* FALLTHROUGH */
 	case SFC_ADAPTER_CONFIGURED:
 		sfc_repr_close(sr);
 		SFC_ASSERT(sr->state == SFC_ADAPTER_INITIALIZED);
@@ -542,6 +649,8 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 
 static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_configure			= sfc_repr_dev_configure,
+	.dev_start			= sfc_repr_dev_start,
+	.dev_stop			= sfc_repr_dev_stop,
 	.dev_close			= sfc_repr_dev_close,
 	.dev_infos_get			= sfc_repr_dev_infos_get,
 	.rx_queue_setup			= sfc_repr_rx_queue_setup,
