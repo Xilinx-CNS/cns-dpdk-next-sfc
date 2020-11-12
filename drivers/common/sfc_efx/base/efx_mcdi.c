@@ -3099,4 +3099,186 @@ fail1:
 
 #endif	/* EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10() */
 
+	__checkReturn	efx_rc_t
+efx_mcdi_get_nic_addr_info(
+	__in		efx_nic_t *enp,
+	__out		uint32_t *mapping_typep)
+{
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_DESC_ADDR_INFO_IN_LEN,
+		MC_CMD_GET_DESC_ADDR_INFO_OUT_LEN);
+	efx_mcdi_req_t req;
+	efx_rc_t rc;
+
+	req.emr_cmd = MC_CMD_GET_DESC_ADDR_INFO;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_GET_DESC_ADDR_INFO_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_GET_DESC_ADDR_INFO_OUT_LEN;
+
+	efx_mcdi_execute_quiet(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (req.emr_out_length_used != MC_CMD_GET_DESC_ADDR_INFO_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
+	*mapping_typep =
+	    MCDI_OUT_DWORD(req, GET_DESC_ADDR_INFO_OUT_MAPPING_TYPE);
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn	efx_rc_t
+efx_mcdi_get_nic_addr_regions(
+	__in		efx_nic_t *enp,
+	__out		efx_nic_dma_regioned_t *regioned)
+{
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_DESC_ADDR_REGIONS_IN_LEN,
+		MC_CMD_GET_DESC_ADDR_REGIONS_OUT_LENMAX_MCDI2);
+	efx_xword_t *regions;
+	efx_mcdi_req_t req;
+	efx_rc_t rc;
+	unsigned int num;
+	unsigned int i;
+
+	req.emr_cmd = MC_CMD_GET_DESC_ADDR_REGIONS;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_GET_DESC_ADDR_REGIONS_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_GET_DESC_ADDR_REGIONS_OUT_LENMAX_MCDI2;
+
+	efx_mcdi_execute_quiet(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (req.emr_out_length_used <
+	    MC_CMD_GET_DESC_ADDR_REGIONS_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
+	num = MC_CMD_GET_DESC_ADDR_REGIONS_OUT_REGIONS_NUM(
+	    req.emr_out_length_used);
+
+	EFX_STATIC_ASSERT(sizeof (*regions) == DESC_ADDR_REGION_LEN);
+	regions = MCDI_OUT2(req, efx_xword_t,
+	    GET_DESC_ADDR_REGIONS_OUT_REGIONS);
+
+	EFSYS_KMEM_ALLOC(enp->en_esip,
+	    num * sizeof (regioned->endr_regions[0]),
+	    regioned->endr_regions);
+	if (regioned->endr_regions == NULL) {
+		rc = ENOMEM;
+		goto fail3;
+	}
+
+	regioned->endr_num = num;
+	for (i = 0; i < num; ++i) {
+		efx_nic_dma_region_t *region_info;
+
+		region_info = &regioned->endr_regions[i];
+
+		region_info->endr_inuse = B_FALSE;
+		region_info->endr_nic_base =
+		    ((efsys_dma_addr_t)EFX_XWORD_FIELD(regions[i],
+			DESC_ADDR_REGION_DESC_ADDR_BASE_HI) <<
+			DESC_ADDR_REGION_DESC_ADDR_BASE_LO_WIDTH) |
+		    (efsys_dma_addr_t)EFX_XWORD_FIELD(regions[i],
+			DESC_ADDR_REGION_DESC_ADDR_BASE_LO);
+		region_info->endr_trgt_base =
+		    ((efsys_dma_addr_t)EFX_XWORD_FIELD(regions[i],
+			DESC_ADDR_REGION_TRGT_ADDR_BASE_HI) <<
+			DESC_ADDR_REGION_TRGT_ADDR_BASE_LO_WIDTH) |
+		    (efsys_dma_addr_t)EFX_XWORD_FIELD(regions[i],
+			DESC_ADDR_REGION_TRGT_ADDR_BASE_LO);
+		region_info->endr_window_log2 =
+		    EFX_XWORD_FIELD(regions[i],
+			DESC_ADDR_REGION_WINDOW_SIZE_LOG2);
+		region_info->endr_align_log2 =
+		    EFX_XWORD_FIELD(regions[i],
+			DESC_ADDR_REGION_TRGT_ADDR_ALIGN_LOG2);
+	}
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn	efx_rc_t
+efx_mcdi_set_nic_addr_regions(
+	__in		efx_nic_t *enp,
+	__in		const efx_nic_dma_regioned_t *regioned)
+{
+	EFX_MCDI_DECLARE_BUF(payload,
+		MC_CMD_SET_DESC_ADDR_REGIONS_IN_LENMAX_MCDI2,
+		MC_CMD_SET_DESC_ADDR_REGIONS_OUT_LEN);
+	efx_qword_t *trgt_addr_base;
+	efx_mcdi_req_t req;
+	unsigned int i;
+	efx_rc_t rc;
+
+	req.emr_cmd = MC_CMD_SET_DESC_ADDR_REGIONS;
+	req.emr_in_buf = payload;
+	req.emr_in_length =
+	    MC_CMD_SET_DESC_ADDR_REGIONS_IN_LEN(regioned->endr_num);
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_SET_DESC_ADDR_REGIONS_OUT_LEN;
+
+	EFX_STATIC_ASSERT(sizeof (*trgt_addr_base) ==
+	    MC_CMD_SET_DESC_ADDR_REGIONS_IN_TRGT_ADDR_BASE_LEN);
+	trgt_addr_base = MCDI_OUT2(req, efx_qword_t,
+	    SET_DESC_ADDR_REGIONS_IN_TRGT_ADDR_BASE);
+
+	for (i = 0; i < regioned->endr_num; ++i) {
+		const efx_nic_dma_region_t *region_info;
+
+		region_info = &regioned->endr_regions[i];
+
+		if (region_info->endr_inuse != B_TRUE)
+			continue;
+
+		MCDI_IN_SET_DWORD(req,
+		    SET_DESC_ADDR_REGIONS_IN_SET_REGION_MASK, 1U << i);
+
+		trgt_addr_base[i].eq_u64[0] =
+		    __CPU_TO_LE_64(region_info->endr_trgt_base);
+	}
+
+	efx_mcdi_execute_quiet(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
 #endif	/* EFSYS_OPT_MCDI */
