@@ -366,7 +366,8 @@ sfc_get_system_msecs(void)
 }
 
 int sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
-		  size_t len, int socket_id, efsys_mem_t *esmp);
+		  efx_nic_dma_addr_type_t addr_type, size_t len, int socket_id,
+		  efsys_mem_t *esmp);
 void sfc_dma_free(const struct sfc_adapter *sa, efsys_mem_t *esmp);
 
 uint32_t sfc_register_logtype(const struct rte_pci_addr *pci_addr,
