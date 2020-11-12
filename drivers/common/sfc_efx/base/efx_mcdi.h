@@ -289,6 +289,26 @@ efx_mcdi_phy_module_get_info(
 	__in			size_t len,
 	__out_bcount(len)	uint8_t *data);
 
+LIBEFX_INTERNAL
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_nic_addr_info(
+	__in		efx_nic_t *enp,
+	__out		uint32_t *mapping_typep);
+
+struct efx_nic_dma_region_info_s;
+
+LIBEFX_INTERNAL
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_nic_addr_regions(
+	__in		efx_nic_t *enp,
+	__out		struct efx_nic_dma_region_info_s *endrip);
+
+LIBEFX_INTERNAL
+extern	__checkReturn	efx_rc_t
+efx_mcdi_set_nic_addr_regions(
+	__in		efx_nic_t *enp,
+	__in		const struct efx_nic_dma_region_info_s *endrip);
+
 #define	MCDI_IN(_emr, _type, _ofst)					\
 	((_type *)((_emr).emr_in_buf + (_ofst)))
 
