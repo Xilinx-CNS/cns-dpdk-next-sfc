@@ -12,6 +12,7 @@
 
 #include <rte_errno.h>
 #include <rte_alarm.h>
+#include <rte_memory.h>
 
 #include "efx.h"
 
@@ -51,11 +52,173 @@ sfc_repr_available(const struct sfc_adapter_shared *sas)
 	return sas->nb_repr_rxq > 0 && sas->nb_repr_txq > 0;
 }
 
+/* Memory event callback name used to register/unregister */
+#define SFC_MEM_EVENT_CB	"sfc_mem_event_cb"
+
+static int
+sfc_dma_add_memseg(struct sfc_adapter *sa, const struct rte_memseg *ms)
+{
+	efsys_dma_addr_t nic_base;
+	efsys_dma_addr_t trgt_base;
+	size_t map_len;
+	int rc;
+
+	if (ms->iova == RTE_BAD_IOVA)
+		return 0;
+
+	rc = efx_nic_dma_config_add(sa->nic, ms->iova, ms->len,
+				    &nic_base, &trgt_base, &map_len);
+	if (rc != 0) {
+		sfc_err(sa, "cannot handle memory segment VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
+			ms->addr, (uint64_t)ms->iova, (uint64_t)ms->len,
+			rte_strerror(rc));
+		return rc;
+	}
+
+	sfc_info(sa, "registered memory segment VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 " -> NIC_BASE=%" PRIx64 " TRGT_BASE=%" PRIx64 " MAP_LEN=%" PRIx64,
+		ms->addr, (uint64_t)ms->iova, (uint64_t)ms->len,
+		(uint64_t)nic_base, (uint64_t)trgt_base, (uint64_t)map_len);
+
+	if (sa->state == SFC_ETHDEV_STARTED) {
+		rc = efx_nic_dma_reconfigure(sa->nic);
+		if (rc != 0) {
+			sfc_err(sa, "cannot reconfigure NIC DMA: %s",
+				rte_strerror(rc));
+			return rc;
+		}
+	}
+
+	return 0;
+}
+
+static void
+sfc_mem_event_cb(enum rte_mem_event type, const void *addr, size_t len,
+		 void *arg)
+{
+	struct sfc_adapter *sa = arg;
+	struct rte_memseg_list *msl;
+	struct rte_memseg *ms;
+	size_t cur_len;
+	int ret;
+
+	/* For now interested in allocation events only */
+	if (type != RTE_MEM_EVENT_ALLOC)
+		return;
+
+	msl = rte_mem_virt2memseg_list(addr);
+
+	for (cur_len = 0; cur_len < len; cur_len += ms->len) {
+		const void *va = RTE_PTR_ADD(addr, cur_len);
+
+		ms = rte_mem_virt2memseg(va, msl);
+
+		ret = sfc_dma_add_memseg(sa, ms);
+		if (ret != 0) {
+			sfc_err(sa, "failed to handle memory alloc event - schedule restart");
+			sfc_schedule_restart(sa);
+			break;
+		}
+	}
+}
+
+static int
+sfc_dmamap_seg(const struct rte_memseg_list *msl __rte_unused,
+	       const struct rte_memseg *ms, void *arg)
+{
+	struct sfc_adapter *sa = arg;
+
+	return sfc_dma_add_memseg(sa, ms) == 0 ? 0 : -1;
+}
+
+static int
+sfc_dma_attach_regioned(struct sfc_adapter *sa)
+{
+	int rc;
+
+	/* Register memory event callback first */
+	rc = rte_mem_event_callback_register(SFC_MEM_EVENT_CB,
+					     sfc_mem_event_cb, sa);
+	if (rc != 0 && rte_errno != ENOTSUP) {
+		sfc_err(sa, "failed to register memory event callback");
+		rc = EFAULT;
+		goto fail_mem_event_callback_register;
+	}
+
+	/* Walk over the list of already allocated memory segments */
+	if (rte_memseg_walk(sfc_dmamap_seg, sa) != 0) {
+		sfc_err(sa, "failed to handle all memory segments");
+		rc = EFAULT;
+		goto fail_memseg_walk;
+	}
+
+	return 0;
+
+fail_memseg_walk:
+	rte_mem_event_callback_unregister(SFC_MEM_EVENT_CB, sa);
+
+fail_mem_event_callback_register:
+	return rc;
+}
+
+static int
+sfc_dma_attach(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	int rc;
+
+	sfc_log_init(sa, "dma_mapping_type=%u", encp->enc_dma_mapping);
+
+	switch (encp->enc_dma_mapping) {
+	case EFX_NIC_DMA_MAPPING_FLAT:
+		/* Nothing special required */
+		rc = 0;
+		break;
+	case EFX_NIC_DMA_MAPPING_REGIONED:
+		rc = sfc_dma_attach_regioned(sa);
+		break;
+	default:
+		rc = ENOTSUP;
+		break;
+	}
+
+	sfc_log_init(sa, "done: %s", rte_strerror(rc));
+	return rc;
+}
+
+static void
+sfc_dma_detach_regioned(struct sfc_adapter *sa)
+{
+	rte_mem_event_callback_unregister(SFC_MEM_EVENT_CB, sa);
+}
+
+static void
+sfc_dma_detach(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+
+	sfc_log_init(sa, "dma_mapping_type=%u", encp->enc_dma_mapping);
+
+	switch (encp->enc_dma_mapping) {
+	case EFX_NIC_DMA_MAPPING_FLAT:
+		/* Nothing special required */
+		break;
+	case EFX_NIC_DMA_MAPPING_REGIONED:
+		sfc_dma_detach_regioned(sa);
+		break;
+	default:
+		break;
+	}
+
+	sfc_log_init(sa, "done");
+}
+
 int
 sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
-	      size_t len, int socket_id, efsys_mem_t *esmp)
+	      efx_nic_dma_addr_type_t addr_type, size_t len, int socket_id,
+	      efsys_mem_t *esmp)
 {
 	const struct rte_memzone *mz;
+	int rc;
 
 	sfc_log_init(sa, "name=%s id=%u len=%zu socket_id=%d",
 		     name, id, len, socket_id);
@@ -68,11 +231,16 @@ sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
 			rte_strerror(rte_errno));
 		return ENOMEM;
 	}
-
-	esmp->esm_addr = mz->iova;
-	if (esmp->esm_addr == RTE_BAD_IOVA) {
+	if (mz->iova == RTE_BAD_IOVA) {
 		(void)rte_memzone_free(mz);
 		return EFAULT;
+	}
+
+	rc = efx_nic_dma_map(sa->nic, addr_type, mz->iova, len,
+			     &esmp->esm_addr);
+	if (rc != 0) {
+		(void)rte_memzone_free(mz);
+		return rc;
 	}
 
 	esmp->esm_mz = mz;
@@ -456,6 +624,13 @@ sfc_try_start(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_nic_init;
 
+	sfc_log_init(sa, "reconfigure NIC DMA");
+	rc = efx_nic_dma_reconfigure(sa->nic);
+	if (rc != 0) {
+		sfc_err(sa, "cannot reconfigure NIC DMA: %s", rte_strerror(rc));
+		goto fail_nic_dma_reconfigure;
+	}
+
 	encp = efx_nic_cfg_get(sa->nic);
 
 	/*
@@ -524,6 +699,7 @@ fail_ev_start:
 
 fail_intr_start:
 fail_tunnel_reconfigure:
+fail_nic_dma_reconfigure:
 	efx_nic_fini(sa->nic);
 
 fail_nic_init:
@@ -938,6 +1114,10 @@ sfc_attach(struct sfc_adapter *sa)
 	sa->txq_min_entries = encp->enc_txq_min_ndescs;
 	SFC_ASSERT(rte_is_power_of_2(sa->txq_min_entries));
 
+	rc = sfc_dma_attach(sa);
+	if (rc != 0)
+		goto fail_dma_attach;
+
 	rc = sfc_intr_attach(sa);
 	if (rc != 0)
 		goto fail_intr_attach;
@@ -1029,6 +1209,9 @@ fail_ev_attach:
 	sfc_intr_detach(sa);
 
 fail_intr_attach:
+	sfc_dma_detach(sa);
+
+fail_dma_attach:
 	efx_nic_fini(sa->nic);
 
 fail_estimate_rsrc_limits:
@@ -1075,6 +1258,7 @@ sfc_detach(struct sfc_adapter *sa)
 	sfc_port_detach(sa);
 	sfc_ev_detach(sa);
 	sfc_intr_detach(sa);
+	sfc_dma_detach(sa);
 	efx_tunnel_fini(sa->nic);
 	sfc_sriov_detach(sa);
 
