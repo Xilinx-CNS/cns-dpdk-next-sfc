@@ -370,6 +370,7 @@ sfc_ef100_tx_qdesc_send_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
 				m->l2_len + m->l3_len) >> 1;
 	}
 
+	/* TODO map send address */
 	EFX_POPULATE_OWORD_10(*tx_desc,
 			ESF_GZ_TX_SEND_ADDR, rte_mbuf_data_iova(m),
 			ESF_GZ_TX_SEND_LEN, rte_pktmbuf_data_len(m),
@@ -576,6 +577,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 		id = (*added)++ & txq->ptr_mask;
 		if (rte_pktmbuf_data_len(m_seg) <= remaining_hdr_len) {
 			/* The segment is fully header segment */
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(
 				rte_mbuf_data_iova(m_seg),
 				rte_pktmbuf_data_len(m_seg),
@@ -586,6 +588,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 			 * The segment must be split into header and
 			 * payload segments
 			 */
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(
 				rte_mbuf_data_iova(m_seg),
 				remaining_hdr_len,
@@ -593,6 +596,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 			SFC_ASSERT(txq->sw_ring[id].mbuf == NULL);
 
 			id = (*added)++ & txq->ptr_mask;
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(
 				rte_mbuf_data_iova(m_seg) + remaining_hdr_len,
 				rte_pktmbuf_data_len(m_seg) - remaining_hdr_len,
@@ -702,6 +706,7 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 					 SFC_EF100_TX_SEG_DESC_LEN_MAX);
 
 			id = added++ & txq->ptr_mask;
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(rte_mbuf_data_iova(m_seg),
 					rte_pktmbuf_data_len(m_seg),
 					&txq->txq_hw_ring[id]);

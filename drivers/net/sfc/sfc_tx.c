@@ -194,7 +194,7 @@ sfc_tx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 		SFC_TX_DEFAULT_FREE_THRESH;
 	txq_info->offloads = offloads;
 
-	rc = sfc_dma_alloc(sa, "txq", sw_index,
+	rc = sfc_dma_alloc(sa, "txq", sw_index, EFX_NIC_DMA_ADDR_TX_RING,
 			   efx_txq_size(sa->nic, txq_info->entries),
 			   socket_id, &txq->mem);
 	if (rc != 0)

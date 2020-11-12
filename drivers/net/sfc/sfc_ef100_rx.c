@@ -184,6 +184,7 @@ sfc_ef100_rx_qrefill(struct sfc_ef100_rxq *rxq)
 			 * structure members.
 			 */
 
+			/* TODO map Rx buffer address */
 			phys_addr = rte_mbuf_data_iova_default(m);
 			EFX_POPULATE_QWORD_1(rxq->rxq_hw_ring[id],
 			    ESF_GZ_RX_BUF_ADDR, phys_addr);
