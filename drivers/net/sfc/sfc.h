@@ -189,6 +189,8 @@ struct sfc_adapter_shared {
 	char				*dp_tx_name;
 
 	bool				cnt_rxq_supported;
+	unsigned int			nb_repr_rxq;
+	unsigned int			nb_repr_txq;
 };
 
 /* Adapter process private data */
@@ -382,7 +384,7 @@ sfc_cnt_rxq_num(const struct sfc_adapter_shared *sas)
 }
 
 static inline bool
-sfc_repr_supported(const struct sfc_adapter *sa)
+sfc_repr_may_be_supported(const struct sfc_adapter *sa)
 {
 	if (!sa->switchdev)
 		return false;
@@ -401,6 +403,24 @@ sfc_repr_supported(const struct sfc_adapter *sa)
 		return false;
 
 	return true;
+}
+
+static inline bool
+sfc_repr_supported(const struct sfc_adapter_shared *sas)
+{
+	return sas->nb_repr_rxq > 0 && sas->nb_repr_txq > 0;
+}
+
+static inline unsigned int
+sfc_repr_rxq_num(const struct sfc_adapter_shared *sas)
+{
+	return sas->nb_repr_rxq;
+}
+
+static inline unsigned int
+sfc_repr_txq_num(const struct sfc_adapter_shared *sas)
+{
+	return sas->nb_repr_txq;
 }
 
 /** Get the number of milliseconds since boot from the default timer */
