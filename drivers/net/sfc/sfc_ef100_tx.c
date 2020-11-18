@@ -310,6 +310,213 @@ sfc_ef100_tx_reap(struct sfc_ef100_txq *txq)
 	sfc_ef100_tx_reap_num_descs(txq, sfc_ef100_tx_process_events(txq));
 }
 
+#if SFC_DP_LOG_LEVEL >= RTE_LOG_DEBUG
+
+static const char *
+sfc_ef100_tx_dump_cso_inner_l3(unsigned int cso_inner_l3)
+{
+	switch (cso_inner_l3) {
+	case ESE_GZ_TX_DESC_CS_INNER_L3_OFF:
+		return "OFF";
+	case ESE_GZ_TX_DESC_CS_INNER_L3_VXLAN:
+		return "VXLAN";
+	case ESE_GZ_TX_DESC_CS_INNER_L3_NVGRE:
+		return "NVGRE";
+	case ESE_GZ_TX_DESC_CS_INNER_L3_GENEVE:
+		return "GENEVE";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+static void
+sfc_ef100_tx_dump_send_desc(const struct sfc_ef100_txq *txq, unsigned int id)
+{
+	const efx_oword_t *tx_desc = &txq->txq_hw_ring[id];
+
+	sfc_ef100_tx_debug(txq,
+		"TxD#%u send addr=%" PRIx64 ", len=%u, num-segs=%u, CSO-partial=%s (start=%u, csum-off=%u), CSO-inner-L3=%s, CSO-outer-L3=%s, CSO-outer-L4=%s, timestamp-req=%s, VLAN-insert=%u(%s)",
+		id,
+		(uint64_t)EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_ADDR_DW1) <<
+			ESF_GZ_TX_SEND_ADDR_DW0_WIDTH |
+		(uint64_t)EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_ADDR_DW0),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_LEN),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_NUM_SEGS),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_CSO_PARTIAL_EN) ==
+			ESE_GZ_TX_DESC_CSO_PARTIAL_EN_OFF ? "OFF" :
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_CSO_PARTIAL_EN) ==
+			ESE_GZ_TX_DESC_CSO_PARTIAL_EN_UDP ? "UDP" :
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_CSO_PARTIAL_EN) ==
+			ESE_GZ_TX_DESC_CSO_PARTIAL_EN_TCP ? "TCP" :
+			"UNKNOWN",
+		EFX_OWORD_FIELD(*tx_desc,
+				ESF_GZ_TX_SEND_CSO_PARTIAL_START_W) << 1,
+		EFX_OWORD_FIELD(*tx_desc,
+				ESF_GZ_TX_SEND_CSO_PARTIAL_CSUM_W) << 1,
+		sfc_ef100_tx_dump_cso_inner_l3(
+			EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_CSO_INNER_L3)),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_CSO_OUTER_L3) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_CSO_OUTER_L4) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_TSTAMP_REQ) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_VLAN_INSERT_TCI),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEND_VLAN_INSERT_EN) ?
+			"ON" : "OFF");
+}
+
+static void
+sfc_ef100_tx_dump_prefix_desc(const struct sfc_ef100_txq *txq, unsigned int id)
+{
+	const efx_oword_t *tx_desc = &txq->txq_hw_ring[id];
+
+	sfc_ef100_tx_debug(txq,
+		"TxD#%u prefix  mark=%u(%s), ingress-mport=%u(%s), egress-mport=%u(%s), inline-capsule-meta=%s",
+		id,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_PREFIX_MARK),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_PREFIX_MARK_EN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_PREFIX_INGRESS_MPORT),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_PREFIX_INGRESS_MPORT_EN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_PREFIX_EGRESS_MPORT),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_PREFIX_EGRESS_MPORT_EN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc,
+				ESF_GZ_TX_PREFIX_INLINE_CAPSULE_META) ?
+			"ON" : "OFF");
+}
+
+static void
+sfc_ef100_tx_dump_seg_desc(const struct sfc_ef100_txq *txq, unsigned int id)
+{
+	const efx_oword_t *tx_desc = &txq->txq_hw_ring[id];
+
+	sfc_ef100_tx_debug(txq,
+		"TxD#%u segment addr=%" PRIx64 ", len=%u, addr-space=%s (mode=%u, pasid=%u, space=%u), tranlate-addr=%s",
+		id,
+		(uint64_t)EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_ADDR_DW1) <<
+			ESF_GZ_TX_SEG_ADDR_DW0_WIDTH |
+		(uint64_t)EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_ADDR_DW0),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_LEN),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_ADDR_SPC_EN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_ADDR_SPC_MODE),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_ADDR_SPC_PASID),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_ADDR_SPC),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_SEG_TRANSLATE_ADDR) ?
+			"ON" : "OFF");
+}
+
+static const char *
+sfc_ef100_tx_dump_tso_ed_ip4_id(unsigned int ed_ip4_id)
+{
+	switch (ed_ip4_id) {
+	case ESE_GZ_TX_DESC_IP4_ID_NO_OP:
+		return "NOP";
+	case ESE_GZ_TX_DESC_IP4_ID_INC_MOD15:
+		return "INC-mod15";
+	case ESE_GZ_TX_DESC_IP4_ID_INC_MOD16:
+		return "INC-mod16";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+static void
+sfc_ef100_tx_dump_tso_desc(const struct sfc_ef100_txq *txq, unsigned int id)
+{
+	const efx_oword_t *tx_desc = &txq->txq_hw_ring[id];
+
+	sfc_ef100_tx_debug(txq,
+		"TxD=%u TSO MSS=%u, hdr-num-segs=%u, hdr-len=%u, payload-num-segs=%u payload-len=%u, edit-outer-IP4-ID=%s, edit-inner-IP4-ID=%s, edit-outer-IP-len=%s, edit-outer-UDP-len=%s, edit-inner-IP-len=%s, outer-L3-off=%u, outer-L4-off=%u, inner-L3-off=%u, inner-L4-off=%u, CSO-outer-L3=%s, CSO-outer-L4=%s, CSO-inner-L3=%s, CSO-inner-L4=%s, timestamp-req=%s, VLAN-insert=%u(%s)",
+		id,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_MSS),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_HDR_NUM_SEGS),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_HDR_LEN_W) << 1,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_PAYLOAD_NUM_SEGS),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_PAYLOAD_LEN),
+		sfc_ef100_tx_dump_tso_ed_ip4_id(
+			EFX_OWORD_FIELD(*tx_desc,
+					ESF_GZ_TX_TSO_ED_OUTER_IP4_ID)),
+		sfc_ef100_tx_dump_tso_ed_ip4_id(
+			EFX_OWORD_FIELD(*tx_desc,
+					ESF_GZ_TX_TSO_ED_INNER_IP4_ID)),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_ED_OUTER_IP_LEN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_ED_OUTER_UDP_LEN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_ED_INNER_IP_LEN) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_OUTER_L3_OFF_W) << 1,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_OUTER_L4_OFF_W) << 1,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_INNER_L3_OFF_W) << 1,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_INNER_L4_OFF_W) << 1,
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_CSO_OUTER_L3) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_CSO_OUTER_L4) ?
+			"ON" : "OFF",
+		sfc_ef100_tx_dump_cso_inner_l3(
+			EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_CSO_INNER_L3)),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_CSO_INNER_L4) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_TSTAMP_REQ) ?
+			"ON" : "OFF",
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_VLAN_INSERT_TCI),
+		EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_TSO_VLAN_INSERT_EN) ?
+			"ON" : "OFF");
+}
+
+static void
+sfc_ef100_tx_dump_desc(const struct sfc_ef100_txq *txq, unsigned int id)
+{
+	const efx_oword_t *tx_desc = &txq->txq_hw_ring[id];
+
+	sfc_ef100_tx_debug(txq, "TxD#%u %08x:%08x:%08x:%08x", id,
+		tx_desc->eo_u32[0], tx_desc->eo_u32[1],
+		tx_desc->eo_u32[2], tx_desc->eo_u32[3]);
+	switch (EFX_OWORD_FIELD(*tx_desc, ESF_GZ_TX_DESC_TYPE)) {
+	case ESE_GZ_TX_DESC_TYPE_SEND:
+		sfc_ef100_tx_dump_send_desc(txq, id);
+		break;
+	case ESE_GZ_TX_DESC_TYPE_PREFIX:
+		sfc_ef100_tx_dump_prefix_desc(txq, id);
+		break;
+	case ESE_GZ_TX_DESC_TYPE_SEG:
+		sfc_ef100_tx_dump_seg_desc(txq, id);
+		break;
+	case ESE_GZ_TX_DESC_TYPE_TSO:
+		sfc_ef100_tx_dump_tso_desc(txq, id);
+		break;
+	default:
+		sfc_ef100_tx_debug(txq, "TxD#%u unknown type", id);
+		break;
+	}
+}
+static void
+sfc_ef100_tx_dump_descs(const struct sfc_ef100_txq *txq, unsigned int from,
+			unsigned int to)
+{
+	unsigned int id;
+
+	for (id = from; id < to; ++id)
+		sfc_ef100_tx_dump_desc(txq, id & txq->ptr_mask);
+}
+
+#else
+
+static void
+sfc_ef100_tx_dump_descs(const struct sfc_ef100_txq *txq, unsigned int from,
+			unsigned int to)
+{
+	RTE_SET_USED(txq);
+	RTE_SET_USED(from);
+	RTE_SET_USED(to);
+}
+
+#endif
+
 static void
 sfc_ef100_tx_qdesc_prefix_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
 {
@@ -491,6 +698,8 @@ static inline void
 sfc_ef100_tx_qpush(struct sfc_ef100_txq *txq, unsigned int added)
 {
 	efx_dword_t dword;
+
+	sfc_ef100_tx_dump_descs(txq, txq->added, added);
 
 	EFX_POPULATE_DWORD_1(dword, ERF_GZ_TX_RING_PIDX, added & txq->ptr_mask);
 
