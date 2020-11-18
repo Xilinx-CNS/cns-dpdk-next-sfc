@@ -1752,7 +1752,7 @@ siena_rx_qcreate(
 #endif	/* EFSYS_OPT_RX_SCATTER */
 	}
 
-	if (flags & EFX_RXQ_FLAG_INGRESS_MPORT) {
+	if (flags & (EFX_RXQ_FLAG_INGRESS_MPORT | EFX_RXQ_FLAG_USER_MARK)) {
 		rc = ENOTSUP;
 		goto fail4;
 	}

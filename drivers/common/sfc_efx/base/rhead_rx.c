@@ -634,6 +634,9 @@ rhead_rx_qcreate(
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_INGRESS_VPORT;
 	}
 
+	if (flags & EFX_RXQ_FLAG_USER_MARK)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_USER_MARK;
+
 	/*
 	 * LENGTH is required in EF100 host interface, as receive events
 	 * do not include the packet length.
