@@ -36,8 +36,10 @@ sfc_repr_supported(const struct sfc_adapter *sa)
 	if (!sa->switchdev)
 		return false;
 
+#if 0
 	if (sa->sriov.num_vfs == 0)
 		return false;
+#endif
 
 	/*
 	 * Representor proxy should use service lcore on PF's socket
