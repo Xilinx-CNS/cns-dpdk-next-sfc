@@ -1159,7 +1159,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	else
 		rxq_info->type = EFX_RXQ_TYPE_DEFAULT;
 
-	rxq_info->type_flags =
+	rxq_info->type_flags |=
 		(offloads & DEV_RX_OFFLOAD_SCATTER) ?
 		EFX_RXQ_FLAG_SCATTER : EFX_RXQ_FLAG_NONE;
 
