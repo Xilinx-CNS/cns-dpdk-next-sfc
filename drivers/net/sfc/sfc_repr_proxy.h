@@ -78,6 +78,13 @@ struct sfc_repr_proxy_dp_rxq {
 };
 
 struct sfc_repr_proxy_dp_txq {
+	eth_tx_burst_t			pkt_burst;
+	struct sfc_dp_txq		*dp;
+
+	unsigned int			available;
+	unsigned int			transmitted;
+	struct rte_mbuf			*tx_pkts[SFC_REPR_PROXY_TX_BURST];
+
 	unsigned int			sw_index;
 };
 
@@ -109,6 +116,7 @@ struct sfc_repr_proxy {
 	struct sfc_repr_proxy_filter	mport_filter;
 
 	struct sfc_repr_proxy_mbox	mbox;
+	unsigned int			nb_txq;
 };
 
 struct sfc_adapter;
