@@ -30,9 +30,22 @@ struct sfc_repr_shared {
 	uint16_t		switch_port_id;
 };
 
+struct sfc_repr_queue_stats {
+	RTE_STD_C11
+	union {
+		RTE_STD_C11
+		struct {
+			uint64_t	packets;
+			uint64_t	bytes;
+		};
+		rte_int128_t		packets_bytes;
+	};
+};
+
 struct sfc_repr_rxq {
 	/* Datapath members */
 	struct rte_ring			*ring;
+	struct sfc_repr_queue_stats	stats;
 
 	/* Non-datapath members */
 	struct sfc_repr_shared		*srs;
@@ -43,6 +56,7 @@ struct sfc_repr_txq {
 	/* Datapath members */
 	struct rte_ring			*ring;
 	efx_mport_id_t			egress_mport;
+	struct sfc_repr_queue_stats	stats;
 
 	/* Non-datapath members */
 	struct sfc_repr_shared		*srs;
@@ -164,20 +178,57 @@ sfc_repr_tx_queue_stop(void *queue)
 	rte_ring_reset(txq->ring);
 }
 
+static void
+sfc_repr_increment_stats(struct sfc_repr_queue_stats *stats,
+			 unsigned int n_packets,
+			 unsigned int n_bytes)
+{
+	struct sfc_repr_queue_stats anew;
+
+	/*
+	 * Statistics values are changed only in a single thread, atomic load is
+	 * not required.
+	 */
+	anew.packets = stats->packets + n_packets;
+	anew.bytes = stats->bytes + n_bytes;
+
+	/*
+	 * Use atomic without ordering since additional order
+	 * restrictions are not required.
+	 */
+	__atomic_store(&stats->packets_bytes, &anew.packets_bytes,
+		       __ATOMIC_RELAXED);
+}
+
 static uint16_t
 sfc_repr_rx_burst(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_repr_rxq *rxq = rx_queue;
 	void **objs = (void *)&rx_pkts[0];
+	unsigned int n_rx;
 
 	/* mbufs port is already filled correctly by representors proxy */
-	return rte_ring_sc_dequeue_burst(rxq->ring, objs, nb_pkts, NULL);
+	n_rx = rte_ring_sc_dequeue_burst(rxq->ring, objs, nb_pkts, NULL);
+
+	if (n_rx > 0) {
+		unsigned int n_bytes = 0;
+		unsigned int i = 0;
+
+		do {
+			n_bytes += rx_pkts[i]->pkt_len;
+		} while (++i < n_rx);
+
+		sfc_repr_increment_stats(&rxq->stats, n_rx, n_bytes);
+	}
+
+	return n_rx;
 }
 
 static uint16_t
 sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 {
 	struct sfc_repr_txq *txq = tx_queue;
+	unsigned int n_bytes = 0;
 	unsigned int n_tx;
 	void **objs;
 	uint16_t i;
@@ -199,6 +250,7 @@ sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		*RTE_MBUF_DYNFIELD(m, sfc_dp_mport_offset,
 				   typeof(&((efx_mport_id_t *)0)->id)) =
 						txq->egress_mport.id;
+		n_bytes += tx_pkts[i]->pkt_len;
 	}
 
 	objs = (void *)&tx_pkts[0];
@@ -208,13 +260,17 @@ sfc_repr_tx_burst(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	 * Remove m-port override flag from packets that were not enqueued
 	 * Setting the flag only for enqueued packets after the burst is
 	 * not possible since the ownership of enqueued packets is
-	 * transferred to representor proxy.
+	 * transferred to representor proxy. The same logic applies to
+	 * counting the enqueued packets' bytes.
 	 */
 	for (i = n_tx; i < nb_pkts; ++i) {
 		struct rte_mbuf *m = tx_pkts[i];
 
 		m->ol_flags &= ~sfc_dp_mport_override;
+		n_bytes -= m->pkt_len;
 	}
+
+	sfc_repr_increment_stats(&txq->stats, n_tx, n_bytes);
 
 	return n_tx;
 }
@@ -848,6 +904,45 @@ sfc_repr_dev_close(struct rte_eth_dev *dev)
 	return 0;
 }
 
+static int
+sfc_repr_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
+{
+	struct sfc_repr_queue_stats queue_stats;
+	uint16_t i;
+
+	for (i = 0; i < dev->data->nb_rx_queues; i++) {
+		struct sfc_repr_rxq *rxq = dev->data->rx_queues[i];
+
+		/*
+		 * Use atomic without ordering since additional order
+		 * restrictions are not required.
+		 */
+		queue_stats.packets_bytes.int128 =
+			__atomic_load_n(&rxq->stats.packets_bytes.int128,
+					__ATOMIC_RELAXED);
+
+		stats->ipackets += queue_stats.packets;
+		stats->ibytes += queue_stats.bytes;
+	}
+
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		struct sfc_repr_txq *txq = dev->data->tx_queues[i];
+
+		/*
+		 * Use atomic without ordering since additional order
+		 * restrictions are not required.
+		 */
+		queue_stats.packets_bytes.int128 =
+			__atomic_load_n(&txq->stats.packets_bytes.int128,
+					__ATOMIC_RELAXED);
+
+		stats->opackets += queue_stats.packets;
+		stats->obytes += queue_stats.bytes;
+	}
+
+	return 0;
+}
+
 static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_configure			= sfc_repr_dev_configure,
 	.dev_start			= sfc_repr_dev_start,
@@ -855,6 +950,7 @@ static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_close			= sfc_repr_dev_close,
 	.dev_infos_get			= sfc_repr_dev_infos_get,
 	.link_update			= sfc_repr_dev_link_update,
+	.stats_get			= sfc_repr_stats_get,
 	.rx_queue_setup			= sfc_repr_rx_queue_setup,
 	.rx_queue_release		= sfc_repr_rx_queue_release,
 	.tx_queue_setup			= sfc_repr_tx_queue_setup,
