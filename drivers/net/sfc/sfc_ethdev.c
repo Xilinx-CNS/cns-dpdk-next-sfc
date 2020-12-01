@@ -2414,27 +2414,35 @@ static int sfc_eth_dev_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 		return -ENOTSUP;
 	}
 
-	rc = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
-				sizeof(struct sfc_adapter_shared),
-				eth_dev_pci_specific_init, pci_dev,
-				sfc_eth_dev_init, &init_data);
-	if (rc != 0) {
-		SFC_GENERIC_LOG(ERR, "Failed to create sfc ethdev '%s'",
-				pci_dev->device.name);
-		return rc;
-	}
+	/*
+	 * Check if the device is already allocated. If it is allocated,
+	 * only representors creation may be required.
+	 */
+	dev = rte_eth_dev_allocated(pci_dev->device.name);
+	if (dev == NULL) {
+		rc = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
+					sizeof(struct sfc_adapter_shared),
+					eth_dev_pci_specific_init, pci_dev,
+					sfc_eth_dev_init, &init_data);
+		if (rc != 0) {
+			SFC_GENERIC_LOG(ERR, "Failed to create sfc ethdev '%s'",
+					pci_dev->device.name);
+			return rc;
+		}
 
-	dev_created = true;
+		dev_created = true;
+
+		dev = rte_eth_dev_allocated(pci_dev->device.name);
+		if (dev == NULL) {
+			SFC_GENERIC_LOG(ERR,
+				"Failed to find allocated sfc ethdev '%s'",
+				pci_dev->device.name);
+			return -ENODEV;
+		}
+	}
 
 	if (eth_da.nb_representor_ports == 0)
 		return 0;
-
-	dev = rte_eth_dev_allocated(pci_dev->device.name);
-	if (dev == NULL) {
-		SFC_GENERIC_LOG(ERR, "Failed to find allocated sfc ethdev '%s'",
-				pci_dev->device.name);
-		return -ENODEV;
-	}
 
 	/* Create port representors */
 
@@ -2483,7 +2491,8 @@ static struct rte_pci_driver sfc_efx_pmd = {
 	.id_table = pci_id_sfc_efx_map,
 	.drv_flags =
 		RTE_PCI_DRV_INTR_LSC |
-		RTE_PCI_DRV_NEED_MAPPING,
+		RTE_PCI_DRV_NEED_MAPPING |
+		RTE_PCI_DRV_PROBE_AGAIN,
 	.probe = sfc_eth_dev_pci_probe,
 	.remove = sfc_eth_dev_pci_remove,
 };
