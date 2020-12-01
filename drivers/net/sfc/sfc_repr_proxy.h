@@ -74,6 +74,16 @@ struct sfc_repr_proxy_dp_rxq {
 	struct rte_mempool		*mp;
 	unsigned int			ref_count;
 
+	eth_rx_burst_t			pkt_burst;
+	struct sfc_dp_rxq		*dp;
+
+	uint16_t			route_port_id;
+	bool				stop_route;
+	unsigned int			available;
+	unsigned int			forwarded;
+	unsigned int			routed;
+	struct rte_mbuf			*pkts[SFC_REPR_PROXY_TX_BURST];
+
 	unsigned int			sw_index;
 };
 
@@ -117,6 +127,7 @@ struct sfc_repr_proxy {
 
 	struct sfc_repr_proxy_mbox	mbox;
 	unsigned int			nb_txq;
+	unsigned int			nb_rxq;
 };
 
 struct sfc_adapter;
