@@ -714,6 +714,8 @@ sfc_ef100_tx_qpush(struct sfc_ef100_txq *txq, unsigned int added)
 	sfc_ef100_tx_debug(txq, "TxQ pushed doorbell at pidx %u (added=%u)",
 			   EFX_DWORD_FIELD(dword, ERF_GZ_TX_RING_PIDX),
 			   added);
+
+	txq->dp.dpq.dbell_push++;
 }
 
 static unsigned int
@@ -1091,6 +1093,12 @@ sfc_ef100_tx_qstop(struct sfc_dp_txq *dp_txq, unsigned int *evq_read_ptr)
 	txq->flags |= SFC_EF100_TXQ_NOT_RUNNING;
 
 	*evq_read_ptr = txq->evq_read_ptr;
+
+	sfc_ef100_tx_err(txq,
+		"%u doorbells pushed (%" PRIu64 " packets per doorbell)",
+		dp_txq->dpq.dbell_push,
+		dp_txq->dpq.dbell_push == 0 ? 0 :
+			dp_txq->dpq.stats.pkts / dp_txq->dpq.dbell_push);
 }
 
 static sfc_dp_tx_qtx_ev_t sfc_ef100_tx_qtx_ev;
