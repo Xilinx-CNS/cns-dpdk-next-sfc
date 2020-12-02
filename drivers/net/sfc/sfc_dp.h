@@ -51,6 +51,7 @@ struct sfc_dp_queue {
 	 * used on datapath or reap to have more chances to be cache-hot.
 	 */
 	union sfc_pkts_bytes		stats;
+	uint32_t			dbell_push;
 	uint16_t			port_id;
 	uint16_t			queue_id;
 	struct rte_pci_addr		pci_addr;

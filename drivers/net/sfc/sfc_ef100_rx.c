@@ -121,6 +121,8 @@ sfc_ef100_rx_qpush(struct sfc_ef100_rxq *rxq, unsigned int added)
 	sfc_ef100_rx_debug(rxq, "RxQ pushed doorbell at pidx %u (added=%u)",
 			   EFX_DWORD_FIELD(dword, ERF_GZ_RX_RING_PIDX),
 			   added);
+
+	rxq->dp.dpq.dbell_push++;
 }
 
 static void
@@ -847,6 +849,12 @@ sfc_ef100_rx_qstop(struct sfc_dp_rxq *dp_rxq, unsigned int *evq_read_ptr)
 	rxq->flags |= SFC_EF100_RXQ_NOT_RUNNING;
 
 	*evq_read_ptr = rxq->evq_read_ptr;
+
+	sfc_ef100_rx_err(rxq,
+		"%u doorbells pushed (%" PRIu64 " packets per doorbell)",
+		dp_rxq->dpq.dbell_push,
+		dp_rxq->dpq.dbell_push == 0 ? 0 :
+			dp_rxq->dpq.stats.pkts / dp_rxq->dpq.dbell_push);
 }
 
 static sfc_dp_rx_qrx_ev_t sfc_ef100_rx_qrx_ev;
