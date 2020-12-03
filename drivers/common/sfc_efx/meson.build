@@ -32,6 +32,9 @@ endforeach
 subdir('base')
 objs = [base_objs]
 
+config_flag_fmt = 'RTE_LIBRTE_@0@_COMMON'
+
+deps += ['bus_pci']
 sources = files(
 	'sfc_efx.c',
 	'sfc_efx_mcdi.c',
