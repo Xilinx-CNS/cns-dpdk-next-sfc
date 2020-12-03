@@ -6,7 +6,9 @@ if is_windows
 endif
 
 drivers = ['ifc',
-	   'mlx5',]
+	   'mlx5',
+	   'sfc',
+]
 std_deps = ['bus_pci', 'kvargs']
 std_deps += ['vhost']
 config_flag_fmt = 'RTE_LIBRTE_@0@_PMD'
