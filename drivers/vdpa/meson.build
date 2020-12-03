@@ -6,6 +6,8 @@ if is_windows
 endif
 
 drivers = ['ifc',
-	   'mlx5',]
+	   'mlx5',
+	   'sfc',
+]
 std_deps = ['bus_pci', 'kvargs']
 std_deps += ['vhost']
