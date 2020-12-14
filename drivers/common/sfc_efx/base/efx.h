@@ -4112,6 +4112,7 @@ typedef struct efx_virtio_vq_cfg_s {
 typedef struct efx_virtio_vq_s	efx_virtio_vq_t;
 
 typedef enum efx_virtio_device_type_e {
+	EFX_VIRTIO_DEVICE_TYPE_RESERVED,
 	EFX_VIRTIO_DEVICE_TYPE_NET,
 	EFX_VIRTIO_DEVICE_TYPE_BLOCK,
 	EFX_VIRTIO_DEVICE_NTYPES
