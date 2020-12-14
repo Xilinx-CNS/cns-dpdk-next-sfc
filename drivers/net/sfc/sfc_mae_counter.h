@@ -36,6 +36,17 @@ void sfc_mae_counter_rxq_detach(struct sfc_adapter *sa);
 int sfc_mae_counter_rxq_init(struct sfc_adapter *sa);
 void sfc_mae_counter_rxq_fini(struct sfc_adapter *sa);
 
+int sfc_mae_counters_init(struct sfc_mae_counters *counters,
+			  uint32_t nb_counters_max);
+void sfc_mae_counters_fini(struct sfc_mae_counters *counters);
+int sfc_mae_counter_add(struct sfc_adapter *sa,
+			struct sfc_mae_counter_id *counterp);
+int sfc_mae_counter_del(struct sfc_adapter *sa,
+			const struct sfc_mae_counter_id *counter);
+
+int sfc_mae_counter_start(struct sfc_adapter *sa);
+void sfc_mae_counter_stop(struct sfc_adapter *sa);
+
 #ifdef __cplusplus
 }
 #endif
