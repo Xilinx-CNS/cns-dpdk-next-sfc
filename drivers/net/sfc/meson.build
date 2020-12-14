@@ -39,6 +39,16 @@ foreach flag: extra_flags
     endif
 endforeach
 
+# for clang 32-bit compiles we need libatomic for 64-bit atomic ops
+if cc.get_id() == 'clang' and dpdk_conf.get('RTE_ARCH_64') == false
+    ext_deps += cc.find_library('atomic')
+endif
+
+# for gcc compiles we need -latomic for 128-bit atomic ops
+if cc.get_id() == 'gcc'
+    ext_deps += cc.find_library('atomic')
+endif
+
 deps += ['common_sfc_efx', 'bus_pci']
 sources = files(
         'sfc_ethdev.c',
