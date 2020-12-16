@@ -1,0 +1,52 @@
+dpdk for Debian
+---------------
+
+This package is currently compiled for the lowest possible CPU requirements.
+Which still requires at least SSE3 to be supported by the CPU.
+
+dpdk (runtime) / librte*:
+
+For runtime /etc/dpdk/interfaces holds a list of PCI devices to be assigned
+to DPDK compatible drivers and /etc/dpdk/dpdk.conf allows one to define the
+number of hugepages to be reserved at boot.
+The runtime environment is not required to build applications that use
+DPDK but if those applications get packaged they should depend on the
+runtime.
+
+Since DPDK technically would be able to use all of your compatible card/driver
+combination it is required that you take care of blacklisting / whitelisting
+network cards to tell dpdk which it has to initialize (especially true for
+virtio-pci as the normal kernel driver is considered compatible).
+
+If you are working with virtio-pci network cards it isn't a hard requirement to
+assign them to a dpdk compatible userspace driver like uio_pci_generic. But you
+have to at least unbind them from the default kernel driver (virtio-pci) to
+avoid bugs by dpdk and the kernel working on them simultaneously. It is
+recommended to reassign them to dpdk compatible drivers using
+/etc/dpdk/interfaces (just as you would with any physical card).
+
+dpdk-dev / libdpdk-dev:
+
+The minimum requirement for developing external applications is libdpdk-dev,
+which brings the headers and library files.
+
+To link against dpdk, simply use the provided pkg-config file, eg in a Makefile:
+
+CFLAGS += $(shell pkg-config --cflags libdpdk)
+LDFLAGS += $(shell pkg-config --libs libdpdk)
+
+In dpdk-dev helper programs and test binaries, like testpmd, can be found.
+
+librte-pmd-* and DPDK PMD autoloading:
+
+PMD driver autoloading. DPDK since its split into several libraries does not
+have all PMD drivers available by default. One always can use EAL argument -d
+to provide a path to an extra .so file.
+TO ease daily usage RTE_EAL_PMD_PATH is set to
+/usr/lib/$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)/dpdk-pmds/.
+Each librte-pmd-* package will place a symlink in there which makes DPDK load
+and register it as PMD on startup.
+This can also be used to globally enable extra PMD drivers as you can link
+self-provided .so files in there to be considered.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 29 Sep 2016 13:04:47 +0200

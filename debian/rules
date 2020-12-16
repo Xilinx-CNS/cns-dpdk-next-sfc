@@ -1,0 +1,146 @@
+#!/usr/bin/make -f
+
+# see EXAMPLES in dpkg-buildflags(1) and read /usr/share/dpkg/*
+DPKG_EXPORT_BUILDFLAGS = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/default.mk
+
+# Upstream now defines a single ABI across all libs that we will use
+DPDK_ABI := $(shell cat ABI_VERSION | cut -d. -f1)
+# Experimental libs will have 0.200 on actual ABI 20.0
+DPDK_EXP_ABI := "0.$(shell cat ABI_VERSION | cut -d. -f1-2 | tr -d ".")"
+
+ifeq (,$(findstring terse,$(DEB_BUILD_OPTIONS)))
+	export DH_VERBOSE=1
+	export DH_OPTIONS=-v
+endif
+
+# People rebuilding this package can overwrite RTE_MACHINE
+# via DEB_BUILD_OPTIONS if they like
+ifneq (,$(filter rte_machine=%,$(DEB_BUILD_OPTIONS)))
+    RTE_MACHINE ?= $(patsubst rte_machine=%,%,$(filter rte_machine=%,$(DEB_BUILD_OPTIONS)))
+endif
+# default to minimal base, without setting this it would build
+# -march=native which is a non portable invariant
+RTE_MACHINE ?= "default"
+
+ifneq (,$(findstring nodoc,$(DEB_BUILD_PROFILES)))
+BUILD_DOCS=n
+else
+ifneq (,$(findstring nodoc,$(DEB_BUILD_OPTIONS)))
+BUILD_DOCS=n
+# to stop dh_installdoc from running
+export DEB_BUILD_PROFILES += nodoc
+else
+BUILD_DOCS=y
+endif
+endif
+
+# Allow to pass specific configure flags to meson as a comma separated list
+ifneq (,$(filter dpdk_config_options=%,$(DEB_BUILD_OPTIONS)))
+# GNU Makefile hack: can't directly escape comma and spaces, so use variables
+    comma := ,
+    space :=
+    space +=
+    DPDK_CONFIG_OPTIONS ?= $(subst $(comma),$(space),$(patsubst dpdk_config_options=%,%,$(filter dpdk_config_options=%,$(DEB_BUILD_OPTIONS))))
+endif
+
+%:
+	dh $@ --with python3 --buildsystem=meson
+
+override_dh_gencontrol:
+	dh_gencontrol
+	# debian/files will not exist until dh_gencontrol has ran at least once,
+	# so we need to run gencontrol for libdpdk-dev after.
+	# The list of libraries and PMDs is everchanging, so generate the dependency
+	# list for libdpdk-dev to avoid having to maintain it manually.
+	# Various meta packages help users to gain a granular access per lib-subtype.
+	# The recommends list for dpdk has more common libs, all full meta categories
+	# are listed as suggests.
+	dh_gencontrol -p libdpdk-dev          -- -V"librte:All=`grep      -E 'librte-*'           ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-all      -- -V"librte:All=`grep      -E 'librte-*'           ./debian/files | grep -v dbgsym | grep -v 'librte-meta-' | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-baseband -- -V"librte:Baseband=`grep -E 'librte-baseband-.*' ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-bus      -- -V"librte:Bus=`grep      -E 'librte-bus-.*'      ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-compress -- -V"librte:Compress=`grep -E 'librte-compress-.*' ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-crypto   -- -V"librte:Crypto=`grep   -E 'librte-crypto-.*'   ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-event    -- -V"librte:Event=`grep    -E 'librte-event-.*'    ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-mempool  -- -V"librte:Mempool=`grep  -E 'librte-mempool-.*'  ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-net      -- -V"librte:Net=`grep      -E 'librte-net-.*'      ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-raw      -- -V"librte:Raw=`grep      -E 'librte-raw-.*'      ./debian/files | grep -v dbgsym                          | tr '_' ' ' | awk '{ print $$1,"(=",$$2 ")" }' | paste -sd ',' - | sed -e 's/,/, /g'`"
+	dh_gencontrol -p librte-meta-allpmds -- -V"librte:Allpmds=`for pmd in $$(find -type d -wholename './debian/librte-*dpdk/pmds-*'); do awk -v "ver=$(DEB_VERSION)" '/^Package:/ {printf("%s (= %s), \n",$$2,ver)}' "$${pmd}/../../../../../DEBIAN/control"; done | LC_ALL=C sort --stable | xargs`"
+
+override_dh_auto_clean:
+	rm -f doc/guides/compressdevs/overview_feature_table.txt \
+		doc/guides/cryptodevs/overview_aead_table.txt \
+		doc/guides/cryptodevs/overview_asym_table.txt \
+		doc/guides/cryptodevs/overview_auth_table.txt \
+		doc/guides/cryptodevs/overview_cipher_table.txt \
+		doc/guides/cryptodevs/overview_feature_table.txt \
+		doc/guides/nics/overview_table.txt
+	dh_auto_clean
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(DPDK_CONFIG_OPTIONS) \
+		--includedir=include/dpdk \
+		--default-library=shared \
+		-Dper_library_versions=false \
+		-Dinclude_subdir_arch=../$(DEB_HOST_MULTIARCH)/dpdk \
+		-Dmachine=$(RTE_MACHINE)
+
+override_dh_auto_build-indep:
+ifeq (y,$(BUILD_DOCS))
+	dh_auto_build -- doc
+	# NINJA DOC INSTALL DOES NOT WORK - .buildinfo present, css missing
+	rm -rf obj-$(DEB_HOST_MULTIARCH)/doc/guides/guides/.buildinfo obj-$(DEB_HOST_MULTIARCH)/doc/guides/html/.doctrees
+endif
+
+# ninja install doc does not work, will rebuild everything,
+# only dpdk-doc as arch: all so just skip it
+override_dh_auto_install-indep:
+
+override_dh_auto_install-arch:
+	dh_auto_install
+	# Package(s): libdpdk-<NAME><VER> (bare runtime libs and PMDs)
+	# if lib names end in a number, insert a "-"
+	# if libraries are fully experimental set zero as package name suffix, otherwise DPDK_ABI
+	for lib in $$(ls -1 debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/*.so.*); do \
+	  LN=$$(basename $${lib} | sed -e 's/\.so\.[0-9\.]*$$//' | tr '_' '-'); \
+	  if echo $${LN} | grep -q ".*[0-9]$$"; then \
+	    PKG="$${LN}-"; \
+	  else \
+	    PKG="$${LN}"; \
+	  fi; \
+	  if echo $${lib} | grep -q "\.so\.0\.[0-9]*$$"; then \
+	    PKG="$${PKG}$(DPDK_EXP_ABI)"; \
+	  else \
+	    PKG="$${PKG}$(DPDK_ABI)"; \
+	  fi; \
+	  LIBF="$$(basename $${lib})"; \
+	  dh_install -p $${PKG} usr/lib/$(DEB_HOST_MULTIARCH)/$${LIBF}; \
+	  if [ -f debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/*/*/$${LIBF} ]; then \
+	    dh_install -p $${PKG} usr/lib/$(DEB_HOST_MULTIARCH)/*/*/$${LIBF}; \
+	  fi; \
+	done
+	# Strip RPATH, hard-coded in test/test/meson.build at the moment
+	chrpath --delete $(CURDIR)/debian/tmp/usr/bin/dpdk-test
+	# Only present on ninja install, so fails on arch: all builds
+	rm -f $(CURDIR)/debian/tmp/usr/share/doc/dpdk/_static/css/custom.css
+
+override_dh_install:
+	dh_install --exclude=fonts
+
+override_dh_installinit:
+	dh_installinit --no-start --no-stop-on-upgrade
+
+override_dh_installsystemd:
+	dh_installsystemd --no-start --no-stop-on-upgrade
+
+override_dh_auto_test:
+
+override_dh_python3:
+	# dh_python only looks in /usr/share/package_name but dpdk-doc installs in
+	# /usr/share/dpdk, so pass /usr to catch all
+	dh_python3 --shebang=/usr/bin/python3 /usr
+
+override_dh_missing:
+	dh_missing --fail-missing
