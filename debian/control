@@ -1824,7 +1824,7 @@ Description: Data Plane Development Kit (librte-net-igc runtime library)
  This package contains the runtime libraries for librte-net-igc.
 
 Package: librte-net-ionic21
-Architecture: amd64
+Architecture: amd64 arm64
 Multi-Arch: same
 Homepage: https://doc.dpdk.org/guides/nics/igc.html?highlight=igc
 Pre-Depends: ${misc:Pre-Depends},
