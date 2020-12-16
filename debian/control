@@ -2619,7 +2619,7 @@ Description: Data Plane Development Kit (librte-vdpa-mlx5 runtime library)
  .
  This package contains the runtime libraries for librte-vdpa-mlx5.
 
-Package: librte-vdpa-sfc-21
+Package: librte-vdpa-sfc21
 Architecture: amd64 arm64
 Multi-Arch: same
 Homepage: https://doc.dpdk.org/guides/vdpadevs/sfc.html
