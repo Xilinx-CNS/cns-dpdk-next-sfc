@@ -1,0 +1,4 @@
+librte_vdpa_sfc.so.22 librte-vdpa-sfc22 #MINVER#
+ DPDK_22@DPDK_22 21.11
+# INFO: this library exports no symbols, essentially it is a driver that
+# registers itself on load and is then only driven by callbacks.

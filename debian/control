@@ -2755,6 +2755,19 @@ Description: Data Plane Development Kit (librte-vdpa-mlx5 runtime library)
  .
  This package contains the runtime libraries for librte-vdpa-mlx5.
 
+Package: librte-vdpa-sfc22
+Architecture: amd64 arm64
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/vdpadevs/sfc.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Description: Data Plane Development Kit (librte-vdpa-sfc runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-vdpa-sfc.
+
 Package: librte-vhost22
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
