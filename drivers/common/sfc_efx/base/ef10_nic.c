@@ -1434,24 +1434,11 @@ ef10_get_datapath_caps(
 	 * MAE support requires the privilege is granted initially,
 	 * and ignore later dynamic changes.
 	 */
-#if 0
 	if (CAP_FLAGS3(req, MAE_SUPPORTED) &&
 	    EFX_MCDI_HAVE_PRIVILEGE(encp->enc_privilege_mask, MAE))
 		encp->enc_mae_supported = B_TRUE;
 	else
 		encp->enc_mae_supported = B_FALSE;
-#else
-#ifdef RTE_ARCH_X86_64
-	encp->enc_mae_supported = B_FALSE;
-#else
-	encp->enc_mae_supported = B_TRUE;
-#endif
-	fprintf(stderr,
-		"ARB: MAE_SUPPORTED=%u MAE_PRIVILEGE=%u - IGNORE, DO ARCH BASED - %u\n",
-		CAP_FLAGS3(req, MAE_SUPPORTED),
-	        EFX_MCDI_HAVE_PRIVILEGE(encp->enc_privilege_mask, MAE),
-		encp->enc_mae_supported);
-#endif
 #else
 	encp->enc_mae_supported = B_FALSE;
 #endif /* EFSYS_OPT_MAE */
