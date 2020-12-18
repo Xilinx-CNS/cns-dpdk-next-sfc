@@ -1,3 +1,10 @@
+dpdk (19.11.6-1) unstable; urgency=medium
+
+  * New upstream version 19.11.6
+    https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html#release-notes
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 18 Dec 2020 17:03:58 +0000
+
 dpdk (19.11.5-1) unstable; urgency=medium
 
   * New upstream version 19.11.5
