@@ -263,7 +263,7 @@ i40evf_read_pfmsg(struct rte_eth_dev *dev, struct i40evf_arq_msg_info *data)
 		case VIRTCHNL_EVENT_RESET_IMPENDING:
 			vf->vf_reset = true;
 			vf->pend_msg |= PFMSG_RESET_IMPENDING;
-			PMD_DRV_LOG(INFO, "vf is reseting");
+			PMD_DRV_LOG(INFO, "VF is resetting");
 			break;
 		case VIRTCHNL_EVENT_PF_DRIVER_CLOSE:
 			vf->dev_closed = true;
@@ -317,7 +317,7 @@ _atomic_set_cmd(struct i40e_vf *vf, enum virtchnl_ops ops)
 #define ASQ_DELAY_MS  10
 
 static int
-i40evf_execute_vf_cmd(struct rte_eth_dev *dev, struct vf_cmd_info *args)
+_i40evf_execute_vf_cmd(struct rte_eth_dev *dev, struct vf_cmd_info *args)
 {
 	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
@@ -408,6 +408,19 @@ i40evf_execute_vf_cmd(struct rte_eth_dev *dev, struct vf_cmd_info *args)
 	return err | vf->cmd_retval;
 }
 
+static int
+i40evf_execute_vf_cmd(struct rte_eth_dev *dev, struct vf_cmd_info *args)
+{
+	struct i40e_vf *vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+	int err;
+
+	while (!rte_spinlock_trylock(&vf->cmd_send_lock))
+		rte_delay_us_sleep(50);
+	err = _i40evf_execute_vf_cmd(dev, args);
+	rte_spinlock_unlock(&vf->cmd_send_lock);
+	return err;
+}
+
 /*
  * Check API version with sync wait until version read or fail from admin queue
  */
@@ -468,7 +481,8 @@ i40evf_get_vf_resource(struct rte_eth_dev *dev)
 		       VIRTCHNL_VF_OFFLOAD_RSS_AQ |
 		       VIRTCHNL_VF_OFFLOAD_RSS_REG |
 		       VIRTCHNL_VF_OFFLOAD_VLAN |
-		       VIRTCHNL_VF_OFFLOAD_RX_POLLING;
+		       VIRTCHNL_VF_OFFLOAD_RX_POLLING |
+		       VIRTCHNL_VF_CAP_ADV_LINK_SPEED;
 		args.in_args = (uint8_t *)&caps;
 		args.in_args_size = sizeof(caps);
 	} else {
@@ -1223,6 +1237,7 @@ i40evf_init_vf(struct rte_eth_dev *dev)
 
 	vf->adapter = I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	vf->dev_data = dev->data;
+	rte_spinlock_init(&vf->cmd_send_lock);
 	err = i40e_set_mac_type(hw);
 	if (err) {
 		PMD_INIT_LOG(ERR, "set_mac_type failed: %d", err);
@@ -1362,8 +1377,47 @@ i40evf_handle_pf_event(struct rte_eth_dev *dev, uint8_t *msg,
 		break;
 	case VIRTCHNL_EVENT_LINK_CHANGE:
 		PMD_DRV_LOG(DEBUG, "VIRTCHNL_EVENT_LINK_CHANGE event");
-		vf->link_up = pf_msg->event_data.link_event.link_status;
-		vf->link_speed = pf_msg->event_data.link_event.link_speed;
+
+		if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_CAP_ADV_LINK_SPEED) {
+			vf->link_up =
+				pf_msg->event_data.link_event_adv.link_status;
+
+			switch (pf_msg->event_data.link_event_adv.link_speed) {
+			case ETH_SPEED_NUM_100M:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_100MB;
+				break;
+			case ETH_SPEED_NUM_1G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_1GB;
+				break;
+			case ETH_SPEED_NUM_2_5G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_2_5GB;
+				break;
+			case ETH_SPEED_NUM_5G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_5GB;
+				break;
+			case ETH_SPEED_NUM_10G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_10GB;
+				break;
+			case ETH_SPEED_NUM_20G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_20GB;
+				break;
+			case ETH_SPEED_NUM_25G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_25GB;
+				break;
+			case ETH_SPEED_NUM_40G:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_40GB;
+				break;
+			default:
+				vf->link_speed = VIRTCHNL_LINK_SPEED_UNKNOWN;
+				break;
+			}
+		} else {
+			vf->link_up =
+				pf_msg->event_data.link_event.link_status;
+			vf->link_speed =
+				pf_msg->event_data.link_event.link_speed;
+		}
+
 		break;
 	case VIRTCHNL_EVENT_PF_DRIVER_CLOSE:
 		PMD_DRV_LOG(DEBUG, "VIRTCHNL_EVENT_PF_DRIVER_CLOSE event");

@@ -405,9 +405,6 @@ mlx5_dev_configure(struct rte_eth_dev *dev)
 		return -rte_errno;
 	}
 
-	if (dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS_FLAG)
-		dev->data->dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
-
 	memcpy(priv->rss_conf.rss_key,
 	       use_app_rss_key ?
 	       dev->data->dev_conf.rx_adv_conf.rss_conf.rss_key :
@@ -649,14 +646,22 @@ mlx5_dev_infos_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *info)
 			 * representors (more than 4K) or PFs (more than 15)
 			 * this approach must be reconsidered.
 			 */
-			if ((info->switch_info.port_id >>
-				MLX5_PORT_ID_BONDING_PF_SHIFT) ||
+			/* Switch port ID for VF representors: 0 - 0xFFE */
+			if ((info->switch_info.port_id != 0xffff &&
+				info->switch_info.port_id >=
+				((1 << MLX5_PORT_ID_BONDING_PF_SHIFT) - 1)) ||
 			    priv->pf_bond > MLX5_PORT_ID_BONDING_PF_MASK) {
 				DRV_LOG(ERR, "can't update switch port ID"
 					     " for bonding device");
 				assert(false);
 				return -ENODEV;
 			}
+			/*
+			 * Switch port ID for Host PF representor
+			 * (representor_id is -1) , set to 0xFFF
+			 */
+			if (info->switch_info.port_id == 0xffff)
+				info->switch_info.port_id = 0xfff;
 			info->switch_info.port_id |=
 				priv->pf_bond << MLX5_PORT_ID_BONDING_PF_SHIFT;
 		}
@@ -1226,6 +1231,7 @@ mlx5_dev_to_pci_addr(const char *dev_path,
 {
 	FILE *file;
 	char line[32];
+	int rc = -ENOENT;
 	MKSTR(path, "%s/device/uevent", dev_path);
 
 	file = fopen(path, "rb");
@@ -1235,16 +1241,18 @@ mlx5_dev_to_pci_addr(const char *dev_path,
 	}
 	while (fgets(line, sizeof(line), file) == line) {
 		size_t len = strlen(line);
-		int ret;
 
 		/* Truncate long lines. */
-		if (len == (sizeof(line) - 1))
+		if (len == (sizeof(line) - 1)) {
 			while (line[(len - 1)] != '\n') {
-				ret = fgetc(file);
+				int ret = fgetc(file);
 				if (ret == EOF)
-					break;
+					goto exit;
 				line[(len - 1)] = ret;
 			}
+			/* No match for long lines. */
+			continue;
+		}
 		/* Extract information. */
 		if (sscanf(line,
 			   "PCI_SLOT_NAME="
@@ -1253,12 +1261,15 @@ mlx5_dev_to_pci_addr(const char *dev_path,
 			   &pci_addr->bus,
 			   &pci_addr->devid,
 			   &pci_addr->function) == 4) {
-			ret = 0;
+			rc = 0;
 			break;
 		}
 	}
+exit:
 	fclose(file);
-	return 0;
+	if (rc)
+		rte_errno = -rc;
+	return rc;
 }
 
 /**
@@ -1946,12 +1957,13 @@ int mlx5_get_module_eeprom(struct rte_eth_dev *dev,
  * @return
  *   0 on success, a negative errno value otherwise and rte_errno is set.
  */
-int mlx5_hairpin_cap_get(struct rte_eth_dev *dev,
-			 struct rte_eth_hairpin_cap *cap)
+int
+mlx5_hairpin_cap_get(struct rte_eth_dev *dev, struct rte_eth_hairpin_cap *cap)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_dev_config *config = &priv->config;
 
-	if (priv->sh->devx == 0) {
+	if (!priv->sh->devx || !config->dest_tir || !config->dv_flow_en) {
 		rte_errno = ENOTSUP;
 		return -rte_errno;
 	}

@@ -64,12 +64,18 @@ static int hns3vf_add_mc_mac_addr(struct hns3_hw *hw,
 static int hns3vf_remove_mc_mac_addr(struct hns3_hw *hw,
 				     struct rte_ether_addr *mac_addr);
 /* set PCI bus mastering */
-static void
+static int
 hns3vf_set_bus_master(const struct rte_pci_device *device, bool op)
 {
 	uint16_t reg;
+	int ret;
 
-	rte_pci_read_config(device, &reg, sizeof(reg), PCI_COMMAND);
+	ret = rte_pci_read_config(device, &reg, sizeof(reg), PCI_COMMAND);
+	if (ret < 0) {
+		PMD_INIT_LOG(ERR, "Failed to read PCI offset 0x%x",
+			     PCI_COMMAND);
+		return ret;
+	}
 
 	if (op)
 		/* set the master bit */
@@ -77,7 +83,7 @@ hns3vf_set_bus_master(const struct rte_pci_device *device, bool op)
 	else
 		reg &= ~(PCI_COMMAND_MASTER);
 
-	rte_pci_write_config(device, &reg, sizeof(reg), PCI_COMMAND);
+	return rte_pci_write_config(device, &reg, sizeof(reg), PCI_COMMAND);
 }
 
 /**
@@ -94,16 +100,34 @@ hns3vf_find_pci_capability(const struct rte_pci_device *device, int cap)
 	uint8_t pos;
 	uint8_t id;
 	int ttl;
+	int ret;
 
-	rte_pci_read_config(device, &status, sizeof(status), PCI_STATUS);
+	ret = rte_pci_read_config(device, &status, sizeof(status), PCI_STATUS);
+	if (ret < 0) {
+		PMD_INIT_LOG(ERR, "Failed to read PCI offset 0x%x", PCI_STATUS);
+		return 0;
+	}
+
 	if (!(status & PCI_STATUS_CAP_LIST))
 		return 0;
 
 	ttl = MAX_PCIE_CAPABILITY;
-	rte_pci_read_config(device, &pos, sizeof(pos), PCI_CAPABILITY_LIST);
+	ret = rte_pci_read_config(device, &pos, sizeof(pos),
+				  PCI_CAPABILITY_LIST);
+	if (ret < 0) {
+		PMD_INIT_LOG(ERR, "Failed to read PCI offset 0x%x",
+			     PCI_CAPABILITY_LIST);
+		return 0;
+	}
+
 	while (ttl-- && pos >= PCI_STD_HEADER_SIZEOF) {
-		rte_pci_read_config(device, &id, sizeof(id),
-				    (pos + PCI_CAP_LIST_ID));
+		ret = rte_pci_read_config(device, &id, sizeof(id),
+					  (pos + PCI_CAP_LIST_ID));
+		if (ret < 0) {
+			PMD_INIT_LOG(ERR, "Failed to read PCI offset 0x%x",
+				     (pos + PCI_CAP_LIST_ID));
+			break;
+		}
 
 		if (id == 0xFF)
 			break;
@@ -111,8 +135,13 @@ hns3vf_find_pci_capability(const struct rte_pci_device *device, int cap)
 		if (id == cap)
 			return (int)pos;
 
-		rte_pci_read_config(device, &pos, sizeof(pos),
-				    (pos + PCI_CAP_LIST_NEXT));
+		ret = rte_pci_read_config(device, &pos, sizeof(pos),
+					  (pos + PCI_CAP_LIST_NEXT));
+		if (ret < 0) {
+			PMD_INIT_LOG(ERR, "Failed to read PCI offset 0x%x",
+				     (pos + PCI_CAP_LIST_NEXT));
+			break;
+		}
 	}
 	return 0;
 }
@@ -122,17 +151,28 @@ hns3vf_enable_msix(const struct rte_pci_device *device, bool op)
 {
 	uint16_t control;
 	int pos;
+	int ret;
 
 	pos = hns3vf_find_pci_capability(device, PCI_CAP_ID_MSIX);
 	if (pos) {
-		rte_pci_read_config(device, &control, sizeof(control),
+		ret = rte_pci_read_config(device, &control, sizeof(control),
 				    (pos + PCI_MSIX_FLAGS));
+		if (ret < 0) {
+			PMD_INIT_LOG(ERR, "Failed to read PCI offset 0x%x",
+				     (pos + PCI_MSIX_FLAGS));
+			return -ENXIO;
+		}
+
 		if (op)
 			control |= PCI_MSIX_FLAGS_ENABLE;
 		else
 			control &= ~PCI_MSIX_FLAGS_ENABLE;
-		rte_pci_write_config(device, &control, sizeof(control),
-				     (pos + PCI_MSIX_FLAGS));
+		ret = rte_pci_write_config(device, &control, sizeof(control),
+					  (pos + PCI_MSIX_FLAGS));
+		if (ret < 0) {
+			PMD_INIT_LOG(ERR, "failed to write PCI offset 0x%x",
+				    (pos + PCI_MSIX_FLAGS));
+		}
 		return 0;
 	}
 	return -1;
@@ -679,6 +719,7 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 	/* When RSS is not configured, redirect the packet queue 0 */
 	if ((uint32_t)mq_mode & ETH_MQ_RX_RSS_FLAG) {
 		conf->rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
+		hw->rss_dis_flag = false;
 		rss_conf = conf->rx_adv_conf.rss_conf;
 		if (rss_conf.rss_key == NULL) {
 			rss_conf.rss_key = rss_cfg->key;
@@ -805,7 +846,6 @@ hns3vf_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 				 DEV_RX_OFFLOAD_VLAN_FILTER |
 				 DEV_RX_OFFLOAD_JUMBO_FRAME |
 				 DEV_RX_OFFLOAD_RSS_HASH);
-	info->tx_queue_offload_capa = DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 	info->tx_offload_capa = (DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM |
 				 DEV_TX_OFFLOAD_IPV4_CKSUM |
 				 DEV_TX_OFFLOAD_TCP_CKSUM |
@@ -814,7 +854,7 @@ hns3vf_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 				 DEV_TX_OFFLOAD_VLAN_INSERT |
 				 DEV_TX_OFFLOAD_QINQ_INSERT |
 				 DEV_TX_OFFLOAD_MULTI_SEGS |
-				 info->tx_queue_offload_capa);
+				 DEV_TX_OFFLOAD_MBUF_FAST_FREE);
 
 	info->rx_desc_lim = (struct rte_eth_desc_lim) {
 		.nb_max = HNS3_MAX_RING_DESC,
@@ -826,6 +866,17 @@ hns3vf_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 		.nb_max = HNS3_MAX_RING_DESC,
 		.nb_min = HNS3_MIN_RING_DESC,
 		.nb_align = HNS3_ALIGN_RING_DESC,
+	};
+
+	info->default_rxconf = (struct rte_eth_rxconf) {
+		.rx_free_thresh = HNS3_DEFAULT_RX_FREE_THRESH,
+		/*
+		 * If there are no available Rx buffer descriptors, incoming
+		 * packets are always dropped by hardware based on hns3 network
+		 * engine.
+		 */
+		.rx_drop_en = 1,
+		.offloads = 0,
 	};
 
 	info->vmdq_queue_num = 0;
@@ -1458,8 +1509,6 @@ hns3vf_init_vf(struct rte_eth_dev *eth_dev)
 		goto err_get_config;
 	}
 
-	rte_eth_random_addr(hw->mac.mac_addr); /* Generate a random mac addr */
-
 	ret = hns3vf_clear_vport_list(hw);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "Failed to clear tbl list: %d", ret);
@@ -1843,6 +1892,21 @@ hns3vf_is_reset_pending(struct hns3_adapter *hns)
 	struct hns3_hw *hw = &hns->hw;
 	enum hns3_reset_level reset;
 
+	/*
+	 * According to the protocol of PCIe, FLR to a PF device resets the PF
+	 * state as well as the SR-IOV extended capability including VF Enable
+	 * which means that VFs no longer exist.
+	 *
+	 * HNS3_VF_FULL_RESET means PF device is in FLR reset. when PF device
+	 * is in FLR stage, the register state of VF device is not reliable,
+	 * so register states detection can not be carried out. In this case,
+	 * we just ignore the register states and return false to indicate that
+	 * there are no other reset states that need to be processed by driver.
+	 */
+	if (hw->reset.level == HNS3_VF_FULL_RESET)
+		return false;
+
+	/* Check the registers to confirm whether there is reset pending */
 	hns3vf_check_event_cause(hns, NULL);
 	reset = hns3vf_get_reset_level(hw, &hw->reset.pending);
 	if (hw->reset.level != HNS3_NONE_RESET && hw->reset.level < reset) {
@@ -2097,7 +2161,11 @@ hns3vf_reinit_dev(struct hns3_adapter *hns)
 
 	if (hw->reset.level == HNS3_VF_FULL_RESET) {
 		rte_intr_disable(&pci_dev->intr_handle);
-		hns3vf_set_bus_master(pci_dev, true);
+		ret = hns3vf_set_bus_master(pci_dev, true);
+		if (ret < 0) {
+			hns3_err(hw, "failed to set pci bus, ret = %d", ret);
+			return ret;
+		}
 	}
 
 	/* Firmware command initialize */
@@ -2253,8 +2321,10 @@ hns3vf_dev_init(struct rte_eth_dev *eth_dev)
 		goto err_rte_zmalloc;
 	}
 
+	rte_eth_random_addr(hw->mac.mac_addr); /* Generate a random mac addr */
 	rte_ether_addr_copy((struct rte_ether_addr *)hw->mac.mac_addr,
 			    &eth_dev->data->mac_addrs[0]);
+
 	hw->adapter_state = HNS3_NIC_INITIALIZED;
 	/*
 	 * Pass the information to the rte_eth_dev_close() that it should also

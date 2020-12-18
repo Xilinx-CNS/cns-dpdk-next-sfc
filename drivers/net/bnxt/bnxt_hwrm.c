@@ -52,7 +52,7 @@ static int page_getenum(size_t size)
 	if (size <= 1 << 30)
 		return 30;
 	PMD_DRV_LOG(ERR, "Page size %zu out of range\n", size);
-	return sizeof(void *) * 8 - 1;
+	return sizeof(int) * 8 - 1;
 }
 
 static int page_roundup(size_t size)
@@ -447,6 +447,9 @@ int bnxt_hwrm_set_l2_filter(struct bnxt *bp,
 
 	HWRM_PREP(req, CFA_L2_FILTER_ALLOC, BNXT_USE_CHIMP_MB);
 
+	/* PMD does not support XDP and RoCE */
+	filter->flags |= HWRM_CFA_L2_FILTER_ALLOC_INPUT_FLAGS_XDP_DISABLE |
+			HWRM_CFA_L2_FILTER_ALLOC_INPUT_FLAGS_TRAFFIC_L2;
 	req.flags = rte_cpu_to_le_32(filter->flags);
 
 	enables = filter->enables |
@@ -586,6 +589,20 @@ static int bnxt_hwrm_ptp_qcfg(struct bnxt *bp)
 	return 0;
 }
 
+void bnxt_hwrm_free_vf_info(struct bnxt *bp)
+{
+	uint16_t i;
+
+	for (i = 0; i < bp->pf.max_vfs; i++) {
+		rte_free(bp->pf.vf_info[i].vlan_table);
+		bp->pf.vf_info[i].vlan_table = NULL;
+		rte_free(bp->pf.vf_info[i].vlan_as_table);
+		bp->pf.vf_info[i].vlan_as_table = NULL;
+	}
+	rte_free(bp->pf.vf_info);
+	bp->pf.vf_info = NULL;
+}
+
 static int __bnxt_hwrm_func_qcaps(struct bnxt *bp)
 {
 	int rc = 0;
@@ -612,9 +629,13 @@ static int __bnxt_hwrm_func_qcaps(struct bnxt *bp)
 		new_max_vfs = bp->pdev->max_vfs;
 		if (new_max_vfs != bp->pf.max_vfs) {
 			if (bp->pf.vf_info)
-				rte_free(bp->pf.vf_info);
-			bp->pf.vf_info = rte_malloc("bnxt_vf_info",
+				bnxt_hwrm_free_vf_info(bp);
+			bp->pf.vf_info = rte_zmalloc("bnxt_vf_info",
 			    sizeof(bp->pf.vf_info[0]) * new_max_vfs, 0);
+			if (bp->pf.vf_info == NULL) {
+				PMD_DRV_LOG(ERR, "Alloc vf info fail\n");
+				return -ENOMEM;
+			}
 			bp->pf.max_vfs = new_max_vfs;
 			for (i = 0; i < new_max_vfs; i++) {
 				bp->pf.vf_info[i].fid = bp->pf.first_vf_id + i;
@@ -2123,8 +2144,8 @@ int bnxt_hwrm_vnic_tpa_cfg(struct bnxt *bp,
 				HWRM_VNIC_TPA_CFG_INPUT_FLAGS_GRO |
 				HWRM_VNIC_TPA_CFG_INPUT_FLAGS_AGG_WITH_ECN |
 			HWRM_VNIC_TPA_CFG_INPUT_FLAGS_AGG_WITH_SAME_GRE_SEQ);
-		req.max_agg_segs = rte_cpu_to_le_16(BNXT_TPA_MAX_AGGS(bp));
-		req.max_aggs = rte_cpu_to_le_16(BNXT_TPA_MAX_SEGS(bp));
+		req.max_aggs = rte_cpu_to_le_16(BNXT_TPA_MAX_AGGS(bp));
+		req.max_agg_segs = rte_cpu_to_le_16(BNXT_TPA_MAX_SEGS(bp));
 		req.min_agg_len = rte_cpu_to_le_32(512);
 	}
 	req.vnic_id = rte_cpu_to_le_16(vnic->fw_vnic_id);
@@ -3346,17 +3367,19 @@ int bnxt_hwrm_tunnel_dst_port_alloc(struct bnxt *bp, uint16_t port,
 
 	HWRM_PREP(req, TUNNEL_DST_PORT_ALLOC, BNXT_USE_CHIMP_MB);
 	req.tunnel_type = tunnel_type;
-	req.tunnel_dst_port_val = port;
+	req.tunnel_dst_port_val = rte_cpu_to_be_16(port);
 	rc = bnxt_hwrm_send_message(bp, &req, sizeof(req), BNXT_USE_CHIMP_MB);
 	HWRM_CHECK_RESULT();
 
 	switch (tunnel_type) {
 	case HWRM_TUNNEL_DST_PORT_ALLOC_INPUT_TUNNEL_TYPE_VXLAN:
-		bp->vxlan_fw_dst_port_id = resp->tunnel_dst_port_id;
+		bp->vxlan_fw_dst_port_id =
+			rte_le_to_cpu_16(resp->tunnel_dst_port_id);
 		bp->vxlan_port = port;
 		break;
 	case HWRM_TUNNEL_DST_PORT_ALLOC_INPUT_TUNNEL_TYPE_GENEVE:
-		bp->geneve_fw_dst_port_id = resp->tunnel_dst_port_id;
+		bp->geneve_fw_dst_port_id =
+			rte_le_to_cpu_16(resp->tunnel_dst_port_id);
 		bp->geneve_port = port;
 		break;
 	default:

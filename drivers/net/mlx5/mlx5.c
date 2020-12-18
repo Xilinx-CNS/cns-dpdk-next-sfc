@@ -13,7 +13,6 @@
 #include <errno.h>
 #include <net/if.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <linux/rtnetlink.h>
 
 /* Verbs header. */
@@ -952,13 +951,12 @@ mlx5_alloc_shared_dr(struct mlx5_priv *priv)
 {
 	struct mlx5_ibv_shared *sh = priv->sh;
 	char s[MLX5_HLIST_NAMESIZE];
-	int err = 0;
+	int err;
 
-	if (!sh->flow_tbls)
-		err = mlx5_alloc_table_hash_list(priv);
-	else
-		DRV_LOG(DEBUG, "sh->flow_tbls[%p] already created, reuse",
-			(void *)sh->flow_tbls);
+	assert(sh && sh->refcnt);
+	if (sh->refcnt > 1)
+		return 0;
+	err = mlx5_alloc_table_hash_list(priv);
 	if (err)
 		return err;
 	/* Create tags hash list table. */
@@ -972,12 +970,6 @@ mlx5_alloc_shared_dr(struct mlx5_priv *priv)
 #ifdef HAVE_MLX5DV_DR
 	void *domain;
 
-	if (sh->dv_refcnt) {
-		/* Shared DV/DR structures is already initialized. */
-		sh->dv_refcnt++;
-		priv->dr_shared = 1;
-		return 0;
-	}
 	/* Reference counter is zero, we should initialize structures. */
 	domain = mlx5_glue->dr_create_domain(sh->ctx,
 					     MLX5DV_DR_DOMAIN_TYPE_NIC_RX);
@@ -1011,8 +1003,6 @@ mlx5_alloc_shared_dr(struct mlx5_priv *priv)
 #endif
 	sh->pop_vlan_action = mlx5_glue->dr_create_flow_action_pop_vlan();
 #endif /* HAVE_MLX5DV_DR */
-	sh->dv_refcnt++;
-	priv->dr_shared = 1;
 	return 0;
 error:
 	/* Rollback the created objects. */
@@ -1054,17 +1044,12 @@ error:
 static void
 mlx5_free_shared_dr(struct mlx5_priv *priv)
 {
-	struct mlx5_ibv_shared *sh;
+	struct mlx5_ibv_shared *sh = priv->sh;
 
-	if (!priv->dr_shared)
+	assert(sh && sh->refcnt);
+	if (sh->refcnt > 1)
 		return;
-	priv->dr_shared = 0;
-	sh = priv->sh;
-	assert(sh);
 #ifdef HAVE_MLX5DV_DR
-	assert(sh->dv_refcnt);
-	if (sh->dv_refcnt && --sh->dv_refcnt)
-		return;
 	if (sh->rx_domain) {
 		mlx5_glue->dr_destroy_domain(sh->rx_domain);
 		sh->rx_domain = NULL;
@@ -3404,7 +3389,7 @@ mlx5_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	case PCI_DEVICE_ID_MELLANOX_CONNECTX5EXVF:
 	case PCI_DEVICE_ID_MELLANOX_CONNECTX5BFVF:
 	case PCI_DEVICE_ID_MELLANOX_CONNECTX6VF:
-	case PCI_DEVICE_ID_MELLANOX_CONNECTX6DXVF:
+	case PCI_DEVICE_ID_MELLANOX_CONNECTXVF:
 		dev_config.vf = 1;
 		break;
 	default:
@@ -3587,7 +3572,7 @@ static const struct rte_pci_id mlx5_pci_id_map[] = {
 	},
 	{
 		RTE_PCI_DEVICE(PCI_VENDOR_ID_MELLANOX,
-				PCI_DEVICE_ID_MELLANOX_CONNECTX6DXVF)
+				PCI_DEVICE_ID_MELLANOX_CONNECTXVF)
 	},
 	{
 		.vendor_id = 0

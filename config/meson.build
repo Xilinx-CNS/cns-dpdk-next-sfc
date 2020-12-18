@@ -54,9 +54,11 @@ eal_pmd_path = join_paths(get_option('prefix'), driver_install_path)
 # driver .so files often depend upon the bus drivers for their connect bus,
 # e.g. ixgbe depends on librte_bus_pci. This means that the bus drivers need
 # to be in the library path, so symlink the drivers from the main lib directory.
-meson.add_install_script('../buildtools/symlink-drivers-solibs.sh',
-		get_option('libdir'),
-		pmd_subdir_opt)
+if not is_windows
+	meson.add_install_script('../buildtools/symlink-drivers-solibs.sh',
+			get_option('libdir'),
+			pmd_subdir_opt)
+endif
 
 # set the machine type and cflags for it
 if meson.is_cross_build()
@@ -160,11 +162,9 @@ if libbsd.found()
 endif
 
 # check for pcap
-pcap_dep = dependency('pcap', required: false)
-if pcap_dep.found()
-	# pcap got a pkg-config file only in 1.9.0 and before that meson uses
-	# an internal pcap-config finder, which is not compatible with
-	# cross-compilation, so try to fallback to find_library
+pcap_dep = dependency('libpcap', required: false, method: 'pkg-config')
+if not pcap_dep.found()
+	# pcap got a pkg-config file only in 1.9.0
 	pcap_dep = cc.find_library('pcap', required: false)
 endif
 if pcap_dep.found() and cc.has_header('pcap.h', dependencies: pcap_dep)
@@ -183,6 +183,7 @@ warning_flags = [
 	# additional warnings in alphabetical order
 	'-Wcast-qual',
 	'-Wdeprecated',
+	'-Wformat',
 	'-Wformat-nonliteral',
 	'-Wformat-security',
 	'-Wmissing-declarations',

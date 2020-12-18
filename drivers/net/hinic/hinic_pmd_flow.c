@@ -683,6 +683,7 @@ static int hinic_ntuple_item_check_end(const struct rte_flow_item *item,
 			item, "Not supported by ntuple filter");
 		return -rte_errno;
 	}
+
 	return 0;
 }
 
@@ -1934,6 +1935,8 @@ hinic_add_del_ethertype_filter(struct rte_eth_dev *dev,
 		ethertype_filter.pkt_proto = filter->ether_type;
 		i = hinic_ethertype_filter_lookup(filter_info,
 						&ethertype_filter);
+		if (i < 0)
+			return -EINVAL;
 
 		if ((filter_info->type_mask & (1 << i))) {
 			filter_info->pkt_filters[i].enable = FALSE;
@@ -2114,6 +2117,8 @@ static struct rte_flow *hinic_flow_create(struct rte_eth_dev *dev,
 				sizeof(struct hinic_ntuple_filter_ele), 0);
 			if (ntuple_filter_ptr == NULL) {
 				PMD_DRV_LOG(ERR, "Failed to allocate ntuple_filter_ptr");
+				(void)hinic_add_del_ntuple_filter(dev,
+							&ntuple_filter, FALSE);
 				goto out;
 			}
 			rte_memcpy(&ntuple_filter_ptr->filter_info,
@@ -2144,6 +2149,8 @@ static struct rte_flow *hinic_flow_create(struct rte_eth_dev *dev,
 				sizeof(struct hinic_ethertype_filter_ele), 0);
 			if (ethertype_filter_ptr == NULL) {
 				PMD_DRV_LOG(ERR, "Failed to allocate ethertype_filter_ptr");
+				(void)hinic_add_del_ethertype_filter(dev,
+						&ethertype_filter, FALSE);
 				goto out;
 			}
 			rte_memcpy(&ethertype_filter_ptr->filter_info,
@@ -2172,6 +2179,8 @@ static struct rte_flow *hinic_flow_create(struct rte_eth_dev *dev,
 				sizeof(struct hinic_fdir_rule_ele), 0);
 			if (fdir_rule_ptr == NULL) {
 				PMD_DRV_LOG(ERR, "Failed to allocate fdir_rule_ptr");
+				hinic_add_del_fdir_filter(dev,
+						&fdir_rule, FALSE);
 				goto out;
 			}
 			rte_memcpy(&fdir_rule_ptr->filter_info, &fdir_rule,

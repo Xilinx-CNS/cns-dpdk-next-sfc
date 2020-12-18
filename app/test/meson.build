@@ -380,6 +380,7 @@ endif
 
 if dpdk_conf.has('RTE_LIBRTE_PMD_CRYPTO_SCHEDULER')
 	driver_test_names += 'cryptodev_scheduler_autotest'
+	test_deps += 'pmd_crypto_scheduler'
 endif
 
 foreach d:test_deps
@@ -390,7 +391,7 @@ test_dep_objs += cc.find_library('execinfo', required: false)
 
 link_libs = []
 if get_option('default_library') == 'static'
-	link_libs = dpdk_drivers
+	link_libs = dpdk_static_libraries + dpdk_drivers
 endif
 
 dpdk_test = executable('dpdk-test',

@@ -16,6 +16,7 @@
 #define ETH_RING_ACTION_CREATE		"CREATE"
 #define ETH_RING_ACTION_ATTACH		"ATTACH"
 #define ETH_RING_INTERNAL_ARG		"internal"
+#define ETH_RING_INTERNAL_ARG_MAX_LEN	19 /* "0x..16chars..\0" */
 
 static const char *valid_arguments[] = {
 	ETH_RING_NUMA_NODE_ACTION_ARG,
@@ -539,8 +540,21 @@ parse_internal_args(const char *key __rte_unused, const char *value,
 {
 	struct ring_internal_args **internal_args = data;
 	void *args;
+	int ret, n;
 
-	sscanf(value, "%p", &args);
+	/* make sure 'value' is valid pointer length */
+	if (strnlen(value, ETH_RING_INTERNAL_ARG_MAX_LEN) >=
+			ETH_RING_INTERNAL_ARG_MAX_LEN) {
+		PMD_LOG(ERR, "Error parsing internal args, argument is too long");
+		return -1;
+	}
+
+	ret = sscanf(value, "%p%n", &args, &n);
+	if (ret == 0 || (size_t)n != strlen(value)) {
+		PMD_LOG(ERR, "Error parsing internal args");
+
+		return -1;
+	}
 
 	*internal_args = args;
 
@@ -579,7 +593,7 @@ rte_pmd_ring_probe(struct rte_vdev_device *dev)
 
 		if (!kvlist) {
 			PMD_LOG(INFO,
-				"Ignoring unsupported parameters when creatingrings-backed ethernet device");
+				"Ignoring unsupported parameters when creating rings-backed ethernet device");
 			ret = eth_dev_ring_create(name, dev, rte_socket_id(),
 						  DEV_CREATE, &eth_dev);
 			if (ret == -1) {

@@ -614,7 +614,7 @@ static void cmd_help_long_parsed(void *parsed_result,
 			"set bonding mode IEEE802.3AD aggregator policy (port_id) (agg_name)"
 			"	Set Aggregation mode for IEEE802.3AD (mode 4)"
 
-			"set bonding xmit_balance_policy (port_id) (l2|l23|l34)\n"
+			"set bonding balance_xmit_policy (port_id) (l2|l23|l34)\n"
 			"	Set the transmit balance policy for bonded device running in balance mode.\n\n"
 
 			"set bonding mon_period (port_id) (value)\n"
@@ -4168,6 +4168,9 @@ cmd_tx_vlan_set_parsed(void *parsed_result,
 {
 	struct cmd_tx_vlan_set_result *res = parsed_result;
 
+	if (port_id_is_invalid(res->port_id, ENABLED_WARN))
+		return;
+
 	if (!port_is_stopped(res->port_id)) {
 		printf("Please stop port %d first\n", res->port_id);
 		return;
@@ -4221,6 +4224,9 @@ cmd_tx_vlan_set_qinq_parsed(void *parsed_result,
 			    __attribute__((unused)) void *data)
 {
 	struct cmd_tx_vlan_set_qinq_result *res = parsed_result;
+
+	if (port_id_is_invalid(res->port_id, ENABLED_WARN))
+		return;
 
 	if (!port_is_stopped(res->port_id)) {
 		printf("Please stop port %d first\n", res->port_id);
@@ -4334,6 +4340,9 @@ cmd_tx_vlan_reset_parsed(void *parsed_result,
 			 __attribute__((unused)) void *data)
 {
 	struct cmd_tx_vlan_reset_result *res = parsed_result;
+
+	if (port_id_is_invalid(res->port_id, ENABLED_WARN))
+		return;
 
 	if (!port_is_stopped(res->port_id)) {
 		printf("Please stop port %d first\n", res->port_id);

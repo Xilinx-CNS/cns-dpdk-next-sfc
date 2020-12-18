@@ -1095,7 +1095,7 @@ eth_ixgbe_dev_init(struct rte_eth_dev *eth_dev, void *init_params __rte_unused)
 		IXGBE_DEV_PRIVATE_TO_BW_CONF(eth_dev->data->dev_private);
 	uint32_t ctrl_ext;
 	uint16_t csum;
-	int diag, i;
+	int diag, i, ret;
 
 	PMD_INIT_FUNC_TRACE();
 
@@ -1274,7 +1274,14 @@ eth_ixgbe_dev_init(struct rte_eth_dev *eth_dev, void *init_params __rte_unused)
 	memset(hwstrip, 0, sizeof(*hwstrip));
 
 	/* initialize PF if max_vfs not zero */
-	ixgbe_pf_host_init(eth_dev);
+	ret = ixgbe_pf_host_init(eth_dev);
+	if (ret) {
+		rte_free(eth_dev->data->mac_addrs);
+		eth_dev->data->mac_addrs = NULL;
+		rte_free(eth_dev->data->hash_mac_addrs);
+		eth_dev->data->hash_mac_addrs = NULL;
+		return ret;
+	}
 
 	ctrl_ext = IXGBE_READ_REG(hw, IXGBE_CTRL_EXT);
 	/* let hardware know driver is loaded */
@@ -5335,10 +5342,16 @@ ixgbevf_dev_start(struct rte_eth_dev *dev)
 	ixgbe_dev_wait_setup_link_complete(dev, 0);
 
 	err = hw->mac.ops.reset_hw(hw);
-	if (err) {
+
+	/**
+	 * In this case, reuses the MAC address assigned by VF
+	 * initialization.
+	 */
+	if (err != IXGBE_SUCCESS && err != IXGBE_ERR_INVALID_MAC_ADDR) {
 		PMD_INIT_LOG(ERR, "Unable to reset vf hardware (%d)", err);
 		return err;
 	}
+
 	hw->mac.get_link_status = true;
 
 	/* negotiate mailbox API version to use with the PF. */
