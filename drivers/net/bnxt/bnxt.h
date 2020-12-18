@@ -233,8 +233,8 @@ struct bnxt_pf_info {
 };
 
 /* Max wait time for link up is 10s and link down is 500ms */
-#define BNXT_LINK_UP_WAIT_CNT	200
-#define BNXT_LINK_DOWN_WAIT_CNT	10
+#define BNXT_MAX_LINK_WAIT_CNT	200
+#define BNXT_MIN_LINK_WAIT_CNT	10
 #define BNXT_LINK_WAIT_INTERVAL	50
 struct bnxt_link_info {
 	uint32_t		phy_flags;
@@ -593,6 +593,7 @@ struct bnxt {
 	rte_iova_t			hwrm_short_cmd_req_dma_addr;
 	rte_spinlock_t			hwrm_lock;
 	pthread_mutex_t			def_cp_lock;
+	pthread_mutex_t			health_check_lock;
 	uint16_t			max_req_len;
 	uint16_t			max_resp_len;
 	uint16_t                        hwrm_max_ext_req_len;
@@ -680,6 +681,13 @@ void bnxt_schedule_fw_health_check(struct bnxt *bp);
 
 bool is_bnxt_supported(struct rte_eth_dev *dev);
 bool bnxt_stratus_device(struct bnxt *bp);
+int bnxt_link_update_op(struct rte_eth_dev *eth_dev,
+			int wait_to_complete);
+uint16_t bnxt_dummy_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
+			      uint16_t nb_pkts);
+uint16_t bnxt_dummy_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+			      uint16_t nb_pkts);
+
 extern const struct rte_flow_ops bnxt_flow_ops;
 #define bnxt_acquire_flow_lock(bp) \
 	pthread_mutex_lock(&(bp)->flow_lock)

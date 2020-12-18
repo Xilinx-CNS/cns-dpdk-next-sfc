@@ -127,7 +127,7 @@ foreach l:libraries
 					dependencies: static_deps,
 					include_directories: includes,
 					install: true)
-			static_dep = declare_dependency(link_with: static_lib,
+			static_dep = declare_dependency(
 					include_directories: includes,
 					dependencies: static_deps)
 
@@ -150,8 +150,10 @@ foreach l:libraries
 				output: 'rte_@0@_exports.def'.format(name))
 
 			if is_ms_linker
-				lk_args = ['-Wl,/def:' + def_file.full_path(),
-					'-Wl,/implib:lib\\' + implib]
+				lk_args = ['-Wl,/def:' + def_file.full_path()]
+				if meson.version().version_compare('<0.54.0')
+					lk_args += ['-Wl,/implib:lib\\' + implib]
+				endif
 			else
 				lk_args = ['-Wl,--version-script=' + version_map]
 			endif

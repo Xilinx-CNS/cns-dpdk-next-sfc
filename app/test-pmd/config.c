@@ -1568,7 +1568,7 @@ port_flow_query(portid_t port_id, uint32_t rule,
 
 /** List flow rules. */
 void
-port_flow_list(portid_t port_id, uint32_t n, const uint32_t group[n])
+port_flow_list(portid_t port_id, uint32_t n, const uint32_t *group)
 {
 	struct rte_port *port;
 	struct port_flow *pf;
@@ -1685,22 +1685,102 @@ tx_queue_id_is_invalid(queueid_t txq_id)
 }
 
 static int
-rx_desc_id_is_invalid(uint16_t rxdesc_id)
+get_rx_ring_size(portid_t port_id, queueid_t rxq_id, uint16_t *ring_size)
 {
-	if (rxdesc_id < nb_rxd)
+	struct rte_port *port = &ports[port_id];
+	struct rte_eth_rxq_info rx_qinfo;
+	int ret;
+
+	ret = rte_eth_rx_queue_info_get(port_id, rxq_id, &rx_qinfo);
+	if (ret == 0) {
+		*ring_size = rx_qinfo.nb_desc;
+		return ret;
+	}
+
+	if (ret != -ENOTSUP)
+		return ret;
+	/*
+	 * If the rte_eth_rx_queue_info_get is not support for this PMD,
+	 * ring_size stored in testpmd will be used for validity verification.
+	 * When configure the rxq by rte_eth_rx_queue_setup with nb_rx_desc
+	 * being 0, it will use a default value provided by PMDs to setup this
+	 * rxq. If the default value is 0, it will use the
+	 * RTE_ETH_DEV_FALLBACK_RX_RINGSIZE to setup this rxq.
+	 */
+	if (port->nb_rx_desc[rxq_id])
+		*ring_size = port->nb_rx_desc[rxq_id];
+	else if (port->dev_info.default_rxportconf.ring_size)
+		*ring_size = port->dev_info.default_rxportconf.ring_size;
+	else
+		*ring_size = RTE_ETH_DEV_FALLBACK_RX_RINGSIZE;
+	return 0;
+}
+
+static int
+get_tx_ring_size(portid_t port_id, queueid_t txq_id, uint16_t *ring_size)
+{
+	struct rte_port *port = &ports[port_id];
+	struct rte_eth_txq_info tx_qinfo;
+	int ret;
+
+	ret = rte_eth_tx_queue_info_get(port_id, txq_id, &tx_qinfo);
+	if (ret == 0) {
+		*ring_size = tx_qinfo.nb_desc;
+		return ret;
+	}
+
+	if (ret != -ENOTSUP)
+		return ret;
+	/*
+	 * If the rte_eth_tx_queue_info_get is not support for this PMD,
+	 * ring_size stored in testpmd will be used for validity verification.
+	 * When configure the txq by rte_eth_tx_queue_setup with nb_tx_desc
+	 * being 0, it will use a default value provided by PMDs to setup this
+	 * txq. If the default value is 0, it will use the
+	 * RTE_ETH_DEV_FALLBACK_TX_RINGSIZE to setup this txq.
+	 */
+	if (port->nb_tx_desc[txq_id])
+		*ring_size = port->nb_tx_desc[txq_id];
+	else if (port->dev_info.default_txportconf.ring_size)
+		*ring_size = port->dev_info.default_txportconf.ring_size;
+	else
+		*ring_size = RTE_ETH_DEV_FALLBACK_TX_RINGSIZE;
+	return 0;
+}
+
+static int
+rx_desc_id_is_invalid(portid_t port_id, queueid_t rxq_id, uint16_t rxdesc_id)
+{
+	uint16_t ring_size;
+	int ret;
+
+	ret = get_rx_ring_size(port_id, rxq_id, &ring_size);
+	if (ret)
+		return 1;
+
+	if (rxdesc_id < ring_size)
 		return 0;
-	printf("Invalid RX descriptor %d (must be < nb_rxd=%d)\n",
-	       rxdesc_id, nb_rxd);
+
+	printf("Invalid RX descriptor %u (must be < ring_size=%u)\n",
+	       rxdesc_id, ring_size);
 	return 1;
 }
 
 static int
-tx_desc_id_is_invalid(uint16_t txdesc_id)
+tx_desc_id_is_invalid(portid_t port_id, queueid_t txq_id, uint16_t txdesc_id)
 {
-	if (txdesc_id < nb_txd)
+	uint16_t ring_size;
+	int ret;
+
+	ret = get_tx_ring_size(port_id, txq_id, &ring_size);
+	if (ret)
+		return 1;
+
+	if (txdesc_id < ring_size)
 		return 0;
-	printf("Invalid TX descriptor %d (must be < nb_txd=%d)\n",
-	       txdesc_id, nb_txd);
+
+	printf("Invalid TX descriptor %u (must be < ring_size=%u)\n",
+	       txdesc_id, ring_size);
 	return 1;
 }
 
@@ -1821,11 +1901,7 @@ rx_ring_desc_display(portid_t port_id, queueid_t rxq_id, uint16_t rxd_id)
 {
 	const struct rte_memzone *rx_mz;
 
-	if (port_id_is_invalid(port_id, ENABLED_WARN))
-		return;
-	if (rx_queue_id_is_invalid(rxq_id))
-		return;
-	if (rx_desc_id_is_invalid(rxd_id))
+	if (rx_desc_id_is_invalid(port_id, rxq_id, rxd_id))
 		return;
 	rx_mz = ring_dma_zone_lookup("rx_ring", port_id, rxq_id);
 	if (rx_mz == NULL)
@@ -1838,11 +1914,7 @@ tx_ring_desc_display(portid_t port_id, queueid_t txq_id, uint16_t txd_id)
 {
 	const struct rte_memzone *tx_mz;
 
-	if (port_id_is_invalid(port_id, ENABLED_WARN))
-		return;
-	if (tx_queue_id_is_invalid(txq_id))
-		return;
-	if (tx_desc_id_is_invalid(txd_id))
+	if (tx_desc_id_is_invalid(port_id, txq_id, txd_id))
 		return;
 	tx_mz = ring_dma_zone_lookup("tx_ring", port_id, txq_id);
 	if (tx_mz == NULL)
@@ -1883,10 +1955,17 @@ rxtx_config_display(void)
 		struct rte_eth_txconf *tx_conf = &ports[pid].tx_conf[0];
 		uint16_t *nb_rx_desc = &ports[pid].nb_rx_desc[0];
 		uint16_t *nb_tx_desc = &ports[pid].nb_tx_desc[0];
-		uint16_t nb_rx_desc_tmp;
-		uint16_t nb_tx_desc_tmp;
 		struct rte_eth_rxq_info rx_qinfo;
 		struct rte_eth_txq_info tx_qinfo;
+		uint16_t rx_free_thresh_tmp;
+		uint16_t tx_free_thresh_tmp;
+		uint16_t tx_rs_thresh_tmp;
+		uint16_t nb_rx_desc_tmp;
+		uint16_t nb_tx_desc_tmp;
+		uint64_t offloads_tmp;
+		uint8_t pthresh_tmp;
+		uint8_t hthresh_tmp;
+		uint8_t wthresh_tmp;
 		int32_t rc;
 
 		/* per port config */
@@ -1900,41 +1979,64 @@ rxtx_config_display(void)
 		/* per rx queue config only for first queue to be less verbose */
 		for (qid = 0; qid < 1; qid++) {
 			rc = rte_eth_rx_queue_info_get(pid, qid, &rx_qinfo);
-			if (rc)
+			if (rc) {
 				nb_rx_desc_tmp = nb_rx_desc[qid];
-			else
+				rx_free_thresh_tmp =
+					rx_conf[qid].rx_free_thresh;
+				pthresh_tmp = rx_conf[qid].rx_thresh.pthresh;
+				hthresh_tmp = rx_conf[qid].rx_thresh.hthresh;
+				wthresh_tmp = rx_conf[qid].rx_thresh.wthresh;
+				offloads_tmp = rx_conf[qid].offloads;
+			} else {
 				nb_rx_desc_tmp = rx_qinfo.nb_desc;
+				rx_free_thresh_tmp =
+						rx_qinfo.conf.rx_free_thresh;
+				pthresh_tmp = rx_qinfo.conf.rx_thresh.pthresh;
+				hthresh_tmp = rx_qinfo.conf.rx_thresh.hthresh;
+				wthresh_tmp = rx_qinfo.conf.rx_thresh.wthresh;
+				offloads_tmp = rx_qinfo.conf.offloads;
+			}
 
 			printf("    RX queue: %d\n", qid);
 			printf("      RX desc=%d - RX free threshold=%d\n",
-				nb_rx_desc_tmp, rx_conf[qid].rx_free_thresh);
+				nb_rx_desc_tmp, rx_free_thresh_tmp);
 			printf("      RX threshold registers: pthresh=%d hthresh=%d "
 				" wthresh=%d\n",
-				rx_conf[qid].rx_thresh.pthresh,
-				rx_conf[qid].rx_thresh.hthresh,
-				rx_conf[qid].rx_thresh.wthresh);
-			printf("      RX Offloads=0x%"PRIx64"\n",
-				rx_conf[qid].offloads);
+				pthresh_tmp, hthresh_tmp, wthresh_tmp);
+			printf("      RX Offloads=0x%"PRIx64"\n", offloads_tmp);
 		}
 
 		/* per tx queue config only for first queue to be less verbose */
 		for (qid = 0; qid < 1; qid++) {
 			rc = rte_eth_tx_queue_info_get(pid, qid, &tx_qinfo);
-			if (rc)
+			if (rc) {
 				nb_tx_desc_tmp = nb_tx_desc[qid];
-			else
+				tx_free_thresh_tmp =
+					tx_conf[qid].tx_free_thresh;
+				pthresh_tmp = tx_conf[qid].tx_thresh.pthresh;
+				hthresh_tmp = tx_conf[qid].tx_thresh.hthresh;
+				wthresh_tmp = tx_conf[qid].tx_thresh.wthresh;
+				offloads_tmp = tx_conf[qid].offloads;
+				tx_rs_thresh_tmp = tx_conf[qid].tx_rs_thresh;
+			} else {
 				nb_tx_desc_tmp = tx_qinfo.nb_desc;
+				tx_free_thresh_tmp =
+						tx_qinfo.conf.tx_free_thresh;
+				pthresh_tmp = tx_qinfo.conf.tx_thresh.pthresh;
+				hthresh_tmp = tx_qinfo.conf.tx_thresh.hthresh;
+				wthresh_tmp = tx_qinfo.conf.tx_thresh.wthresh;
+				offloads_tmp = tx_qinfo.conf.offloads;
+				tx_rs_thresh_tmp = tx_qinfo.conf.tx_rs_thresh;
+			}
 
 			printf("    TX queue: %d\n", qid);
 			printf("      TX desc=%d - TX free threshold=%d\n",
-				nb_tx_desc_tmp, tx_conf[qid].tx_free_thresh);
+				nb_tx_desc_tmp, tx_free_thresh_tmp);
 			printf("      TX threshold registers: pthresh=%d hthresh=%d "
 				" wthresh=%d\n",
-				tx_conf[qid].tx_thresh.pthresh,
-				tx_conf[qid].tx_thresh.hthresh,
-				tx_conf[qid].tx_thresh.wthresh);
+				pthresh_tmp, hthresh_tmp, wthresh_tmp);
 			printf("      TX offloads=0x%"PRIx64" - TX RS bit threshold=%d\n",
-				tx_conf[qid].offloads, tx_conf->tx_rs_thresh);
+				offloads_tmp, tx_rs_thresh_tmp);
 		}
 	}
 }
@@ -2579,6 +2681,10 @@ set_fwd_lcores_mask(uint64_t lcoremask)
 void
 set_fwd_lcores_number(uint16_t nb_lc)
 {
+	if (test_done == 0) {
+		printf("Please stop forwarding first\n");
+		return;
+	}
 	if (nb_lc > nb_cfg_lcores) {
 		printf("nb fwd cores %u > %u (max. number of configured "
 		       "lcores) - ignored\n",
@@ -2726,17 +2832,41 @@ show_tx_pkt_segments(void)
 	printf("Split packet: %s\n", split);
 }
 
+static bool
+nb_segs_is_invalid(unsigned int nb_segs)
+{
+	uint16_t ring_size;
+	uint16_t queue_id;
+	uint16_t port_id;
+	int ret;
+
+	RTE_ETH_FOREACH_DEV(port_id) {
+		for (queue_id = 0; queue_id < nb_txq; queue_id++) {
+			ret = get_tx_ring_size(port_id, queue_id, &ring_size);
+
+			if (ret)
+				return true;
+
+			if (ring_size < nb_segs) {
+				printf("nb segments per TX packets=%u >= "
+				       "TX queue(%u) ring_size=%u - ignored\n",
+				       nb_segs, queue_id, ring_size);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 void
 set_tx_pkt_segments(unsigned *seg_lengths, unsigned nb_segs)
 {
 	uint16_t tx_pkt_len;
 	unsigned i;
 
-	if (nb_segs >= (unsigned) nb_txd) {
-		printf("nb segments per TX packets=%u >= nb_txd=%u - ignored\n",
-		       nb_segs, (unsigned int) nb_txd);
+	if (nb_segs_is_invalid(nb_segs))
 		return;
-	}
 
 	/*
 	 * Check that each segment length is greater or equal than
@@ -3080,9 +3210,11 @@ vlan_extend_set(portid_t port_id, int on)
 	}
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
-	if (diag < 0)
+	if (diag < 0) {
 		printf("rx_vlan_extend_set(port_pi=%d, on=%d) failed "
 	       "diag=%d\n", port_id, on, diag);
+		return;
+	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
 }
 
@@ -3107,9 +3239,11 @@ rx_vlan_strip_set(portid_t port_id, int on)
 	}
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
-	if (diag < 0)
+	if (diag < 0) {
 		printf("rx_vlan_strip_set(port_pi=%d, on=%d) failed "
 	       "diag=%d\n", port_id, on, diag);
+		return;
+	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
 }
 
@@ -3148,9 +3282,11 @@ rx_vlan_filter_set(portid_t port_id, int on)
 	}
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
-	if (diag < 0)
+	if (diag < 0) {
 		printf("rx_vlan_filter_set(port_pi=%d, on=%d) failed "
 	       "diag=%d\n", port_id, on, diag);
+		return;
+	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
 }
 
@@ -3175,9 +3311,11 @@ rx_vlan_qinq_strip_set(portid_t port_id, int on)
 	}
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
-	if (diag < 0)
+	if (diag < 0) {
 		printf("%s(port_pi=%d, on=%d) failed "
 	       "diag=%d\n", __func__, port_id, on, diag);
+		return;
+	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
 }
 
@@ -3235,8 +3373,6 @@ tx_vlan_set(portid_t port_id, uint16_t vlan_id)
 	struct rte_eth_dev_info dev_info;
 	int ret;
 
-	if (port_id_is_invalid(port_id, ENABLED_WARN))
-		return;
 	if (vlan_id_is_invalid(vlan_id))
 		return;
 
@@ -3267,8 +3403,6 @@ tx_qinq_set(portid_t port_id, uint16_t vlan_id, uint16_t vlan_id_outer)
 	struct rte_eth_dev_info dev_info;
 	int ret;
 
-	if (port_id_is_invalid(port_id, ENABLED_WARN))
-		return;
 	if (vlan_id_is_invalid(vlan_id))
 		return;
 	if (vlan_id_is_invalid(vlan_id_outer))
@@ -3294,8 +3428,6 @@ tx_qinq_set(portid_t port_id, uint16_t vlan_id, uint16_t vlan_id_outer)
 void
 tx_vlan_reset(portid_t port_id)
 {
-	if (port_id_is_invalid(port_id, ENABLED_WARN))
-		return;
 	ports[port_id].dev_conf.txmode.offloads &=
 				~(DEV_TX_OFFLOAD_VLAN_INSERT |
 				  DEV_TX_OFFLOAD_QINQ_INSERT);

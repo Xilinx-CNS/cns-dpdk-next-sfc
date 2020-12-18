@@ -145,7 +145,7 @@ enum hns3_media_type {
 
 struct hns3_mac {
 	uint8_t mac_addr[RTE_ETHER_ADDR_LEN];
-	bool default_addr_setted; /* whether default addr(mac_addr) is setted */
+	bool default_addr_setted; /* whether default addr(mac_addr) is set */
 	uint8_t media_type;
 	uint8_t phy_addr;
 	uint8_t link_duplex  : 1; /* ETH_LINK_[HALF/FULL]_DUPLEX */
@@ -256,6 +256,13 @@ enum hns3_reset_level {
 	 * Kernel PF driver use mailbox to inform DPDK VF to do reset, the value
 	 * of the reset level and the one defined in kernel driver should be
 	 * same.
+	 *
+	 * According to the protocol of PCIe, FLR to a PF resets the PF state as
+	 * well as the SR-IOV extended capability including VF Enable which
+	 * means that VFs no longer exist.
+	 *
+	 * In PF FLR, the register state of VF is not reliable, VF's driver
+	 * should not access the registers of the VF device.
 	 */
 	HNS3_VF_FULL_RESET = 3,
 	HNS3_FLR_RESET,     /* A VF perform FLR reset */
@@ -545,6 +552,8 @@ struct hns3_adapter {
 #define hns3_get_bit(origin, shift) \
 	hns3_get_field((origin), (0x1UL << (shift)), (shift))
 
+#define hns3_gen_field_val(mask, shift, val) (((val) << (shift)) & (mask))
+
 /*
  * upper_32_bits - return bits 32-63 of a number
  * A basic shift-right of a 64- or 32-bit quantity. Use this to suppress
@@ -572,14 +581,39 @@ struct hns3_adapter {
 	type __max2 = (y);                      \
 	__max1 > __max2 ? __max1 : __max2; })
 
+/*
+ * Because hardware always access register in little-endian mode based on hns3
+ * network engine, so driver should also call rte_cpu_to_le_32 to convert data
+ * in little-endian mode before writing register and call rte_le_to_cpu_32 to
+ * convert data after reading from register.
+ *
+ * Here the driver encapsulates the data conversion operation in the register
+ * read/write operation function as below:
+ *   hns3_write_reg
+ *   hns3_write_reg_opt
+ *   hns3_read_reg
+ * Therefore, when calling these functions, conversion is not required again.
+ */
 static inline void hns3_write_reg(void *base, uint32_t reg, uint32_t value)
 {
-	rte_write32(value, (volatile void *)((char *)base + reg));
+	rte_write32(rte_cpu_to_le_32(value),
+		    (volatile void *)((char *)base + reg));
+}
+
+/*
+ * The optimized function for writing registers used in the '.rx_pkt_burst' and
+ * '.tx_pkt_burst' ops implementation function.
+ */
+static inline void hns3_write_reg_opt(volatile void *addr, uint32_t value)
+{
+	rte_io_wmb();
+	rte_write32_relaxed(rte_cpu_to_le_32(value), addr);
 }
 
 static inline uint32_t hns3_read_reg(void *base, uint32_t reg)
 {
-	return rte_read32((volatile void *)((char *)base + reg));
+	uint32_t read_val = rte_read32((volatile void *)((char *)base + reg));
+	return rte_le_to_cpu_32(read_val);
 }
 
 #define hns3_write_dev(a, reg, value) \

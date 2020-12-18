@@ -2,6 +2,10 @@
  * Copyright(c) 2010-2016 Intel Corporation
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -12,6 +16,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <getopt.h>
+#include <sched.h>
 
 #include <rte_common.h>
 #include <rte_vect.h>
@@ -599,8 +604,8 @@ struct thread_rx_conf rx_thread[MAX_RX_THREAD];
 struct thread_tx_conf {
 	struct thread_conf conf;
 
-	uint16_t tx_queue_id[RTE_MAX_LCORE];
-	struct mbuf_table tx_mbufs[RTE_MAX_LCORE];
+	uint16_t tx_queue_id[RTE_MAX_ETHPORTS];
+	struct mbuf_table tx_mbufs[RTE_MAX_ETHPORTS];
 
 	struct rte_ring *ring;
 	struct lthread_cond **ready;
