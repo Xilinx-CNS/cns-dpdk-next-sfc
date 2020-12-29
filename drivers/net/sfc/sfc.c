@@ -193,6 +193,25 @@ sfc_dma_detach(struct sfc_adapter *sa)
 	sfc_log_init(sa, "done");
 }
 
+bool
+sfc_repr_supported(const struct sfc_adapter *sa)
+{
+	if (!sa->switchdev)
+		return false;
+
+	/*
+	 * Representor proxy should use service lcore on PF's socket
+	 * (sa->socket_id) to be efficient. But the proxy will fall back
+	 * to any socket if it is not possible to get the service core
+	 * on the same socket. Check that at least service core on any
+	 * socket is available.
+	 */
+	if (sfc_get_service_lcore(SOCKET_ID_ANY) == RTE_MAX_LCORE)
+		return false;
+
+	return true;
+}
+
 int
 sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
 	      efx_nic_dma_addr_type_t addr_type, size_t len, int socket_id,
@@ -614,8 +633,15 @@ sfc_try_start(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_flows_insert;
 
+	rc = sfc_repr_proxy_start(sa);
+	if (rc != 0)
+		goto fail_repr_proxy_start;
+
 	sfc_log_init(sa, "done");
 	return 0;
+
+fail_repr_proxy_start:
+	sfc_flow_stop(sa);
 
 fail_flows_insert:
 	sfc_tx_stop(sa);
@@ -721,6 +747,7 @@ sfc_stop(struct sfc_adapter *sa)
 
 	sa->state = SFC_ADAPTER_STOPPING;
 
+	sfc_repr_proxy_stop(sa);
 	sfc_flow_stop(sa);
 	sfc_tx_stop(sa);
 	sfc_rx_stop(sa);
@@ -1084,6 +1111,10 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mae_switchdev_init;
 
+	rc = sfc_repr_proxy_attach(sa);
+	if (rc != 0)
+		goto fail_repr_proxy_attach;
+
 	sfc_log_init(sa, "fini nic");
 	efx_nic_fini(enp);
 
@@ -1112,6 +1143,9 @@ fail_sriov_vswitch_create:
 
 fail_sw_xstats_init:
 	sfc_flow_fini(sa);
+	sfc_repr_proxy_detach(sa);
+
+fail_repr_proxy_attach:
 	sfc_mae_switchdev_fini(sa);
 
 fail_mae_switchdev_init:
@@ -1164,6 +1198,7 @@ sfc_detach(struct sfc_adapter *sa)
 
 	sfc_flow_fini(sa);
 
+	sfc_repr_proxy_detach(sa);
 	sfc_mae_switchdev_fini(sa);
 	sfc_mae_detach(sa);
 	sfc_mae_counter_rxq_detach(sa);
