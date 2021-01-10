@@ -1,3 +1,102 @@
+dpdk (20.11-2) unstable; urgency=high
+
+  [ Christian Ehrhardt ]
+  * dpdk.service: start earlier and avoid dependency loop (Closes: #979489)
+
+  [ Luca Boccassi ]
+  * Upload to unstable. (Closes: #974667)
+
+ -- Luca Boccassi <bluca@debian.org>  Sun, 10 Jan 2021 13:49:27 +0000
+
+dpdk (20.11-1) experimental; urgency=medium
+
+  * dpdk: suggest dpdk-kmods-dkms
+  * dpdk: drop Suggests: linux-image-generic, not needed
+  * New upstream release 20.11; for a full list of changes see:
+    http://doc.dpdk.org/guides-20.11/rel_notes/release_20_11.html
+  * dpdk: install new dpdk-hugepages.py script
+  * dpdk-dev: override lintian warnings about new scripts
+  * d/watch: bump to version 4, no changes
+  * d/copyright: update new path to rte_kni_common.h
+  * Bump Standards-Version to 4.5.1, no changes
+  * Add symbols files for librte-graph, librte-node, librte-regexdev
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 01 Dec 2020 12:35:48 +0000
+
+dpdk (20.11~rc3-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New upstream release candidate 20.11~rc1
+    For details see https://doc.dpdk.org/guides/rel_notes/release_20_11.html
+  * d/update-helper-control.py: bump to new deb822 name
+  * d/p/*: drop python3 test fixes [applied upstream]
+  * d/control, d/rules: igb-uio module no more provided by dkms source
+  * d/*.symbols: update to new names and added packages
+    - bump symbols to new 21 abiver
+    - d/*.symbols: add new libs for baseband-acc100 common-sfc-efx
+      crypto-bcmfs regex-octeontx2
+    - d/*.symbols: add stubs for packages that missed .symbols files
+    - d/*.symbols: rename to new package naming scheme
+    - d/*.symbols: adapt to new ABI throwing away pre @21 mappings
+    - d/librte-port21.symbols: mark non i386 symbols as arch specific
+  * d/control: bump package names to new 21.0 abiver
+  * d/dpdk-doc.install: new path for api doc
+  * d/dpdk-doc.doc-base.*: adapt base paths of html docs
+  * d/control: new PMDs and PMD name restructuring
+  * d/rules, d/control: adapt generated suggest to new naming scheme
+    providing per type meta packages
+    - librte-meta-all: dependencies to all librte libs of DPDK
+    - librte-meta-<category>: dependencies to all librte libs of a certain
+      DPDK lib category
+  * d/rules: adapt to SONAME being only the MAJOR of the full ABI_VERSION
+  * d/rules, d/control: bump debhelper compat to 12
+    - d/rules: change dh_systemd_start to dh_installsystemd for compat >=11
+  * d/control, d/*.symbols: restrict symbols/packages not build on arm64, armhf,
+    ppc64el and i386
+  * d/t/test-linkage: adapt test to new lib naming scheme
+  * d/librte-meta-{all,allpmds}.lintian-overrides: accept long package lists
+  * d/rules: remove build artifacts breaking reproducible build
+  * d/rules: sort package parsing for reproducible build
+  * d/control: fix typo pull/poll mode driver
+  * New upstream release candidate 20.11~rc3
+    - d/*.symbols: symbol changes in 20.11~rc1
+    - d/control: add more per lib/driver homepage links
+    - d/control, d/*.symbols: add new drivers in 20.11~rc3 dlb, dlb2, txgbe
+    - d/control, d/librte-regex-octeontx2*: regex-octeontx2 dropped the
+      superfluous regex suffix
+    - d/t/control: remove test-dkms since we do not have dkms packages anymore
+    - d/control: sfc PMD is >20.11-rc3 enabled for arm64
+
+  [ Luca Boccassi ]
+  * d/control: remove duplicated Section: libs
+  * d/rules: use DEB_VERSION instead of manual parsing
+  * dpdk-doc: override more false-positives about examples mistaken as
+    docs
+  * dpdk-doc: override warning about repeated path segment
+  * d/copyright: some source files were removed, update it
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 11 Nov 2020 11:54:30 +0000
+
+dpdk (20.08-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/t/test-autotest: bump sse feature check
+
+  [ Luca Boccassi ]
+  * Remove 19.11 restriction to watch file
+  * Merge tag 'upstream/20.08' into experimental
+  * Truncate minor ABI revision from package names
+  * Rename packages that were declared stable
+  * Add packages for new libraries and PMDs
+  * Add new executables to dpdk-dev package
+  * Update symbols files
+  * Adjust dpdk-doc install path for guides
+  * Rename Lintian override no-manual-page
+  * Adjust paths in d/copyright for new layout
+  * Fix typo in d/control
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 19 Aug 2020 10:12:27 +0100
+
 dpdk (19.11.6-1) unstable; urgency=medium
 
   * New upstream version 19.11.6

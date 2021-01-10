@@ -15,9 +15,6 @@ Copyright: 2008-2018 Cisco Systems, Inc.
 License: BSD-3-clause
 
 Files:
- kernel/linux/igb_uio/igb_uio.c
- kernel/linux/igb_uio/compat.h
- kernel/linux/Makefile
  kernel/linux/kni/kni_fifo.h
  kernel/linux/kni/kni_dev.h
  kernel/linux/kni/kni_net.c
@@ -28,9 +25,8 @@ Copyright: 2007-2020, Intel Corporation
 License: GPL-2
 
 Files:
- kernel/Makefile
- lib/librte_eal/common/include/rte_pci_dev_feature_defs.h
- lib/librte_eal/common/include/rte_pci_dev_features.h
+ lib/librte_eal/include/rte_pci_dev_feature_defs.h
+ lib/librte_eal/include/rte_pci_dev_features.h
  drivers/bus/dpaa/base/fman/fman.c
  drivers/bus/dpaa/base/fman/netcfg_layer.c
  drivers/bus/dpaa/base/qbman/bman.c
@@ -67,7 +63,7 @@ License: BSD-3-clause or GPL-2
 Files:
  drivers/net/avp/rte_avp_common.h
  drivers/net/avp/rte_avp_fifo.h
- lib/librte_eal/linux/eal/include/rte_kni_common.h
+ lib/librte_kni/rte_kni_common.h
 Copyright: 2007-2020 Intel Corporation.
            2013-2017 Wind River Systems, Inc.
 License: BSD-3-clause or LGPL-2.1
@@ -81,24 +77,9 @@ Copyright: 2015-2020 Canonical Ltd.
            2016-2020 Luca Boccassi <bluca@debian.org>
 License: GPL-3
 
-Files: debian/kernel-version
-       debian/prep-modules
-Copyright: 2009-2016 Andreas Beckmann <anbe@debian.org>
-           2010-2016 Russ Allbery <rra@debian.org>
-License: GPL-2.0+
-
 License: GPL-2
  On Debian systems, the complete text of the GNU General
  Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
-
-License: GPL-2.0+
- This package is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; either version 2 of the License, or
- (at your option) any later version.
- .
- On Debian systems, the complete text of the GNU General Public
- License version 2 can be found in "/usr/share/common-licenses/GPL-2".
 
 License: GPL-3
  On Debian systems, the complete text of the GNU General
