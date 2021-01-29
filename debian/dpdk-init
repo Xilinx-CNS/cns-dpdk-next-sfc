@@ -23,6 +23,7 @@ set -e
 DPDK_BIND="/usr/bin/dpdk-devbind.py"
 DPDK_INTERF="/etc/dpdk/interfaces"
 
+FREE_PREVIOUS_ALLOCATIONS=1
 
 # pagesize supports [G|g]/[M|m]/[K|k]
 get_kbytes() {
@@ -139,7 +140,17 @@ _setup_hugepages() {
     if [ "$PAGES" != "" ]; then
         if [ "$PAGES" -gt 0 ]; then
             if [ -d "$MMDIR" -a -w "$MMDIR/nr_hugepages" ]; then
-                # increases the chance to allocate enough huge pages
+                GOTPAGES=$(cat "$MMDIR/nr_hugepages")
+                if [ "$GOTPAGES" -eq "$PAGES" ]; then
+                    return
+                fi
+                if [ "${FREE_PREVIOUS_ALLOCATIONS}" -eq "0" ] && \
+                   [ "$GOTPAGES" -gt "$PAGES" ]; then
+                    echo "WARNING: already have $GOTPAGES allocated at " \
+                         "$MMDIR/nr_hugepages (asked for $PAGES)."
+                    return
+                fi
+		# increases the chance to allocate enough huge pages
                 # configurable, since it comes at a perf penality
                 if [ "$DROPCACHE_BEFORE_HP_ALLOC" = "1" ]; then
                     echo 3 > /proc/sys/vm/drop_caches
