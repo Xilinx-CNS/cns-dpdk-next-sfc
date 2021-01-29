@@ -135,22 +135,36 @@ mount_hugetlbfs() {
 
 _setup_hugepages() {
     MMDIR="/sys/kernel/mm/hugepages/${1}"
-    PAGES=${2}
+    ALLPAGES="${2}"
+    if [ "$ALLPAGES" == "" ]; then
+        return
+    fi
 
-    if [ "$PAGES" != "" ]; then
+    NUMA=0
+    if [ "$(echo "${ALLPAGES}" | tr " " "\n" | wc -l)" -gt 1 ]; then
+        NUMA=1
+        NODE=0
+    fi
+
+    for PAGES in $ALLPAGES; do
+        if [ "$NUMA" -eq "1" ]; then
+            MMDIR="/sys/devices/system/node/node${NODE}/hugepages/${1}"
+            NODE="$((NODE+1))"
+        fi
         if [ "$PAGES" -gt 0 ]; then
             if [ -d "$MMDIR" -a -w "$MMDIR/nr_hugepages" ]; then
                 GOTPAGES=$(cat "$MMDIR/nr_hugepages")
                 if [ "$GOTPAGES" -eq "$PAGES" ]; then
-                    return
+                    continue
                 fi
                 if [ "${FREE_PREVIOUS_ALLOCATIONS}" -eq "0" ] && \
                    [ "$GOTPAGES" -gt "$PAGES" ]; then
                     echo "WARNING: already have $GOTPAGES allocated at " \
                          "$MMDIR/nr_hugepages (asked for $PAGES)."
-                    return
+                    continue
                 fi
-		# increases the chance to allocate enough huge pages
+
+                # increases the chance to allocate enough huge pages
                 # configurable, since it comes at a perf penality
                 if [ "$DROPCACHE_BEFORE_HP_ALLOC" = "1" ]; then
                     echo 3 > /proc/sys/vm/drop_caches
@@ -167,7 +181,7 @@ _setup_hugepages() {
                 echo "WARNING: $MMDIR/nr_hugepages not found/writable"
             fi
         fi
-    fi
+    done
 }
 
 #
