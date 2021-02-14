@@ -1079,6 +1079,7 @@ efx_mae_action_set_spec_init(
 	}
 
 	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+	spec->ema_rsrc.emar_eh_id.id = EFX_MAE_RSRC_ID_INVALID;
 
 	*specp = spec;
 
@@ -1216,6 +1217,44 @@ fail1:
 }
 
 static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_encap(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	/*
+	 * Adding this specific action to an action set spec and setting encap.
+	 * header ID in the spec are two individual steps; this is on purpose.
+	 * For now, mark encap. header ID as invalid; the caller will invoke
+	 * efx_mae_action_set_fill_in_eh_id() to override the field prior
+	 * to action set allocation; otherwise, the allocation will fail.
+	 */
+	spec->ema_rsrc.emar_eh_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	/* Nothing else is supposed to take place over here. */
+
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
 efx_mae_action_set_add_flag(
 	__in				efx_mae_actions_t *spec,
 	__in				size_t arg_size,
@@ -1320,6 +1359,9 @@ static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
 	[EFX_MAE_ACTION_COUNT] = {
 		.emad_add = efx_mae_action_set_add_count
 	},
+	[EFX_MAE_ACTION_ENCAP] = {
+		.emad_add = efx_mae_action_set_add_encap
+	},
 	[EFX_MAE_ACTION_FLAG] = {
 		.emad_add = efx_mae_action_set_add_flag
 	},
@@ -1340,6 +1382,7 @@ static const uint32_t efx_mae_action_ordered_map =
 	 * length-affecting actions except for ENCAP.
 	 */
 	(1U << EFX_MAE_ACTION_COUNT) |
+	(1U << EFX_MAE_ACTION_ENCAP) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK) |
 	(1U << EFX_MAE_ACTION_DELIVER);
@@ -1469,6 +1512,20 @@ efx_mae_action_set_populate_count(
 	 */
 	return (efx_mae_action_set_spec_populate(spec,
 	    EFX_MAE_ACTION_COUNT, 0, NULL));
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_encap(
+	__in				efx_mae_actions_t *spec)
+{
+	/*
+	 * There is no argument to pass encap. header ID, thus, one does not
+	 * need to allocate an encap. header while parsing application input.
+	 * This is useful since building an action set may be done simply to
+	 * validate a rule, whilst resource allocation usually consumes time.
+	 */
+	return (efx_mae_action_set_spec_populate(spec,
+	    EFX_MAE_ACTION_ENCAP, 0, NULL));
 }
 
 	__checkReturn			efx_rc_t
@@ -2025,6 +2082,46 @@ fail1:
 }
 
 	__checkReturn			efx_rc_t
+efx_mae_action_set_fill_in_eh_id(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_mae_eh_id_t *eh_idp)
+{
+	efx_rc_t rc;
+
+	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_ENCAP)) == 0) {
+		/*
+		 * The caller has not intended to have action ENCAP originally,
+		 * hence, this attempt to indicate encap. header ID is invalid.
+		 */
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (spec->ema_rsrc.emar_eh_id.id != EFX_MAE_RSRC_ID_INVALID) {
+		/* The caller attempts to indicate encap. header ID twice. */
+		rc = EALREADY;
+		goto fail2;
+	}
+
+	if (eh_idp->id == EFX_MAE_RSRC_ID_INVALID) {
+		rc = EINVAL;
+		goto fail3;
+	}
+
+	spec->ema_rsrc.emar_eh_id.id = eh_idp->id;
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_action_set_alloc(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_actions_t *spec,
@@ -2056,8 +2153,6 @@ efx_mae_action_set_alloc(
 	 */
 	MCDI_IN_SET_DWORD(req,
 	    MAE_ACTION_SET_ALLOC_IN_COUNTER_LIST_ID, EFX_MAE_RSRC_ID_INVALID);
-	MCDI_IN_SET_DWORD(req,
-	    MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID, EFX_MAE_RSRC_ID_INVALID);
 
 	MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
 	    MAE_ACTION_SET_ALLOC_IN_VLAN_POP, spec->ema_n_vlan_tags_to_pop);
@@ -2089,6 +2184,9 @@ efx_mae_action_set_alloc(
 
 	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_COUNTER_ID,
 	    spec->ema_rsrc.emar_counter_id.id);
+
+	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID,
+	    spec->ema_rsrc.emar_eh_id.id);
 
 	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_FLAG)) != 0) {
 		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
