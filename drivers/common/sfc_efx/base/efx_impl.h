@@ -1748,6 +1748,7 @@ struct efx_mae_match_spec_s {
 
 typedef enum efx_mae_action_e {
 	/* These actions are strictly ordered. */
+	EFX_MAE_ACTION_DECAP,
 	EFX_MAE_ACTION_VLAN_POP,
 	EFX_MAE_ACTION_VLAN_PUSH,
 	EFX_MAE_ACTION_COUNT,
