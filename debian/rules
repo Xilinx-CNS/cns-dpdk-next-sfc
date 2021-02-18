@@ -135,7 +135,13 @@ override_dh_installinit:
 override_dh_installsystemd:
 	dh_installsystemd --no-start --no-stop-on-upgrade
 
+# Note that dh_auto_test runs ninja test, not meson test, so we can't pass a --suite
+# Tests are not supported on PPC and are confirmed to work on x86 and arm64, so
+# restrict them
 override_dh_auto_test:
+ifneq (,$(filter i386 amd64 arm64, $(DEB_HOST_ARCH)))
+	meson test -C obj-$(DEB_HOST_GNU_TYPE) --verbose --suite fast-tests -t 3
+endif
 
 override_dh_python3:
 	# dh_python only looks in /usr/share/package_name but dpdk-doc installs in
