@@ -720,6 +720,11 @@ mlx5_devx_cmd_query_hca_attr(void *ctx,
 	attr->flow_hit_aso = !!(MLX5_GET64(cmd_hca_cap, hcattr,
 					   general_obj_types) &
 				MLX5_GENERAL_OBJ_TYPES_CAP_FLOW_HIT_ASO);
+	attr->cqe_compression = MLX5_GET(cmd_hca_cap, hcattr, cqe_compression);
+	attr->mini_cqe_resp_flow_tag = MLX5_GET(cmd_hca_cap, hcattr,
+						mini_cqe_resp_flow_tag);
+	attr->mini_cqe_resp_l3_l4_tag = MLX5_GET(cmd_hca_cap, hcattr,
+						 mini_cqe_resp_l3_l4_tag);
 	if (attr->qos.sup) {
 		MLX5_SET(query_hca_cap_in, in, op_mod,
 			 MLX5_GET_HCA_CAP_OP_MOD_QOS_CAP |
@@ -1558,7 +1563,8 @@ mlx5_devx_cmd_create_cq(void *ctx, struct mlx5_devx_cq_attr *attr)
 	} else {
 		MLX5_SET64(cqc, cqctx, dbr_addr, attr->db_addr);
 	}
-	MLX5_SET(cqc, cqctx, cqe_sz, attr->cqe_size);
+	MLX5_SET(cqc, cqctx, cqe_sz, (RTE_CACHE_LINE_SIZE == 128) ?
+				     MLX5_CQE_SIZE_128B : MLX5_CQE_SIZE_64B);
 	MLX5_SET(cqc, cqctx, cc, attr->use_first_only);
 	MLX5_SET(cqc, cqctx, oi, attr->overrun_ignore);
 	MLX5_SET(cqc, cqctx, log_cq_size, attr->log_cq_size);
@@ -1571,7 +1577,6 @@ mlx5_devx_cmd_create_cq(void *ctx, struct mlx5_devx_cq_attr *attr)
 		 attr->mini_cqe_res_format);
 	MLX5_SET(cqc, cqctx, mini_cqe_res_format_ext,
 		 attr->mini_cqe_res_format_ext);
-	MLX5_SET(cqc, cqctx, cqe_sz, attr->cqe_size);
 	if (attr->q_umem_valid) {
 		MLX5_SET(create_cq_in, in, cq_umem_valid, attr->q_umem_valid);
 		MLX5_SET(create_cq_in, in, cq_umem_id, attr->q_umem_id);

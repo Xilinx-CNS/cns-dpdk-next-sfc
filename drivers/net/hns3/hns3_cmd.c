@@ -432,6 +432,16 @@ static void hns3_parse_capability(struct hns3_hw *hw,
 		hns3_set_bit(hw->capability, HNS3_DEV_SUPPORT_STASH_B, 1);
 }
 
+static uint32_t
+hns3_build_api_caps(void)
+{
+	uint32_t api_caps = 0;
+
+	hns3_set_bit(api_caps, HNS3_API_CAP_FLEX_RSS_TBL_B, 1);
+
+	return rte_cpu_to_le_32(api_caps);
+}
+
 static enum hns3_cmd_status
 hns3_cmd_query_firmware_version_and_capability(struct hns3_hw *hw)
 {
@@ -441,6 +451,7 @@ hns3_cmd_query_firmware_version_and_capability(struct hns3_hw *hw)
 
 	hns3_cmd_setup_basic_desc(&desc, HNS3_OPC_QUERY_FW_VER, 1);
 	resp = (struct hns3_query_version_cmd *)desc.data;
+	resp->api_caps = hns3_build_api_caps();
 
 	/* Initialize the cmd function */
 	ret = hns3_cmd_send(hw, &desc, 1);
@@ -572,9 +583,21 @@ hns3_cmd_destroy_queue(struct hns3_hw *hw)
 void
 hns3_cmd_uninit(struct hns3_hw *hw)
 {
+	rte_atomic16_set(&hw->reset.disable_cmd, 1);
+
+	/*
+	 * A delay is added to ensure that the register cleanup operations
+	 * will not be performed concurrently with the firmware command and
+	 * ensure that all the reserved commands are executed.
+	 * Concurrency may occur in two scenarios: asynchronous command and
+	 * timeout command. If the command fails to be executed due to busy
+	 * scheduling, the command will be processed in the next scheduling
+	 * of the firmware.
+	 */
+	rte_delay_ms(HNS3_CMDQ_CLEAR_WAIT_TIME);
+
 	rte_spinlock_lock(&hw->cmq.csq.lock);
 	rte_spinlock_lock(&hw->cmq.crq.lock);
-	rte_atomic16_set(&hw->reset.disable_cmd, 1);
 	hns3_cmd_clear_regs(hw);
 	rte_spinlock_unlock(&hw->cmq.crq.lock);
 	rte_spinlock_unlock(&hw->cmq.csq.lock);

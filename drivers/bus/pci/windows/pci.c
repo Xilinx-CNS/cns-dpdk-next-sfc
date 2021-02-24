@@ -10,8 +10,9 @@
 #include "pci_netuio.h"
 
 #include <devpkey.h>
+#include <regstr.h>
 
-#ifdef RTE_TOOLCHAIN_GCC
+#if defined RTE_TOOLCHAIN_GCC && (__MINGW64_VERSION_MAJOR < 8)
 #include <devpropdef.h>
 DEFINE_DEVPROPKEY(DEVPKEY_Device_Numa_Node, 0x540b947e, 0x8b40, 0x45bc,
 	0xa8, 0xa2, 0x6a, 0x0b, 0x89, 0x4c, 0xbd, 0xa2, 3);
@@ -234,6 +235,12 @@ get_device_resource_info(HDEVINFO dev_info,
 		&DEVPKEY_Device_Numa_Node, &property_type,
 		(BYTE *)&numa_node, sizeof(numa_node), NULL, 0);
 	if (!res) {
+		DWORD error = GetLastError();
+		if (error == ERROR_NOT_FOUND) {
+			/* On older CPUs, NUMA is not bound to PCIe locality. */
+			dev->device.numa_node = 0;
+			return ERROR_SUCCESS;
+		}
 		RTE_LOG_WIN32_ERR("SetupDiGetDevicePropertyW"
 			"(DEVPKEY_Device_Numa_Node)");
 		return -1;
@@ -303,7 +310,7 @@ pci_scan_one(HDEVINFO dev_info, PSP_DEVINFO_DATA device_info_data)
 {
 	struct rte_pci_device *dev;
 	int ret = -1;
-	char  pci_device_info[PATH_MAX];
+	char  pci_device_info[REGSTR_VAL_MAX_HCID_LEN];
 	struct rte_pci_addr addr;
 	struct rte_pci_id pci_id;
 
@@ -314,7 +321,7 @@ pci_scan_one(HDEVINFO dev_info, PSP_DEVINFO_DATA device_info_data)
 	memset(dev, 0, sizeof(*dev));
 
 	ret = get_pci_hardware_id(dev_info, device_info_data,
-		pci_device_info, PATH_MAX);
+		pci_device_info, sizeof(pci_device_info));
 	if (ret != 0)
 		goto end;
 

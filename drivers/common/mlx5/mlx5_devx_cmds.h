@@ -115,6 +115,9 @@ struct mlx5_hca_attr {
 	uint32_t regex:1;
 	uint32_t regexp_num_of_engines;
 	uint32_t log_max_ft_sampler_num:8;
+	uint32_t cqe_compression:1;
+	uint32_t mini_cqe_resp_flow_tag:1;
+	uint32_t mini_cqe_resp_l3_l4_tag:1;
 	struct mlx5_hca_qos_attr qos;
 	struct mlx5_hca_vdpa_attr vdpa;
 };
@@ -267,7 +270,6 @@ struct mlx5_devx_cq_attr {
 	uint32_t cqe_comp_en:1;
 	uint32_t mini_cqe_res_format:2;
 	uint32_t mini_cqe_res_format_ext:2;
-	uint32_t cqe_size:3;
 	uint32_t log_cq_size:5;
 	uint32_t log_page_size:5;
 	uint32_t uar_page_id;

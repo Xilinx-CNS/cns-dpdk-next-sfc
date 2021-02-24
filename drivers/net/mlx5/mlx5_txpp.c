@@ -57,11 +57,16 @@ mlx5_txpp_create_event_channel(struct mlx5_dev_ctx_shared *sh)
 static void
 mlx5_txpp_free_pp_index(struct mlx5_dev_ctx_shared *sh)
 {
+#ifdef HAVE_MLX5DV_PP_ALLOC
 	if (sh->txpp.pp) {
 		mlx5_glue->dv_free_pp(sh->txpp.pp);
 		sh->txpp.pp = NULL;
 		sh->txpp.pp_id = 0;
 	}
+#else
+	RTE_SET_USED(sh);
+	DRV_LOG(ERR, "Freeing pacing index is not supported.");
+#endif
 }
 
 /* Allocate Packet Pacing index from kernel via mlx5dv call. */
@@ -270,8 +275,6 @@ mlx5_txpp_create_rearm_queue(struct mlx5_dev_ctx_shared *sh)
 		goto error;
 	}
 	/* Create completion queue object for Rearm Queue. */
-	cq_attr.cqe_size = (sizeof(struct mlx5_cqe) == 128) ?
-			    MLX5_CQE_SIZE_128B : MLX5_CQE_SIZE_64B;
 	cq_attr.uar_page_id = mlx5_os_get_devx_uar_page_id(sh->tx_uar);
 	cq_attr.eqn = sh->eqn;
 	cq_attr.q_umem_valid = 1;
@@ -508,8 +511,6 @@ mlx5_txpp_create_clock_queue(struct mlx5_dev_ctx_shared *sh)
 		goto error;
 	}
 	/* Create completion queue object for Clock Queue. */
-	cq_attr.cqe_size = (sizeof(struct mlx5_cqe) == 128) ?
-			    MLX5_CQE_SIZE_128B : MLX5_CQE_SIZE_64B;
 	cq_attr.use_first_only = 1;
 	cq_attr.overrun_ignore = 1;
 	cq_attr.uar_page_id = mlx5_os_get_devx_uar_page_id(sh->tx_uar);

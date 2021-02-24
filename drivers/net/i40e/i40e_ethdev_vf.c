@@ -1078,8 +1078,18 @@ i40evf_add_vlan(struct rte_eth_dev *dev, uint16_t vlanid)
 	args.out_buffer = vf->aq_resp;
 	args.out_size = I40E_AQ_BUF_SZ;
 	err = i40evf_execute_vf_cmd(dev, &args);
-	if (err)
+	if (err) {
 		PMD_DRV_LOG(ERR, "fail to execute command OP_ADD_VLAN");
+		return err;
+	}
+	/**
+	 * In linux kernel driver on receiving ADD_VLAN it enables
+	 * VLAN_STRIP by default. So reconfigure the vlan_offload
+	 * as it was done by the app earlier.
+	 */
+	err = i40evf_vlan_offload_set(dev, ETH_VLAN_STRIP_MASK);
+	if (err)
+		PMD_DRV_LOG(ERR, "fail to set vlan_strip");
 
 	return err;
 }
@@ -1889,22 +1899,22 @@ i40evf_rxq_init(struct rte_eth_dev *dev, struct i40e_rx_queue *rxq)
 	 * Check if the jumbo frame and maximum packet length are set correctly
 	 */
 	if (dev_data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		if (rxq->max_pkt_len <= RTE_ETHER_MAX_LEN ||
+		if (rxq->max_pkt_len <= I40E_ETH_MAX_LEN ||
 		    rxq->max_pkt_len > I40E_FRAME_SIZE_MAX) {
 			PMD_DRV_LOG(ERR, "maximum packet length must be "
 				"larger than %u and smaller than %u, as jumbo "
-				"frame is enabled", (uint32_t)RTE_ETHER_MAX_LEN,
+				"frame is enabled", (uint32_t)I40E_ETH_MAX_LEN,
 					(uint32_t)I40E_FRAME_SIZE_MAX);
 			return I40E_ERR_CONFIG;
 		}
 	} else {
 		if (rxq->max_pkt_len < RTE_ETHER_MIN_LEN ||
-		    rxq->max_pkt_len > RTE_ETHER_MAX_LEN) {
+		    rxq->max_pkt_len > I40E_ETH_MAX_LEN) {
 			PMD_DRV_LOG(ERR, "maximum packet length must be "
 				"larger than %u and smaller than %u, as jumbo "
 				"frame is disabled",
 				(uint32_t)RTE_ETHER_MIN_LEN,
-				(uint32_t)RTE_ETHER_MAX_LEN);
+				(uint32_t)I40E_ETH_MAX_LEN);
 			return I40E_ERR_CONFIG;
 		}
 	}
@@ -2406,6 +2416,7 @@ i40evf_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 		stats->imissed = pstats->rx_discards;
 		stats->oerrors = pstats->tx_errors + pstats->tx_discards;
 		stats->ibytes = pstats->rx_bytes;
+		stats->ibytes -= stats->ipackets * RTE_ETHER_CRC_LEN;
 		stats->obytes = pstats->tx_bytes;
 	} else {
 		PMD_DRV_LOG(ERR, "Get statistics failed");
@@ -2825,7 +2836,7 @@ i40evf_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 		return -EBUSY;
 	}
 
-	if (frame_size > RTE_ETHER_MAX_LEN)
+	if (frame_size > I40E_ETH_MAX_LEN)
 		dev_data->dev_conf.rxmode.offloads |=
 			DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else

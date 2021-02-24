@@ -135,9 +135,9 @@ struct mlx5_local_data {
 extern struct mlx5_shared_data *mlx5_shared_data;
 
 /* Dev ops structs */
-extern const struct eth_dev_ops mlx5_os_dev_ops;
-extern const struct eth_dev_ops mlx5_os_dev_sec_ops;
-extern const struct eth_dev_ops mlx5_os_dev_ops_isolate;
+extern const struct eth_dev_ops mlx5_dev_ops;
+extern const struct eth_dev_ops mlx5_dev_sec_ops;
+extern const struct eth_dev_ops mlx5_dev_ops_isolate;
 
 struct mlx5_counter_ctrl {
 	/* Name of the counter. */
@@ -207,7 +207,6 @@ struct mlx5_dev_config {
 	unsigned int mpls_en:1; /* MPLS over GRE/UDP is enabled. */
 	unsigned int cqe_comp:1; /* CQE compression is enabled. */
 	unsigned int cqe_comp_fmt:3; /* CQE compression format. */
-	unsigned int cqe_pad:1; /* CQE padding is enabled. */
 	unsigned int tso:1; /* Whether TSO is supported. */
 	unsigned int rx_vec_en:1; /* Rx vector is enabled. */
 	unsigned int mr_ext_memseg_en:1;
@@ -258,28 +257,10 @@ struct mlx5_dev_config {
 };
 
 
-/**
- * Type of object being allocated.
- */
-enum mlx5_verbs_alloc_type {
-	MLX5_VERBS_ALLOC_TYPE_NONE,
-	MLX5_VERBS_ALLOC_TYPE_TX_QUEUE,
-	MLX5_VERBS_ALLOC_TYPE_RX_QUEUE,
-};
-
 /* Structure for VF VLAN workaround. */
 struct mlx5_vf_vlan {
 	uint32_t tag:12;
 	uint32_t created:1;
-};
-
-/**
- * Verbs allocator needs a context to know in the callback which kind of
- * resources it is allocating.
- */
-struct mlx5_verbs_alloc_ctx {
-	enum mlx5_verbs_alloc_type type; /* Kind of object being allocated. */
-	const void *obj; /* Pointer to the DPDK object. */
 };
 
 /* Flow drop context necessary due to Verbs API. */
@@ -768,7 +749,10 @@ struct mlx5_dev_ctx_shared {
 	struct mlx5_dev_shared_port port[]; /* per device port data array. */
 };
 
-/* Per-process private structure. */
+/*
+ * Per-process private structure.
+ * Caution, secondary process may rebuild the struct during port start.
+ */
 struct mlx5_proc_priv {
 	size_t uar_table_sz;
 	/* Size of UAR register table. */
@@ -957,7 +941,7 @@ struct mlx5_priv {
 	int32_t pf_bond; /* >=0 means PF index in bonding configuration. */
 	unsigned int if_index; /* Associated kernel network device index. */
 	uint32_t bond_ifindex; /**< Bond interface index. */
-	char bond_name[IF_NAMESIZE]; /**< Bond interface name. */
+	char bond_name[MLX5_NAMESIZE]; /**< Bond interface name. */
 	/* RX/TX queues. */
 	unsigned int rxqs_n; /* RX queues array size. */
 	unsigned int txqs_n; /* TX queues array size. */
@@ -989,7 +973,6 @@ struct mlx5_priv {
 	struct mlx5_xstats_ctrl xstats_ctrl; /* Extended stats control. */
 	struct mlx5_stats_ctrl stats_ctrl; /* Stats control. */
 	struct mlx5_dev_config config; /* Device configuration. */
-	struct mlx5_verbs_alloc_ctx verbs_alloc_ctx;
 	/* Context for Verbs allocator. */
 	int nl_socket_rdma; /* Netlink socket (NETLINK_RDMA). */
 	int nl_socket_route; /* Netlink socket (NETLINK_ROUTE). */
@@ -1024,6 +1007,7 @@ struct rte_hairpin_peer_info {
 
 int mlx5_getenv_int(const char *);
 int mlx5_proc_priv_init(struct rte_eth_dev *dev);
+void mlx5_proc_priv_uninit(struct rte_eth_dev *dev);
 int mlx5_udp_tunnel_port_add(struct rte_eth_dev *dev,
 			      struct rte_eth_udp_tunnel *udp_tunnel);
 uint16_t mlx5_eth_find_next(uint16_t port_id, struct rte_pci_device *pci_dev);
@@ -1075,6 +1059,8 @@ int mlx5_dev_configure_rss_reta(struct rte_eth_dev *dev);
 
 /* mlx5_ethdev_os.c */
 
+int mlx5_get_ifname(const struct rte_eth_dev *dev,
+			char (*ifname)[MLX5_NAMESIZE]);
 unsigned int mlx5_ifindex(const struct rte_eth_dev *dev);
 int mlx5_get_mac(struct rte_eth_dev *dev, uint8_t (*mac)[RTE_ETHER_ADDR_LEN]);
 int mlx5_get_mtu(struct rte_eth_dev *dev, uint16_t *mtu);
