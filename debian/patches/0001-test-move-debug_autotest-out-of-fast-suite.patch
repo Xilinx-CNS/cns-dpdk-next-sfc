@@ -1,0 +1,40 @@
+From 1a5168f40c12a0c3ce27949e90e3699fe42c4c0b Mon Sep 17 00:00:00 2001
+From: Luca Boccassi <luca.boccassi@microsoft.com>
+Date: Thu, 25 Feb 2021 16:33:26 +0000
+Subject: [PATCH] test: move debug_autotest out of fast suite
+
+It consistently fails when ran on a build machine within the
+reproducible build environment, so move it out of there, so
+that we can run the fast suite at build time when packaging.
+
+Repro test environment:
+
+https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/salsa-ci.yml
+https://salsa.debian.org/salsa-ci-team/pipeline/
+---
+ app/test/meson.build | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/test/meson.build b/app/test/meson.build
+index 561e493a29..6230d33944 100644
+--- a/app/test/meson.build
++++ b/app/test/meson.build
+@@ -190,7 +190,6 @@ fast_tests = [
+         ['common_autotest', true],
+         ['cpuflags_autotest', true],
+         ['cycles_autotest', true],
+-        ['debug_autotest', true],
+         ['eal_flags_c_opt_autotest', false],
+         ['eal_flags_main_opt_autotest', false],
+         ['eal_flags_n_opt_autotest', false],
+@@ -305,6 +304,7 @@ perf_test_names = [
+         'hash_readwrite_lf_perf_autotest',
+         'trace_perf_autotest',
+ 	'ipsec_perf_autotest',
++        'debug_autotest',
+ ]
+ 
+ driver_test_names = [
+-- 
+2.29.2
+
