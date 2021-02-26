@@ -7,6 +7,7 @@
 #include <rte_service_component.h>
 
 #include "efx.h"
+#include "efx_regs_mae_counter_format.h"
 
 #include "sfc_ev.h"
 #include "sfc.h"
@@ -155,125 +156,130 @@ sfc_mae_counter_increment(struct sfc_mae_counters *counters,
 		       &cnt_val.pkts_bytes, __ATOMIC_RELAXED);
 }
 
-/*
- * FIXME, CT-8024: use layout defined by a generated header when
- * available.
- * All fields are in little endian.
- */
-struct counter_packet_header {
-	uint8_t version;
-	uint8_t identifier;
-	uint8_t header_offset;
-	uint8_t payload_offset;
-};
-
-/*
- * FIXME, CT-8024: use layout defined by a generated header when
- * available.
- * All fields are in little endian.
- */
-struct counter_packet_header_data {
-	uint16_t sequence_index;
-	uint16_t counter_count;
-	uint32_t reserved[3];
-};
-
-/*
- * FIXME, CT-8024: use layout defined by a generated header when
- * available.
- * All fields are in little endian.
- */
-struct counter_packet_entry {
-	uint32_t counter_index;
-	uint8_t packet_count[6];
-	uint8_t byte_count[6];
-};
-
-static uint64_t
-sfc_mae_counter_entry_get_packets(const uint8_t *ptr)
-{
-	uint64_t val_le = 0;
-
-	rte_memcpy(&val_le,
-		   ptr + offsetof(struct counter_packet_entry, packet_count),
-		   RTE_SIZEOF_FIELD(struct counter_packet_entry, packet_count));
-
-	return rte_le_to_cpu_64(val_le);
-}
-
-static uint64_t
-sfc_mae_counter_entry_get_bytes(const uint8_t *ptr)
-{
-	uint64_t val_le = 0;
-
-	rte_memcpy(&val_le,
-		   ptr + offsetof(struct counter_packet_entry, byte_count),
-		   RTE_SIZEOF_FIELD(struct counter_packet_entry, byte_count));
-
-	return rte_le_to_cpu_64(val_le);
-}
-
-static uint32_t
-sfc_mae_counter_entry_get_index(const uint8_t *ptr)
-{
-	/*
-	 * Index is properly aligned since entry size, header and
-	 * the start of the packet is cacheline aligned.
-	 */
-	return rte_le_to_cpu_32(*(const uint32_t *)ptr);
-}
-
 static void
-sfc_mae_update_counter(struct sfc_mae_counter_registry *counter_registry,
-		       uint32_t generation_count,
-		       const uint8_t *entry)
-{
-	sfc_mae_counter_increment(&counter_registry->counters,
-				  sfc_mae_counter_entry_get_index(entry),
-				  generation_count,
-				  sfc_mae_counter_entry_get_packets(entry),
-				  sfc_mae_counter_entry_get_bytes(entry));
-}
-
-static void
-sfc_mae_parse_counter_packet(struct sfc_mae_counter_registry *counter_registry,
+sfc_mae_parse_counter_packet(struct sfc_adapter *sa,
+			     struct sfc_mae_counter_registry *counter_registry,
 			     const struct rte_mbuf *m)
 {
-	struct counter_packet_header *hdr;
-	struct counter_packet_header_data hdr_data;
+	uint32_t generation_count;
+	const efx_xword_t *hdr;
+	const efx_oword_t *counters_data;
+	unsigned int version;
+	unsigned int id;
+	unsigned int header_offset;
+	unsigned int payload_offset;
 	unsigned int counter_count;
-	unsigned int entry_idx;
-	unsigned int offset;
+	unsigned int required_len;
+	unsigned int i;
 
-	RTE_BUILD_BUG_ON(sizeof(struct counter_packet_header) != 4);
-	RTE_BUILD_BUG_ON(sizeof(struct counter_packet_header_data) != 16);
-	RTE_BUILD_BUG_ON(sizeof(struct counter_packet_entry) != 16);
-
-	if (unlikely(m->nb_segs != 1 || m->data_len < sizeof(*hdr))) {
-		SFC_GENERIC_LOG(DEBUG, "Invalid counter");
+	if (unlikely(m->nb_segs != 1)) {
+		sfc_err(sa, "unexpectedly scattered MAE counters packet (%u segments)",
+			m->nb_segs);
 		return;
 	}
 
-	hdr = rte_pktmbuf_mtod(m, struct counter_packet_header *);
+	if (unlikely(m->data_len < ER_RX_SL_PACKETISER_HEADER_WORD_SIZE)) {
+		sfc_err(sa, "too short MAE counters packet (%u bytes)",
+			m->data_len);
+		return;
+	}
 
-	rte_memcpy(&hdr_data,
-		   rte_pktmbuf_mtod(m, uint8_t *) + hdr->header_offset,
-		   sizeof(hdr_data));
+	/*
+	 * The generation count is located in the Rx prefix in the USER_MARK
+	 * field which is written into hash.fdir.hi field of an mbuf.
+	 * TODO: add reference to the documentation about USER_MARK field.
+	 */
+	generation_count = m->hash.fdir.hi;
 
-	counter_count = rte_le_to_cpu_16(hdr_data.counter_count);
-	for (offset = hdr->payload_offset, entry_idx = 0;
-	     m->data_len - offset >= sizeof(struct counter_packet_entry) &&
-	     entry_idx < counter_count;
-	     offset += sizeof(struct counter_packet_entry), entry_idx++) {
+	hdr = rte_pktmbuf_mtod(m, const efx_xword_t *);
+
+	version = EFX_XWORD_FIELD(*hdr, ERF_SC_PACKETISER_HEADER_VERSION);
+	if (unlikely(version != ERF_SC_PACKETISER_HEADER_VERSION_VALUE)) {
+		sfc_err(sa, "unexpected MAE counters packet version %u",
+			version);
+		return;
+	}
+
+	id = EFX_XWORD_FIELD(*hdr, ERF_SC_PACKETISER_HEADER_IDENTIFIER);
+	if (unlikely(id != ERF_SC_PACKETISER_HEADER_IDENTIFIER_AR)) {
+		sfc_err(sa, "unexpected MAE counters source identifier %u", id);
+		return;
+	}
+
+	/* Packet layout definitions assume fixed header offset in fact */
+	header_offset =
+		EFX_XWORD_FIELD(*hdr, ERF_SC_PACKETISER_HEADER_HEADER_OFFSET);
+	if (unlikely(header_offset !=
+		     ERF_SC_PACKETISER_HEADER_HEADER_OFFSET_DEFAULT)) {
+		sfc_err(sa, "unexpected MAE counters packet header offset %u",
+			header_offset);
+		return;
+	}
+
+	payload_offset =
+		EFX_XWORD_FIELD(*hdr, ERF_SC_PACKETISER_HEADER_PAYLOAD_OFFSET);
+
+	counter_count = EFX_XWORD_FIELD(*hdr, ERF_SC_PACKETISER_HEADER_COUNT);
+
+	required_len = payload_offset +
+			counter_count * sizeof(counters_data[0]);
+	if (unlikely(required_len > m->data_len)) {
+		sfc_err(sa, "truncated MAE counters packet: %u counters, packet length is %u vs %u required",
+			counter_count, m->data_len, required_len);
 		/*
-		 * The generation count is located in the Rx prefix in the
-		 * USER_MARK field which is written into hash.fdir.hi field
-		 * of an mbuf.
-		 * TODO: add reference to the documentation about USER_MARK
-		 * field.
+		 * In theory it is possible process available counters data,
+		 * but such condition is really unexpected and it is
+		 * better to treat entire packet as corrupted.
 		 */
-		sfc_mae_update_counter(counter_registry, m->hash.fdir.hi,
-				       rte_pktmbuf_mtod(m, uint8_t *) + offset);
+		return;
+	}
+
+	/* Ensure that counters data is 32-bit aligned */
+	if (unlikely(payload_offset % sizeof(uint32_t) != 0)) {
+		sfc_err(sa, "unsupported MAE counters payload offset %u, must be 32-bit aligned",
+			payload_offset);
+		return;
+	}
+	RTE_BUILD_BUG_ON(sizeof(counters_data[0]) !=
+			ER_RX_SL_PACKETISER_PAYLOAD_WORD_SIZE);
+
+	counters_data =
+		rte_pktmbuf_mtod_offset(m, const efx_oword_t *, payload_offset);
+
+	for (i = 0; i < counter_count; ++i) {
+		uint32_t packet_count_lo;
+		uint32_t packet_count_hi;
+		uint32_t byte_count_lo;
+		uint32_t byte_count_hi;
+
+		/*
+		 * Use 32-bit field accessors below since counters data
+		 * is not 64-bit aligned.
+		 * 32-bit alignment is checked above taking into account
+		 * that start of packet data is 32-bit aligned
+		 * (cache-line size aligned in fact).
+		 */
+		packet_count_lo =
+			EFX_OWORD_FIELD32(counters_data[i],
+				ERF_SC_PACKETISER_PAYLOAD_PACKET_COUNT_LO);
+		packet_count_hi =
+			EFX_OWORD_FIELD32(counters_data[i],
+				ERF_SC_PACKETISER_PAYLOAD_PACKET_COUNT_HI);
+		byte_count_lo =
+			EFX_OWORD_FIELD32(counters_data[i],
+				ERF_SC_PACKETISER_PAYLOAD_BYTE_COUNT_LO);
+		byte_count_hi =
+			EFX_OWORD_FIELD32(counters_data[i],
+				ERF_SC_PACKETISER_PAYLOAD_BYTE_COUNT_HI);
+		sfc_mae_counter_increment(
+			&counter_registry->counters,
+			EFX_OWORD_FIELD32(counters_data[i],
+				ERF_SC_PACKETISER_PAYLOAD_COUNTER_INDEX),
+			generation_count,
+			(uint64_t)packet_count_lo |
+			((uint64_t)packet_count_hi << 32),
+			(uint64_t)byte_count_lo |
+			((uint64_t)byte_count_hi << 32));
 	}
 }
 
@@ -293,7 +299,7 @@ sfc_mae_counter_routine(void *arg)
 	n = counter_registry->rx_pkt_burst(counter_registry->rx_dp, mbufs,
 					   SFC_MAE_COUNTER_RX_BURST);
 	for (i = 0; i < n; i++) {
-		sfc_mae_parse_counter_packet(counter_registry, mbufs[i]);
+		sfc_mae_parse_counter_packet(sa, counter_registry, mbufs[i]);
 		rte_pktmbuf_free(mbufs[i]);
 	}
 
