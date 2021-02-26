@@ -1,0 +1,3 @@
+REVIEWBOARD_URL = "https://reviewboard.xilinx.com/"
+REPOSITORY = "Xilinx-CNS/cns-dpdk-next-sfc"
+REPOSITORY_TYPE = "git"
