@@ -298,10 +298,9 @@ sfc_mae_counter_routine(void *arg)
 
 	n = counter_registry->rx_pkt_burst(counter_registry->rx_dp, mbufs,
 					   SFC_MAE_COUNTER_RX_BURST);
-	for (i = 0; i < n; i++) {
+	for (i = 0; i < n; i++)
 		sfc_mae_parse_counter_packet(sa, counter_registry, mbufs[i]);
-		rte_pktmbuf_free(mbufs[i]);
-	}
+	rte_pktmbuf_free_bulk(mbufs, n);
 
 	if (!counter_registry->use_credits)
 		return 0;
