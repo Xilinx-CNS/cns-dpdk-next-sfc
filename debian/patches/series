@@ -1,2 +1,2 @@
 0001-rib-fix-insertion-in-some-cases.patch
-0001-test-move-debug_autotest-out-of-fast-suite.patch
+test-catch-coredumps.patch
