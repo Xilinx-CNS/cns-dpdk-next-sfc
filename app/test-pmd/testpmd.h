@@ -353,6 +353,7 @@ extern bool setup_on_probe_event; /**< disabled by port setup-on iterator */
 extern uint8_t hot_plug; /**< enable by "--hot-plug" parameter */
 extern int do_mlockall; /**< set by "--mlockall" or "--no-mlockall" parameter */
 extern uint8_t clear_ptypes; /**< disabled by set ptype cmd */
+extern uint32_t eth_link_speed;
 
 #ifdef RTE_LIBRTE_IXGBE_BYPASS
 extern uint32_t bypass_timeout; /**< Store the NIC bypass watchdog timeout */

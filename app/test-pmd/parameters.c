@@ -224,6 +224,7 @@ usage(char* progname)
 	printf("  --hairpin-mode=0xXX: bitmask set the hairpin port mode.\n "
 	       "    0x10 - explicit Tx rule, 0x02 - hairpin ports paired\n"
 	       "    0x01 - hairpin ports loop, 0x00 - hairpin port self\n");
+	printf("  --eth-link-speed: forced link speed.\n");
 }
 
 #ifdef RTE_LIB_CMDLINE
@@ -485,6 +486,43 @@ parse_event_printing_config(const char *optarg, int enable)
 	return 0;
 }
 
+static int
+parse_link_speed(int n)
+{
+	uint32_t speed = ETH_LINK_SPEED_FIXED;
+
+	switch (n) {
+	case 1000:
+		speed |= ETH_LINK_SPEED_1G;
+		break;
+	case 10000:
+		speed |= ETH_LINK_SPEED_10G;
+		break;
+	case 25000:
+		speed |= ETH_LINK_SPEED_25G;
+		break;
+	case 40000:
+		speed |= ETH_LINK_SPEED_40G;
+		break;
+	case 50000:
+		speed |= ETH_LINK_SPEED_50G;
+		break;
+	case 100000:
+		speed |= ETH_LINK_SPEED_100G;
+		break;
+	case 200000:
+		speed |= ETH_LINK_SPEED_200G;
+		break;
+	case 100:
+	case 10:
+	default:
+		printf("Unsupported fixed speed\n");
+		return 0;
+	}
+
+	return speed;
+}
+
 void
 launch_args_parse(int argc, char** argv)
 {
@@ -605,6 +643,7 @@ launch_args_parse(int argc, char** argv)
 		{ "rx-mq-mode",                 1, 0, 0 },
 		{ "record-core-cycles",         0, 0, 0 },
 		{ "record-burst-stats",         0, 0, 0 },
+		{ "eth-link-speed",		1, 0, 0 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -1366,6 +1405,11 @@ launch_args_parse(int argc, char** argv)
 				record_core_cycles = 1;
 			if (!strcmp(lgopts[opt_idx].name, "record-burst-stats"))
 				record_burst_stats = 1;
+			if (!strcmp(lgopts[opt_idx].name, "eth-link-speed")) {
+				n = atoi(optarg);
+				if (n >= 0 && parse_link_speed(n) > 0)
+					eth_link_speed = parse_link_speed(n);
+			}
 			break;
 		case 'h':
 			usage(argv[0]);

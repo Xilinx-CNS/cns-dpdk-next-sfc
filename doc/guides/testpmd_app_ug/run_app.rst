@@ -536,3 +536,18 @@ The command line options are:
     bit 1 - two hairpin ports paired
     bit 0 - two hairpin ports loop
     The default value is 0. Hairpin will use single port mode and implicit Tx flow mode.
+
+*   ``--eth-link-speed``
+
+    Set a forced link speed to the ethernet port::
+
+       10 - 10Mbps (not supported)
+       100 - 100Mbps (not supported)
+       1000 - 1Gbps
+       10000 - 10Gbps
+       25000 - 25Gbps
+       40000 - 40Gbps
+       50000 - 50Gbps
+       100000 - 100Gbps
+       200000 - 200Gbps
+       ...
