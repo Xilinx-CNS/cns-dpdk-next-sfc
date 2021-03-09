@@ -40,8 +40,8 @@ endif
 ifneq (,$(filter dpdk_config_options=%,$(DEB_BUILD_OPTIONS)))
 # GNU Makefile hack: can't directly escape comma and spaces, so use variables
     comma := ,
-    space :=
-    space +=
+    empty :=
+    space := $(empty) $(empty)
     DPDK_CONFIG_OPTIONS ?= $(subst $(comma),$(space),$(patsubst dpdk_config_options=%,%,$(filter dpdk_config_options=%,$(DEB_BUILD_OPTIONS))))
 endif
 
