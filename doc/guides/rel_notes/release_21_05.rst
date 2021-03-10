@@ -76,6 +76,10 @@ New Features
 
   * Added support for txgbevf PMD.
 
+* **Updated the AF_XDP driver.**
+
+  * Added support for preferred busy polling.
+
 * **Updated testpmd.**
 
   * Added command to display Rx queue used descriptor count.
