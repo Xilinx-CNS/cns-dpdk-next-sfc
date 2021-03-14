@@ -136,7 +136,7 @@ mount_hugetlbfs() {
 _setup_hugepages() {
     MMDIR="/sys/kernel/mm/hugepages/${1}"
     ALLPAGES="${2}"
-    if [ "$ALLPAGES" == "" ]; then
+    if [ "$ALLPAGES" = "" ]; then
         return
     fi
 
