@@ -1,3 +1,20 @@
+dpdk (20.11-3) unstable; urgency=medium
+
+  [ Henning Schild ]
+  * runtime: add switch to prevent freeing of already allocated hugepages
+  * runtime: add numa support to hugepage allocation script
+
+  [ Luca Boccassi ]
+  * Backport 0001-rib-fix-insertion-in-some-cases.patch to fix tests on
+    i386
+  * Enable dh_auto_test for fast-suite
+  * Backport test-catch-coredumps.patch to fix build during repro test
+
+  [ Nicholas Brown ]
+  * d/rules update dpdk_config_options for make 4.3 (Closes: #983574)
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 17 Mar 2021 12:52:21 +0000
+
 dpdk (20.11-2) unstable; urgency=high
 
   [ Christian Ehrhardt ]
