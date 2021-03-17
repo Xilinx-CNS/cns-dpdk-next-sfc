@@ -2873,12 +2873,15 @@ int rte_eth_xstats_get(uint16_t port_id, struct rte_eth_xstat *xstats,
  *   The port identifier of the Ethernet device.
  * @param xstats_names
  *   An rte_eth_xstat_name array of at least *size* elements to
- *   be filled. If set to NULL, the function returns the required number
- *   of elements.
+ *   be filled. Must not be NULL if @p ids are specified (not NULL).
  * @param ids
- *   IDs array given by app to retrieve specific statistics
+ *   IDs array given by app to retrieve specific statistics. May be NULL
+ *   to retrieve all available statistics.
  * @param size
- *   The size of the xstats_names array (number of elements).
+ *   If @p ids is not NULL, number of elements in the array with requested IDs
+ *   and number of elements in @p xstats_names to put names in. If @p ids is
+ *   NULL, number of elements in @p xstats_names to put all available statistics
+ *   names in.
  * @return
  *   - A positive value lower or equal to size: success. The return value
  *     is the number of entries filled in the stats table.
@@ -2886,7 +2889,7 @@ int rte_eth_xstats_get(uint16_t port_id, struct rte_eth_xstat *xstats,
  *     is too small. The return value corresponds to the size that should
  *     be given to succeed. The entries in the table are not valid and
  *     shall not be used by the caller.
- *   - A negative value on error (invalid port id).
+ *   - A negative value on error.
  */
 int
 rte_eth_xstats_get_names_by_id(uint16_t port_id,
@@ -2900,13 +2903,15 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
  *   The port identifier of the Ethernet device.
  * @param ids
  *   A pointer to an ids array passed by application. This tells which
- *   statistics values function should retrieve. This parameter
- *   can be set to NULL if size is 0. In this case function will retrieve
+ *   statistics values function should retrieve. May be NULL to retrieve
  *   all available statistics.
  * @param values
  *   A pointer to a table to be filled with device statistics values.
+ *   Must not be NULL if ids are specified (not NULL).
  * @param size
- *   The size of the ids array (number of elements).
+ *   If @p ids is not NULL, number of elements in the array with requested IDs
+ *   and number of elements in values to put statistics in. If @p ids is NULL,
+ *   number of elements in values to put all available statistics in.
  * @return
  *   - A positive value lower or equal to size: success. The return value
  *     is the number of entries filled in the stats table.
@@ -2914,7 +2919,7 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
  *     is too small. The return value corresponds to the size that should
  *     be given to succeed. The entries in the table are not valid and
  *     shall not be used by the caller.
- *   - A negative value on error (invalid port id).
+ *   - A negative value on error.
  */
 int rte_eth_xstats_get_by_id(uint16_t port_id, const uint64_t *ids,
 			     uint64_t *values, unsigned int size);
