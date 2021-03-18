@@ -3,6 +3,7 @@
  * Copyright(c) 2020 Xilinx, Inc.
  */
 
+#include <pthread.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 
@@ -552,6 +553,67 @@ sfc_vdpa_get_protocol_features(struct rte_vdpa_device *vdpa_dev,
 	return 0;
 }
 
+static void *
+sfc_vdpa_notify_ctrl(void *arg)
+{
+	struct sfc_vdpa_ops_data *ops_data;
+	int vid;
+
+	ops_data = arg;
+	if (ops_data == NULL)
+		return NULL;
+
+	sfc_vdpa_adapter_lock(ops_data->dev_handle);
+
+	vid = ops_data->vid;
+
+	if (rte_vhost_host_notifier_ctrl(vid, RTE_VHOST_QUEUE_ALL, true) != 0)
+		sfc_vdpa_info(ops_data->dev_handle,
+			      "vDPA (%s): Notifier could not get configured",
+			      ops_data->vdpa_dev->device->name);
+
+	sfc_vdpa_adapter_unlock(ops_data->dev_handle);
+
+	return NULL;
+}
+
+static int
+sfc_vdpa_setup_notify_ctrl(int vid)
+{
+	int ret;
+	struct rte_vdpa_device *vdpa_dev;
+	struct sfc_vdpa_ops_data *ops_data;
+
+	vdpa_dev = rte_vhost_get_vdpa_device(vid);
+
+	ops_data = sfc_vdpa_get_data_by_dev(vdpa_dev);
+	if (ops_data == NULL) {
+		sfc_vdpa_err(ops_data->dev_handle,
+			     "invalid vDPA device : %p, vid : %d",
+			     vdpa_dev, vid);
+		return -1;
+	}
+
+	ops_data->is_notify_thread_started = false;
+
+	/*
+	 * Use rte_vhost_host_notifier_ctrl in a thread to avoid
+	 * dead lock scenario when multiple VFs are used in single vdpa
+	 * application and multiple VFs are passed to a single VM.
+	 */
+	ret = pthread_create(&ops_data->notify_tid, NULL,
+			     sfc_vdpa_notify_ctrl, ops_data);
+	if (ret != 0) {
+		sfc_vdpa_err(ops_data->dev_handle,
+			     "failed to create notify_ctrl thread: %s",
+			     rte_strerror(ret));
+		return -1;
+	}
+	ops_data->is_notify_thread_started = true;
+
+	return 0;
+}
+
 static int
 sfc_vdpa_dev_config(int vid)
 {
@@ -585,17 +647,18 @@ sfc_vdpa_dev_config(int vid)
 	if (rc != 0)
 		goto fail_vdpa_start;
 
-	sfc_vdpa_adapter_unlock(ops_data->dev_handle);
+	rc = sfc_vdpa_setup_notify_ctrl(vid);
+	if (rc != 0)
+		goto fail_vdpa_notify;
 
-	sfc_vdpa_log_init(ops_data->dev_handle, "vhost notifier ctrl");
-	if (rte_vhost_host_notifier_ctrl(vid, RTE_VHOST_QUEUE_ALL, true) != 0)
-		sfc_vdpa_info(ops_data->dev_handle,
-			      "vDPA (%s): software relay for notify is used.",
-			      vdpa_dev->device->name);
+	sfc_vdpa_adapter_unlock(ops_data->dev_handle);
 
 	sfc_vdpa_log_init(ops_data->dev_handle, "done");
 
 	return 0;
+
+fail_vdpa_notify:
+	sfc_vdpa_stop(ops_data);
 
 fail_vdpa_start:
 	sfc_vdpa_close(ops_data);
@@ -609,6 +672,7 @@ fail_vdpa_config:
 static int
 sfc_vdpa_dev_close(int vid)
 {
+	int ret;
 	struct rte_vdpa_device *vdpa_dev;
 	struct sfc_vdpa_ops_data *ops_data;
 
@@ -623,6 +687,23 @@ sfc_vdpa_dev_close(int vid)
 	}
 
 	sfc_vdpa_adapter_lock(ops_data->dev_handle);
+	if (ops_data->is_notify_thread_started == true) {
+		void *status;
+		ret = pthread_cancel(ops_data->notify_tid);
+		if (ret != 0) {
+			sfc_vdpa_err(ops_data->dev_handle,
+				     "failed to cancel notify_ctrl thread: %s",
+				     rte_strerror(ret));
+		}
+
+		ret = pthread_join(ops_data->notify_tid, &status);
+		if (ret != 0) {
+			sfc_vdpa_err(ops_data->dev_handle,
+				     "failed to join terminated notify_ctrl thread: %s",
+				     rte_strerror(ret));
+		}
+	}
+	ops_data->is_notify_thread_started = false;
 
 	sfc_vdpa_stop(ops_data);
 	sfc_vdpa_close(ops_data);
