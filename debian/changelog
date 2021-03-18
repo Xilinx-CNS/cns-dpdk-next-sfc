@@ -1,3 +1,10 @@
+dpdk (20.11-4) unstable; urgency=medium
+
+  * d/rules: do not run tests when building documentation
+  * d/rules: set XDG_RUNTIME_DIR when running tests
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 18 Mar 2021 14:28:19 +0000
+
 dpdk (20.11-3) unstable; urgency=medium
 
   [ Henning Schild ]
