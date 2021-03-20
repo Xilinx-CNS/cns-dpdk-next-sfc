@@ -195,6 +195,19 @@ struct tunnel_ops {
 	uint32_t items:1;
 };
 
+/** Information for an extended statistics to show. */
+struct xstat_display_info {
+	/** IDs of xstats in the order of xstats_display */
+	uint64_t *ids;
+	/** Supported xstats IDs in the order of xstats_display */
+	uint64_t *ids_supp;
+	size_t   ids_supp_sz;
+	uint64_t *prev_values;
+	uint64_t *curr_values;
+	uint64_t prev_ns;
+	bool	 allocated;
+};
+
 /**
  * The data structure associated with each port.
  */
@@ -234,6 +247,7 @@ struct rte_port {
 	/**< dynamic flags. */
 	uint64_t		mbuf_dynf;
 	const struct rte_eth_rxtx_callback *tx_set_dynf_cb[RTE_MAX_QUEUES_PER_PORT+1];
+	struct xstat_display_info xstats_info;
 };
 
 /**
@@ -433,6 +447,13 @@ extern uint16_t mbuf_data_size[MAX_SEGS_BUFFER_SPLIT];
 extern uint32_t param_total_num_mbufs;
 
 extern uint16_t stats_period;
+
+extern struct rte_eth_xstat_name *xstats_display;
+extern unsigned int xstats_display_num;
+
+#define XSTAT_ID_INVALID UINT64_MAX
+
+extern struct xstat_display_info xstats_per_port[];
 
 extern uint16_t hairpin_mode;
 
@@ -766,6 +787,8 @@ inc_tx_burst_stats(struct fwd_stream *fs, uint16_t nb_tx)
 unsigned int parse_item_list(const char *str, const char *item_name,
 			unsigned int max_items,
 			unsigned int *parsed_items, int check_unique_values);
+int parse_xstats_list(const char *in_str, struct rte_eth_xstat_name **xstats,
+		      unsigned int *xstats_num);
 void launch_args_parse(int argc, char** argv);
 void cmdline_read_from_file(const char *filename);
 void prompt(void);

@@ -61,6 +61,9 @@ usage(char* progname)
 	       "(only if interactive is disabled).\n");
 	printf("  --stats-period=PERIOD: statistics will be shown "
 	       "every PERIOD seconds (only if interactive is disabled).\n");
+	printf("  --display-xstats xstat1[,...]: extended statistics to show. "
+	       "Used with --stats-period specified or interactive commands "
+	       "that show Rx/Tx statistics (i.e. 'show port stats').\n");
 	printf("  --nb-cores=N: set the number of forwarding cores "
 	       "(1 <= N <= %d).\n", nb_lcores);
 	printf("  --nb-ports=N: set the number of forwarding ports "
@@ -535,6 +538,7 @@ launch_args_parse(int argc, char** argv)
 #endif
 		{ "tx-first",			0, 0, 0 },
 		{ "stats-period",		1, 0, 0 },
+		{ "display-xstats",		1, 0, 0 },
 		{ "nb-cores",			1, 0, 0 },
 		{ "nb-ports",			1, 0, 0 },
 		{ "coremask",			1, 0, 0 },
@@ -691,6 +695,16 @@ launch_args_parse(int argc, char** argv)
 
 				stats_period = n;
 				break;
+			}
+			if (!strcmp(lgopts[opt_idx].name, "display-xstats")) {
+				char rc;
+
+				rc = parse_xstats_list(optarg, &xstats_display,
+						       &xstats_display_num);
+				if (rc != 0)
+					rte_exit(EXIT_FAILURE,
+						 "Failed to fill xstats to display: %d\n",
+						 rc);
 			}
 			if (!strcmp(lgopts[opt_idx].name,
 				    "eth-peers-configfile")) {

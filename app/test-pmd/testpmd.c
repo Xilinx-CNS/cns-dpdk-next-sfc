@@ -208,6 +208,11 @@ uint32_t param_total_num_mbufs = 0;  /**< number of mbufs in all pools - if
                                       * specified on command-line. */
 uint16_t stats_period; /**< Period to show statistics (disabled by default) */
 
+/** Extended statistics to show. */
+struct rte_eth_xstat_name *xstats_display;
+
+unsigned int xstats_display_num; /**< Size of extended statistics to show */
+
 /*
  * In container, it cannot terminate the process which running with 'stats-period'
  * option. Set flag to exit stats period loop after received SIGINT/SIGTERM.
@@ -541,6 +546,12 @@ uint16_t gso_max_segment_size = RTE_ETHER_MAX_LEN - RTE_ETHER_CRC_LEN;
 
 /* Holds the registered mbuf dynamic flags names. */
 char dynf_names[64][RTE_MBUF_DYN_NAMESIZE];
+
+/** Fill helper structures for specified port to show extended statistics. */
+static void fill_display_xstats_info_for_port(portid_t pi);
+
+/** Fill helper structures for all ports to show extended statistics. */
+static void fill_display_xstats_info(void);
 
 /*
  * Helper function to check if socket is already discovered.
@@ -2685,6 +2696,8 @@ start_port(portid_t pid)
 		}
 	}
 
+	fill_display_xstats_info_for_port(pid);
+
 	printf("Done\n");
 	return 0;
 }
@@ -3719,6 +3732,40 @@ init_port_dcb_config(portid_t pid,
 	return 0;
 }
 
+static int
+alloc_display_xstats_info(portid_t pi)
+{
+	uint64_t **ids = &ports[pi].xstats_info.ids;
+	uint64_t **ids_supp = &ports[pi].xstats_info.ids_supp;
+	uint64_t **prev_values = &ports[pi].xstats_info.prev_values;
+	uint64_t **curr_values = &ports[pi].xstats_info.curr_values;
+
+	if (xstats_display_num == 0)
+		return 0;
+
+	*ids = calloc(xstats_display_num, sizeof(**ids));
+	if (*ids == NULL)
+		return -ENOMEM;
+
+	*ids_supp = calloc(xstats_display_num, sizeof(**ids_supp));
+	if (*ids_supp == NULL)
+		return -ENOMEM;
+
+	*prev_values = calloc(xstats_display_num,
+			      sizeof(**prev_values));
+	if (*prev_values == NULL)
+		return -ENOMEM;
+
+	*curr_values = calloc(xstats_display_num,
+			      sizeof(**curr_values));
+	if (*curr_values == NULL)
+		return -ENOMEM;
+
+	ports[pi].xstats_info.allocated = true;
+
+	return 0;
+}
+
 static void
 init_port(void)
 {
@@ -3734,6 +3781,8 @@ init_port(void)
 				RTE_MAX_ETHPORTS);
 	}
 	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
+		ports[i].xstats_info.allocated = false;
+	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
 		LIST_INIT(&ports[i].flow_tunnel_list);
 	/* Initialize ports NUMA structures */
 	memset(port_numa, NUMA_NO_CONFIG, RTE_MAX_ETHPORTS);
@@ -3746,6 +3795,67 @@ force_quit(void)
 {
 	pmd_test_exit();
 	prompt_exit();
+}
+
+static void
+fill_display_xstats_info_for_port(portid_t pi)
+{
+	unsigned int stat, stat_supp;
+	uint64_t *ids, *ids_supp;
+	const char *xstat_name;
+	struct rte_port *port;
+	int rc;
+
+	if (xstats_display_num == 0)
+		return;
+
+	if (pi == (portid_t)RTE_PORT_ALL) {
+		fill_display_xstats_info();
+		return;
+	}
+
+	port = &ports[pi];
+	if (port->port_status != RTE_PORT_STARTED)
+		return;
+
+	if (!port->xstats_info.allocated && alloc_display_xstats_info(pi) != 0)
+		rte_exit(EXIT_FAILURE,
+			 "Failed to allocate xstats display memory\n");
+
+	ids = port->xstats_info.ids;
+	ids_supp = port->xstats_info.ids_supp;
+
+	for (stat = stat_supp = 0; stat < xstats_display_num; stat++) {
+		xstat_name = xstats_display[stat].name;
+
+		rc = rte_eth_xstats_get_id_by_name(pi, xstat_name,
+						   ids + stat);
+		if (rc != 0) {
+			ids[stat] = XSTAT_ID_INVALID;
+			fprintf(stderr, "No xstat '%s' on port %u - skip it\n",
+				xstat_name, pi);
+			continue;
+		}
+		ids_supp[stat_supp++] = ids[stat];
+	}
+
+	port->xstats_info.ids_supp_sz = stat_supp;
+}
+
+static void
+fill_display_xstats_info(void)
+{
+	portid_t pi;
+
+	if (xstats_display_num == 0)
+		return;
+
+	RTE_ETH_FOREACH_DEV(pi) {
+		if (pi == (portid_t)RTE_PORT_ALL)
+			continue;
+
+		fill_display_xstats_info_for_port(pi);
+	}
 }
 
 static void
