@@ -434,6 +434,24 @@ extern uint32_t param_total_num_mbufs;
 
 extern uint16_t stats_period;
 
+extern struct rte_eth_xstat_name *xstats_display;
+extern unsigned int xstats_display_num;
+
+#define XSTAT_ID_INVALID UINT64_MAX
+
+/** Information for an extended statistics to show. */
+struct xstat_display_info {
+	/** IDs of xstats in the order of xstats_display */
+	uint64_t *ids;
+	/** Supported xstats IDs in the order of xstats_display */
+	uint64_t *ids_supp;
+	size_t   ids_supp_sz;
+	uint64_t *prev_values;
+	uint64_t *curr_values;
+	uint64_t prev_ns;
+};
+extern struct xstat_display_info xstats_per_port[];
+
 extern uint16_t hairpin_mode;
 
 #ifdef RTE_LIB_LATENCYSTATS
@@ -766,6 +784,8 @@ inc_tx_burst_stats(struct fwd_stream *fs, uint16_t nb_tx)
 unsigned int parse_item_list(const char *str, const char *item_name,
 			unsigned int max_items,
 			unsigned int *parsed_items, int check_unique_values);
+int parse_xstats_list(const char *in_str, struct rte_eth_xstat_name **xstats,
+		      unsigned int *xstats_num);
 void launch_args_parse(int argc, char** argv);
 void cmdline_read_from_file(const char *filename);
 void prompt(void);
@@ -978,6 +998,7 @@ enum print_warning {
 int port_id_is_invalid(portid_t port_id, enum print_warning warning);
 void print_valid_ports(void);
 int new_socket_id(unsigned int socket_id);
+int alloc_display_xstats_info(void);
 
 queueid_t get_allowed_max_nb_rxq(portid_t *pid);
 int check_nb_rxq(queueid_t rxq);

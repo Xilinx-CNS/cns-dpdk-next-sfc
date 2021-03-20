@@ -208,6 +208,14 @@ uint32_t param_total_num_mbufs = 0;  /**< number of mbufs in all pools - if
                                       * specified on command-line. */
 uint16_t stats_period; /**< Period to show statistics (disabled by default) */
 
+/** Extended statistics to show. */
+struct rte_eth_xstat_name *xstats_display;
+
+unsigned int xstats_display_num; /**< Size of extended statistics to show */
+
+/** Helper structures for each port to show extended statistics. */
+struct xstat_display_info xstats_per_port[RTE_MAX_ETHPORTS];
+
 /*
  * In container, it cannot terminate the process which running with 'stats-period'
  * option. Set flag to exit stats period loop after received SIGINT/SIGTERM.
@@ -541,6 +549,12 @@ uint16_t gso_max_segment_size = RTE_ETHER_MAX_LEN - RTE_ETHER_CRC_LEN;
 
 /* Holds the registered mbuf dynamic flags names. */
 char dynf_names[64][RTE_MBUF_DYN_NAMESIZE];
+
+/** Fill helper structures for specified port to show extended statistics. */
+static void fill_display_xstats_info_for_port(portid_t pi);
+
+/** Fill helper structures for all ports to show extended statistics. */
+static void fill_display_xstats_info(void);
 
 /*
  * Helper function to check if socket is already discovered.
@@ -2685,6 +2699,8 @@ start_port(portid_t pid)
 		}
 	}
 
+	fill_display_xstats_info_for_port(pid);
+
 	printf("Done\n");
 	return 0;
 }
@@ -3746,6 +3762,107 @@ force_quit(void)
 {
 	pmd_test_exit();
 	prompt_exit();
+}
+
+int
+alloc_display_xstats_info(void)
+{
+	size_t mem_size;
+	uint64_t *mem;
+	portid_t port;
+
+	if (xstats_display_num == 0)
+		return 0;
+
+	memset(xstats_per_port, 0, sizeof(xstats_per_port));
+
+	mem_size = RTE_MAX_ETHPORTS * xstats_display_num *
+		   (sizeof(xstats_per_port[0].ids[0]) +
+		    sizeof(xstats_per_port[0].ids_supp[0]) +
+		    sizeof(xstats_per_port[0].prev_values[0]) +
+		    sizeof(xstats_per_port[0].curr_values[0]));
+
+	mem = calloc(1, mem_size);
+	if (mem == NULL)
+		return -ENOMEM;
+
+	for (port = 0; port < RTE_MAX_ETHPORTS; port++) {
+		uint64_t **ids = &xstats_per_port[port].ids;
+		uint64_t **ids_supp = &xstats_per_port[port].ids_supp;
+		uint64_t **prev_values = &xstats_per_port[port].prev_values;
+		uint64_t **curr_values = &xstats_per_port[port].curr_values;
+
+		*ids = mem;
+		mem += xstats_display_num * sizeof(**ids);
+
+		*ids_supp = mem;
+		mem += xstats_display_num * sizeof(**ids_supp);
+
+		*prev_values = mem;
+		mem += xstats_display_num * sizeof(**prev_values);
+
+		*curr_values = mem;
+		mem += xstats_display_num * sizeof(**curr_values);
+	}
+
+	return 0;
+}
+
+static void
+fill_display_xstats_info_for_port(portid_t pi)
+{
+	unsigned int stat, stat_supp;
+	uint64_t *ids, *ids_supp;
+	const char *xstat_name;
+	struct rte_port *port;
+	int rc;
+
+	if (xstats_display_num == 0)
+		return;
+
+	if (pi == (portid_t)RTE_PORT_ALL) {
+		fill_display_xstats_info();
+		return;
+	}
+
+	port = &ports[pi];
+	if (port->port_status != RTE_PORT_STARTED)
+		return;
+
+	ids = xstats_per_port[pi].ids;
+	ids_supp = xstats_per_port[pi].ids_supp;
+
+	for (stat = stat_supp = 0; stat < xstats_display_num; stat++) {
+		xstat_name = xstats_display[stat].name;
+
+		rc = rte_eth_xstats_get_id_by_name(pi, xstat_name,
+						   ids + stat);
+		if (rc != 0) {
+			ids[stat] = XSTAT_ID_INVALID;
+			printf("No xstat '%s' on port %u - skip it\n",
+			       xstat_name, pi);
+			continue;
+		}
+		ids_supp[stat_supp++] = ids[stat];
+	}
+
+	xstats_per_port[pi].ids_supp_sz = stat_supp;
+}
+
+static void
+fill_display_xstats_info(void)
+{
+	portid_t pi;
+
+	if (xstats_display_num == 0)
+		return;
+
+	RTE_ETH_FOREACH_DEV(pi) {
+		if (pi == (portid_t)RTE_PORT_ALL)
+			continue;
+
+		fill_display_xstats_info_for_port(pi);
+	}
 }
 
 static void

@@ -3621,6 +3621,61 @@ cmdline_parse_inst_t cmd_stop = {
 
 /* *** SET CORELIST and PORTLIST CONFIGURATION *** */
 
+int
+parse_xstats_list(const char *in_str, struct rte_eth_xstat_name **xstats,
+		  unsigned int *xstats_num)
+{
+	int max_names_nb, names_nb;
+	int stringlen;
+	char **names;
+	char *str;
+	int ret;
+	int i;
+
+	names = NULL;
+	str = strdup(in_str);
+	if (str == NULL) {
+		ret = ENOMEM;
+		goto out;
+	}
+	stringlen = strlen(str);
+
+	for (i = 0, max_names_nb = 1; str[i] != '\0'; i++) {
+		if (str[i] == ',')
+			max_names_nb++;
+	}
+
+	names = calloc(max_names_nb, sizeof(*names));
+	if (names == NULL) {
+		ret = ENOMEM;
+		goto out;
+	}
+
+	names_nb = rte_strsplit(str, stringlen, names, max_names_nb, ',');
+	if (names_nb < 0) {
+		ret = EINVAL;
+		goto out;
+	}
+
+	*xstats = calloc(names_nb, sizeof(**xstats));
+	if (*xstats == NULL) {
+		ret = ENOMEM;
+		goto out;
+	}
+
+	for (i = 0; i < names_nb; i++)
+		rte_strscpy((*xstats)[i].name, names[i],
+			    sizeof((*xstats)[i].name));
+
+	*xstats_num = names_nb;
+	ret = 0;
+
+out:
+	free(names);
+	free(str);
+	return ret;
+}
+
 unsigned int
 parse_item_list(const char *str, const char *item_name, unsigned int max_items,
 		unsigned int *parsed_items, int check_unique_values)
