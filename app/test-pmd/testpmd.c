@@ -1129,11 +1129,9 @@ check_nb_rxq(queueid_t rxq)
 
 	allowed_max_rxq = get_allowed_max_nb_rxq(&pid);
 	if (rxq > allowed_max_rxq) {
-		printf("Fail: input rxq (%u) can't be greater "
-		       "than max_rx_queues (%u) of port %u\n",
-		       rxq,
-		       allowed_max_rxq,
-		       pid);
+		fprintf(stderr,
+			"Fail: input rxq (%u) can't be greater than max_rx_queues (%u) of port %u\n",
+			rxq, allowed_max_rxq, pid);
 		return -1;
 	}
 	return 0;
@@ -1179,11 +1177,9 @@ check_nb_txq(queueid_t txq)
 
 	allowed_max_txq = get_allowed_max_nb_txq(&pid);
 	if (txq > allowed_max_txq) {
-		printf("Fail: input txq (%u) can't be greater "
-		       "than max_tx_queues (%u) of port %u\n",
-		       txq,
-		       allowed_max_txq,
-		       pid);
+		fprintf(stderr,
+			"Fail: input txq (%u) can't be greater than max_tx_queues (%u) of port %u\n",
+			txq, allowed_max_txq, pid);
 		return -1;
 	}
 	return 0;
@@ -1254,21 +1250,17 @@ check_nb_rxd(queueid_t rxd)
 
 	allowed_max_rxd = get_allowed_max_nb_rxd(&pid);
 	if (rxd > allowed_max_rxd) {
-		printf("Fail: input rxd (%u) can't be greater "
-		       "than max_rxds (%u) of port %u\n",
-		       rxd,
-		       allowed_max_rxd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input rxd (%u) can't be greater than max_rxds (%u) of port %u\n",
+			rxd, allowed_max_rxd, pid);
 		return -1;
 	}
 
 	allowed_min_rxd = get_allowed_min_nb_rxd(&pid);
 	if (rxd < allowed_min_rxd) {
-		printf("Fail: input rxd (%u) can't be less "
-		       "than min_rxds (%u) of port %u\n",
-		       rxd,
-		       allowed_min_rxd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input rxd (%u) can't be less than min_rxds (%u) of port %u\n",
+			rxd, allowed_min_rxd, pid);
 		return -1;
 	}
 
@@ -1339,21 +1331,17 @@ check_nb_txd(queueid_t txd)
 
 	allowed_max_txd = get_allowed_max_nb_txd(&pid);
 	if (txd > allowed_max_txd) {
-		printf("Fail: input txd (%u) can't be greater "
-		       "than max_txds (%u) of port %u\n",
-		       txd,
-		       allowed_max_txd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input txd (%u) can't be greater than max_txds (%u) of port %u\n",
+			txd, allowed_max_txd, pid);
 		return -1;
 	}
 
 	allowed_min_txd = get_allowed_min_nb_txd(&pid);
 	if (txd < allowed_min_txd) {
-		printf("Fail: input txd (%u) can't be less "
-		       "than min_txds (%u) of port %u\n",
-		       txd,
-		       allowed_min_txd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input txd (%u) can't be less than min_txds (%u) of port %u\n",
+			txd, allowed_min_txd, pid);
 		return -1;
 	}
 	return 0;
@@ -1399,9 +1387,9 @@ check_nb_hairpinq(queueid_t hairpinq)
 
 	allowed_max_hairpinq = get_allowed_max_nb_hairpinq(&pid);
 	if (hairpinq > allowed_max_hairpinq) {
-		printf("Fail: input hairpin (%u) can't be greater "
-		       "than max_hairpin_queues (%u) of port %u\n",
-		       hairpinq, allowed_max_hairpinq, pid);
+		fprintf(stderr,
+			"Fail: input hairpin (%u) can't be greater than max_hairpin_queues (%u) of port %u\n",
+			hairpinq, allowed_max_hairpinq, pid);
 		return -1;
 	}
 	return 0;
@@ -1457,7 +1445,8 @@ init_config(void)
 
 		ret = update_jumbo_frame_offload(pid);
 		if (ret != 0)
-			printf("Updating jumbo frame offload failed for port %u\n",
+			fprintf(stderr,
+				"Updating jumbo frame offload failed for port %u\n",
 				pid);
 
 		if (!(port->dev_info.tx_offload_capa &
@@ -1635,15 +1624,15 @@ init_fwd_streams(void)
 	RTE_ETH_FOREACH_DEV(pid) {
 		port = &ports[pid];
 		if (nb_rxq > port->dev_info.max_rx_queues) {
-			printf("Fail: nb_rxq(%d) is greater than "
-				"max_rx_queues(%d)\n", nb_rxq,
-				port->dev_info.max_rx_queues);
+			fprintf(stderr,
+				"Fail: nb_rxq(%d) is greater than max_rx_queues(%d)\n",
+				nb_rxq, port->dev_info.max_rx_queues);
 			return -1;
 		}
 		if (nb_txq > port->dev_info.max_tx_queues) {
-			printf("Fail: nb_txq(%d) is greater than "
-				"max_tx_queues(%d)\n", nb_txq,
-				port->dev_info.max_tx_queues);
+			fprintf(stderr,
+				"Fail: nb_txq(%d) is greater than max_tx_queues(%d)\n",
+				nb_txq, port->dev_info.max_tx_queues);
 			return -1;
 		}
 		if (numa_support) {
@@ -1670,7 +1659,8 @@ init_fwd_streams(void)
 
 	q = RTE_MAX(nb_rxq, nb_txq);
 	if (q == 0) {
-		printf("Fail: Cannot allocate fwd streams as number of queues is 0\n");
+		fprintf(stderr,
+			"Fail: Cannot allocate fwd streams as number of queues is 0\n");
 		return -1;
 	}
 	nb_fwd_streams_new = (streamid_t)(nb_ports * q);
@@ -2127,8 +2117,8 @@ launch_packet_forwarding(lcore_function_t *pkt_fwd_on_lcore)
 			diag = rte_eal_remote_launch(pkt_fwd_on_lcore,
 						     fwd_lcores[i], lc_id);
 			if (diag != 0)
-				printf("launch lcore %u failed - diag=%d\n",
-				       lc_id, diag);
+				fprintf(stderr, "launch lcore %u failed - diag=%d\n",
+					lc_id, diag);
 		}
 	}
 }
@@ -2250,14 +2240,14 @@ void
 dev_set_link_up(portid_t pid)
 {
 	if (rte_eth_dev_set_link_up(pid) < 0)
-		printf("\nSet link up fail.\n");
+		fprintf(stderr, "\nSet link up fail.\n");
 }
 
 void
 dev_set_link_down(portid_t pid)
 {
 	if (rte_eth_dev_set_link_down(pid) < 0)
-		printf("\nSet link down fail.\n");
+		fprintf(stderr, "\nSet link down fail.\n");
 }
 
 static int
@@ -2380,8 +2370,8 @@ setup_hairpin_queues(portid_t pi, portid_t p_pi, uint16_t cnt_pi)
 					RTE_PORT_STOPPED) == 0)
 			printf("Port %d can not be set back "
 					"to stopped\n", pi);
-		printf("Fail to configure port %d hairpin "
-				"queues\n", pi);
+		fprintf(stderr, "Fail to configure port %d hairpin queues\n",
+			pi);
 		/* try to reconfigure queues next time */
 		port->need_reconfig_queues = 1;
 		return -1;
@@ -2403,8 +2393,8 @@ setup_hairpin_queues(portid_t pi, portid_t p_pi, uint16_t cnt_pi)
 					RTE_PORT_STOPPED) == 0)
 			printf("Port %d can not be set back "
 					"to stopped\n", pi);
-		printf("Fail to configure port %d hairpin "
-				"queues\n", pi);
+		fprintf(stderr, "Fail to configure port %d hairpin queues\n",
+			pi);
 		/* try to reconfigure queues next time */
 		port->need_reconfig_queues = 1;
 		return -1;
@@ -2496,8 +2486,9 @@ start_port(portid_t pid)
 			if (flow_isolate_all) {
 				int ret = port_flow_isolate(pi, 1);
 				if (ret) {
-					printf("Failed to apply isolated"
-					       " mode on port %d\n", pi);
+					fprintf(stderr,
+						"Failed to apply isolated mode on port %d\n",
+						pi);
 					return -1;
 				}
 			}
@@ -2506,8 +2497,9 @@ start_port(portid_t pid)
 					port->socket_id);
 			if (nb_hairpinq > 0 &&
 			    rte_eth_dev_hairpin_capability_get(pi, &cap)) {
-				printf("Port %d doesn't support hairpin "
-				       "queues\n", pi);
+				fprintf(stderr,
+					"Port %d doesn't support hairpin queues\n",
+					pi);
 				return -1;
 			}
 			/* configure port */
@@ -2519,7 +2511,8 @@ start_port(portid_t pid)
 				RTE_PORT_HANDLING, RTE_PORT_STOPPED) == 0)
 					printf("Port %d can not be set back "
 							"to stopped\n", pi);
-				printf("Fail to configure port %d\n", pi);
+				fprintf(stderr, "Fail to configure port %d\n",
+					pi);
 				/* try to reconfigure port next time */
 				port->need_reconfig = 1;
 				return -1;
@@ -2550,8 +2543,9 @@ start_port(portid_t pid)
 							RTE_PORT_STOPPED) == 0)
 					printf("Port %d can not be set back "
 							"to stopped\n", pi);
-				printf("Fail to configure port %d tx queues\n",
-				       pi);
+				fprintf(stderr,
+					"Fail to configure port %d tx queues\n",
+					pi);
 				/* try to reconfigure queues next time */
 				port->need_reconfig_queues = 1;
 				return -1;
@@ -2564,7 +2558,8 @@ start_port(portid_t pid)
 						mbuf_pool_find
 							(rxring_numa[pi], 0);
 					if (mp == NULL) {
-						printf("Failed to setup RX queue:"
+						fprintf(stderr,
+							"Failed to setup RX queue:"
 							"No mempool allocation"
 							" on the socket %d\n",
 							rxring_numa[pi]);
@@ -2581,7 +2576,8 @@ start_port(portid_t pid)
 						mbuf_pool_find
 							(port->socket_id, 0);
 					if (mp == NULL) {
-						printf("Failed to setup RX queue:"
+						fprintf(stderr,
+							"Failed to setup RX queue:"
 							"No mempool allocation"
 							" on the socket %d\n",
 							port->socket_id);
@@ -2602,8 +2598,10 @@ start_port(portid_t pid)
 							RTE_PORT_STOPPED) == 0)
 					printf("Port %d can not be set back "
 							"to stopped\n", pi);
-				printf("Fail to configure port %d rx queues\n",
-				       pi);
+				fprintf(stderr,
+					"Fail to configure port %d rx queues\n",
+				 
+					pi);
 				/* try to reconfigure queues next time */
 				port->need_reconfig_queues = 1;
 				return -1;
@@ -2617,9 +2615,9 @@ start_port(portid_t pid)
 			diag = rte_eth_dev_set_ptypes(pi, RTE_PTYPE_UNKNOWN,
 					NULL, 0);
 			if (diag < 0)
-				printf(
-				"Port %d: Failed to disable Ptype parsing\n",
-				pi);
+				fprintf(stderr,
+					"Port %d: Failed to disable Ptype parsing\n",
+					pi);
 		}
 
 		p_pi = pi;
@@ -2628,8 +2626,8 @@ start_port(portid_t pid)
 		/* start port */
 		diag = rte_eth_dev_start(pi);
 		if (diag < 0) {
-			printf("Fail to start port %d: %s\n", pi,
-			       rte_strerror(-diag));
+			fprintf(stderr, "Fail to start port %d: %s\n",
+				pi, rte_strerror(-diag));
 
 			/* Fail to setup rx queue, return */
 			if (rte_atomic16_cmpset(&(port->port_status),
@@ -2677,10 +2675,10 @@ start_port(portid_t pid)
 					continue;
 				diag = rte_eth_hairpin_bind(pi, peer_pl[j]);
 				if (diag < 0) {
-					printf("Error during binding hairpin"
-					       " Tx port %u to %u: %s\n",
-					       pi, peer_pl[j],
-					       rte_strerror(-diag));
+					fprintf(stderr,
+						"Error during binding hairpin Tx port %u to %u: %s\n",
+						pi, peer_pl[j],
+						rte_strerror(-diag));
 					return -1;
 				}
 			}
@@ -2694,10 +2692,10 @@ start_port(portid_t pid)
 					continue;
 				diag = rte_eth_hairpin_bind(peer_pl[j], pi);
 				if (diag < 0) {
-					printf("Error during binding hairpin"
-					       " Tx port %u to %u: %s\n",
-					       peer_pl[j], pi,
-					       rte_strerror(-diag));
+					fprintf(stderr,
+						"Error during binding hairpin Tx port %u to %u: %s\n",
+						peer_pl[j], pi,
+						rte_strerror(-diag));
 					return -1;
 				}
 			}
@@ -2882,7 +2880,8 @@ reset_port(portid_t pid)
 			port->need_reconfig = 1;
 			port->need_reconfig_queues = 1;
 		} else {
-			printf("Failed to reset port %d. diag=%d\n", pi, diag);
+			fprintf(stderr, "Failed to reset port %d. diag=%d\n",
+				pi, diag);
 		}
 	}
 
@@ -3136,7 +3135,8 @@ check_all_ports_link_status(uint32_t port_mask)
 			if (ret < 0) {
 				all_ports_up = 0;
 				if (print_flag == 1)
-					printf("Port %u link get failed: %s\n",
+					fprintf(stderr,
+						"Port %u link get failed: %s\n",
 						portid, rte_strerror(-ret));
 				continue;
 			}
@@ -3434,7 +3434,7 @@ update_jumbo_frame_offload(portid_t portid)
 		ret = rte_eth_dev_set_mtu(portid,
 				port->dev_conf.rxmode.max_rx_pkt_len - eth_overhead);
 		if (ret)
-			printf("Failed to set MTU to %u for port %u\n",
+			fprintf(stderr, "Failed to set MTU to %u for port %u\n",
 				port->dev_conf.rxmode.max_rx_pkt_len - eth_overhead,
 				portid);
 	}
