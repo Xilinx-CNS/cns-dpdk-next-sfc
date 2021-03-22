@@ -61,6 +61,11 @@ New Features
 
   * Added COUNT action support for SN1000 NICs
 
+* **Updated testpmd to use log API for errors logging.**
+
+  As the result error messages are sent to stderr by default instead
+  of stdout.
+
 
 Removed Items
 -------------

@@ -1090,10 +1090,8 @@ check_socket_id(const unsigned int socket_id)
 
 	if (new_socket_id(socket_id)) {
 		if (!warning_once && numa_support)
-			printf("Warning: NUMA should be configured manually by"
-			       " using --port-numa-config and"
-			       " --ring-numa-config parameters along with"
-			       " --numa.\n");
+			fprintf(stderr,
+				"Warning: NUMA should be configured manually by using --port-numa-config and --ring-numa-config parameters along with --numa.\n");
 		warning_once = 1;
 		return -1;
 	}
@@ -1140,11 +1138,9 @@ check_nb_rxq(queueid_t rxq)
 
 	allowed_max_rxq = get_allowed_max_nb_rxq(&pid);
 	if (rxq > allowed_max_rxq) {
-		printf("Fail: input rxq (%u) can't be greater "
-		       "than max_rx_queues (%u) of port %u\n",
-		       rxq,
-		       allowed_max_rxq,
-		       pid);
+		fprintf(stderr,
+			"Fail: input rxq (%u) can't be greater than max_rx_queues (%u) of port %u\n",
+			rxq, allowed_max_rxq, pid);
 		return -1;
 	}
 	return 0;
@@ -1190,11 +1186,9 @@ check_nb_txq(queueid_t txq)
 
 	allowed_max_txq = get_allowed_max_nb_txq(&pid);
 	if (txq > allowed_max_txq) {
-		printf("Fail: input txq (%u) can't be greater "
-		       "than max_tx_queues (%u) of port %u\n",
-		       txq,
-		       allowed_max_txq,
-		       pid);
+		fprintf(stderr,
+			"Fail: input txq (%u) can't be greater than max_tx_queues (%u) of port %u\n",
+			txq, allowed_max_txq, pid);
 		return -1;
 	}
 	return 0;
@@ -1265,21 +1259,17 @@ check_nb_rxd(queueid_t rxd)
 
 	allowed_max_rxd = get_allowed_max_nb_rxd(&pid);
 	if (rxd > allowed_max_rxd) {
-		printf("Fail: input rxd (%u) can't be greater "
-		       "than max_rxds (%u) of port %u\n",
-		       rxd,
-		       allowed_max_rxd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input rxd (%u) can't be greater than max_rxds (%u) of port %u\n",
+			rxd, allowed_max_rxd, pid);
 		return -1;
 	}
 
 	allowed_min_rxd = get_allowed_min_nb_rxd(&pid);
 	if (rxd < allowed_min_rxd) {
-		printf("Fail: input rxd (%u) can't be less "
-		       "than min_rxds (%u) of port %u\n",
-		       rxd,
-		       allowed_min_rxd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input rxd (%u) can't be less than min_rxds (%u) of port %u\n",
+			rxd, allowed_min_rxd, pid);
 		return -1;
 	}
 
@@ -1350,21 +1340,17 @@ check_nb_txd(queueid_t txd)
 
 	allowed_max_txd = get_allowed_max_nb_txd(&pid);
 	if (txd > allowed_max_txd) {
-		printf("Fail: input txd (%u) can't be greater "
-		       "than max_txds (%u) of port %u\n",
-		       txd,
-		       allowed_max_txd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input txd (%u) can't be greater than max_txds (%u) of port %u\n",
+			txd, allowed_max_txd, pid);
 		return -1;
 	}
 
 	allowed_min_txd = get_allowed_min_nb_txd(&pid);
 	if (txd < allowed_min_txd) {
-		printf("Fail: input txd (%u) can't be less "
-		       "than min_txds (%u) of port %u\n",
-		       txd,
-		       allowed_min_txd,
-		       pid);
+		fprintf(stderr,
+			"Fail: input txd (%u) can't be less than min_txds (%u) of port %u\n",
+			txd, allowed_min_txd, pid);
 		return -1;
 	}
 	return 0;
@@ -1410,9 +1396,9 @@ check_nb_hairpinq(queueid_t hairpinq)
 
 	allowed_max_hairpinq = get_allowed_max_nb_hairpinq(&pid);
 	if (hairpinq > allowed_max_hairpinq) {
-		printf("Fail: input hairpin (%u) can't be greater "
-		       "than max_hairpin_queues (%u) of port %u\n",
-		       hairpinq, allowed_max_hairpinq, pid);
+		fprintf(stderr,
+			"Fail: input hairpin (%u) can't be greater than max_hairpin_queues (%u) of port %u\n",
+			hairpinq, allowed_max_hairpinq, pid);
 		return -1;
 	}
 	return 0;
@@ -1468,7 +1454,8 @@ init_config(void)
 
 		ret = update_jumbo_frame_offload(pid);
 		if (ret != 0)
-			printf("Updating jumbo frame offload failed for port %u\n",
+			fprintf(stderr,
+				"Updating jumbo frame offload failed for port %u\n",
 				pid);
 
 		if (!(port->dev_info.tx_offload_capa &
@@ -1642,15 +1629,15 @@ init_fwd_streams(void)
 	RTE_ETH_FOREACH_DEV(pid) {
 		port = &ports[pid];
 		if (nb_rxq > port->dev_info.max_rx_queues) {
-			printf("Fail: nb_rxq(%d) is greater than "
-				"max_rx_queues(%d)\n", nb_rxq,
-				port->dev_info.max_rx_queues);
+			fprintf(stderr,
+				"Fail: nb_rxq(%d) is greater than max_rx_queues(%d)\n",
+				nb_rxq, port->dev_info.max_rx_queues);
 			return -1;
 		}
 		if (nb_txq > port->dev_info.max_tx_queues) {
-			printf("Fail: nb_txq(%d) is greater than "
-				"max_tx_queues(%d)\n", nb_txq,
-				port->dev_info.max_tx_queues);
+			fprintf(stderr,
+				"Fail: nb_txq(%d) is greater than max_tx_queues(%d)\n",
+				nb_txq, port->dev_info.max_tx_queues);
 			return -1;
 		}
 		if (numa_support) {
@@ -1677,7 +1664,8 @@ init_fwd_streams(void)
 
 	q = RTE_MAX(nb_rxq, nb_txq);
 	if (q == 0) {
-		printf("Fail: Cannot allocate fwd streams as number of queues is 0\n");
+		fprintf(stderr,
+			"Fail: Cannot allocate fwd streams as number of queues is 0\n");
 		return -1;
 	}
 	nb_fwd_streams_new = (streamid_t)(nb_ports * q);
@@ -2134,8 +2122,9 @@ launch_packet_forwarding(lcore_function_t *pkt_fwd_on_lcore)
 			diag = rte_eal_remote_launch(pkt_fwd_on_lcore,
 						     fwd_lcores[i], lc_id);
 			if (diag != 0)
-				printf("launch lcore %u failed - diag=%d\n",
-				       lc_id, diag);
+				fprintf(stderr,
+					"launch lcore %u failed - diag=%d\n",
+					lc_id, diag);
 		}
 	}
 }
@@ -2164,11 +2153,11 @@ start_packet_forwarding(int with_tx_first)
 			cur_fwd_eng->fwd_mode_name);
 
 	if (all_ports_started() == 0) {
-		printf("Not all ports were started\n");
+		fprintf(stderr, "Not all ports were started\n");
 		return;
 	}
 	if (test_done == 0) {
-		printf("Packet forwarding already started\n");
+		fprintf(stderr, "Packet forwarding already started\n");
 		return;
 	}
 	test_done = 0;
@@ -2211,7 +2200,7 @@ stop_packet_forwarding(void)
 	int i;
 
 	if (test_done) {
-		printf("Packet forwarding not started\n");
+		fprintf(stderr, "Packet forwarding not started\n");
 		return;
 	}
 	printf("Telling cores to stop...");
@@ -2237,14 +2226,14 @@ void
 dev_set_link_up(portid_t pid)
 {
 	if (rte_eth_dev_set_link_up(pid) < 0)
-		printf("\nSet link up fail.\n");
+		fprintf(stderr, "\nSet link up fail.\n");
 }
 
 void
 dev_set_link_down(portid_t pid)
 {
 	if (rte_eth_dev_set_link_down(pid) < 0)
-		printf("\nSet link down fail.\n");
+		fprintf(stderr, "\nSet link down fail.\n");
 }
 
 static int
@@ -2365,10 +2354,10 @@ setup_hairpin_queues(portid_t pi, portid_t p_pi, uint16_t cnt_pi)
 		if (rte_atomic16_cmpset(&(port->port_status),
 					RTE_PORT_HANDLING,
 					RTE_PORT_STOPPED) == 0)
-			printf("Port %d can not be set back "
-					"to stopped\n", pi);
-		printf("Fail to configure port %d hairpin "
-				"queues\n", pi);
+			fprintf(stderr,
+				"Port %d can not be set back to stopped\n", pi);
+		fprintf(stderr, "Fail to configure port %d hairpin queues\n",
+			pi);
 		/* try to reconfigure queues next time */
 		port->need_reconfig_queues = 1;
 		return -1;
@@ -2388,10 +2377,10 @@ setup_hairpin_queues(portid_t pi, portid_t p_pi, uint16_t cnt_pi)
 		if (rte_atomic16_cmpset(&(port->port_status),
 					RTE_PORT_HANDLING,
 					RTE_PORT_STOPPED) == 0)
-			printf("Port %d can not be set back "
-					"to stopped\n", pi);
-		printf("Fail to configure port %d hairpin "
-				"queues\n", pi);
+			fprintf(stderr,
+				"Port %d can not be set back to stopped\n", pi);
+		fprintf(stderr, "Fail to configure port %d hairpin queues\n",
+			pi);
 		/* try to reconfigure queues next time */
 		port->need_reconfig_queues = 1;
 		return -1;
@@ -2471,7 +2460,7 @@ start_port(portid_t pid)
 		port = &ports[pi];
 		if (rte_atomic16_cmpset(&(port->port_status), RTE_PORT_STOPPED,
 						 RTE_PORT_HANDLING) == 0) {
-			printf("Port %d is now not stopped\n", pi);
+			fprintf(stderr, "Port %d is now not stopped\n", pi);
 			continue;
 		}
 
@@ -2481,8 +2470,9 @@ start_port(portid_t pid)
 			if (flow_isolate_all) {
 				int ret = port_flow_isolate(pi, 1);
 				if (ret) {
-					printf("Failed to apply isolated"
-					       " mode on port %d\n", pi);
+					fprintf(stderr,
+						"Failed to apply isolated mode on port %d\n",
+						pi);
 					return -1;
 				}
 			}
@@ -2491,8 +2481,9 @@ start_port(portid_t pid)
 					port->socket_id);
 			if (nb_hairpinq > 0 &&
 			    rte_eth_dev_hairpin_capability_get(pi, &cap)) {
-				printf("Port %d doesn't support hairpin "
-				       "queues\n", pi);
+				fprintf(stderr,
+					"Port %d doesn't support hairpin queues\n",
+					pi);
 				return -1;
 			}
 			/* configure port */
@@ -2502,9 +2493,11 @@ start_port(portid_t pid)
 			if (diag != 0) {
 				if (rte_atomic16_cmpset(&(port->port_status),
 				RTE_PORT_HANDLING, RTE_PORT_STOPPED) == 0)
-					printf("Port %d can not be set back "
-							"to stopped\n", pi);
-				printf("Fail to configure port %d\n", pi);
+					fprintf(stderr,
+						"Port %d can not be set back to stopped\n",
+						pi);
+				fprintf(stderr, "Fail to configure port %d\n",
+					pi);
 				/* try to reconfigure port next time */
 				port->need_reconfig = 1;
 				return -1;
@@ -2533,10 +2526,12 @@ start_port(portid_t pid)
 				if (rte_atomic16_cmpset(&(port->port_status),
 							RTE_PORT_HANDLING,
 							RTE_PORT_STOPPED) == 0)
-					printf("Port %d can not be set back "
-							"to stopped\n", pi);
-				printf("Fail to configure port %d tx queues\n",
-				       pi);
+					fprintf(stderr,
+						"Port %d can not be set back to stopped\n",
+						pi);
+				fprintf(stderr,
+					"Fail to configure port %d tx queues\n",
+					pi);
 				/* try to reconfigure queues next time */
 				port->need_reconfig_queues = 1;
 				return -1;
@@ -2549,9 +2544,8 @@ start_port(portid_t pid)
 						mbuf_pool_find
 							(rxring_numa[pi], 0);
 					if (mp == NULL) {
-						printf("Failed to setup RX queue:"
-							"No mempool allocation"
-							" on the socket %d\n",
+						fprintf(stderr,
+							"Failed to setup RX queue: No mempool allocation on the socket %d\n",
 							rxring_numa[pi]);
 						return -1;
 					}
@@ -2566,9 +2560,8 @@ start_port(portid_t pid)
 						mbuf_pool_find
 							(port->socket_id, 0);
 					if (mp == NULL) {
-						printf("Failed to setup RX queue:"
-							"No mempool allocation"
-							" on the socket %d\n",
+						fprintf(stderr,
+							"Failed to setup RX queue: No mempool allocation on the socket %d\n",
 							port->socket_id);
 						return -1;
 					}
@@ -2585,10 +2578,12 @@ start_port(portid_t pid)
 				if (rte_atomic16_cmpset(&(port->port_status),
 							RTE_PORT_HANDLING,
 							RTE_PORT_STOPPED) == 0)
-					printf("Port %d can not be set back "
-							"to stopped\n", pi);
-				printf("Fail to configure port %d rx queues\n",
-				       pi);
+					fprintf(stderr,
+						"Port %d can not be set back to stopped\n",
+						pi);
+				fprintf(stderr,
+					"Fail to configure port %d rx queues\n",
+					pi);
 				/* try to reconfigure queues next time */
 				port->need_reconfig_queues = 1;
 				return -1;
@@ -2602,9 +2597,9 @@ start_port(portid_t pid)
 			diag = rte_eth_dev_set_ptypes(pi, RTE_PTYPE_UNKNOWN,
 					NULL, 0);
 			if (diag < 0)
-				printf(
-				"Port %d: Failed to disable Ptype parsing\n",
-				pi);
+				fprintf(stderr,
+					"Port %d: Failed to disable Ptype parsing\n",
+					pi);
 		}
 
 		p_pi = pi;
@@ -2613,20 +2608,22 @@ start_port(portid_t pid)
 		/* start port */
 		diag = rte_eth_dev_start(pi);
 		if (diag < 0) {
-			printf("Fail to start port %d: %s\n", pi,
-			       rte_strerror(-diag));
+			fprintf(stderr, "Fail to start port %d: %s\n",
+				pi, rte_strerror(-diag));
 
 			/* Fail to setup rx queue, return */
 			if (rte_atomic16_cmpset(&(port->port_status),
 				RTE_PORT_HANDLING, RTE_PORT_STOPPED) == 0)
-				printf("Port %d can not be set back to "
-							"stopped\n", pi);
+				fprintf(stderr,
+					"Port %d can not be set back to stopped\n",
+					pi);
 			continue;
 		}
 
 		if (rte_atomic16_cmpset(&(port->port_status),
 			RTE_PORT_HANDLING, RTE_PORT_STARTED) == 0)
-			printf("Port %d can not be set into started\n", pi);
+			fprintf(stderr, "Port %d can not be set into started\n",
+				pi);
 
 		if (eth_macaddr_get_print_err(pi, &mac_addr) == 0)
 			printf("Port %d: %02X:%02X:%02X:%02X:%02X:%02X\n", pi,
@@ -2643,7 +2640,7 @@ start_port(portid_t pid)
 	if (need_check_link_status == 1 && !no_link_check)
 		check_all_ports_link_status(RTE_PORT_ALL);
 	else if (need_check_link_status == 0)
-		printf("Please stop the ports first\n");
+		fprintf(stderr, "Please stop the ports first\n");
 
 	if (hairpin_mode & 0xf) {
 		uint16_t i;
@@ -2662,10 +2659,10 @@ start_port(portid_t pid)
 					continue;
 				diag = rte_eth_hairpin_bind(pi, peer_pl[j]);
 				if (diag < 0) {
-					printf("Error during binding hairpin"
-					       " Tx port %u to %u: %s\n",
-					       pi, peer_pl[j],
-					       rte_strerror(-diag));
+					fprintf(stderr,
+						"Error during binding hairpin Tx port %u to %u: %s\n",
+						pi, peer_pl[j],
+						rte_strerror(-diag));
 					return -1;
 				}
 			}
@@ -2679,10 +2676,10 @@ start_port(portid_t pid)
 					continue;
 				diag = rte_eth_hairpin_bind(peer_pl[j], pi);
 				if (diag < 0) {
-					printf("Error during binding hairpin"
-					       " Tx port %u to %u: %s\n",
-					       peer_pl[j], pi,
-					       rte_strerror(-diag));
+					fprintf(stderr,
+						"Error during binding hairpin Tx port %u to %u: %s\n",
+						peer_pl[j], pi,
+						rte_strerror(-diag));
 					return -1;
 				}
 			}
@@ -2714,12 +2711,16 @@ stop_port(portid_t pid)
 			continue;
 
 		if (port_is_forwarding(pi) != 0 && test_done == 0) {
-			printf("Please remove port %d from forwarding configuration.\n", pi);
+			fprintf(stderr,
+				"Please remove port %d from forwarding configuration.\n",
+				pi);
 			continue;
 		}
 
 		if (port_is_bonding_slave(pi)) {
-			printf("Please remove port %d from bonded device.\n", pi);
+			fprintf(stderr,
+				"Please remove port %d from bonded device.\n",
+				pi);
 			continue;
 		}
 
@@ -2753,7 +2754,8 @@ stop_port(portid_t pid)
 
 		if (rte_atomic16_cmpset(&(port->port_status),
 			RTE_PORT_HANDLING, RTE_PORT_STOPPED) == 0)
-			printf("Port %d can not be set into stopped\n", pi);
+			fprintf(stderr, "Port %d can not be set into stopped\n",
+				pi);
 		need_check_link_status = 1;
 	}
 	if (need_check_link_status && !no_link_check)
@@ -2800,19 +2802,23 @@ close_port(portid_t pid)
 			continue;
 
 		if (port_is_forwarding(pi) != 0 && test_done == 0) {
-			printf("Please remove port %d from forwarding configuration.\n", pi);
+			fprintf(stderr,
+				"Please remove port %d from forwarding configuration.\n",
+				pi);
 			continue;
 		}
 
 		if (port_is_bonding_slave(pi)) {
-			printf("Please remove port %d from bonded device.\n", pi);
+			fprintf(stderr,
+				"Please remove port %d from bonded device.\n",
+				pi);
 			continue;
 		}
 
 		port = &ports[pi];
 		if (rte_atomic16_cmpset(&(port->port_status),
 			RTE_PORT_CLOSED, RTE_PORT_CLOSED) == 1) {
-			printf("Port %d is already closed\n", pi);
+			fprintf(stderr, "Port %d is already closed\n", pi);
 			continue;
 		}
 
@@ -2836,7 +2842,8 @@ reset_port(portid_t pid)
 
 	if ((pid == (portid_t)RTE_PORT_ALL && !all_ports_stopped()) ||
 		(pid != (portid_t)RTE_PORT_ALL && !port_is_stopped(pid))) {
-		printf("Can not reset port(s), please stop port(s) first.\n");
+		fprintf(stderr,
+			"Can not reset port(s), please stop port(s) first.\n");
 		return;
 	}
 
@@ -2847,14 +2854,16 @@ reset_port(portid_t pid)
 			continue;
 
 		if (port_is_forwarding(pi) != 0 && test_done == 0) {
-			printf("Please remove port %d from forwarding "
-			       "configuration.\n", pi);
+			fprintf(stderr,
+				"Please remove port %d from forwarding configuration.\n",
+				pi);
 			continue;
 		}
 
 		if (port_is_bonding_slave(pi)) {
-			printf("Please remove port %d from bonded device.\n",
-			       pi);
+			fprintf(stderr,
+				"Please remove port %d from bonded device.\n",
+				pi);
 			continue;
 		}
 
@@ -2864,7 +2873,8 @@ reset_port(portid_t pid)
 			port->need_reconfig = 1;
 			port->need_reconfig_queues = 1;
 		} else {
-			printf("Failed to reset port %d. diag=%d\n", pi, diag);
+			fprintf(stderr, "Failed to reset port %d. diag=%d\n",
+				pi, diag);
 		}
 	}
 
@@ -2880,7 +2890,7 @@ attach_port(char *identifier)
 	printf("Attaching a new port...\n");
 
 	if (identifier == NULL) {
-		printf("Invalid parameters are specified\n");
+		fprintf(stderr, "Invalid parameters are specified\n");
 		return;
 	}
 
@@ -2921,7 +2931,8 @@ setup_attached_port(portid_t pi)
 	reconfig(pi, socket_id);
 	ret = rte_eth_promiscuous_enable(pi);
 	if (ret != 0)
-		printf("Error during enabling promiscuous mode for port %u: %s - ignore\n",
+		fprintf(stderr,
+			"Error during enabling promiscuous mode for port %u: %s - ignore\n",
 			pi, rte_strerror(-ret));
 
 	ports_ids[nb_ports++] = pi;
@@ -2940,7 +2951,7 @@ detach_device(struct rte_device *dev)
 	portid_t sibling;
 
 	if (dev == NULL) {
-		printf("Device already removed\n");
+		fprintf(stderr, "Device already removed\n");
 		return;
 	}
 
@@ -2949,7 +2960,8 @@ detach_device(struct rte_device *dev)
 	RTE_ETH_FOREACH_DEV_OF(sibling, dev) {
 		if (ports[sibling].port_status != RTE_PORT_CLOSED) {
 			if (ports[sibling].port_status != RTE_PORT_STOPPED) {
-				printf("Port %u not stopped\n", sibling);
+				fprintf(stderr, "Port %u not stopped\n",
+					sibling);
 				return;
 			}
 			port_flow_flush(sibling);
@@ -2976,10 +2988,10 @@ detach_port_device(portid_t port_id)
 
 	if (ports[port_id].port_status != RTE_PORT_CLOSED) {
 		if (ports[port_id].port_status != RTE_PORT_STOPPED) {
-			printf("Port not stopped\n");
+			fprintf(stderr, "Port not stopped\n");
 			return;
 		}
-		printf("Port was not closed\n");
+		fprintf(stderr, "Port was not closed\n");
 	}
 
 	detach_device(rte_eth_devices[port_id].device);
@@ -2996,14 +3008,15 @@ detach_devargs(char *identifier)
 
 	memset(&da, 0, sizeof(da));
 	if (rte_devargs_parsef(&da, "%s", identifier)) {
-		printf("cannot parse identifier\n");
+		fprintf(stderr, "cannot parse identifier\n");
 		return;
 	}
 
 	RTE_ETH_FOREACH_MATCHING_DEV(port_id, identifier, &iterator) {
 		if (ports[port_id].port_status != RTE_PORT_CLOSED) {
 			if (ports[port_id].port_status != RTE_PORT_STOPPED) {
-				printf("Port %u not stopped\n", port_id);
+				fprintf(stderr, "Port %u not stopped\n",
+					port_id);
 				rte_eth_iterator_cleanup(&iterator);
 				rte_devargs_reset(&da);
 				return;
@@ -3119,7 +3132,8 @@ check_all_ports_link_status(uint32_t port_mask)
 			if (ret < 0) {
 				all_ports_up = 0;
 				if (print_flag == 1)
-					printf("Port %u link get failed: %s\n",
+					fprintf(stderr,
+						"Port %u link get failed: %s\n",
 						portid, rte_strerror(-ret));
 				continue;
 			}
@@ -3191,7 +3205,8 @@ eth_event_callback(portid_t port_id, enum rte_eth_event_type type, void *param,
 	RTE_SET_USED(ret_param);
 
 	if (type >= RTE_ETH_EVENT_MAX) {
-		fprintf(stderr, "\nPort %" PRIu16 ": %s called upon invalid event %d\n",
+		fprintf(stderr,
+			"\nPort %" PRIu16 ": %s called upon invalid event %d\n",
 			port_id, __func__, type);
 		fflush(stderr);
 	} else if (event_print_mask & (UINT32_C(1) << type)) {
@@ -3210,7 +3225,8 @@ eth_event_callback(portid_t port_id, enum rte_eth_event_type type, void *param,
 			break;
 		if (rte_eal_alarm_set(100000,
 				rmv_port_callback, (void *)(intptr_t)port_id))
-			fprintf(stderr, "Could not set up deferred device removal\n");
+			fprintf(stderr,
+				"Could not set up deferred device removal\n");
 		break;
 	case RTE_ETH_EVENT_DESTROY:
 		ports[port_id].port_status = RTE_PORT_CLOSED;
@@ -3387,7 +3403,8 @@ update_jumbo_frame_offload(portid_t portid)
 		on = false;
 	} else {
 		if ((port->dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME) == 0) {
-			printf("Frame size (%u) is not supported by port %u\n",
+			fprintf(stderr,
+				"Frame size (%u) is not supported by port %u\n",
 				port->dev_conf.rxmode.max_rx_pkt_len,
 				portid);
 			return -1;
@@ -3417,7 +3434,8 @@ update_jumbo_frame_offload(portid_t portid)
 		ret = rte_eth_dev_set_mtu(portid,
 				port->dev_conf.rxmode.max_rx_pkt_len - eth_overhead);
 		if (ret)
-			printf("Failed to set MTU to %u for port %u\n",
+			fprintf(stderr,
+				"Failed to set MTU to %u for port %u\n",
 				port->dev_conf.rxmode.max_rx_pkt_len - eth_overhead,
 				portid);
 	}
@@ -3631,8 +3649,9 @@ init_port_dcb_config(portid_t pid,
 	 */
 	if (dcb_mode == DCB_VT_ENABLED &&
 	    rte_port->dev_info.vmdq_pool_base > 0) {
-		printf("VMDQ_DCB multi-queue mode is nonsensical"
-			" for port %d.", pid);
+		fprintf(stderr,
+			"VMDQ_DCB multi-queue mode is nonsensical for port %d.\n",
+			pid);
 		return -1;
 	}
 
@@ -3787,8 +3806,8 @@ fill_display_xstats_info_for_port(portid_t pi)
 						   ids + stat);
 		if (rc != 0) {
 			ids[stat] = XSTAT_ID_INVALID;
-			printf("No xstat '%s' on port %u - skip it\n",
-			       xstat_name, pi);
+			fprintf(stderr, "No xstat '%s' on port %u - skip it\n",
+				xstat_name, pi);
 			continue;
 		}
 		ids_supp[stat_supp++] = ids[stat];
@@ -3834,8 +3853,8 @@ static void
 signal_handler(int signum)
 {
 	if (signum == SIGINT || signum == SIGTERM) {
-		printf("\nSignal %d received, preparing to exit...\n",
-				signum);
+		fprintf(stderr, "\nSignal %d received, preparing to exit...\n",
+			signum);
 #ifdef RTE_LIB_PDUMP
 		/* uninitialize packet capture framework */
 		rte_pdump_uninit();
@@ -3934,18 +3953,19 @@ main(int argc, char** argv)
 				"interactive mode.\n");
 
 	if (tx_first && lsc_interrupt) {
-		printf("Warning: lsc_interrupt needs to be off when "
-				" using tx_first. Disabling.\n");
+		fprintf(stderr,
+			"Warning: lsc_interrupt needs to be off when using tx_first. Disabling.\n");
 		lsc_interrupt = 0;
 	}
 
 	if (!nb_rxq && !nb_txq)
-		printf("Warning: Either rx or tx queues should be non-zero\n");
+		fprintf(stderr,
+			"Warning: Either rx or tx queues should be non-zero\n");
 
 	if (nb_rxq > 1 && nb_rxq > nb_txq)
-		printf("Warning: nb_rxq=%d enables RSS configuration, "
-		       "but nb_txq=%d will prevent to fully test it.\n",
-		       nb_rxq, nb_txq);
+		fprintf(stderr,
+			"Warning: nb_rxq=%d enables RSS configuration, but nb_txq=%d will prevent to fully test it.\n",
+			nb_rxq, nb_txq);
 
 	init_config();
 
@@ -3980,7 +4000,8 @@ main(int argc, char** argv)
 	RTE_ETH_FOREACH_DEV(port_id) {
 		ret = rte_eth_promiscuous_enable(port_id);
 		if (ret != 0)
-			printf("Error during enabling promiscuous mode for port %u: %s - ignore\n",
+			fprintf(stderr,
+				"Error during enabling promiscuous mode for port %u: %s - ignore\n",
 				port_id, rte_strerror(-ret));
 	}
 
@@ -3991,9 +4012,10 @@ main(int argc, char** argv)
 	if (latencystats_enabled != 0) {
 		int ret = rte_latencystats_init(1, NULL);
 		if (ret)
-			printf("Warning: latencystats init()"
-				" returned error %d\n",	ret);
-		printf("Latencystats running on lcore %d\n",
+			fprintf(stderr,
+				"Warning: latencystats init() returned error %d\n",
+				ret);
+		fprintf(stderr, "Latencystats running on lcore %d\n",
 			latencystats_lcore_id);
 	}
 #endif

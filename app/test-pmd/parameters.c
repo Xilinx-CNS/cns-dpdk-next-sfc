@@ -232,7 +232,8 @@ init_peer_eth_addrs(char *config_filename)
 			break;
 
 		if (rte_ether_unformat_addr(buf, &peer_eth_addrs[i]) < 0) {
-			printf("Bad MAC address format on line %d\n", i+1);
+			fprintf(stderr, "Bad MAC address format on line %d\n",
+				i + 1);
 			fclose(config_file);
 			return -1;
 		}
@@ -286,10 +287,10 @@ print_invalid_socket_id_error(void)
 {
 	unsigned int i = 0;
 
-	printf("Invalid socket id, options are: ");
+	fprintf(stderr, "Invalid socket id, options are: ");
 	for (i = 0; i < num_sockets; i++) {
-		printf("%u%s", socket_ids[i],
-		      (i == num_sockets - 1) ? "\n" : ",");
+		fprintf(stderr, "%u%s", socket_ids[i],
+			(i == num_sockets - 1) ? "\n" : ",");
 	}
 }
 
@@ -405,7 +406,8 @@ parse_ringnuma_config(const char *q_arg)
 		}
 		ring_flag = (uint8_t)int_fld[FLD_FLAG];
 		if ((ring_flag < RX_RING_ONLY) || (ring_flag > RXTX_RING)) {
-			printf("Invalid ring-flag=%d config for port =%d\n",
+			fprintf(stderr,
+				"Invalid ring-flag=%d config for port =%d\n",
 				ring_flag,port_id);
 			return -1;
 		}
@@ -422,7 +424,8 @@ parse_ringnuma_config(const char *q_arg)
 			txring_numa[port_id] = socket_id;
 			break;
 		default:
-			printf("Invalid ring-flag=%d config for port=%d\n",
+			fprintf(stderr,
+				"Invalid ring-flag=%d config for port=%d\n",
 				ring_flag,port_id);
 			break;
 		}
@@ -501,7 +504,7 @@ parse_link_speed(int n)
 	case 100:
 	case 10:
 	default:
-		printf("Unsupported fixed speed\n");
+		fprintf(stderr, "Unsupported fixed speed\n");
 		return 0;
 	}
 
@@ -1416,7 +1419,7 @@ launch_args_parse(int argc, char** argv)
 			break;
 		default:
 			usage(argv[0]);
-			printf("Invalid option: %s\n", argv[optind]);
+			fprintf(stderr, "Invalid option: %s\n", argv[optind]);
 			rte_exit(EXIT_FAILURE,
 				 "Command line is incomplete or incorrect\n");
 			break;
@@ -1425,7 +1428,7 @@ launch_args_parse(int argc, char** argv)
 
 	if (optind != argc) {
 		usage(argv[0]);
-		printf("Invalid parameter: %s\n", argv[optind]);
+		fprintf(stderr, "Invalid parameter: %s\n", argv[optind]);
 		rte_exit(EXIT_FAILURE, "Command line is incorrect\n");
 	}
 

@@ -8352,7 +8352,7 @@ cmd_set_raw_parsed_sample(const struct buffer *in)
 			action->conf = &sample_nvgre_encap[idx];
 			break;
 		default:
-			printf("Error - Not supported action\n");
+			fprintf(stderr, "Error - Not supported action\n");
 			return;
 		}
 		rte_memcpy(data, action, sizeof(struct rte_flow_action));
@@ -8477,13 +8477,15 @@ cmd_set_raw_parsed(const struct buffer *in)
 				break;
 			}
 			if (gtp_psc != i + 1) {
-				printf("Error - GTP PSC does not follow GTP\n");
+				fprintf(stderr,
+					"Error - GTP PSC does not follow GTP\n");
 				goto error;
 			}
 			gtp = item->spec;
 			if ((gtp->v_pt_rsv_flags & 0x07) != 0x04) {
 				/* Only E flag should be set. */
-				printf("Error - GTP unsupported flags\n");
+				fprintf(stderr,
+					"Error - GTP unsupported flags\n");
 				goto error;
 			} else {
 				struct rte_gtp_hdr_ext_word ext_word = {
@@ -8499,7 +8501,8 @@ cmd_set_raw_parsed(const struct buffer *in)
 			break;
 		case RTE_FLOW_ITEM_TYPE_GTP_PSC:
 			if (gtp_psc >= 0) {
-				printf("Error - Multiple GTP PSC items\n");
+				fprintf(stderr,
+					"Error - Multiple GTP PSC items\n");
 				goto error;
 			} else {
 				const struct rte_flow_item_gtp_psc
@@ -8513,8 +8516,8 @@ cmd_set_raw_parsed(const struct buffer *in)
 
 				if (opt->pdu_type & 0x0F) {
 					/* Support the minimal option only. */
-					printf("Error - GTP PSC option with "
-					       "extra fields not supported\n");
+					fprintf(stderr,
+						"Error - GTP PSC option with extra fields not supported\n");
 					goto error;
 				}
 				psc.len = sizeof(psc);
@@ -8532,7 +8535,7 @@ cmd_set_raw_parsed(const struct buffer *in)
 			size = sizeof(struct rte_flow_item_pfcp);
 			break;
 		default:
-			printf("Error - Not supported item\n");
+			fprintf(stderr, "Error - Not supported item\n");
 			goto error;
 		}
 		*total_size += size;
@@ -8660,7 +8663,8 @@ cmd_show_set_raw_parsed(void *parsed_result, struct cmdline *cl, void *data)
 		all = 1;
 		index = 0;
 	} else if (index >= RAW_ENCAP_CONFS_MAX_NUM) {
-		printf("index should be 0-%u\n", RAW_ENCAP_CONFS_MAX_NUM - 1);
+		fprintf(stderr, "index should be 0-%u\n",
+			RAW_ENCAP_CONFS_MAX_NUM - 1);
 		return;
 	}
 	do {
