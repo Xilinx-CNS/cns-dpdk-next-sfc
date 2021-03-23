@@ -3,6 +3,8 @@
  * Copyright(c) 2020 Red Hat, Inc.
  */
 
+#include <unistd.h>
+
 #include "virtio.h"
 
 uint64_t
@@ -39,8 +41,9 @@ void
 virtio_reset(struct virtio_hw *hw)
 {
 	VIRTIO_OPS(hw)->set_status(hw, VIRTIO_CONFIG_STATUS_RESET);
-	/* flush status write */
-	VIRTIO_OPS(hw)->get_status(hw);
+	/* Wait for reset completion before reinitializing the device */
+	while (VIRTIO_OPS(hw)->get_status(hw) != VIRTIO_CONFIG_STATUS_RESET)
+		usleep(100);
 }
 
 void
