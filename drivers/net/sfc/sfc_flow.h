@@ -63,6 +63,19 @@ struct sfc_flow_spec_filter {
 	struct sfc_flow_rss rss_conf;
 };
 
+struct sfc_flow_jump {
+	/* Group number; if 0, the struct is not valid (not a JUMP FLOW). */
+	uint32_t			group;
+
+	boolean_t			mark_valid;
+	uint32_t			mark_id;
+
+	boolean_t			count_valid;
+	uint32_t			count_id;
+	uint64_t			count_reset_hits;
+	uint64_t			count_reset_bytes;
+};
+
 /* MAE-specific flow specification */
 struct sfc_flow_spec_mae {
 	/* Desired priority level */
@@ -75,6 +88,15 @@ struct sfc_flow_spec_mae {
 	struct sfc_mae_action_set	*action_set;
 	/* Firmware-allocated rule ID */
 	efx_mae_rule_id_t		rule_id;
+
+	/* Used by a GROUP FLOW */
+	struct sfc_flow_jump		*parent_jump;
+
+	/* Used by a JUMP FLOW */
+	struct sfc_flow_jump		jump;
+
+	boolean_t			force_disabled;
+	uint32_t			group;
 };
 
 /* Flow specification */
