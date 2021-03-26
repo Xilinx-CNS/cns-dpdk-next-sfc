@@ -1840,6 +1840,32 @@ efx_mae_action_set_populate_mark(
 }
 
 	__checkReturn			efx_rc_t
+efx_mae_action_set_update_mark(
+	__in				efx_mae_actions_t *spec,
+	__in				boolean_t mark_enabled,
+	__in				uint32_t mark_value)
+{
+	uint32_t action_mask = (1U << EFX_MAE_ACTION_MARK);
+	const uint8_t *arg = (const uint8_t *)&mark_value;
+	efx_rc_t rc;
+
+	if (mark_enabled == B_FALSE) {
+		spec->ema_actions &= ~action_mask;
+		return 0;
+	}
+
+	rc = efx_mae_action_set_add_mark(spec, sizeof (mark_value), arg);
+	if (rc != 0)
+		goto fail1;
+
+	spec->ema_actions |= action_mask;
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_deliver(
 	__in				efx_mae_actions_t *spec,
 	__in				const efx_mport_sel_t *mportp)

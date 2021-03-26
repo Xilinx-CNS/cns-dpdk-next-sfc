@@ -3155,6 +3155,33 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_action_set_spec_init;
 
+	if (spec_mae->parent_jump != NULL) {
+		/*
+		 * The current flow is a GROUP FLOW
+		 * and it has a parent JUMP FLOW.
+		 */
+		if (spec_mae->parent_jump->mark_valid) {
+			/*
+			 * Do action MARK in the GROUP FLOW as if
+			 * it was done by the JUMP FLOW.
+			 */
+			rc = efx_mae_action_set_populate_mark(spec,
+				spec_mae->parent_jump->mark_id);
+			if (rc != 0)
+				goto fail_populate_mark_for_jump;
+		}
+	} else if (spec_mae->group != 0) {
+		/*
+		 * The current flow is a GROUP FLOW, but it does not
+		 * have a parent JUMP FLOW yet, so no valid mark ID.
+		 */
+
+		/* Placeholder action to reject user-requested action MARK. */
+		rc = efx_mae_action_set_populate_mark(spec, 0xffffffff);
+		if (rc != 0)
+			goto fail_populate_mark_for_jump;
+	}
+
 	/* Cleanup after previous encap. header bounce buffer usage. */
 	sfc_mae_bounce_eh_invalidate(&mae->bounce_eh);
 
@@ -3206,6 +3233,7 @@ fail_nb_count:
 
 fail_process_encap_header:
 fail_rule_parse_action:
+fail_populate_mark_for_jump:
 	efx_mae_action_set_spec_fini(sa->nic, spec);
 
 fail_action_set_spec_init:
@@ -3342,6 +3370,11 @@ sfc_mae_flow_insert(struct sfc_adapter *sa,
 	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
 	int rc;
 
+	if (spec_mae->jump.group != 0) {
+		/* No real HW resource(s) back the JUMP FLOW. */
+		return 0;
+	}
+
 	SFC_ASSERT(spec_mae->rule_id.id == EFX_MAE_RSRC_ID_INVALID);
 	SFC_ASSERT(action_set != NULL);
 
@@ -3398,6 +3431,11 @@ sfc_mae_flow_remove(struct sfc_adapter *sa,
 	struct sfc_mae_outer_rule *outer_rule = spec_mae->outer_rule;
 	int rc;
 
+	if (spec_mae->jump.group != 0) {
+		/* No real HW resource(s) back the JUMP FLOW. */
+		return 0;
+	}
+
 	SFC_ASSERT(spec_mae->rule_id.id != EFX_MAE_RSRC_ID_INVALID);
 	SFC_ASSERT(action_set != NULL);
 
@@ -3430,6 +3468,88 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 	unsigned int i;
 	int rc;
 
+	if (spec->jump.group != 0) {
+		struct rte_flow *flow;
+		uint64_t hits_total = 0;
+		uint64_t bytes_total = 0;
+
+		if (!spec->jump.count_valid) {
+			return rte_flow_error_set(error, EINVAL,
+			    RTE_FLOW_ERROR_TYPE_ACTION, action,
+			    "Queried flow rule does not have count actions");
+		}
+
+		if (conf->id != spec->jump.count_id) {
+			return rte_flow_error_set(error, ENOENT,
+			    RTE_FLOW_ERROR_TYPE_ACTION, action,
+			    "No such flow rule action count ID");
+		}
+
+		SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+		TAILQ_FOREACH(flow, &sa->flow_list, entries) {
+			struct sfc_flow_spec *spec_a = &flow->spec;
+			struct rte_flow_query_count data_a = {0};
+			struct sfc_flow_spec_mae *spec_mae_a;
+			struct sfc_mae_action_set *aset;
+
+			if (spec_a->type != SFC_FLOW_SPEC_MAE)
+				continue;
+
+			spec_mae_a = &spec_a->mae;
+			if (spec_mae_a->group != spec->jump.group) {
+				/*
+				 * Either not a GROUP FLOW or not
+				 * subordinate to the current one.
+				 */
+				continue;
+			}
+
+			aset = spec_mae_a->action_set;
+			if (aset->n_counters == 0)
+				continue;
+
+			/*
+			 * Report reset-unaffected counter readings even
+			 * if resets have been requested for the counter.
+			 */
+			rc = sfc_mae_counter_get(
+				&sa->mae.counter_registry.counters,
+				&aset->counters[0], &data_a, B_FALSE);
+			if (rc != 0) {
+				return rte_flow_error_set(error, EINVAL,
+				    RTE_FLOW_ERROR_TYPE_ACTION, action,
+				    "Queried counter action is invalid");
+			}
+
+			if (data_a.hits_set)
+				hits_total += data_a.hits;
+
+			if (data_a.bytes_set)
+				bytes_total += data_a.bytes;
+		}
+
+		data->hits_set = 1;
+		data->bytes_set = 1;
+		data->reserved = 0;
+
+		if (hits_total < spec->jump.count_reset_hits)
+			spec->jump.count_reset_hits = hits_total;
+
+		if (bytes_total < spec->jump.count_reset_bytes)
+			spec->jump.count_reset_bytes = bytes_total;
+
+		data->hits = hits_total - spec->jump.count_reset_hits;
+		data->bytes = bytes_total - spec->jump.count_reset_bytes;
+
+		if (data->reset != 0) {
+			spec->jump.count_reset_hits = hits_total;
+			spec->jump.count_reset_bytes = bytes_total;
+		}
+
+		return 0;
+	}
+
 	if (action_set->n_counters == 0) {
 		return rte_flow_error_set(error, EINVAL,
 			RTE_FLOW_ERROR_TYPE_ACTION, action,
@@ -3444,8 +3564,9 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 		if (conf != NULL && action_set->counters[i].rte_id != conf->id)
 			continue;
 
+		/* Report reset-masked counter readings = B_TRUE. */
 		rc = sfc_mae_counter_get(&sa->mae.counter_registry.counters,
-					 &action_set->counters[i], data);
+			&action_set->counters[i], data, B_TRUE);
 		if (rc != 0) {
 			return rte_flow_error_set(error, EINVAL,
 				RTE_FLOW_ERROR_TYPE_ACTION, action,

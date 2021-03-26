@@ -797,7 +797,8 @@ fail_counter_stream:
 int
 sfc_mae_counter_get(struct sfc_mae_counters *counters,
 		    const struct sfc_mae_counter_id *counter,
-		    struct rte_flow_query_count *data)
+		    struct rte_flow_query_count *data,
+		    boolean_t allow_subtract)
 {
 	struct sfc_mae_counter *p;
 	union sfc_pkts_bytes value;
@@ -815,8 +816,8 @@ sfc_mae_counter_get(struct sfc_mae_counters *counters,
 
 	data->hits_set = 1;
 	data->bytes_set = 1;
-	data->hits = value.pkts - p->reset.pkts;
-	data->bytes = value.bytes - p->reset.bytes;
+	data->hits = value.pkts - (allow_subtract ? p->reset.pkts : 0);
+	data->bytes = value.bytes - (allow_subtract ? p->reset.bytes : 0);
 
 	if (data->reset != 0) {
 		p->reset.pkts = value.pkts;

@@ -1212,6 +1212,29 @@ static const struct sfc_flow_item sfc_flow_items[] = {
 	},
 };
 
+static struct sfc_flow_jump *
+sfc_get_parent_jump(struct sfc_adapter *sa,
+		    uint32_t group)
+{
+	struct rte_flow *flow;
+
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	TAILQ_FOREACH(flow, &sa->flow_list, entries) {
+		struct sfc_flow_spec *spec = &flow->spec;
+
+		if (spec->type == SFC_FLOW_SPEC_MAE) {
+			struct sfc_flow_jump *jump = &spec->mae.jump;
+
+			if (group == jump->group)
+				return jump;
+		}
+	}
+
+	return NULL;
+}
+
+
 /*
  * Protocol-independent flow API support
  */
@@ -1232,7 +1255,7 @@ sfc_flow_parse_attr(struct sfc_adapter *sa,
 				   "NULL attribute");
 		return -rte_errno;
 	}
-	if (attr->group != 0) {
+	if (attr->transfer == 0 && attr->group != 0) {
 		rte_flow_error_set(error, ENOTSUP,
 				   RTE_FLOW_ERROR_TYPE_ATTR_GROUP, attr,
 				   "Groups are not supported");
@@ -1279,6 +1302,19 @@ sfc_flow_parse_attr(struct sfc_adapter *sa,
 		spec_mae->match_spec = NULL;
 		spec_mae->action_set = NULL;
 		spec_mae->rule_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+		if (attr->group != 0) {
+			spec_mae->parent_jump =
+			    sfc_get_parent_jump(sa, attr->group);
+
+			if (spec_mae->parent_jump == NULL) {
+				sfc_warn(sa, "NO parent JUMP FLOW for this group!");
+				sfc_warn(sa, "marking the current flow inactive");
+				spec_mae->force_disabled = B_TRUE;
+			}
+		}
+
+		spec_mae->group = attr->group;
 	}
 
 	return 0;
@@ -2503,6 +2539,94 @@ fail_bad_value:
 }
 
 static int
+sfc_flow_parse_detect_jump(struct sfc_adapter *sa,
+			 const struct rte_flow_action actions[],
+			 struct sfc_flow_jump *jump,
+			 struct rte_flow_error *error)
+{
+	boolean_t non_mark_non_count_non_jump_actions_present = B_FALSE;
+	const struct rte_flow_action_count *count;
+	const struct rte_flow_action_mark *mark;
+	const struct rte_flow_action_jump *ju;
+	const struct rte_flow_action *action;
+	unsigned int nb_counts = 0;
+
+	for (action = actions;
+	     action->type != RTE_FLOW_ACTION_TYPE_END; ++action) {
+		switch (action->type) {
+		case RTE_FLOW_ACTION_TYPE_COUNT:
+			count = action->conf;
+
+			++nb_counts;
+
+			jump->count_valid = B_TRUE;
+			jump->count_id = count->id;
+
+			break;
+
+		case RTE_FLOW_ACTION_TYPE_MARK:
+			mark = action->conf;
+
+			if (jump->mark_valid) {
+				return rte_flow_error_set(error, EINVAL,
+				    RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+				    "JUMP detector: multiple actions MARK!");
+			}
+
+			jump->mark_valid = B_TRUE;
+			jump->mark_id = mark->id;
+
+			break;
+
+		case RTE_FLOW_ACTION_TYPE_JUMP:
+			ju = action->conf;
+
+			if (ju->group == 0) {
+				return rte_flow_error_set(error, ENOTSUP,
+				    RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+				    "can't jump TO group 0!");
+			}
+
+			if (sfc_get_parent_jump(sa, ju->group) != NULL) {
+				return rte_flow_error_set(error, ENOTSUP,
+				    RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+				    "each jump group can have only "
+				    "one parent JUMP FLOW!");
+			}
+
+			jump->group = ju->group;
+
+			break;
+
+		case RTE_FLOW_ACTION_TYPE_VOID:
+
+			break;
+
+		default:
+			non_mark_non_count_non_jump_actions_present = B_TRUE;
+
+			break;
+		}
+	}
+
+	if (jump->group != 0) {
+		if (non_mark_non_count_non_jump_actions_present) {
+			return rte_flow_error_set(error, ENOTSUP,
+			    RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+			    "non-MARK non-COUNT in JUMP FLOW!");
+		}
+
+		if (nb_counts > 1) {
+			return rte_flow_error_set(error, ENOTSUP,
+			    RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+			    "multiple COUNTs in JUMP FLOW!");
+		}
+	}
+
+	return 0;
+}
+
+static int
 sfc_flow_parse_rte_to_mae(struct rte_eth_dev *dev,
 			  const struct rte_flow_item pattern[],
 			  const struct rte_flow_action actions[],
@@ -2513,6 +2637,28 @@ sfc_flow_parse_rte_to_mae(struct rte_eth_dev *dev,
 	struct sfc_flow_spec *spec = &flow->spec;
 	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
 	int rc;
+
+	rc = sfc_flow_parse_detect_jump(sa, actions, &spec_mae->jump, error);
+	if (rc != 0)
+		return rc;
+
+	if (spec_mae->jump.group != 0) {
+		if (spec_mae->group != 0) {
+			return rte_flow_error_set(error, ENOTSUP,
+			    RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+			    "Can't jump FROM non-zero group!");
+		}
+
+		/*
+		 * In theory, we must parse the pattern to an outer match spec
+		 * (but not in an outer rule ENTRY!) and, when a GROUP-RULE is
+		 * parsed, check that their version of outer spec does not
+		 * contradict this (JUMP's) outer match spec.
+		 *
+		 * For now, we simply trust OVS.
+		 */
+		return 0;
+	}
 
 	rc = sfc_mae_rule_parse_pattern(sa, pattern, spec_mae, error);
 	if (rc != 0)
@@ -2694,6 +2840,8 @@ sfc_flow_create(struct rte_eth_dev *dev,
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct rte_flow *flow = NULL;
+	struct sfc_flow_spec *spec;
+	boolean_t insert = B_TRUE;
 	int rc;
 
 	flow = sfc_flow_zmalloc(error);
@@ -2708,10 +2856,75 @@ sfc_flow_create(struct rte_eth_dev *dev,
 
 	TAILQ_INSERT_TAIL(&sa->flow_list, flow, entries);
 
-	if (sa->state == SFC_ETHDEV_STARTED) {
+	spec = &flow->spec;
+	if (spec->type == SFC_FLOW_SPEC_MAE) {
+		struct sfc_flow_spec_mae *spec_mae = &spec->mae;
+
+		if (spec_mae->force_disabled)
+			insert = B_FALSE;
+	}
+
+	if (insert && sa->state == SFC_ETHDEV_STARTED) {
 		rc = sfc_flow_insert(sa, flow, error);
 		if (rc != 0)
 			goto fail_flow_insert;
+	}
+
+	if (spec->type == SFC_FLOW_SPEC_MAE) {
+		struct sfc_flow_spec_mae *spec_mae = &spec->mae;
+
+		if (spec_mae->jump.group != 0) {
+			struct rte_flow *flow_a;
+
+			/*
+			 * The current flow is a JUMP FLOW. Find subordinate
+			 * GROUP FLOWs which are inactive and enable them.
+			 */
+
+			SFC_ASSERT(spec_mae->parent_jump == NULL);
+
+			TAILQ_FOREACH(flow_a, &sa->flow_list, entries) {
+				struct sfc_flow_spec *spec_a = &flow_a->spec;
+				struct sfc_flow_spec_mae *spec_mae_a;
+
+				if (spec_a->type != SFC_FLOW_SPEC_MAE)
+					continue;
+
+				spec_mae_a = &spec_a->mae;
+				if (spec_mae_a->group != spec_mae->jump.group) {
+					/*
+					 * Either not a GROUP FLOW or not
+					 * subordinate to the current one.
+					 */
+					continue;
+				}
+
+				if (!spec_mae_a->force_disabled) {
+					/* Already enabled. */
+					continue;
+				}
+
+				/*
+				 * The GROUP FLOW always has action MARK as a
+				 * placeholder. If the JUMP FLOW has action
+				 * MARK, then update the mark ID; if not,
+				 * remove the action MARK request.
+				 */
+				rc = efx_mae_action_set_update_mark(
+					spec_mae_a->action_set->spec,
+					spec_mae->jump.mark_valid,
+					spec_mae->jump.mark_id);
+				if (rc != 0)
+					goto fail_flow_insert;
+
+				rc = sfc_flow_insert(sa, flow_a, error);
+				if (rc != 0)
+					goto fail_flow_insert;
+
+				/* Mark the GROUP FLOW active. */
+				spec_mae_a->force_disabled = B_FALSE;
+			}
+		}
 	}
 
 	sfc_adapter_unlock(sa);
