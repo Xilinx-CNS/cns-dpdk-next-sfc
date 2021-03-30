@@ -141,10 +141,10 @@ override_dh_installsystemd:
 override_dh_auto_test-indep:
 
 # Note that dh_auto_test runs ninja test, not meson test, so we can't pass a --suite
-# Tests are not supported on PPC and are confirmed to work on x86 and arm64, so
-# restrict them
+# Tests are not supported on PPC depending on the builder can fail on arm64,
+# but are confirmed to work on x86, so restrict them
 override_dh_auto_test-arch:
-ifneq (,$(filter i386 amd64 arm64, $(DEB_HOST_ARCH)))
+ifneq (,$(filter i386 amd64, $(DEB_HOST_ARCH)))
 	mkdir -p $(CURDIR)/tmpdir
 	XDG_RUNTIME_DIR=$(CURDIR)/tmpdir meson test -C obj-$(DEB_HOST_GNU_TYPE) --verbose --suite fast-tests -t 3
 endif
