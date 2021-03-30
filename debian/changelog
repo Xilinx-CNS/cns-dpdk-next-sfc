@@ -1,3 +1,9 @@
+dpdk (20.11-5) unstable; urgency=medium
+
+  * Do not build-test on arm64 (HW dependent)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 30 Mar 2021 08:29:08 +0200
+
 dpdk (20.11-4) unstable; urgency=medium
 
   * d/rules: do not run tests when building documentation
