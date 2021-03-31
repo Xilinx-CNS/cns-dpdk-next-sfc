@@ -1,5 +1,6 @@
-dpdk (20.11-5) unstable; urgency=medium
+dpdk (20.11.1-1) unstable; urgency=medium
 
+  * Merge LTS stable release 20.11.1
   * Do not build-test on arm64 (HW dependent)
 
  -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 30 Mar 2021 08:29:08 +0200
