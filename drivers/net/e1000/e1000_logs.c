@@ -2,6 +2,7 @@
  * Copyright(c) 2018 Intel Corporation
  */
 
+#include <rte_ethdev.h>
 #include "e1000_logs.h"
 
 /* declared as extern in e1000_logs.h */
