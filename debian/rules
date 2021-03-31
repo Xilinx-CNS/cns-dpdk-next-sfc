@@ -40,8 +40,8 @@ endif
 ifneq (,$(filter dpdk_config_options=%,$(DEB_BUILD_OPTIONS)))
 # GNU Makefile hack: can't directly escape comma and spaces, so use variables
     comma := ,
-    space :=
-    space +=
+    empty :=
+    space := $(empty) $(empty)
     DPDK_CONFIG_OPTIONS ?= $(subst $(comma),$(space),$(patsubst dpdk_config_options=%,%,$(filter dpdk_config_options=%,$(DEB_BUILD_OPTIONS))))
 endif
 
@@ -77,6 +77,8 @@ override_dh_auto_clean:
 		doc/guides/cryptodevs/overview_cipher_table.txt \
 		doc/guides/cryptodevs/overview_feature_table.txt \
 		doc/guides/nics/overview_table.txt
+	# test directory for sockets, etc
+	rm -rf $(CURDIR)/tmpdir
 	dh_auto_clean
 
 override_dh_auto_configure:
@@ -135,7 +137,17 @@ override_dh_installinit:
 override_dh_installsystemd:
 	dh_installsystemd --no-start --no-stop-on-upgrade
 
-override_dh_auto_test:
+# Don't run tests when building documentation
+override_dh_auto_test-indep:
+
+# Note that dh_auto_test runs ninja test, not meson test, so we can't pass a --suite
+# Tests are not supported on PPC depending on the builder can fail on arm64,
+# but are confirmed to work on x86, so restrict them
+override_dh_auto_test-arch:
+ifneq (,$(filter i386 amd64, $(DEB_HOST_ARCH)))
+	mkdir -p $(CURDIR)/tmpdir
+	XDG_RUNTIME_DIR=$(CURDIR)/tmpdir meson test -C obj-$(DEB_HOST_GNU_TYPE) --verbose --suite fast-tests -t 3
+endif
 
 override_dh_python3:
 	# dh_python only looks in /usr/share/package_name but dpdk-doc installs in
