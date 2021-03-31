@@ -552,7 +552,6 @@ struct mlx5_flow_sub_actions_list {
 struct mlx5_flow_sub_actions_idx {
 	uint32_t rix_hrxq; /**< Hash Rx queue object index. */
 	uint32_t rix_tag; /**< Index to the tag action. */
-	uint32_t cnt;
 	uint32_t rix_port_id_action; /**< Index to port ID action resource. */
 	uint32_t rix_encap_decap; /**< Index to encap/decap resource. */
 };
@@ -1049,17 +1048,17 @@ struct rte_flow {
 #define MLX5_RSS_HASH_IPV4 (IBV_RX_HASH_SRC_IPV4 | IBV_RX_HASH_DST_IPV4)
 #define MLX5_RSS_HASH_IPV4_TCP \
 	(MLX5_RSS_HASH_IPV4 | \
-	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_SRC_PORT_TCP)
+	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_DST_PORT_TCP)
 #define MLX5_RSS_HASH_IPV4_UDP \
 	(MLX5_RSS_HASH_IPV4 | \
-	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_SRC_PORT_UDP)
+	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_DST_PORT_UDP)
 #define MLX5_RSS_HASH_IPV6 (IBV_RX_HASH_SRC_IPV6 | IBV_RX_HASH_DST_IPV6)
 #define MLX5_RSS_HASH_IPV6_TCP \
 	(MLX5_RSS_HASH_IPV6 | \
-	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_SRC_PORT_TCP)
+	 IBV_RX_HASH_SRC_PORT_TCP | IBV_RX_HASH_DST_PORT_TCP)
 #define MLX5_RSS_HASH_IPV6_UDP \
 	(MLX5_RSS_HASH_IPV6 | \
-	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_SRC_PORT_UDP)
+	 IBV_RX_HASH_SRC_PORT_UDP | IBV_RX_HASH_DST_PORT_UDP)
 #define MLX5_RSS_HASH_NONE 0ULL
 
 /* array of valid combinations of RX Hash fields for RSS */

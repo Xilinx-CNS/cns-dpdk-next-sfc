@@ -521,8 +521,15 @@ hns3_stats_get(struct rte_eth_dev *eth_dev, struct rte_eth_stats *rte_stats)
 		if (rxq) {
 			cnt = rxq->l2_errors + rxq->pkt_len_errors;
 			rte_stats->q_errors[i] = cnt;
+			/*
+			 * If HW statistics are reset by stats_reset, but
+			 * a lot of residual packets exist in the hardware
+			 * queue and these packets are error packets, flip
+			 * overflow may occurred. So return 0 in this case.
+			 */
 			rte_stats->q_ipackets[i] =
-				stats->rcb_rx_ring_pktnum[i] - cnt;
+				stats->rcb_rx_ring_pktnum[i] > cnt ?
+				stats->rcb_rx_ring_pktnum[i] - cnt : 0;
 			rte_stats->ierrors += cnt;
 		}
 	}
@@ -535,8 +542,9 @@ hns3_stats_get(struct rte_eth_dev *eth_dev, struct rte_eth_stats *rte_stats)
 	}
 
 	rte_stats->oerrors = 0;
-	rte_stats->ipackets  = stats->rcb_rx_ring_pktnum_rcd -
-		rte_stats->ierrors;
+	rte_stats->ipackets =
+		stats->rcb_rx_ring_pktnum_rcd > rte_stats->ierrors ?
+		stats->rcb_rx_ring_pktnum_rcd - rte_stats->ierrors : 0;
 	rte_stats->opackets  = stats->rcb_tx_ring_pktnum_rcd -
 		rte_stats->oerrors;
 	rte_stats->rx_nombuf = eth_dev->data->rx_mbuf_alloc_failed;
@@ -551,7 +559,6 @@ hns3_stats_reset(struct rte_eth_dev *eth_dev)
 	struct hns3_hw *hw = &hns->hw;
 	struct hns3_cmd_desc desc_reset;
 	struct hns3_rx_queue *rxq;
-	struct hns3_tx_queue *txq;
 	uint16_t i;
 	int ret;
 
@@ -581,29 +588,15 @@ hns3_stats_reset(struct rte_eth_dev *eth_dev)
 		}
 	}
 
-	/* Clear the Rx BD errors stats */
-	for (i = 0; i != eth_dev->data->nb_rx_queues; ++i) {
+	/*
+	 * Clear soft stats of rx error packet which will be dropped
+	 * in driver.
+	 */
+	for (i = 0; i < eth_dev->data->nb_rx_queues; ++i) {
 		rxq = eth_dev->data->rx_queues[i];
 		if (rxq) {
 			rxq->pkt_len_errors = 0;
 			rxq->l2_errors = 0;
-			rxq->l3_csum_errors = 0;
-			rxq->l4_csum_errors = 0;
-			rxq->ol3_csum_errors = 0;
-			rxq->ol4_csum_errors = 0;
-		}
-	}
-
-	/* Clear the Tx errors stats */
-	for (i = 0; i != eth_dev->data->nb_tx_queues; ++i) {
-		txq = eth_dev->data->tx_queues[i];
-		if (txq) {
-			txq->over_length_pkt_cnt = 0;
-			txq->exceed_limit_bd_pkt_cnt = 0;
-			txq->exceed_limit_bd_reassem_fail = 0;
-			txq->unsupported_tunnel_pkt_cnt = 0;
-			txq->queue_full_cnt = 0;
-			txq->pkt_padding_fail_cnt = 0;
 		}
 	}
 
@@ -739,9 +732,9 @@ hns3_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 	if (!hns->is_vf) {
 		/* Update Mac stats */
 		ret = hns3_query_update_mac_stats(dev);
-		if (ret) {
+		if (ret < 0) {
 			hns3_err(hw, "Update Mac stats fail : %d", ret);
-			return 0;
+			return ret;
 		}
 
 		/* Get MAC stats from hw->hw_xstats.mac_stats struct */
@@ -933,8 +926,12 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 	uint32_t i;
 	int ret;
 
-	if (ids == NULL || size < cnt_stats)
+	if (ids == NULL && values == NULL)
 		return cnt_stats;
+
+	if (ids == NULL)
+		if (size < cnt_stats)
+			return cnt_stats;
 
 	/* Update tqp stats by read register */
 	ret = hns3_update_tqp_stats(hw);
@@ -955,6 +952,15 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 	if (count_value != cnt_stats) {
 		rte_free(values_copy);
 		return -EINVAL;
+	}
+
+	if (ids == NULL && values != NULL) {
+		for (i = 0; i < cnt_stats; i++)
+			memcpy(&values[i], &values_copy[i].value,
+			       sizeof(values[i]));
+
+		rte_free(values_copy);
+		return cnt_stats;
 	}
 
 	for (i = 0; i < size; i++) {
@@ -1005,8 +1011,15 @@ hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 	uint64_t len;
 	uint32_t i;
 
-	if (ids == NULL || xstats_names == NULL)
+	if (xstats_names == NULL)
 		return cnt_stats;
+
+	if (ids == NULL) {
+		if (size < cnt_stats)
+			return cnt_stats;
+
+		return hns3_dev_xstats_get_names(dev, xstats_names, cnt_stats);
+	}
 
 	len = cnt_stats * sizeof(struct rte_eth_xstat_name);
 	names_copy = rte_zmalloc("hns3_xstats_names", len, 0);
@@ -1033,6 +1046,38 @@ hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 	return size;
 }
 
+static void
+hns3_tqp_dfx_stats_clear(struct rte_eth_dev *dev)
+{
+	struct hns3_rx_queue *rxq;
+	struct hns3_tx_queue *txq;
+	int i;
+
+	/* Clear Rx dfx stats */
+	for (i = 0; i < dev->data->nb_rx_queues; ++i) {
+		rxq = dev->data->rx_queues[i];
+		if (rxq) {
+			rxq->l3_csum_errors = 0;
+			rxq->l4_csum_errors = 0;
+			rxq->ol3_csum_errors = 0;
+			rxq->ol4_csum_errors = 0;
+		}
+	}
+
+	/* Clear Tx dfx stats */
+	for (i = 0; i < dev->data->nb_tx_queues; ++i) {
+		txq = dev->data->tx_queues[i];
+		if (txq) {
+			txq->over_length_pkt_cnt = 0;
+			txq->exceed_limit_bd_pkt_cnt = 0;
+			txq->exceed_limit_bd_reassem_fail = 0;
+			txq->unsupported_tunnel_pkt_cnt = 0;
+			txq->queue_full_cnt = 0;
+			txq->pkt_padding_fail_cnt = 0;
+		}
+	}
+}
+
 int
 hns3_dev_xstats_reset(struct rte_eth_dev *dev)
 {
@@ -1047,6 +1092,8 @@ hns3_dev_xstats_reset(struct rte_eth_dev *dev)
 
 	/* Clear reset stats */
 	memset(&hns->hw.reset.stats, 0, sizeof(struct hns3_reset_stats));
+
+	hns3_tqp_dfx_stats_clear(dev);
 
 	if (hns->is_vf)
 		return 0;

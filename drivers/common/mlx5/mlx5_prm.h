@@ -600,7 +600,7 @@ typedef uint8_t u8;
 
 #define __mlx5_nullp(typ) ((struct mlx5_ifc_##typ##_bits *)0)
 #define __mlx5_bit_sz(typ, fld) sizeof(__mlx5_nullp(typ)->fld)
-#define __mlx5_bit_off(typ, fld) ((unsigned int)(unsigned long) \
+#define __mlx5_bit_off(typ, fld) ((unsigned int)(uintptr_t) \
 				  (&(__mlx5_nullp(typ)->fld)))
 #define __mlx5_dw_bit_off(typ, fld) (32 - __mlx5_bit_sz(typ, fld) - \
 				    (__mlx5_bit_off(typ, fld) & 0x1f))
@@ -1364,7 +1364,10 @@ struct mlx5_ifc_cmd_hca_cap_bits {
 	u8 num_of_uars_per_page[0x20];
 	u8 flex_parser_protocols[0x20];
 	u8 reserved_at_560[0x20];
-	u8 reserved_at_580[0x3c];
+	u8 reserved_at_580[0x39];
+	u8 mini_cqe_resp_l3_l4_tag[0x1];
+	u8 mini_cqe_resp_flow_tag[0x1];
+	u8 enhanced_cqe_compression[0x1];
 	u8 mini_cqe_resp_stride_index[0x1];
 	u8 cqe_128_always[0x1];
 	u8 cqe_compression_128[0x1];

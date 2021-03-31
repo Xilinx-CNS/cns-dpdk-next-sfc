@@ -281,6 +281,7 @@ struct rte_flow {
  */
 #define I40E_ETH_OVERHEAD \
 	(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + I40E_VLAN_TAG_SIZE * 2)
+#define I40E_ETH_MAX_LEN (RTE_ETHER_MTU + I40E_ETH_OVERHEAD)
 
 #define I40E_RXTX_BYTES_H_16_BIT(bytes) ((bytes) & ~I40E_48_BIT_MASK)
 #define I40E_RXTX_BYTES_L_48_BIT(bytes) ((bytes) & I40E_48_BIT_MASK)
@@ -636,6 +637,7 @@ struct i40e_fdir_flow_ext {
 	bool is_udp; /* ipv4|ipv6 udp flow */
 	enum i40e_flxpld_layer_idx layer_idx;
 	struct i40e_fdir_flex_pit flex_pit[I40E_MAX_FLXPLD_LAYER * I40E_MAX_FLXPLD_FIED];
+	bool is_flex_flow;
 };
 
 /* A structure used to define the input for a flow director filter entry */
@@ -784,6 +786,8 @@ struct i40e_fdir_info {
 	bool flex_mask_flag[I40E_FILTER_PCTYPE_MAX];
 
 	bool inset_flag[I40E_FILTER_PCTYPE_MAX]; /* Mark if input set is set */
+
+	uint32_t flex_flow_count[I40E_MAX_FLXPLD_LAYER];
 };
 
 /* Ethertype filter number HW supports */
