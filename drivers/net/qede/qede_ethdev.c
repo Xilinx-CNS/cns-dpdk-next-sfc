@@ -1885,6 +1885,8 @@ static int qede_allmulticast_enable(struct rte_eth_dev *eth_dev)
 	    QED_FILTER_RX_MODE_TYPE_MULTI_PROMISC;
 	enum _ecore_status_t ecore_status;
 
+	if (rte_eth_promiscuous_get(eth_dev->data->port_id) == 1)
+		type = QED_FILTER_RX_MODE_TYPE_PROMISC;
 	ecore_status = qed_configure_filter_rx_mode(eth_dev, type);
 
 	return ecore_status >= ECORE_SUCCESS ? 0 : -EAGAIN;
@@ -2367,7 +2369,7 @@ static int qede_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 			fp->rxq->rx_buf_size = rc;
 		}
 	}
-	if (max_rx_pkt_len > RTE_ETHER_MAX_LEN)
+	if (frame_size > QEDE_ETH_MAX_LEN)
 		dev->data->dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
 		dev->data->dev_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_JUMBO_FRAME;

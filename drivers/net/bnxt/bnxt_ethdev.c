@@ -207,12 +207,15 @@ int is_bnxt_in_error(struct bnxt *bp)
 
 static uint16_t bnxt_rss_ctxts(const struct bnxt *bp)
 {
+	unsigned int num_rss_rings = RTE_MIN(bp->rx_nr_rings,
+					     BNXT_RSS_TBL_SIZE_THOR);
+
 	if (!BNXT_CHIP_THOR(bp))
 		return 1;
 
-	return RTE_ALIGN_MUL_CEIL(bp->rx_nr_rings,
+	return RTE_ALIGN_MUL_CEIL(num_rss_rings,
 				  BNXT_RSS_ENTRIES_PER_CTX_THOR) /
-				    BNXT_RSS_ENTRIES_PER_CTX_THOR;
+				  BNXT_RSS_ENTRIES_PER_CTX_THOR;
 }
 
 uint16_t bnxt_rss_hash_tbl_size(const struct bnxt *bp)
@@ -423,6 +426,14 @@ static int bnxt_setup_one_vnic(struct bnxt *bp, uint16_t vnic_id)
 	/* Alloc RSS context only if RSS mode is enabled */
 	if (dev_conf->rxmode.mq_mode & ETH_MQ_RX_RSS) {
 		int j, nr_ctxs = bnxt_rss_ctxts(bp);
+
+		if (bp->rx_nr_rings > BNXT_RSS_TBL_SIZE_THOR) {
+			PMD_DRV_LOG(ERR, "RxQ cnt %d > reta_size %d\n",
+				    bp->rx_nr_rings, BNXT_RSS_TBL_SIZE_THOR);
+			PMD_DRV_LOG(ERR,
+				    "Only queues 0-%d will be in RSS table\n",
+				    BNXT_RSS_TBL_SIZE_THOR - 1);
+		}
 
 		rc = 0;
 		for (j = 0; j < nr_ctxs; j++) {
@@ -678,7 +689,7 @@ static int bnxt_update_phy_setting(struct bnxt *bp)
 	return rc;
 }
 
-static int bnxt_init_chip(struct bnxt *bp)
+static int bnxt_start_nic(struct bnxt *bp)
 {
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(bp->eth_dev);
 	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
@@ -909,7 +920,7 @@ static int bnxt_dev_info_get_op(struct rte_eth_dev *eth_dev,
 	if (BNXT_PF(bp))
 		dev_info->max_vfs = pdev->max_vfs;
 
-	max_rx_rings = BNXT_MAX_RINGS(bp);
+	max_rx_rings = bnxt_max_rings(bp);
 	/* For the sake of symmetry, max_rx_queues = max_tx_queues */
 	dev_info->max_rx_queues = max_rx_rings;
 	dev_info->max_tx_queues = max_rx_rings;
@@ -1060,13 +1071,6 @@ static int bnxt_dev_configure_op(struct rte_eth_dev *eth_dev)
 		}
 
 		pthread_mutex_unlock(&bp->def_cp_lock);
-	} else {
-		/* legacy driver needs to get updated values */
-		rc = bnxt_hwrm_func_qcaps(bp);
-		if (rc) {
-			PMD_DRV_LOG(ERR, "hwrm func qcaps fail:%d\n", rc);
-			return rc;
-		}
 	}
 
 	/* Inherit new configurations */
@@ -1143,6 +1147,9 @@ static int bnxt_scattered_rx(struct rte_eth_dev *eth_dev)
 	if (eth_dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_SCATTER)
 		return 1;
 
+	if (eth_dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_TCP_LRO)
+		return 1;
+
 	for (i = 0; i < eth_dev->data->nb_rx_queues; i++) {
 		struct bnxt_rx_queue *rxq = eth_dev->data->rx_queues[i];
 
@@ -1175,6 +1182,7 @@ bnxt_receive_function(struct rte_eth_dev *eth_dev)
 		DEV_RX_OFFLOAD_UDP_CKSUM |
 		DEV_RX_OFFLOAD_TCP_CKSUM |
 		DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM |
+		DEV_RX_OFFLOAD_OUTER_UDP_CKSUM |
 		DEV_RX_OFFLOAD_RSS_HASH |
 		DEV_RX_OFFLOAD_VLAN_FILTER)) &&
 	    !BNXT_TRUFLOW_EN(bp) && BNXT_NUM_ASYNC_CPR(bp) &&
@@ -1245,81 +1253,6 @@ static int bnxt_handle_if_change_status(struct bnxt *bp)
 
 	bp->flags &= ~BNXT_FLAG_IF_CHANGE_HOT_FW_RESET_DONE;
 
-	return rc;
-}
-
-static int bnxt_dev_start_op(struct rte_eth_dev *eth_dev)
-{
-	struct bnxt *bp = eth_dev->data->dev_private;
-	uint64_t rx_offloads = eth_dev->data->dev_conf.rxmode.offloads;
-	int vlan_mask = 0;
-	int rc, retry_cnt = BNXT_IF_CHANGE_RETRY_COUNT;
-
-	if (!eth_dev->data->nb_tx_queues || !eth_dev->data->nb_rx_queues) {
-		PMD_DRV_LOG(ERR, "Queues are not configured yet!\n");
-		return -EINVAL;
-	}
-
-	if (bp->rx_cp_nr_rings > RTE_ETHDEV_QUEUE_STAT_CNTRS) {
-		PMD_DRV_LOG(ERR,
-			"RxQ cnt %d > RTE_ETHDEV_QUEUE_STAT_CNTRS %d\n",
-			bp->rx_cp_nr_rings, RTE_ETHDEV_QUEUE_STAT_CNTRS);
-	}
-
-	do {
-		rc = bnxt_hwrm_if_change(bp, true);
-		if (rc == 0 || rc != -EAGAIN)
-			break;
-
-		rte_delay_ms(BNXT_IF_CHANGE_RETRY_INTERVAL);
-	} while (retry_cnt--);
-
-	if (rc)
-		return rc;
-
-	if (bp->flags & BNXT_FLAG_IF_CHANGE_HOT_FW_RESET_DONE) {
-		rc = bnxt_handle_if_change_status(bp);
-		if (rc)
-			return rc;
-	}
-
-	bnxt_enable_int(bp);
-
-	rc = bnxt_init_chip(bp);
-	if (rc)
-		goto error;
-
-	eth_dev->data->scattered_rx = bnxt_scattered_rx(eth_dev);
-	eth_dev->data->dev_started = 1;
-
-	bnxt_link_update_op(eth_dev, 1);
-
-	if (rx_offloads & DEV_RX_OFFLOAD_VLAN_FILTER)
-		vlan_mask |= ETH_VLAN_FILTER_MASK;
-	if (rx_offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
-		vlan_mask |= ETH_VLAN_STRIP_MASK;
-	rc = bnxt_vlan_offload_set_op(eth_dev, vlan_mask);
-	if (rc)
-		goto error;
-
-	/* Initialize bnxt ULP port details */
-	rc = bnxt_ulp_port_init(bp);
-	if (rc)
-		goto error;
-
-	eth_dev->rx_pkt_burst = bnxt_receive_function(eth_dev);
-	eth_dev->tx_pkt_burst = bnxt_transmit_function(eth_dev);
-
-	bnxt_schedule_fw_health_check(bp);
-
-	return 0;
-
-error:
-	bnxt_shutdown_nic(bp);
-	bnxt_free_tx_mbufs(bp);
-	bnxt_free_rx_mbufs(bp);
-	bnxt_hwrm_if_change(bp, false);
-	eth_dev->data->dev_started = 0;
 	return rc;
 }
 
@@ -1429,6 +1362,110 @@ static int bnxt_dev_stop_op(struct rte_eth_dev *eth_dev)
 	return 0;
 }
 
+static int bnxt_dev_start_op(struct rte_eth_dev *eth_dev)
+{
+	struct bnxt *bp = eth_dev->data->dev_private;
+	uint64_t rx_offloads = eth_dev->data->dev_conf.rxmode.offloads;
+	int vlan_mask = 0;
+	int rc, retry_cnt = BNXT_IF_CHANGE_RETRY_COUNT;
+
+	if (!eth_dev->data->nb_tx_queues || !eth_dev->data->nb_rx_queues) {
+		PMD_DRV_LOG(ERR, "Queues are not configured yet!\n");
+		return -EINVAL;
+	}
+
+	if (bp->rx_cp_nr_rings > RTE_ETHDEV_QUEUE_STAT_CNTRS)
+		PMD_DRV_LOG(ERR,
+			    "RxQ cnt %d > RTE_ETHDEV_QUEUE_STAT_CNTRS %d\n",
+			    bp->rx_cp_nr_rings, RTE_ETHDEV_QUEUE_STAT_CNTRS);
+
+	do {
+		rc = bnxt_hwrm_if_change(bp, true);
+		if (rc == 0 || rc != -EAGAIN)
+			break;
+
+		rte_delay_ms(BNXT_IF_CHANGE_RETRY_INTERVAL);
+	} while (retry_cnt--);
+
+	if (rc)
+		return rc;
+
+	if (bp->flags & BNXT_FLAG_IF_CHANGE_HOT_FW_RESET_DONE) {
+		rc = bnxt_handle_if_change_status(bp);
+		if (rc)
+			return rc;
+	}
+
+	bnxt_enable_int(bp);
+
+	eth_dev->data->scattered_rx = bnxt_scattered_rx(eth_dev);
+
+	rc = bnxt_start_nic(bp);
+	if (rc)
+		goto error;
+
+	eth_dev->data->dev_started = 1;
+
+	bnxt_link_update_op(eth_dev, 1);
+
+	if (rx_offloads & DEV_RX_OFFLOAD_VLAN_FILTER)
+		vlan_mask |= ETH_VLAN_FILTER_MASK;
+	if (rx_offloads & DEV_RX_OFFLOAD_VLAN_STRIP)
+		vlan_mask |= ETH_VLAN_STRIP_MASK;
+	rc = bnxt_vlan_offload_set_op(eth_dev, vlan_mask);
+	if (rc)
+		goto error;
+
+	/* Initialize bnxt ULP port details */
+	rc = bnxt_ulp_port_init(bp);
+	if (rc)
+		goto error;
+
+	eth_dev->rx_pkt_burst = bnxt_receive_function(eth_dev);
+	eth_dev->tx_pkt_burst = bnxt_transmit_function(eth_dev);
+
+	bnxt_schedule_fw_health_check(bp);
+
+	return 0;
+
+error:
+	bnxt_dev_stop_op(eth_dev);
+	return rc;
+}
+
+static void
+bnxt_uninit_locks(struct bnxt *bp)
+{
+	pthread_mutex_destroy(&bp->flow_lock);
+	pthread_mutex_destroy(&bp->def_cp_lock);
+	pthread_mutex_destroy(&bp->health_check_lock);
+	if (bp->rep_info) {
+		pthread_mutex_destroy(&bp->rep_info->vfr_lock);
+		pthread_mutex_destroy(&bp->rep_info->vfr_start_lock);
+	}
+}
+
+static void bnxt_drv_uninit(struct bnxt *bp)
+{
+	bnxt_free_switch_domain(bp);
+	bnxt_free_leds_info(bp);
+	bnxt_free_cos_queues(bp);
+	bnxt_free_link_info(bp);
+	bnxt_free_pf_info(bp);
+	bnxt_free_parent_info(bp);
+	bnxt_uninit_locks(bp);
+
+	rte_memzone_free((const struct rte_memzone *)bp->tx_mem_zone);
+	bp->tx_mem_zone = NULL;
+	rte_memzone_free((const struct rte_memzone *)bp->rx_mem_zone);
+	bp->rx_mem_zone = NULL;
+
+	bnxt_hwrm_free_vf_info(bp);
+
+	rte_free(bp->grp_info);
+	bp->grp_info = NULL;
+}
+
 static int bnxt_dev_close_op(struct rte_eth_dev *eth_dev)
 {
 	struct bnxt *bp = eth_dev->data->dev_private;
@@ -1445,25 +1482,9 @@ static int bnxt_dev_close_op(struct rte_eth_dev *eth_dev)
 	if (eth_dev->data->dev_started)
 		ret = bnxt_dev_stop_op(eth_dev);
 
-	bnxt_free_switch_domain(bp);
-
 	bnxt_uninit_resources(bp, false);
 
-	bnxt_free_leds_info(bp);
-	bnxt_free_cos_queues(bp);
-	bnxt_free_link_info(bp);
-	bnxt_free_pf_info(bp);
-	bnxt_free_parent_info(bp);
-
-	rte_memzone_free((const struct rte_memzone *)bp->tx_mem_zone);
-	bp->tx_mem_zone = NULL;
-	rte_memzone_free((const struct rte_memzone *)bp->rx_mem_zone);
-	bp->rx_mem_zone = NULL;
-
-	bnxt_hwrm_free_vf_info(bp);
-
-	rte_free(bp->grp_info);
-	bp->grp_info = NULL;
+	bnxt_drv_uninit(bp);
 
 	return ret;
 }
@@ -1832,8 +1853,8 @@ static int bnxt_reta_update_op(struct rte_eth_dev *eth_dev,
 		}
 	}
 
-	bnxt_hwrm_vnic_rss_cfg(bp, vnic);
-	return 0;
+	rc = bnxt_hwrm_vnic_rss_cfg(bp, vnic);
+	return rc;
 }
 
 static int bnxt_reta_query_op(struct rte_eth_dev *eth_dev,
@@ -1938,8 +1959,8 @@ static int bnxt_rss_hash_update_op(struct rte_eth_dev *eth_dev,
 	memcpy(vnic->rss_hash_key, rss_conf->rss_key, rss_conf->rss_key_len);
 
 rss_config:
-	bnxt_hwrm_vnic_rss_cfg(bp, vnic);
-	return 0;
+	rc = bnxt_hwrm_vnic_rss_cfg(bp, vnic);
+	return rc;
 }
 
 static int bnxt_rss_hash_conf_get_op(struct rte_eth_dev *eth_dev,
@@ -4032,7 +4053,7 @@ bool bnxt_stratus_device(struct bnxt *bp)
 	}
 }
 
-static int bnxt_init_board(struct rte_eth_dev *eth_dev)
+static int bnxt_map_pci_bars(struct rte_eth_dev *eth_dev)
 {
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
 	struct bnxt *bp = eth_dev->data->dev_private;
@@ -4657,7 +4678,11 @@ static int bnxt_map_hcomm_fw_status_reg(struct bnxt *bp)
 	return 0;
 }
 
-static int bnxt_init_fw(struct bnxt *bp)
+/* This function gets the FW version along with the
+ * capabilities(MAX and current) of the function, vnic,
+ * error recovery, phy and other chip related info
+ */
+static int bnxt_get_config(struct bnxt *bp)
 {
 	uint16_t mtu;
 	int rc = 0;
@@ -4727,8 +4752,10 @@ bnxt_init_locks(struct bnxt *bp)
 	}
 
 	err = pthread_mutex_init(&bp->def_cp_lock, NULL);
-	if (err)
+	if (err) {
 		PMD_DRV_LOG(ERR, "Unable to initialize def_cp_lock\n");
+		return err;
+	}
 
 	err = pthread_mutex_init(&bp->health_check_lock, NULL);
 	if (err)
@@ -4740,7 +4767,7 @@ static int bnxt_init_resources(struct bnxt *bp, bool reconfig_dev)
 {
 	int rc = 0;
 
-	rc = bnxt_init_fw(bp);
+	rc = bnxt_get_config(bp);
 	if (rc)
 		return rc;
 
@@ -4796,10 +4823,6 @@ static int bnxt_init_resources(struct bnxt *bp, bool reconfig_dev)
 		PMD_DRV_LOG(ERR, "Failed to init adv_flow_counters\n");
 		return rc;
 	}
-
-	rc = bnxt_init_locks(bp);
-	if (rc)
-		return rc;
 
 	return 0;
 }
@@ -5191,6 +5214,89 @@ static int bnxt_alloc_switch_domain(struct bnxt *bp)
 	return rc;
 }
 
+/* Allocate and initialize various fields in bnxt struct that
+ * need to be allocated/destroyed only once in the lifetime of the driver
+ */
+static int bnxt_drv_init(struct rte_eth_dev *eth_dev)
+{
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
+	struct bnxt *bp = eth_dev->data->dev_private;
+	int rc = 0;
+
+	bp->flags &= ~BNXT_FLAG_RX_VECTOR_PKT_MODE;
+
+	if (bnxt_vf_pciid(pci_dev->id.device_id))
+		bp->flags |= BNXT_FLAG_VF;
+
+	if (bnxt_thor_device(pci_dev->id.device_id))
+		bp->flags |= BNXT_FLAG_THOR_CHIP;
+
+	if (pci_dev->id.device_id == BROADCOM_DEV_ID_58802 ||
+	    pci_dev->id.device_id == BROADCOM_DEV_ID_58804 ||
+	    pci_dev->id.device_id == BROADCOM_DEV_ID_58808 ||
+	    pci_dev->id.device_id == BROADCOM_DEV_ID_58802_VF)
+		bp->flags |= BNXT_FLAG_STINGRAY;
+
+	if (BNXT_TRUFLOW_EN(bp)) {
+		/* extra mbuf field is required to store CFA code from mark */
+		static const struct rte_mbuf_dynfield bnxt_cfa_code_dynfield_desc = {
+			.name = RTE_PMD_BNXT_CFA_CODE_DYNFIELD_NAME,
+			.size = sizeof(bnxt_cfa_code_dynfield_t),
+			.align = __alignof__(bnxt_cfa_code_dynfield_t),
+		};
+		bnxt_cfa_code_dynfield_offset =
+			rte_mbuf_dynfield_register(&bnxt_cfa_code_dynfield_desc);
+		if (bnxt_cfa_code_dynfield_offset < 0) {
+			PMD_DRV_LOG(ERR,
+			    "Failed to register mbuf field for TruFlow mark\n");
+			return -rte_errno;
+		}
+	}
+
+	rc = bnxt_map_pci_bars(eth_dev);
+	if (rc) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to initialize board rc: %x\n", rc);
+		return rc;
+	}
+
+	rc = bnxt_alloc_pf_info(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_alloc_link_info(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_alloc_parent_info(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_alloc_hwrm_resources(bp);
+	if (rc) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to allocate hwrm resource rc: %x\n", rc);
+		return rc;
+	}
+	rc = bnxt_alloc_leds_info(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_alloc_cos_queues(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_init_locks(bp);
+	if (rc)
+		return rc;
+
+	rc = bnxt_alloc_switch_domain(bp);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
 static int
 bnxt_dev_init(struct rte_eth_dev *eth_dev, void *params __rte_unused)
 {
@@ -5224,66 +5330,7 @@ bnxt_dev_init(struct rte_eth_dev *eth_dev, void *params __rte_unused)
 	/* Parse dev arguments passed on when starting the DPDK application. */
 	bnxt_parse_dev_args(bp, pci_dev->device.devargs);
 
-	bp->flags &= ~BNXT_FLAG_RX_VECTOR_PKT_MODE;
-
-	if (bnxt_vf_pciid(pci_dev->id.device_id))
-		bp->flags |= BNXT_FLAG_VF;
-
-	if (bnxt_thor_device(pci_dev->id.device_id))
-		bp->flags |= BNXT_FLAG_THOR_CHIP;
-
-	if (pci_dev->id.device_id == BROADCOM_DEV_ID_58802 ||
-	    pci_dev->id.device_id == BROADCOM_DEV_ID_58804 ||
-	    pci_dev->id.device_id == BROADCOM_DEV_ID_58808 ||
-	    pci_dev->id.device_id == BROADCOM_DEV_ID_58802_VF)
-		bp->flags |= BNXT_FLAG_STINGRAY;
-
-	if (BNXT_TRUFLOW_EN(bp)) {
-		/* extra mbuf field is required to store CFA code from mark */
-		static const struct rte_mbuf_dynfield bnxt_cfa_code_dynfield_desc = {
-			.name = RTE_PMD_BNXT_CFA_CODE_DYNFIELD_NAME,
-			.size = sizeof(bnxt_cfa_code_dynfield_t),
-			.align = __alignof__(bnxt_cfa_code_dynfield_t),
-		};
-		bnxt_cfa_code_dynfield_offset =
-			rte_mbuf_dynfield_register(&bnxt_cfa_code_dynfield_desc);
-		if (bnxt_cfa_code_dynfield_offset < 0) {
-			PMD_DRV_LOG(ERR,
-			    "Failed to register mbuf field for TruFlow mark\n");
-			return -rte_errno;
-		}
-	}
-
-	rc = bnxt_init_board(eth_dev);
-	if (rc) {
-		PMD_DRV_LOG(ERR,
-			    "Failed to initialize board rc: %x\n", rc);
-		return rc;
-	}
-
-	rc = bnxt_alloc_pf_info(bp);
-	if (rc)
-		goto error_free;
-
-	rc = bnxt_alloc_link_info(bp);
-	if (rc)
-		goto error_free;
-
-	rc = bnxt_alloc_parent_info(bp);
-	if (rc)
-		goto error_free;
-
-	rc = bnxt_alloc_hwrm_resources(bp);
-	if (rc) {
-		PMD_DRV_LOG(ERR,
-			    "Failed to allocate hwrm resource rc: %x\n", rc);
-		goto error_free;
-	}
-	rc = bnxt_alloc_leds_info(bp);
-	if (rc)
-		goto error_free;
-
-	rc = bnxt_alloc_cos_queues(bp);
+	rc = bnxt_drv_init(eth_dev);
 	if (rc)
 		goto error_free;
 
@@ -5294,8 +5341,6 @@ bnxt_dev_init(struct rte_eth_dev *eth_dev, void *params __rte_unused)
 	rc = bnxt_alloc_stats_mem(bp);
 	if (rc)
 		goto error_free;
-
-	bnxt_alloc_switch_domain(bp);
 
 	PMD_DRV_LOG(INFO,
 		    DRV_MODULE_NAME "found at mem %" PRIX64 ", node addr %pM\n",
@@ -5378,18 +5423,6 @@ bnxt_free_error_recovery_info(struct bnxt *bp)
 	bp->fw_cap &= ~BNXT_FW_CAP_ERROR_RECOVERY;
 }
 
-static void
-bnxt_uninit_locks(struct bnxt *bp)
-{
-	pthread_mutex_destroy(&bp->flow_lock);
-	pthread_mutex_destroy(&bp->def_cp_lock);
-	pthread_mutex_destroy(&bp->health_check_lock);
-	if (bp->rep_info) {
-		pthread_mutex_destroy(&bp->rep_info->vfr_lock);
-		pthread_mutex_destroy(&bp->rep_info->vfr_start_lock);
-	}
-}
-
 static int
 bnxt_uninit_resources(struct bnxt *bp, bool reconfig_dev)
 {
@@ -5411,7 +5444,6 @@ bnxt_uninit_resources(struct bnxt *bp, bool reconfig_dev)
 
 	bnxt_uninit_ctx_mem(bp);
 
-	bnxt_uninit_locks(bp);
 	bnxt_free_flow_stats_info(bp);
 	bnxt_free_rep_info(bp);
 	rte_free(bp->ptp_cfg);

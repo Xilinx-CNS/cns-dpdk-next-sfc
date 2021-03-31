@@ -763,6 +763,21 @@ static inline void i40e_config_automask(struct i40e_pf *pf)
 	I40E_WRITE_REG(hw, I40E_GLINT_CTL, val);
 }
 
+static inline void i40e_clear_automask(struct i40e_pf *pf)
+{
+	struct i40e_hw *hw = I40E_PF_TO_HW(pf);
+	uint32_t val;
+
+	val = I40E_READ_REG(hw, I40E_GLINT_CTL);
+	val &= ~(I40E_GLINT_CTL_DIS_AUTOMASK_PF0_MASK |
+		 I40E_GLINT_CTL_DIS_AUTOMASK_VF0_MASK);
+
+	if (!pf->support_multi_driver)
+		val &= ~I40E_GLINT_CTL_DIS_AUTOMASK_N_MASK;
+
+	I40E_WRITE_REG(hw, I40E_GLINT_CTL, val);
+}
+
 #define I40E_FLOW_CONTROL_ETHERTYPE  0x8808
 
 /*
@@ -1534,8 +1549,9 @@ eth_i40e_dev_init(struct rte_eth_dev *dev, void *init_params __rte_unused)
 		PMD_INIT_LOG(ERR, "Failed to init adminq: %d", ret);
 		return -EIO;
 	}
-	/* Firmware of SFP x722 does not support adminq option */
-	if (hw->device_id == I40E_DEV_ID_SFP_X722)
+	/* Firmware of SFP x722 does not support 802.1ad frames ability */
+	if (hw->device_id == I40E_DEV_ID_SFP_X722 ||
+		hw->device_id == I40E_DEV_ID_SFP_I_X722)
 		hw->flags &= ~I40E_HW_FLAG_802_1AD_CAPABLE;
 
 	PMD_INIT_LOG(INFO, "FW %d.%d API %d.%d NVM %02d.%02d.%02d eetrack %04x",
@@ -2740,6 +2756,8 @@ i40e_dev_close(struct rte_eth_dev *dev)
 
 	/* Remove all Traffic Manager configuration */
 	i40e_tm_conf_uninit(dev);
+
+	i40e_clear_automask(pf);
 
 	hw->adapter_closed = 1;
 	return ret;
@@ -4426,7 +4444,6 @@ i40e_set_rss_lut(struct i40e_vsi *vsi, uint8_t *lut, uint16_t lut_size)
 {
 	struct i40e_pf *pf;
 	struct i40e_hw *hw;
-	int ret;
 
 	if (!vsi || !lut)
 		return -EINVAL;
@@ -4435,12 +4452,16 @@ i40e_set_rss_lut(struct i40e_vsi *vsi, uint8_t *lut, uint16_t lut_size)
 	hw = I40E_VSI_TO_HW(vsi);
 
 	if (pf->flags & I40E_FLAG_RSS_AQ_CAPABLE) {
-		ret = i40e_aq_set_rss_lut(hw, vsi->vsi_id,
-					  vsi->type != I40E_VSI_SRIOV,
-					  lut, lut_size);
-		if (ret) {
-			PMD_DRV_LOG(ERR, "Failed to set RSS lookup table");
-			return ret;
+		enum i40e_status_code status;
+
+		status = i40e_aq_set_rss_lut(hw, vsi->vsi_id,
+					     vsi->type != I40E_VSI_SRIOV,
+					     lut, lut_size);
+		if (status) {
+			PMD_DRV_LOG(ERR,
+				    "Failed to update RSS lookup table, error status: %d",
+				    status);
+			return -EIO;
 		}
 	} else {
 		uint32_t *lut_dw = (uint32_t *)lut;
@@ -6603,9 +6624,13 @@ i40e_stat_update_48(struct i40e_hw *hw,
 {
 	uint64_t new_data;
 
-	new_data = (uint64_t)I40E_READ_REG(hw, loreg);
-	new_data |= ((uint64_t)(I40E_READ_REG(hw, hireg) &
-			I40E_16_BIT_MASK)) << I40E_32_BIT_WIDTH;
+	if (hw->device_id == I40E_DEV_ID_QEMU) {
+		new_data = (uint64_t)I40E_READ_REG(hw, loreg);
+		new_data |= ((uint64_t)(I40E_READ_REG(hw, hireg) &
+				I40E_16_BIT_MASK)) << I40E_32_BIT_WIDTH;
+	} else {
+		new_data = I40E_READ_REG64(hw, loreg);
+	}
 
 	if (!offset_loaded)
 		*offset = new_data;
@@ -7591,7 +7616,6 @@ i40e_set_rss_key(struct i40e_vsi *vsi, uint8_t *key, uint8_t key_len)
 	uint16_t key_idx = (vsi->type == I40E_VSI_SRIOV) ?
 			   I40E_VFQF_HKEY_MAX_INDEX :
 			   I40E_PFQF_HKEY_MAX_INDEX;
-	int ret = 0;
 
 	if (!key || key_len == 0) {
 		PMD_DRV_LOG(DEBUG, "No key to be configured");
@@ -7604,11 +7628,16 @@ i40e_set_rss_key(struct i40e_vsi *vsi, uint8_t *key, uint8_t key_len)
 
 	if (pf->flags & I40E_FLAG_RSS_AQ_CAPABLE) {
 		struct i40e_aqc_get_set_rss_key_data *key_dw =
-			(struct i40e_aqc_get_set_rss_key_data *)key;
+				(struct i40e_aqc_get_set_rss_key_data *)key;
+		enum i40e_status_code status =
+				i40e_aq_set_rss_key(hw, vsi->vsi_id, key_dw);
 
-		ret = i40e_aq_set_rss_key(hw, vsi->vsi_id, key_dw);
-		if (ret)
-			PMD_INIT_LOG(ERR, "Failed to configure RSS key via AQ");
+		if (status) {
+			PMD_DRV_LOG(ERR,
+				    "Failed to configure RSS key via AQ, error status: %d",
+				    status);
+			return -EIO;
+		}
 	} else {
 		uint32_t *hash_key = (uint32_t *)key;
 		uint16_t i;
@@ -7628,7 +7657,7 @@ i40e_set_rss_key(struct i40e_vsi *vsi, uint8_t *key, uint8_t key_len)
 		I40E_WRITE_FLUSH(hw);
 	}
 
-	return ret;
+	return 0;
 }
 
 static int
@@ -11753,7 +11782,7 @@ i40e_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 		return -EBUSY;
 	}
 
-	if (frame_size > RTE_ETHER_MAX_LEN)
+	if (frame_size > I40E_ETH_MAX_LEN)
 		dev_data->dev_conf.rxmode.offloads |=
 			DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else

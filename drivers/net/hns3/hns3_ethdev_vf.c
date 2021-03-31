@@ -779,6 +779,7 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 	uint16_t nb_rx_q = dev->data->nb_rx_queues;
 	uint16_t nb_tx_q = dev->data->nb_tx_queues;
 	struct rte_eth_rss_conf rss_conf;
+	uint32_t max_rx_pkt_len;
 	uint16_t mtu;
 	bool gro_en;
 	int ret;
@@ -831,12 +832,18 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 	 * according to the maximum RX packet length.
 	 */
 	if (conf->rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		/*
-		 * Security of max_rx_pkt_len is guaranteed in dpdk frame.
-		 * Maximum value of max_rx_pkt_len is HNS3_MAX_FRAME_LEN, so it
-		 * can safely assign to "uint16_t" type variable.
-		 */
-		mtu = (uint16_t)HNS3_PKTLEN_TO_MTU(conf->rxmode.max_rx_pkt_len);
+		max_rx_pkt_len = conf->rxmode.max_rx_pkt_len;
+		if (max_rx_pkt_len > HNS3_MAX_FRAME_LEN ||
+		    max_rx_pkt_len <= HNS3_DEFAULT_FRAME_LEN) {
+			hns3_err(hw, "maximum Rx packet length must be greater "
+				 "than %u and less than %u when jumbo frame enabled.",
+				 (uint16_t)HNS3_DEFAULT_FRAME_LEN,
+				 (uint16_t)HNS3_MAX_FRAME_LEN);
+			ret = -EINVAL;
+			goto cfg_err;
+		}
+
+		mtu = (uint16_t)HNS3_PKTLEN_TO_MTU(max_rx_pkt_len);
 		ret = hns3vf_dev_mtu_set(dev, mtu);
 		if (ret)
 			goto cfg_err;
@@ -928,7 +935,7 @@ hns3vf_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 		rte_spinlock_unlock(&hw->lock);
 		return ret;
 	}
-	if (frame_size > RTE_ETHER_MAX_LEN)
+	if (mtu > RTE_ETHER_MTU)
 		dev->data->dev_conf.rxmode.offloads |=
 						DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
@@ -1022,7 +1029,7 @@ hns3vf_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 
 	info->vmdq_queue_num = 0;
 
-	info->reta_size = HNS3_RSS_IND_TBL_SIZE;
+	info->reta_size = hw->rss_ind_tbl_size;
 	info->hash_key_size = HNS3_RSS_KEY_SIZE;
 	info->flow_type_rss_offloads = HNS3_ETH_RSS_SUPPORT;
 	info->default_rxportconf.ring_size = HNS3_DEFAULT_RING_DESC;
@@ -1155,6 +1162,20 @@ hns3vf_parse_dev_specifications(struct hns3_hw *hw, struct hns3_cmd_desc *desc)
 }
 
 static int
+hns3vf_check_dev_specifications(struct hns3_hw *hw)
+{
+	if (hw->rss_ind_tbl_size == 0 ||
+	    hw->rss_ind_tbl_size > HNS3_RSS_IND_TBL_SIZE_MAX) {
+		hns3_warn(hw, "the size of hash lookup table configured (%u)"
+			      " exceeds the maximum(%u)", hw->rss_ind_tbl_size,
+			      HNS3_RSS_IND_TBL_SIZE_MAX);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
 hns3vf_query_dev_specifications(struct hns3_hw *hw)
 {
 	struct hns3_cmd_desc desc[HNS3_QUERY_DEV_SPECS_BD_NUM];
@@ -1174,7 +1195,7 @@ hns3vf_query_dev_specifications(struct hns3_hw *hw)
 
 	hns3vf_parse_dev_specifications(hw, desc);
 
-	return 0;
+	return hns3vf_check_dev_specifications(hw);
 }
 
 static int
@@ -1749,7 +1770,6 @@ hns3vf_init_hardware(struct hns3_adapter *hns)
 		goto err_init_hardware;
 	}
 
-	hns3vf_request_link_info(hw);
 	return 0;
 
 err_init_hardware:
@@ -1978,8 +1998,11 @@ hns3vf_dev_close(struct rte_eth_dev *eth_dev)
 	struct hns3_hw *hw = &hns->hw;
 	int ret = 0;
 
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
+		rte_free(eth_dev->process_private);
+		eth_dev->process_private = NULL;
 		return 0;
+	}
 
 	if (hw->adapter_state == HNS3_NIC_STARTED)
 		ret = hns3vf_dev_stop(eth_dev);
@@ -2238,7 +2261,7 @@ hns3vf_dev_start(struct rte_eth_dev *dev)
 	hns3_rx_scattered_calc(dev);
 	hns3_set_rxtx_function(dev);
 	hns3_mp_req_start_rxtx(dev);
-	rte_eal_alarm_set(HNS3VF_SERVICE_INTERVAL, hns3vf_service_handler, dev);
+	hns3vf_service_handler(dev);
 
 	hns3vf_restore_filter(dev);
 
@@ -2360,15 +2383,17 @@ static int
 hns3vf_prepare_reset(struct hns3_adapter *hns)
 {
 	struct hns3_hw *hw = &hns->hw;
-	int ret = 0;
+	int ret;
 
 	if (hw->reset.level == HNS3_VF_FUNC_RESET) {
 		ret = hns3_send_mbx_msg(hw, HNS3_MBX_RESET, 0, NULL,
 					0, true, NULL, 0);
+		if (ret)
+			return ret;
 	}
 	rte_atomic16_set(&hw->reset.disable_cmd, 1);
 
-	return ret;
+	return 0;
 }
 
 static int
@@ -2849,8 +2874,11 @@ hns3vf_dev_uninit(struct rte_eth_dev *eth_dev)
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
-		return -EPERM;
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
+		rte_free(eth_dev->process_private);
+		eth_dev->process_private = NULL;
+		return 0;
+	}
 
 	if (hw->adapter_state < HNS3_NIC_CLOSING)
 		hns3vf_dev_close(eth_dev);

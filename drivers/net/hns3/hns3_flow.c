@@ -44,8 +44,7 @@ static enum rte_flow_item_type first_items[] = {
 	RTE_FLOW_ITEM_TYPE_NVGRE,
 	RTE_FLOW_ITEM_TYPE_VXLAN,
 	RTE_FLOW_ITEM_TYPE_GENEVE,
-	RTE_FLOW_ITEM_TYPE_VXLAN_GPE,
-	RTE_FLOW_ITEM_TYPE_MPLS
+	RTE_FLOW_ITEM_TYPE_VXLAN_GPE
 };
 
 static enum rte_flow_item_type L2_next_items[] = {
@@ -65,8 +64,7 @@ static enum rte_flow_item_type L3_next_items[] = {
 static enum rte_flow_item_type L4_next_items[] = {
 	RTE_FLOW_ITEM_TYPE_VXLAN,
 	RTE_FLOW_ITEM_TYPE_GENEVE,
-	RTE_FLOW_ITEM_TYPE_VXLAN_GPE,
-	RTE_FLOW_ITEM_TYPE_MPLS
+	RTE_FLOW_ITEM_TYPE_VXLAN_GPE
 };
 
 static enum rte_flow_item_type tunnel_next_items[] = {
@@ -91,9 +89,9 @@ net_addr_to_host(uint32_t *dst, const rte_be32_t *src, size_t len)
 /*
  * This function is used to find rss general action.
  * 1. As we know RSS is used to spread packets among several queues, the flow
- *    API provide the struct rte_flow_action_rss, user could config it's field
+ *    API provide the struct rte_flow_action_rss, user could config its field
  *    sush as: func/level/types/key/queue to control RSS function.
- * 2. The flow API also support queue region configuration for hns3. It was
+ * 2. The flow API also supports queue region configuration for hns3. It was
  *    implemented by FDIR + RSS in hns3 hardware, user can create one FDIR rule
  *    which action is RSS queues region.
  * 3. When action is RSS, we use the following rule to distinguish:
@@ -128,11 +126,11 @@ hns3_find_rss_general_action(const struct rte_flow_item pattern[],
 	rss = act->conf;
 	if (have_eth && rss->conf.queue_num) {
 		/*
-		 * Patter have ETH and action's queue_num > 0, indicate this is
+		 * Pattern have ETH and action's queue_num > 0, indicate this is
 		 * queue region configuration.
 		 * Because queue region is implemented by FDIR + RSS in hns3
-		 * hardware, it need enter FDIR process, so here return NULL to
-		 * avoid enter RSS process.
+		 * hardware, it needs to enter FDIR process, so here return NULL
+		 * to avoid enter RSS process.
 		 */
 		return NULL;
 	}
@@ -405,7 +403,6 @@ hns3_handle_actions(struct rte_eth_dev *dev,
 	return 0;
 }
 
-/* Parse to get the attr and action info of flow director rule. */
 static int
 hns3_check_attr(const struct rte_flow_attr *attr, struct rte_flow_error *error)
 {
@@ -800,7 +797,7 @@ hns3_parse_sctp(const struct rte_flow_item *item, struct hns3_fdir_rule *rule,
 }
 
 /*
- * Check items before tunnel, save inner configs to outer configs,and clear
+ * Check items before tunnel, save inner configs to outer configs, and clear
  * inner configs.
  * The key consists of two parts: meta_data and tuple keys.
  * Meta data uses 15 bits, including vlan_num(2bit), des_port(12bit) and tunnel
@@ -1146,8 +1143,7 @@ is_tunnel_packet(enum rte_flow_item_type type)
 	if (type == RTE_FLOW_ITEM_TYPE_VXLAN_GPE ||
 	    type == RTE_FLOW_ITEM_TYPE_VXLAN ||
 	    type == RTE_FLOW_ITEM_TYPE_NVGRE ||
-	    type == RTE_FLOW_ITEM_TYPE_GENEVE ||
-	    type == RTE_FLOW_ITEM_TYPE_MPLS)
+	    type == RTE_FLOW_ITEM_TYPE_GENEVE)
 		return true;
 	return false;
 }
@@ -1207,11 +1203,6 @@ hns3_parse_fdir_filter(struct rte_eth_dev *dev,
 		return rte_flow_error_set(error, ENOTSUP,
 					  RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
 					  "Fdir not supported in VF");
-
-	if (dev->data->dev_conf.fdir_conf.mode != RTE_FDIR_MODE_PERFECT)
-		return rte_flow_error_set(error, ENOTSUP,
-					  RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
-					  "fdir_conf.mode isn't perfect");
 
 	step_mngr.items = first_items;
 	step_mngr.count = ARRAY_SIZE(first_items);
@@ -1469,7 +1460,7 @@ hns3_parse_rss_algorithm(struct hns3_hw *hw, enum rte_eth_hash_function *func,
 		*hash_algo = HNS3_RSS_HASH_ALGO_SYMMETRIC_TOEP;
 		break;
 	default:
-		hns3_err(hw, "Invalid RSS algorithm configuration(%u)",
+		hns3_err(hw, "Invalid RSS algorithm configuration(%d)",
 			 algo_func);
 		return -EINVAL;
 	}
@@ -1495,10 +1486,8 @@ hns3_hw_rss_hash_set(struct hns3_hw *hw, struct rte_flow_action_rss *rss_config)
 	if (ret)
 		return ret;
 
-	/* Update algorithm of hw */
 	hw->rss_info.conf.func = rss_config->func;
 
-	/* Set flow type supported */
 	tuple = &hw->rss_info.rss_tuple_sets;
 	ret = hns3_set_rss_tuple_by_rss_hf(hw, tuple, rss_config->types);
 	if (ret)
@@ -1513,14 +1502,14 @@ hns3_update_indir_table(struct rte_eth_dev *dev,
 {
 	struct hns3_adapter *hns = dev->data->dev_private;
 	struct hns3_hw *hw = &hns->hw;
-	uint16_t indir_tbl[HNS3_RSS_IND_TBL_SIZE];
+	uint16_t indir_tbl[HNS3_RSS_IND_TBL_SIZE_MAX];
 	uint16_t j;
 	uint32_t i;
 
 	/* Fill in redirection table */
 	memcpy(indir_tbl, hw->rss_info.rss_indirection_tbl,
 	       sizeof(hw->rss_info.rss_indirection_tbl));
-	for (i = 0, j = 0; i < HNS3_RSS_IND_TBL_SIZE; i++, j++) {
+	for (i = 0, j = 0; i < hw->rss_ind_tbl_size; i++, j++) {
 		j %= num;
 		if (conf->queue[j] >= hw->alloc_rss_size) {
 			hns3_err(hw, "queue id(%u) set to redirection table "
@@ -1531,7 +1520,7 @@ hns3_update_indir_table(struct rte_eth_dev *dev,
 		indir_tbl[i] = conf->queue[j];
 	}
 
-	return hns3_set_rss_indir_table(hw, indir_tbl, HNS3_RSS_IND_TBL_SIZE);
+	return hns3_set_rss_indir_table(hw, indir_tbl, hw->rss_ind_tbl_size);
 }
 
 static int
@@ -1583,7 +1572,7 @@ hns3_config_rss_filter(struct rte_eth_dev *dev,
 		if (rss_flow_conf.queue_num) {
 			/*
 			 * Due the content of queue pointer have been reset to
-			 * 0, the rss_info->conf.queue should be set NULL
+			 * 0, the rss_info->conf.queue should be set to NULL
 			 */
 			rss_info->conf.queue = NULL;
 			rss_info->conf.queue_num = 0;
@@ -1749,7 +1738,7 @@ hns3_flow_validate(struct rte_eth_dev *dev, const struct rte_flow_attr *attr,
 /*
  * Create or destroy a flow rule.
  * Theorically one rule can match more than one filters.
- * We will let it use the filter which it hitt first.
+ * We will let it use the filter which it hit first.
  * So, the sequence matters.
  */
 static struct rte_flow *
@@ -1833,17 +1822,18 @@ hns3_flow_create(struct rte_eth_dev *dev, const struct rte_flow_attr *attr,
 
 		flow->counter_id = fdir_rule.act_cnt.id;
 	}
+
+	fdir_rule_ptr = rte_zmalloc("hns3 fdir rule",
+				    sizeof(struct hns3_fdir_rule_ele),
+				    0);
+	if (fdir_rule_ptr == NULL) {
+		hns3_err(hw, "failed to allocate fdir_rule memory.");
+		ret = -ENOMEM;
+		goto err_fdir;
+	}
+
 	ret = hns3_fdir_filter_program(hns, &fdir_rule, false);
 	if (!ret) {
-		fdir_rule_ptr = rte_zmalloc("hns3 fdir rule",
-					    sizeof(struct hns3_fdir_rule_ele),
-					    0);
-		if (fdir_rule_ptr == NULL) {
-			hns3_err(hw, "Failed to allocate fdir_rule memory");
-			ret = -ENOMEM;
-			goto err_fdir;
-		}
-
 		memcpy(&fdir_rule_ptr->fdir_conf, &fdir_rule,
 			sizeof(struct hns3_fdir_rule));
 		TAILQ_INSERT_TAIL(&process_list->fdir_list,
@@ -1854,10 +1844,10 @@ hns3_flow_create(struct rte_eth_dev *dev, const struct rte_flow_attr *attr,
 		return flow;
 	}
 
+	rte_free(fdir_rule_ptr);
 err_fdir:
 	if (fdir_rule.flags & HNS3_RULE_FLAG_COUNTER)
 		hns3_counter_release(dev, fdir_rule.act_cnt.id);
-
 err:
 	rte_flow_error_set(error, -ret, RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
 			   "Failed to create flow");
