@@ -1,0 +1,9 @@
+#!/bin/sh
+set -uxe
+
+meson build
+# XDG_RUNTIME_DIR will be used for an AF unix socket, so override it to avoid
+# permission errors and leaving files around
+SOCKET_DIR=$(mktemp --directory)
+XDG_RUNTIME_DIR=${SOCKET_DIR} meson test -C build --verbose --suite fast-tests -t 3
+rm -rf ${SOCKET_DIR}
