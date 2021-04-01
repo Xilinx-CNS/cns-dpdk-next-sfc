@@ -2,7 +2,6 @@
 set -u
 
 basedir=$(dirname "$0")
-. "${basedir}"/check-dpdk-supported-arch.sh
 
 # since these tests really execute dpdk code they have to check for the
 # required minimum cpu features

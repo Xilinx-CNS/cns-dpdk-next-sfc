@@ -3,7 +3,6 @@ set -eux
 binary="testlinkage"
 
 basedir=$(dirname "$0")
-. "${basedir}"/check-dpdk-supported-arch.sh
 
 cat > testlinkage.c << EOF
 #include <stdio.h>

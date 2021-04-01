@@ -2,7 +2,6 @@
 set -e
 
 basedir=$(dirname "$0")
-. "${basedir}"/check-dpdk-supported-arch.sh
 
 # Overall that could require up to 1.2G for hugepages in the test environment
 EXPECT2MHP=10
