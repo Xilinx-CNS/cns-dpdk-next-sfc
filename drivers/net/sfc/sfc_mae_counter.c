@@ -17,8 +17,8 @@
 #include "sfc_service.h"
 
 int
-sfc_mae_counter_add(struct sfc_adapter *sa,
-		    struct sfc_mae_counter_id *counterp)
+sfc_mae_counter_enable(struct sfc_adapter *sa,
+		       struct sfc_mae_counter_id *counterp)
 {
 	struct sfc_mae_counter_registry *reg = &sa->mae.counter_registry;
 	struct sfc_mae_counters *counters = &reg->counters;
@@ -82,8 +82,8 @@ fail_mae_counter_alloc:
 }
 
 int
-sfc_mae_counter_del(struct sfc_adapter *sa,
-		    const struct sfc_mae_counter_id *counter)
+sfc_mae_counter_disable(struct sfc_adapter *sa,
+			struct sfc_mae_counter_id *counter)
 {
 	struct sfc_mae_counter_registry *reg = &sa->mae.counter_registry;
 	struct sfc_mae_counters *counters = &reg->counters;
@@ -107,6 +107,13 @@ sfc_mae_counter_del(struct sfc_adapter *sa,
 	if (rc != 0)
 		sfc_err(sa, "failed to free MAE counter %u: %s",
 			counter->mae_id.id, rte_strerror(rc));
+
+	/*
+	 * Do this regardless of what efx_mae_counters_free() return value is.
+	 * If there's some error, the resulting resource leakage is bad, but
+	 * nothing sensible can be done in this case.
+	 */
+	counter->mae_id.id = EFX_MAE_RSRC_ID_INVALID;
 
 	return rc;
 }

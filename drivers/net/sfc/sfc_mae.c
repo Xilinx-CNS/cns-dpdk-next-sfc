@@ -488,10 +488,10 @@ sfc_mae_counters_enable(struct sfc_adapter *sa,
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 	SFC_ASSERT(n_counters == 1);
 
-	rc = sfc_mae_counter_add(sa, &counters[0]);
+	rc = sfc_mae_counter_enable(sa, &counters[0]);
 	if (rc != 0) {
-		sfc_err(sa, "failed to add MAE counter: %s",
-			rte_strerror(rc));
+		sfc_err(sa, "failed to enable MAE counter %u: %s",
+			counters[0].mae_id.id, rte_strerror(rc));
 		goto fail_counter_add;
 	}
 
@@ -506,7 +506,7 @@ sfc_mae_counters_enable(struct sfc_adapter *sa,
 	return 0;
 
 fail_fill_in_id:
-	(void)sfc_mae_counter_del(sa, &counters[0]);
+	(void)sfc_mae_counter_disable(sa, &counters[0]);
 
 fail_counter_add:
 	sfc_log_init(sa, "failed: %s", rte_strerror(rc));
@@ -526,7 +526,7 @@ sfc_mae_counters_disable(struct sfc_adapter *sa,
 
 	SFC_ASSERT(counters[0].mae_id.id != EFX_MAE_RSRC_ID_INVALID);
 
-	return sfc_mae_counter_del(sa, &counters[0]);
+	return sfc_mae_counter_disable(sa, &counters[0]);
 }
 
 static struct sfc_mae_action_set *
@@ -623,24 +623,6 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 }
 
 static void
-sfc_mae_counters_remove(struct sfc_adapter *sa,
-			struct sfc_mae_counter_id *counters,
-			unsigned int n_counters)
-{
-	unsigned int i;
-	int rc;
-
-	for (i = 0; i < n_counters; i++) {
-		rc = sfc_mae_counter_del(sa, &counters[i]);
-		if (rc != 0)
-			sfc_err(sa, "failed to delete MAE counter %u: %s",
-				counters[i].mae_id.id, rte_strerror(rc));
-	}
-
-	rte_free(counters);
-}
-
-static void
 sfc_mae_action_set_del(struct sfc_adapter *sa,
 		       struct sfc_mae_action_set *action_set)
 {
@@ -662,10 +644,14 @@ sfc_mae_action_set_del(struct sfc_adapter *sa,
 			action_set->fw_rsrc.refcnt);
 	}
 
-	sfc_mae_counters_remove(sa, action_set->counters,
-				action_set->n_counters);
 	efx_mae_action_set_spec_fini(sa->nic, action_set->spec);
 	sfc_mae_encap_header_del(sa, action_set->encap_header);
+	if (action_set->n_counters > 0) {
+		SFC_ASSERT(action_set->n_counters == 1);
+		SFC_ASSERT(action_set->counters[0].mae_id.id ==
+			   EFX_MAE_RSRC_ID_INVALID);
+		rte_free(action_set->counters);
+	}
 	TAILQ_REMOVE(&mae->action_sets, action_set, entries);
 	rte_free(action_set);
 }
