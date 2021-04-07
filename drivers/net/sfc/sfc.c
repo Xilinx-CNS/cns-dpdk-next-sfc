@@ -79,6 +79,12 @@ sfc_dma_add_memseg(struct sfc_adapter *sa, const struct rte_memseg *ms)
 		ms->addr, (uint64_t)ms->iova, (uint64_t)ms->len,
 		(uint64_t)nic_base, (uint64_t)trgt_base, (uint64_t)map_len);
 
+	if (nic_base != trgt_base) {
+		sfc_panic(sa, "unsupported non-trivial regioned DMA mapping: %llx vs %llx\n",
+			  (unsigned long long)nic_base,
+			  (unsigned long long)trgt_base);
+	}
+
 	if (sa->state == SFC_ETHDEV_STARTED) {
 		rc = efx_nic_dma_reconfigure(sa->nic);
 		if (rc != 0) {
