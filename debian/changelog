@@ -1,3 +1,11 @@
+dpdk (20.11.1-2) experimental; urgency=medium
+
+  * Autopkgtest: simplify dependencies
+  * Autopkgtest: remove architecture check script
+  * Autopkgtest: enable root-less fast test suite
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 08 Apr 2021 15:32:18 +0100
+
 dpdk (20.11.1-1) experimental; urgency=medium
 
   * Merge LTS stable release 20.11.1
