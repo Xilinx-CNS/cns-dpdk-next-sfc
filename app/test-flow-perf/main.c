@@ -39,9 +39,9 @@
 #include "config.h"
 #include "flow_gen.h"
 
-#define MAX_BATCHES_COUNT          100
-#define DEFAULT_RULES_COUNT    4000000
-#define DEFAULT_RULES_BATCH     100000
+#define MAX_BATCHES_COUNT         4000
+#define DEFAULT_RULES_COUNT       4000
+#define DEFAULT_RULES_BATCH          1
 #define DEFAULT_GROUP                0
 
 struct rte_flow *flow;
@@ -876,7 +876,7 @@ print_flow_error(struct rte_flow_error error)
 static inline void
 print_rules_batches(double *cpu_time_per_batch)
 {
-	uint8_t idx;
+	unsigned int idx;
 	double delta;
 	double rate;
 
