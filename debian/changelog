@@ -1,3 +1,12 @@
+dpdk (21.04-1) experimental; urgency=medium
+
+  * dpdk: add experimental support for Xilinx vDPA
+  * dpdk: add experimental support for Xilinx port representors
+  * dpdk: add experimental support for Xilinx transfer flow rules counters
+  * dpdk: add experimental support for Alveo SN1022 SoC
+
+ -- Andrew Rybchenko <andrew.rybchenko@oktetlabs.ru>  Fri, 18 Dec 2020 08:30:32 +0000
+
 dpdk (20.11.1-2) experimental; urgency=medium
 
   * Autopkgtest: simplify dependencies
