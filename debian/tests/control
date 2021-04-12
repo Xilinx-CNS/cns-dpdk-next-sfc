@@ -1,0 +1,15 @@
+Tests: test-initscripts
+Restrictions: allow-stderr, isolation-machine, needs-root, skippable
+Depends: dpdk, gawk, mount, systemd, sysvinit-utils, iproute2
+
+Tests: test-linkage
+Restrictions: allow-stderr, skippable
+Depends: libdpdk-dev, libc6-dev, gcc, grep, libpcap-dev, pax-utils, pkg-config
+
+Tests: test-autotest
+Restrictions: allow-stderr, isolation-machine, needs-root, skippable
+Depends: dpdk-dev [amd64 arm64 i386 ppc64el], python3, python3-pexpect
+
+Tests: test-fastsuite
+Restrictions: allow-stderr, skippable
+Depends: build-essential, @builddeps@

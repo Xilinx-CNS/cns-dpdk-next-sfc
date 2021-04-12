@@ -1,0 +1,1799 @@
+dpdk (20.11.1-2) experimental; urgency=medium
+
+  * Autopkgtest: simplify dependencies
+  * Autopkgtest: remove architecture check script
+  * Autopkgtest: enable root-less fast test suite
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 08 Apr 2021 15:32:18 +0100
+
+dpdk (20.11.1-1) experimental; urgency=medium
+
+  * Merge LTS stable release 20.11.1
+    - drop patch d/p/0001-rib-fix-insertion-in-some-cases.patch included
+      in 20.11.1
+  * Do not build-test on arm64 (HW dependent)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 30 Mar 2021 08:29:08 +0200
+
+dpdk (20.11-4) unstable; urgency=medium
+
+  * d/rules: do not run tests when building documentation
+  * d/rules: set XDG_RUNTIME_DIR when running tests
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 18 Mar 2021 14:28:19 +0000
+
+dpdk (20.11-3) unstable; urgency=medium
+
+  [ Henning Schild ]
+  * runtime: add switch to prevent freeing of already allocated hugepages
+  * runtime: add numa support to hugepage allocation script
+
+  [ Luca Boccassi ]
+  * Backport 0001-rib-fix-insertion-in-some-cases.patch to fix tests on
+    i386
+  * Enable dh_auto_test for fast-suite
+  * Backport test-catch-coredumps.patch to fix build during repro test
+
+  [ Nicholas Brown ]
+  * d/rules update dpdk_config_options for make 4.3 (Closes: #983574)
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 17 Mar 2021 12:52:21 +0000
+
+dpdk (20.11-2) unstable; urgency=high
+
+  [ Christian Ehrhardt ]
+  * dpdk.service: start earlier and avoid dependency loop (Closes: #979489)
+
+  [ Luca Boccassi ]
+  * Upload to unstable. (Closes: #974667)
+
+ -- Luca Boccassi <bluca@debian.org>  Sun, 10 Jan 2021 13:49:27 +0000
+
+dpdk (20.11-1) experimental; urgency=medium
+
+  * dpdk: suggest dpdk-kmods-dkms
+  * dpdk: drop Suggests: linux-image-generic, not needed
+  * New upstream release 20.11; for a full list of changes see:
+    http://doc.dpdk.org/guides-20.11/rel_notes/release_20_11.html
+  * dpdk: install new dpdk-hugepages.py script
+  * dpdk-dev: override lintian warnings about new scripts
+  * d/watch: bump to version 4, no changes
+  * d/copyright: update new path to rte_kni_common.h
+  * Bump Standards-Version to 4.5.1, no changes
+  * Add symbols files for librte-graph, librte-node, librte-regexdev
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 01 Dec 2020 12:35:48 +0000
+
+dpdk (20.11~rc3-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New upstream release candidate 20.11~rc1
+    For details see https://doc.dpdk.org/guides/rel_notes/release_20_11.html
+  * d/update-helper-control.py: bump to new deb822 name
+  * d/p/*: drop python3 test fixes [applied upstream]
+  * d/control, d/rules: igb-uio module no more provided by dkms source
+  * d/*.symbols: update to new names and added packages
+    - bump symbols to new 21 abiver
+    - d/*.symbols: add new libs for baseband-acc100 common-sfc-efx
+      crypto-bcmfs regex-octeontx2
+    - d/*.symbols: add stubs for packages that missed .symbols files
+    - d/*.symbols: rename to new package naming scheme
+    - d/*.symbols: adapt to new ABI throwing away pre @21 mappings
+    - d/librte-port21.symbols: mark non i386 symbols as arch specific
+  * d/control: bump package names to new 21.0 abiver
+  * d/dpdk-doc.install: new path for api doc
+  * d/dpdk-doc.doc-base.*: adapt base paths of html docs
+  * d/control: new PMDs and PMD name restructuring
+  * d/rules, d/control: adapt generated suggest to new naming scheme
+    providing per type meta packages
+    - librte-meta-all: dependencies to all librte libs of DPDK
+    - librte-meta-<category>: dependencies to all librte libs of a certain
+      DPDK lib category
+  * d/rules: adapt to SONAME being only the MAJOR of the full ABI_VERSION
+  * d/rules, d/control: bump debhelper compat to 12
+    - d/rules: change dh_systemd_start to dh_installsystemd for compat >=11
+  * d/control, d/*.symbols: restrict symbols/packages not build on arm64, armhf,
+    ppc64el and i386
+  * d/t/test-linkage: adapt test to new lib naming scheme
+  * d/librte-meta-{all,allpmds}.lintian-overrides: accept long package lists
+  * d/rules: remove build artifacts breaking reproducible build
+  * d/rules: sort package parsing for reproducible build
+  * d/control: fix typo pull/poll mode driver
+  * New upstream release candidate 20.11~rc3
+    - d/*.symbols: symbol changes in 20.11~rc1
+    - d/control: add more per lib/driver homepage links
+    - d/control, d/*.symbols: add new drivers in 20.11~rc3 dlb, dlb2, txgbe
+    - d/control, d/librte-regex-octeontx2*: regex-octeontx2 dropped the
+      superfluous regex suffix
+    - d/t/control: remove test-dkms since we do not have dkms packages anymore
+    - d/control: sfc PMD is >20.11-rc3 enabled for arm64
+
+  [ Luca Boccassi ]
+  * d/control: remove duplicated Section: libs
+  * d/rules: use DEB_VERSION instead of manual parsing
+  * dpdk-doc: override more false-positives about examples mistaken as
+    docs
+  * dpdk-doc: override warning about repeated path segment
+  * d/copyright: some source files were removed, update it
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 11 Nov 2020 11:54:30 +0000
+
+dpdk (20.08-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/t/test-autotest: bump sse feature check
+
+  [ Luca Boccassi ]
+  * Remove 19.11 restriction to watch file
+  * Merge tag 'upstream/20.08' into experimental
+  * Truncate minor ABI revision from package names
+  * Rename packages that were declared stable
+  * Add packages for new libraries and PMDs
+  * Add new executables to dpdk-dev package
+  * Update symbols files
+  * Adjust dpdk-doc install path for guides
+  * Rename Lintian override no-manual-page
+  * Adjust paths in d/copyright for new layout
+  * Fix typo in d/control
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 19 Aug 2020 10:12:27 +0100
+
+dpdk (19.11.6-1) unstable; urgency=medium
+
+  * New upstream version 19.11.6
+    https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html#release-notes
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 18 Dec 2020 17:03:58 +0000
+
+dpdk (19.11.5-1) unstable; urgency=medium
+
+  * New upstream version 19.11.5
+    - Remote Code Execution in vhost_crypto (VM Escape) (CVE-2020-14374)
+    - Time-of-check time-of-use vulnerabilities throughout (CVE-2020-14375)
+    - Buffer overflow copying iv_data from guest to host (CVE-2020-14376)
+    - write_back_data buffer over read (CVE-2020-14377)
+    - Partial Denial of Service due to Integer Underflow (CVE-2020-14378)
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 28 Sep 2020 15:10:04 +0100
+
+dpdk (19.11.4-1) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/t/test-autotest: bump sse feature check
+  * fix libfdt path in pkg-config (Closes: #966921)
+  * d/librte-rawdev20.0.symbols: add new symbol rte_rawdev_dump
+  * d/rules: lintian debian-rules-uses-unnecessary-dh-argument for systemd
+  * d/copyright: fix duplicate-globbing-patterns
+
+  [ Luca Boccassi ]
+  * New upstream version 19.11.4~rc1
+  * Adjust dpdk-doc install path for guides
+  * New upstream version 19.11.4
+  * Drop fix-libfdt-path.patch, merged upstream
+  * Rename Lintian override no-manual-page
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 08 Sep 2020 09:57:19 +0100
+
+dpdk (19.11.3-1) unstable; urgency=medium
+
+  * New upstream release 19.11.3; for a full list of changes see:
+    https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html#release-notes
+    (Closes: #957146)
+  * Depend on pci.ids | hwdata instead of hwdata (Closes: #953298)
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 19 Jun 2020 16:56:03 +0100
+
+dpdk (19.11.3~rc1-1) experimental; urgency=medium
+
+  * New upstream release candidate 19.11.3~rc1
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 04 Jun 2020 15:02:45 +0100
+
+dpdk (19.11.2-1) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/p/fix-autopkgtest-py3.patch: fix autotest runner for python3
+  * d/t/*: use skippable test restriction and exit codes to skip tests
+  * d/t/test-autotest: the python tool needs RTE_TARGET set in arg #3
+  * d/p/fix-autopkgtest-py3.patch: update upstreaming info
+  * d/p/autotest-fix-pexpect-in-python3.patch: fix autotest
+  * d/t/test-autotest: adapt limits to autopkgtest environment
+  * d/t/test-autotest: update blacklist
+
+  [ Luca Boccassi ]
+  * New upstream version 19.11.2
+    - A malicious guess/container can cause resource leak resulting a
+      Denial-of-Service, or memory corruption and crash, or information leak
+      in vhost-user backend application.
+      (CVE-2020-10722, CVE-2020-10723, CVE-2020-10724, CVE-2020-10725,
+      CVE-2020-10726) (Closes: #960936)
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 18 May 2020 15:07:31 +0100
+
+dpdk (19.11.1-2) unstable; urgency=medium
+
+  * Fix regex in d/watch for 19.11 point releases
+  * librte-pmd-ipn3ke20.0: enable for i386
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 06 Apr 2020 11:10:04 +0100
+
+dpdk (19.11.1-1) unstable; urgency=medium
+
+  * Update to 19.11.1 stable release (LP: #1869147)
+    https://doc.dpdk.org/guides-19.11/rel_notes/release_19_11.html#release-notes
+  * add new packages which didn't build
+    - librte_pmd_ipn3ke
+    - librte_rawdev_ifpga which
+  * d/librte-cfgfile20.0.symbols: add new symbol
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 26 Mar 2020 14:02:53 +0100
+
+dpdk (19.11-4) unstable; urgency=medium
+
+  * Refresh debian/copyright
+  * Add missing librte-gro symbols file
+  * Update watch file to look for 19.11 series, use https
+  * Fix Lintian Warning: duplicate-short-description
+  * Do not ship fonts in dpdk-doc
+  * Bump Standards-Version to 4.5.0, no changes.
+  * Ignore LW about README outside of doc dir
+  * dpdk-doc: add doc-base control files
+  * Add link to DPDK guides via Documentation in dpdk.service
+  * Override dpdk source: package-does-not-install-examples false positive
+  * Use chrpath to strip RPATH from dpdk-test binary
+  * Add missing symbols files
+  * Override default Lintian CI job to ignore symbols-file-missing-build-
+    depends-package-field
+
+ -- Luca Boccassi <bluca@debian.org>  Sun, 22 Mar 2020 12:08:42 +0000
+
+dpdk (19.11-3) experimental; urgency=medium
+
+  * d/p/test: transition to python3
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 28 Jan 2020 13:34:07 +0200
+
+dpdk (19.11-2) experimental; urgency=medium
+
+  * dh-missing: ignore examples directory, as they are already installed
+    manually. (Closes: #947371)
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 26 Dec 2019 15:30:15 +0100
+
+dpdk (19.11-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New upstream release 19.11; for a full list of changes see:
+    http://doc.dpdk.org/guides-19.08/rel_notes/release_19_08.html
+    - Includes d/p/avoid-as-needed-as-it-causes-overlinking.patch: fix
+      overlinking in software using the dpdk pkg-config (LP: #1841759)
+    - d/control: bump versions to 19.11
+    - d/*.symbols: bump for 19.11
+    - rte-kni module support dropped upstream, remove former package
+      dpdk-rte-kni-dkms (LP: #1853195)
+    - d/p/fix-ppc64-mlx4-build.patch: drop patch now being upstream
+    - new Major ABI is set to 20.0 by upstream
+    - d/dpdk.lintian-overrides: it is ok that example shell scripts are
+      not executable
+    - d/control, d/*.symbols: new PMDs for qede pfe nitrox hns3 and
+      octeontx2-crypto
+    - d/control, d/*.symbols: new rte libraries rib and fib
+    - d/dpdk-dev.install: add new dpdk-test-sad
+    - d/rules: global ABI_VERSION now tracked in a file by upstream
+    - d/control: add new build-dependencies libisal-dev, libfdt-dev
+      and libbpf-dev
+    - d/control: drop no more built librte-pmd-ipn3ke20.0
+    - d/control: add new PMDs of 19.11 af-xdp and isal
+    - d/rules: add ability to handle fully experimental libs to be soname zero
+    - d/control: experimental only libs now are on an soname 0.200 (bbdev, bpf,
+      compressdev, fib, flow-classify, ipsec, rcu, rib, stack, telemetry)
+    - d/control: let libdpdk-dev depend on the new build dependencies
+  * fixup package reference in debian/librte-common-octeontx2-19.11.symbols
+  * drop duplicate debian/update-control.py helper
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 04 Dec 2019 14:29:26 +0000
+
+dpdk (19.08-1~git1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New upstream release 19.08; for a full list of changes see:
+    http://doc.dpdk.org/guides-19.08/rel_notes/release_19_08.html
+    - d/*.symbols: flat update for 19.08
+    - d/control: update to new major version number
+    - d/dpdk-dev.install: update new paths to dpdk-test
+    - d/control, d/librte-pmd-qede18.11.symbols: drop pmd-qede no more built
+      by default
+    - d/control, d/*.symbols: new PMDs librte-pmd-octeontx2
+      librte-pmd-bbdev-fpga-lte-fec librte-pmd-bbdev-turbo-sw librte-pmd-hinic
+      librte-pmd-ice librte-pmd-ipn3ke librte-pmd-memif
+      librte-pmd-octeontx2-event
+    - d/control, d/*.symbols: renamed PMDs
+      - librte-pmd-skeleton-rawdev -> librte-rawdev-skeleton
+      - librte-pmd-dpaa2-cmdif -> librte-rawdev-dpaa2-cmdif
+      - librte-pmd-dpaa2-qdma -> librte-rawdev-dpaa2-qdma
+      - librte-pmd-avf -> librte-pmd-iavf
+      - librte-pmd-ifpga-rawdev (somewhat indirectly replaced by
+        librte-pmd-ipn3ke)
+    - d/control: add new Homepage references
+    - d/control, d/*.symbols: new rawdev drivers librte-rawdev-ioat,
+      librte-rawdev-ntb and  librte-rawdev-octeontx2-dma
+    - d/control, d/*.symbols: add new libraries librte-common-octeontx2,
+      librte-ipsec, librte-mempool-octeontx2, librte-rcu and librte-stack
+    - d/dpdk-dev.install: new test binaries" debian/dpdk-dev.install
+    - d/dpdk-doc.install: add new examples path" debian/dpdk-doc.install
+    - d/*.symbols: add new and updated symbols
+    - d/p/fix-ppc64-mlx4-build.patch: fix FTBFS on ppc64el
+  * Drop patches now upstream
+    - 0004-build-bump-minimum-Meson-version-to-0.47.1.patch
+    - 0005-build-use-dependency-instead-of-find_library.patch
+    - 0006-build-reorder-libraries-and-build-eal-before-cmdline.patch
+    - 0007-build-use-dependency-for-libbsd-instead-of-manual-ap.patch
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 12 Aug 2019 13:23:49 +0200
+
+dpdk (18.11.6-1) unstable; urgency=medium
+
+  [ Luca Boccassi ]
+  * New upstream version 18.11.6; For a list of changes see
+    http://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html
+  * Drop avoid-as-needed-as-it-causes-overlinking.patch, merged upstream.
+  * Refresh remaining patches to remove fuzz from 18.11.6.
+  * Add patch to avoid changing stable symbol version, breaking ABI.
+  * Update librte-eal18.11.symbols with new experimental symbol from
+    18.11.6
+
+  [ Christian Ehrhardt ]
+  * d/*.lintian-overrides: add overrides for a few known but accepted
+    deficiencies
+
+  [ Luca Boccassi ]
+  * Use chrpath to strip RPATH from dpdk-test binary
+  * Add missing librte-gro symbols file
+
+ -- Luca Boccassi <bluca@debian.org>  Sat, 29 Feb 2020 11:58:26 +0000
+
+dpdk (18.11.5-1) unstable; urgency=medium
+
+  * New upstream version 18.11.5; For a list of changes see
+    http://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html
+  * Refresh 0004-build-bump-minimum-Meson-version-to-0.47.1.patch to
+    remove fuzz from 18.11.5
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 20 Nov 2019 16:09:39 +0000
+
+dpdk (18.11.4-1) unstable; urgency=high
+
+  * Merge stable update to 18.11.4; For a list of changes see
+    http://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html
+  * Fixes CVE-2019-14818
+  * Refresh 0004-build-bump-minimum-Meson-version-to-0.47.1.patch to
+    remove fuzz from 18.11.4
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 12 Nov 2019 14:14:06 +0000
+
+dpdk (18.11.3-1) unstable; urgency=medium
+
+  * Merge stable update to 18.11.3; For a list of changes see
+    http://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html#id2
+    - refresh d/p/0004-build-bump-minimum-Meson-version-to-0.47.1.patch
+    - refresh d/p/avoid-as-needed-as-it-causes-overlinking.patch
+    - d/dpdk-dev.install: dpdk-test is now properly in usr/bin
+    - d/librte-security18.11.symbols: mark some symbols that now properly
+      are experimental as such (none is gone)
+    - among other things it fixes a dkms build issue with kernel 5.4
+      (LP: #1848585)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 28 Oct 2019 10:59:53 +0100
+
+dpdk (18.11.2-4) unstable; urgency=medium
+
+  * d/p/avoid-as-needed-as-it-causes-overlinking.patch: fix overlinking in
+    software using the dpdk pkg-config (LP: #1841759)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 04 Sep 2019 15:37:29 +0200
+
+dpdk (18.11.2-3) unstable; urgency=medium
+
+  * Note branch in Vcs-Git.
+  * Bump Standards-Version to 4.4.0.
+  * Fix distribution in dpdk-dev.NEWS.
+    Fixes LW: debian-news-entry-has-strange-distribution
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 02 Sep 2019 20:21:32 +0100
+
+dpdk (18.11.2-2) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/control: set VCS to be Salsa based
+  * d/README.source: add info about salsa git usage
+
+ -- Luca Boccassi <bluca@debian.org>  Sat, 13 Jul 2019 13:19:37 +0100
+
+dpdk (18.11.2-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge stable update to 18.11.2; For a list of changes see
+    http://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html#id1
+    - refresh 0004-build-bump-minimum-Meson-version-to-0.47.1.patch for 18.11.2
+    - drop changes upstream in 18.11.2
+      0002-build-use-generic-march-on-arm64-when-using-default.patch
+      lp-1827102-kni-fix-build-with-Linux-5.1.patch
+
+  [ Santiago Ruano Rincón ]
+  * debian/rules: clean doc files
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 04 Jul 2019 11:05:14 +0200
+
+dpdk (18.11.1-3) experimental; urgency=medium
+
+  * d/control: add dependencies to libdpdk-dev: libelf-dev and libjansson-dev
+    to avoid pkg-config issues
+  * d/control: drop unused build dependency to libcap-dev
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 08 May 2019 09:25:26 +0200
+
+dpdk (18.11.1-2) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/control: drop shlibs:Depends from dpdk as it has no binaries anymore
+  * d/p/lp-1827102-kni-fix-build-with-Linux-5.1.patch fix kni DKMS build with
+    Linux 5.1 kernels (LP: #1827102)
+
+  [ Luca Boccassi ]
+  * Bump Standards-Version to 4.3.0, no changes.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Fri, 03 May 2019 15:08:25 +0200
+
+dpdk (18.11.1-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge stable update to 18.11.1; For a list of changes see
+    https://doc.dpdk.org/guides-18.11/rel_notes/release_18_11.html
+    - refresh 0004-build-bump-minimum-Meson-version-to-0.47.1.patch for 18.11.1
+    - drop changes upstream in 18.11.1
+      0001-doc-fix-garbage-text-in-generated-HTML-guides.patch
+      0003-build-mention-march-in-pkg-config-description.patch
+      0001-kni-fix-build-for-dev_open-in-Linux-5.0.patch
+      0002-kni-fix-build-for-igb_ndo_bridge_setlink-in-Linux-5..patch
+  * d/control: fix usability issue with mlx PMDs which might need rdma-core
+    to be installed. In most cases users will want this, to be able to
+    drop rdma-core if unwanted in some cases this is only a recommends added
+    to librte-pmd-mlx4-18.11 and librte-pmd-mlx5-18.11 (Closes: #925141)
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 16 Apr 2019 11:14:13 +0100
+
+dpdk (18.11-6) unstable; urgency=medium
+
+  [ Luca Boccassi ]
+  * Add NEWS entry to list changes to dpdk-dev. (Closes: #921043)
+
+  [ Christian Ehrhardt ]
+  * d/control: ensure break relationships are backportable (Closes: #921042)
+  * d/p/*kni-fix-build*: fix build with kernel 5.0 (LP: #1814919)
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 07 Feb 2019 16:34:57 +0000
+
+dpdk (18.11-5) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/control: add librte-mempool-ring to the list of default libs that dpdk
+    Recommends. This ensures a generally functional mempool backend by default
+    but stays configurable (remove librte-mempool-ring and/or add other
+    librte-mempool packages).
+
+  [ Luca Boccassi ]
+  * libdpdk-dev: depend on libipsec-mb-dev as its linker flag is in
+    pkg-config's static list.
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 30 Jan 2019 13:23:13 +0000
+
+dpdk (18.11-4) unstable; urgency=medium
+
+  * Fix typo in ccp PMD short description. (Closes: #917792)
+  * Link applications and tests dynamically instead of statically.
+  * Update libdpdk-dev's description to mention that the pkg-config file's
+    CFLAGS might contain an -march higher than typical baseline, due to
+    DPDK's requirements.
+  * Binary kernel module build: use kernel headers from highest version
+    rather than what uname -a returns by default.
+  * Backport the following Meson patches to fix dependencies issues:
+    - 0003-build-mention-march-in-pkg-config-description.patch
+    - 0004-build-bump-minimum-Meson-version-to-0.47.1.patch
+    - 0005-build-use-dependency-instead-of-find_library.patch
+    - 0006-build-reorder-libraries-and-build-eal-before-cmdline.patch
+    - 0007-build-use-dependency-for-libbsd-instead-of-manual-ap.patch
+    Bump mimimum Meson version to 0.47.1 accordingly.
+
+  [ Christian Ehrhardt ]
+  * move developer tools from dpdk to dpdk-dev
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 22 Jan 2019 18:34:46 +0000
+
+dpdk (18.11-3) unstable; urgency=medium
+
+  * d/p/0002-build-use-generic-march-on-arm64-when-using-default.patch: fix
+    arm64 build by fixing baseline architecture.
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 24 Dec 2018 13:59:06 +0100
+
+dpdk (18.11-2) unstable; urgency=medium
+
+  * d/p/0001-doc-fix-garbage-text-in-generated-HTML-guides.patch: fix
+    reproducible builds by making sure no garbage text end up in generated
+    documentation HTML pages.
+  * Add libmnl-dev, libnuma-dev dependency on libdpdk-dev to allow static
+    builds to work.
+  * Restrict watch file to 18.11.x series.
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 24 Dec 2018 11:00:30 +0100
+
+dpdk (18.11-1) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * New upstream release 18.11; for a full list of changes see:
+    https://dpdk.org/doc/guides/rel_notes/release_18_11.html
+  * Add new 18.11 PMDs and libraries:
+    - librte-common-cpt18.11
+    - librte-common-dpaax18.11
+    - librte-pmd-atlantic18.11
+    - librte-pmd-caam-jr18.11
+    - librte-pmd-octeontx-crypto18.11
+    - librte-telemetry18.11
+  * Bump debhelper compat to 10.
+  * Switch to Meson. Rename PMD packages to follow the shared library names:
+    - librte-pmd-vmxnet3-uio18.11 -> librte-pmd-vmxnet3-18.11
+    - librte-pmd-lio18.11 -> librte-pmd-liquidio18.11
+    - librte-pmd-octeontx-ssovf18.11 -> librte-pmd-octeontx-event18.11
+    - librte-pmd-octeontx-zip18.11 -> librte-pmd-octeontx-compress18.11
+    - librte-pmd-sfc-efx18.11 -> librte-pmd-sfc18.11
+    - librte-pmd-thunderx-nicvf18.11 -> librte-pmd-thunderx18.11
+    Switch PMD installation directory from /usr/lib/*/dpdk-18.11-drivers to
+    /usr/lib/*/dpdk/pmds-18.11.
+    Remove backward-compatibility symlink for arch-dependent headers. Users
+    now should use the libdpdk.pc pkg-config file to get the appropriate
+    CFLAGS, or specify -I/usr/include/<ARCH>/dpdk manually.
+    Drop the dpdk-dev SDK package, users should just use pkg-config now.
+    Rename all binaries and scripts to have a dpdk- prefix.
+    Build-Depend on debhelper >= 10.3~, which introduced Meson support.
+  * Don't build dpdk-doc when using the nodoc profile.
+  * Build-depend on libjansson-dev, libbsd-dev and libelf-dev.
+  * Package libraries built by default:
+    - librte-pmd-bnx2x18.11
+    - librte-pmd-ccp18.11
+    - librte-pmd-dsw-event18.11
+  * Use dh-missing.
+  * Package zlib PMD:
+    - librte-pmd-zlib18.11
+  * Add missing BNX URL metadata.
+  * Drop libdpdk-dbgsym - not really used and broken in sid.
+  * Override -march pkg-config Lintian error.
+  * Enable PIE hardening.
+  * Override lintian warning about scripts with extension in bin.
+  * Add libssl-dev dependency on libdpdk-dev for libcrypto.pc.
+  * Add libbsd-dev dependency on libdpdk-dev for bsd/string.h.
+  * Drop fix-vhost-user-socket-permission.patch and
+    tmpfix-ppc-build-error.patch. The latter has been fixed upstream,
+    and the former is not needed as we no longer support vhost-user
+    in client mode. Please switch to server mode.
+  * Add new DEB_BUILD_OPTIONS dpdk_config_options that accepts a comma
+    separated list (no spaces) of additional DPDK build configure options that
+    will be passed to Meson. Substitutes support for custom legacy Makefile
+    config files.
+
+  [ Christian Ehrhardt ]
+  * d/control: fix libnuma compile issues now available on armhf
+  * d/rules: select upstream declared baseline as RTE_MACHINE
+  * d/control: enable more architectures on PMDs now building
+  * d/control, d/control.modules.in, d/dpdk.install, d/dpdk-doc.install: apply
+    wrap-and-sort --wrap-always --trailing-comma to keep down change noise
+  * d/dpdk-rte-kni-dkms.dkms.in: fix dkms build in newer kernels by adding a
+    path for its own kni_fifo.h
+  * d/control: enhance dkms builds by depending on libelf-dev
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 27 Nov 2018 11:34:50 +0000
+
+dpdk (18.08-3) experimental; urgency=medium
+
+  * Enable armhf build. (Closes: #906931)
+  * Add libibverbs-dev dependency in libdpdk-dev, for static linking.
+    (Closes: #907365)
+  * Add missing packages for new PMDs and libraries built by default:
+    - librte-bus-vmbus18.08
+    - librte-pmd-netvsc18.08
+    - librte-pmd-qat18.08
+    - librte-pmd-octeontx-zip18.08
+  * Add "terse" DEB_BUILD_OPTIONS to reduce build log verbosity.
+  * Set Rules-Requires-Root to no.
+  * Bump Standards-Version to 4.2.1.
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 27 Aug 2018 17:13:24 +0100
+
+dpdk (18.08-2) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/p/tmpfix-ppc-build-error.patch: fix ppc64el build issue due to a
+    conflict of stdbool and altivec.
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 23 Aug 2018 10:58:10 +0100
+
+dpdk (18.08-1) experimental; urgency=medium
+
+  * New upstream release 18.08; for a full list of changes see:
+    https://dpdk.org/doc/guides/rel_notes/release_18_08.html
+    - refresh d/p/fix-vhost-user-socket-permission.patch for 18.08
+    - add build-dependency on libmnl-dev, needed by MLX PMD
+    - d/control: bump ABI version on packages
+    - bump d/*.symbols for new ABI
+    - Rename librte-ifcvf-vdpa to librte-pmd-ifc following upstream change
+  * Enable librte-pmd-avf on arm64, i386 and ppc64el since it's available.
+    (Closes: #905041)
+  * Enable AESNI-MB/AESNI-GCM crypto drivers PMDs and packages with build
+    dependency on libipsec-mb-dev (amd64-only).
+    (Closes: #905580)
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 15 Aug 2018 12:58:27 +0100
+
+dpdk (18.05-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New upstream release 18.05; for a full list of changes see:
+    https://dpdk.org/doc/guides/rel_notes/release_18_05.html
+    - refresh d/p/fix-vhost-user-socket-permission.patch for 18.05
+    - d/control: bump ABI version on packages
+    - bump d/*.symbols for new ABI
+    - d/control: d/*.symbols: new libraries and pmds
+      - librte-bpf
+      - librte-bus-ifpga
+      - librte-common-octeontx
+      - librte-compressdev
+      - librte-ifcvf-vdpa
+      - librte-mempool-bucket
+      - librte-pmd-axgbe
+      - librte-pmd-dpaa
+      - librte-pmd-dpaa-sec
+      - librte-pmd-dpaa-event
+      - librte-pmd-dpaa2
+      - librte-pmd-dpaa2-cmdif
+      - librte-pmd-dpaa2-event
+      - librte-pmd-dpaa2-qdma
+      - librte-pmd-dpaa2-sec
+      - librte-pmd-ifpga-rawdev
+      - librte-pmd-virtio-crypto
+    - d/rules: adapt to move of kernel modules directories in 18.05
+    - d/control: dpaa drivers build on non arm64 as well now
+    - d/rules: handle IFCVF as callback driver
+  * Dropped changes that are upstream in 18.05:
+    - Backport dpdk-dev-app-testpmd-fix-DPAA-shared-library-dependency.patch
+      and dpdk-dev-mk-fix-dependencies-of-dpaaX-drivers.patch from upstream to
+    - d/p/dpdk-dev-eal-ppc-fix-rte_smp_mb-for-a-compilation-error-with-else-
+      clause.patch: fix build on ppc64el
+      fix arm64 build.
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 11 Jun 2018 14:34:19 +0100
+
+dpdk (18.02.1-1) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * New upstream release 18.02.1; for a full list of changes see:
+    https://dpdk.org/doc/guides-18.02/rel_notes/release_18_02.html
+    * Fixes CVE-2018-1059 (Closes: #896688).
+
+  [ Christian Ehrhardt ]
+  * d/control: add new PMDs: bbdev-null, skeleton-rawdev, vdev-netvsc
+  * Symbols of new PMDs in 18.02
+    - debian/librte-pmd-bbdev-null18.02.symbols
+    - debian/librte-pmd-mlx4-18.02.symbols
+    - debian/librte-pmd-mlx5-18.02.symbols
+    - debian/librte-pmd-skeleton-rawdev18.02.symbols
+    - debian/librte-pmd-vdev-netvsc18.02.symbols
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 23 Apr 2018 15:58:42 +0100
+
+dpdk (18.02-2) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * autopkgtest: use libdpdk pkg-config to set all the required compiler
+    flags.
+  * autopkgtest: add pkg-config dependency to really fix linkate test.
+  * Backport dpdk-dev-app-testpmd-fix-DPAA-shared-library-dependency.patch
+    and dpdk-dev-mk-fix-dependencies-of-dpaaX-drivers.patch from upstream to
+    fix arm64 build.
+  * Add librte-bus-dpaa18.02, librte-bus-fslmc.02, librte-pmd-dpaa18.02 and
+    librte-mempool-dpaa18.02 on arm64, as their config is enabled by default
+    upstream.
+  * Add new symbols to symbols files for 18.02.
+
+  [ Christian Ehrhardt ]
+  * d/control: let libdpdk-dev depend on zlib1g-dev as it is used on build and
+    creeps into pkg-config. Even thou at the moment no dpdk .so uses it is
+    required to build correctly with the libs provided by pkg-config.
+  * d/t/control: depend on dpdk-dev to be able to use dpdk-sdk-env.sh
+  * d/t/testlinkage: improvements and fixes for current debci issues
+    - Use RTE_SDK to build the binary
+    - verbose execution for better debugging
+    - check for librt instead of libpthread as second level lib
+    - use a valid prototype for main
+  * Add package and build-dependency MLX4 and MLX5 PMDs.
+    With rdma-core >16 being in Debian and Ubuntu as well as some stabilization
+    work ongoing upstream we can start to enable these PMDs.
+  * d/p/dpdk-dev-eal-ppc-fix-rte_smp_mb-for-a-compilation-error-with-else-
+    clause.patch: fix build on ppc64el
+  * test-linkage: drop brittle test for secondary library dependencies
+  * debian/control: Fix MLX4/MLX5 enablement to match DPDK 18.02
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 15 Mar 2018 10:53:02 +0000
+
+dpdk (18.02-1) experimental; urgency=medium
+
+  * New upstream release 18.02; for a full list of changes see:
+    https://dpdk.org/doc/guides/rel_notes/release_18_02.html
+  * Bump ABI version of packages from 17.11 to 18.02.
+  * Drop testpmd-link-virtio.patch, not needed.
+  * Refresh fix-vhost-user-socket-permission.patch to remove fuzz from
+    18.02.
+  * Add packages for new libraries/PMDs: librte-bbdev18.02,
+    librte-rawdev18.02, librte-pmd-avf18.02,
+    librte-pmd-opdl-event18.02.
+  * Add package and build-dependency for OpenSSL PMD:
+    librte-pmd-openssl18.02. (Closes: #886150)
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 22 Feb 2018 14:00:03 +0000
+
+dpdk (17.11.4-1) unstable; urgency=medium
+
+  * New upstream release 17.11.4; for a full list of changes see:
+    https://dpdk.org/doc/guides-17.11/rel_notes/release_17_11.html
+  * drop net-mlx5-fix-build-with-rdma-core-v19.patch, merged in 17.11.4.
+  * Add new rte_eal_check_dma_mask symbol to d/librte-eal17.11.symbols
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 03 Sep 2018 16:05:21 +0100
+
+dpdk (17.11.3-3) unstable; urgency=medium
+
+  * d/p/net-mlx5-fix-build-with-rdma-core-v19.patch: fix Build against
+    rdma-core v19 which is in Debian unstable now. (This will most likely be
+    in 17.11.4 and can then be dropped)
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 30 Jul 2018 10:34:20 +0100
+
+dpdk (17.11.3-2) unstable; urgency=medium
+
+  * Temporarily disable ML4 and MLX5 again to fix FTBS due to
+    incompatibility with rdma-core 19.0.
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 03 Jul 2018 11:14:22 +0100
+
+dpdk (17.11.3-1) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New upstream release 17.11.3; for a full list of changes see:
+    https://dpdk.org/doc/guides-17.11/rel_notes/release_17_11.html
+  * d/control: binary package and build-dependency for MLX4 and MLX5 PMDs.
+    - d/librte-pmd-mlx*.symbols: symbol files for mlx PMDs
+    - d/p/app-testpmd-add-ethernet-peer-command.patch: ensure MLX PMDs are
+      well testable
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 20 Jun 2018 13:42:27 +0100
+
+dpdk (17.11.2-1) unstable; urgency=high
+
+  * New upstream release 17.11.2; for a full list of changes see:
+    https://dpdk.org/doc/guides-17.11/rel_notes/release_17_11.html
+    * Fixes CVE-2018-1059 (Closes: #896688).
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 23 Apr 2018 14:45:21 +0100
+
+dpdk (17.11.1-6) unstable; urgency=medium
+
+  * test-linkage: drop brittle test for secondary library dependencies
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 14 Mar 2018 14:53:15 +0000
+
+dpdk (17.11.1-5) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/t/control: depend on dpdk-dev to be able to use dpdk-sdk-env.sh
+  * d/t/testlinkage: improvements and fixes for current debci issues
+    - Use RTE_SDK to build the binary
+    - verbose execution for better debugging
+    - check for librt instead of libpthread as second level lib
+    - use a valid prototype for main
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 13 Mar 2018 10:41:06 +0000
+
+dpdk (17.11.1-4) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/control: let libdpdk-dev depend on zlib1g-dev as it is used on build and
+    creeps into pkg-config. Even thou at the moment no dpdk .so uses it is
+    required to build correctly with the libs provided by pkg-config.
+
+  [ Luca Boccassi ]
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 12 Mar 2018 11:09:27 +0000
+
+dpdk (17.11.1-3) unstable; urgency=medium
+
+  * autopkgtest: add pkg-config dependency to really fix linkage test.
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 09 Mar 2018 12:38:04 +0000
+
+dpdk (17.11.1-2) unstable; urgency=medium
+
+  * autopkgtest: use libdpdk pkg-config to set all the required compiler
+    flags.
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 08 Mar 2018 16:52:46 +0000
+
+dpdk (17.11.1-1) unstable; urgency=medium
+
+  * New upstream release 17.11.1; for a full list of changes see:
+    http://dpdk.org/doc/guides/rel_notes/release_17_11.html
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 07 Mar 2018 13:06:52 +0000
+
+dpdk (17.11-5) unstable; urgency=medium
+
+  * Bump Standards-Version to 4.1.1, no changes.
+  * Add dependency on Python to dpdk-doc for diagram-generator.py and
+    pipeline-to-core-mapping.py. Fixes Lintian Error:
+    python-script-but-no-python-dep
+  * Fix librte-gro17.11 short description to mention -gro instead of
+    -eal. (Closes: #885832)
+  * dpdk: depend on python3-pyelftools since the scripts can work with either
+    version.
+  * dpdk-doc: depend only on python3 since the pipeline tools can work
+    with python3. (Closes: #883153)
+  * dpdk/dpdk-doc: change all scripts shebangs from python to python3.
+  * dpdk-doc: mark Python dependency with :any.
+  * Bump Standards-Version to 4.1.3 - no changes.
+  * d/control, d/changelog: use HTTPS for dpdk.org links.
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 08 Feb 2018 18:07:19 +0000
+
+dpdk (17.11-4) unstable; urgency=low
+
+  [ Luca Boccassi ]
+  * Fix librte-gro17.11 short description to mention -gro instead of
+    -eal. (Closes: #885832)
+
+  [ Christian Ehrhardt ]
+  * d/rules: make auto-loaded drivers dir versioned (LP: #1741244).
+    3rd party drivers should drop into the versioned directories now to show
+    their support for that version and to be autoloaded by librte_eal due
+    to that.
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 04 Jan 2018 13:52:07 +0000
+
+dpdk (17.11-3) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 18 Dec 2017 19:17:13 +0000
+
+dpdk (17.11-2) experimental; urgency=medium
+
+  * Bump Standards-Version to 4.1.1, no changes.
+  * Add dependency on Python to dpdk-doc for diagram-generator.py and
+    pipeline-to-core-mapping.py. Fixes Lintian Error:
+    python-script-but-no-python-dep
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 30 Nov 2017 19:16:11 +0000
+
+dpdk (17.11-1) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * Add librte-pmd-failsafe package.
+  * Drop mk-order-CFLAGS-so-that-ISCDIR-comes-before-IRTE_OUT.patch and
+    add mk-install-symlinks-before-build-step.patch which has the same
+    result but is much simpler and easier to maintain.
+  * Build-Depend on debhelper (>= 9.20160709) rather than dh-systemd as
+    latter is deprecated. Fixes Lintian Error:
+      build-depends-on-obsolete-package
+  * Build-Depend on the Python 3 version of the Sphinx packages to fix
+    Lintian Warning: build-depends-on-python-sphinx-only
+  * New upstream release 17.11; for a full list of changes see:
+    http://dpdk.org/doc/guides/rel_notes/release_17_11.html
+  * Bump ABI version of packages from 17.08 to 17.11.
+  * Fix upstream version parsing in d/rules to account for -rcX.
+  * Add packages for new libraries/PMDs: librte-bus-pci17.11,
+    librte-security17.11, librte-mempool-octeontx17.11,
+    librte-flow-classify17.11, librte-gso17.11, librte-member17.11,
+    librte-pci17.11, librte-pmd-softnic17.11, librte-bus-vdev17.11.
+  * Drop mk-* patches for reproducible builds, merged upstream.
+  * Refresh fix-vhost-user-socket-permission.patch to remove fuzz from
+    17.11-rc3.
+  * Switch generated dependencies to Python 3 due to switch to Python 3
+    Sphinx.
+  * Build-Depend on debhelper (>= 9.20160709) | dh-systemd to keep
+    compatibility with Ubuntu 16.04, which does not yet have that
+    of debhelper.
+  * Revert: d/rules: use new dh option names - Ubuntu 16.04 does not
+    have a debhelper that supports the new option, so use the old
+    ones for now.
+  * Drop librte-pmd-xenvirt17.11, deprecated upstream, and related
+    build-dependencies.
+  * Correctly parse upstream version when using ~rc instead of -rc.
+  * Update symbols files for 17.11.
+  * Backport testpmd-link-virtio.patch to link testpmd with the virtio
+    pmd to fix failure to run in VMs with virtio based interfaces
+
+  [ Christian Ehrhardt ]
+  * d/rules: use new dh option names
+  * d/rules: properly enable dpdk systemd service
+  * d/control: improve dpdk-pmdinfo user experience by making
+    python-pyelftools a recommended dependency.
+  * d/control: add librte-pmd-octeontx17.11
+  * d/t/control: fix test dependencies for s390x (Closes: #882480).
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 23 Nov 2017 17:50:12 +0000
+
+dpdk (17.08-4) experimental; urgency=medium
+
+  * Drop mk-order-CFLAGS-so-that-ISCDIR-comes-before-IRTE_OUT.patch and
+    add mk-install-symlinks-before-build-step.patch which has the same
+    result but is much simpler and easier to maintain.
+
+ -- Luca Boccassi <bluca@debian.org>  Wed, 06 Sep 2017 10:13:02 +0100
+
+dpdk (17.08-3) experimental; urgency=medium
+
+  * Re-enable build of librte-pmd-failsafe.
+  * Add librte-pmd-failsafe package.
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 01 Sep 2017 18:30:58 +0100
+
+dpdk (17.08-2) experimental; urgency=medium
+
+  * Disable build of librte-pmd-failsafe, not yet packaged but it ends
+    up mentioned in the pkg-config otherwise.
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 01 Sep 2017 18:17:24 +0100
+
+dpdk (17.08-1) experimental; urgency=medium
+
+  * New Upstream release 17.08.
+  * Add librte-gro package.
+  * Drop patches merged upstream: fix-power-default-config.patch,
+    mk-use-make-silent-flag-to-print-HTML-doc-version.patch,
+    mk-fix-excluding-.doctrees-when-installing-docs.patch.
+  * Refresh fix-vhost-user-socket-permission.patch to remove fuzz.
+  * Add build-dependency on libnuma-dev, mandatory since 17.08.
+  * Update mk-order-CFLAGS-so-that-ISCDIR-comes-before-IRTE_OUT.patch to
+    include librte-gro.
+  * debian/update-helper-symbols: do not append .0 to SOVERSION.
+  * debian/rules: use dpkg's DEBIAN_VERSION_UPSTREAM and DEB_HOST_*
+    variables instead of parsing and setting them manually.
+  * Update symbols files to reflect changes in the libraries.
+  * Switch to debian.org email address.
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 31 Aug 2017 19:10:12 +0100
+
+dpdk (17.05.1-4) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Fix d/p/fix-vhost-user-socket-permission.patch: add mis-dropped
+    create_unix_socket call and reposition rte_eal_set_socket_permissions
+  * Fix d/p/fix-vhost-user-socket-permission.patch
+    - add accidenitally dropped create_unix_socket call
+    - reposition rte_eal_set_socket_permissions to match 17.05 handling of
+      vhost-user server sockets (and their late binding)
+
+  [ Luca Boccassi ]
+  * Mark build-dependencies needed for documentation builds with the <!nodoc>
+    build-profile to fully implement support for it.
+  * Bump Standards-Version to 4.1.0. Relevant changes are nodoc support and
+    build reprodicibility.
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Wed, 23 Aug 2017 14:45:54 +0100
+
+dpdk (17.05.1-3) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * Fix reproducibility of librte-eal linuxapp.
+
+  [ Christian Ehrhardt ]
+  * d/rules: fix reference path of dpdk-devbind to match the new
+    subdirectory which is in /usr/share/dpdk/usertools
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Fri, 18 Aug 2017 12:21:32 +0100
+
+dpdk (17.05.1-2) experimental; urgency=medium
+
+  * Install headers with arch-specific content in /usr/include/<multiarch>/dpdk
+    to make libdpdk-dev multiarch-compliant.
+    To ensure backward compatibility in x86_64, which is what most of the
+    consumers use, symlink x86_64 headers in /usr/include/dpdk.
+    pkg-config returns the arch-specific headers first so that other
+    architectures are still compatible.
+    Also create a full copy of the headers in the dpdk-dev SDK package, as it
+    does not support multiple levels of headers.
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Wed, 09 Aug 2017 13:02:28 +0100
+
+dpdk (17.05.1-1) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * New Upstream release 17.05.1.
+  * Add patches to make the libraries and PMDs builds fully reproducible,
+    by making the listing order of headers, source files and objects in
+    the makefiles stable (via sorting).
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Thu, 13 Jul 2017 18:43:12 +0100
+
+dpdk (17.05-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * New Upstream release 17.05; For a full list of changes (LP: #1691661)
+    see http://dpdk.org/doc/guides/rel_notes/release_17_05.html
+    - adapt to use MAJOR_ABI configuration to avoid the sub-lib abi
+      version breakage of the past.
+    - add d/update-helper* to update d/control and d/*.symbols for new versions
+    - adapt to new build trigger and location of tests; provide further
+      test tools (testacl, testpipeline) together with the already
+      provided "test" tool in /usr/share/dpdk/test/ of dpdk-dev.
+      Note: testpmd is installed "officially" by install-sdk and therefore
+      stays separate from other test tools.
+    - updated library arch availability/dependency: librte-kni is
+      available on ppc64el; librte-pmd-i40e on all arches;
+      librte-pmd-fm10k gone on ppc64el
+    - package the 19 new sub-libs / pmds that are now built by default
+    - rename and update symbols files to match the update to DPDK 17.05
+
+  [ Luca Boccassi ]
+  * Rename libraries after ABI major version rather than source version.
+  * Always set CONFIG_RTE_MAJOR_ABI, even for custom config files as all the
+    packaging is tuned around it.
+  * Drop patches merged upstream and refresh
+    fix-vhost-user-socket-permission.patch
+  * Add patches to make the documentation and linker script builds fully
+    reproducible. There are still reproducibility issues due to the use
+    of __FILE__ and absolute paths.
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Thu, 22 Jun 2017 19:20:35 +0100
+
+dpdk (16.11.4-1) unstable; urgency=medium
+
+  * Merge stable update to 16.11.4; For a list of changes see
+    http://dpdk.org/ml/archives/announce/2017-December/000163.html
+  * Drop kni-fix-ethtool-build-with-kernel-4.11.patch, merged upstream.
+
+ -- Luca Boccassi <bluca@debian.org>  Mon, 11 Dec 2017 10:24:05 +0000
+
+dpdk (16.11.3-1) unstable; urgency=medium
+
+  [ Luca Boccassi ]
+  * Merge stable update to 16.11.3; For a list of changes see
+    http://dpdk.org/ml/archives/announce/2017-August/000143.html
+  * Fix reproducibility of librte-eal linuxapp.
+  * Mark build-dependencies needed for documentation builds with the <!nodoc>
+    build-profile to fully implement support for it.
+  * Bump Standards-Version to 4.1.0. Relevant changes are nodoc support and
+    build reprodicibility.
+  * Switch to debian.org email address.
+  * Build-Depend on debhelper (>= 9.20160709) rather than dh-systemd as
+    latter is deprecated. Fixes Lintian Error:
+      build-depends-on-obsolete-package
+  * Fix upstream version parsing in d/rules to account for -rcX.
+  * Build-Depend on debhelper (>= 9.20160709) | dh-systemd to keep
+    compatibility with Ubuntu 16.04, which does not yet have that
+    of debhelper.
+  * Revert: d/rules: use new dh option names - Ubuntu 16.04 does not
+    have a debhelper that supports the new option, so use the old
+    ones for now.
+  * Correctly parse upstream version when using ~rc instead of -rc.
+  * Bump Standards-Version to 4.1.1, no changes.
+
+  [ Christian Ehrhardt ]
+  * d/rules: use new dh option names
+  * d/rules: properly enable dpdk systemd service
+  * d/t/control: fix test dependencies for s390x.
+
+ -- Luca Boccassi <bluca@debian.org>  Thu, 30 Nov 2017 18:41:35 +0000
+
+dpdk (16.11.2-4) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * d/p/igb_uio-switch-to-new-irq-function-for-MSI-X.patch: fix dkms issue
+    in kernel 4.12 (LP: #1700768)
+
+  [ Luca Boccassi ]
+  * Add patches to make the documentation and linker script builds fully
+    reproducible.
+  * Add patches to make the libraries and PMDs builds fully reproducible,
+    by making the listing order of headers, source files and objects in
+    the makefiles stable (via sorting).
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Fri, 30 Jun 2017 12:09:59 +0100
+
+dpdk (16.11.2-3) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Mon, 19 Jun 2017 11:51:39 +0100
+
+dpdk (16.11.2-2) experimental; urgency=medium
+
+  * Restore fixes by Santiago RR for typos in debian/control, accidentally
+    dropped in 16.11.2-1.
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Thu, 15 Jun 2017 13:36:30 +0100
+
+dpdk (16.11.2-1) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge stable update to 16.11.2; For a list of changes
+    see http://dpdk.org/ml/archives/announce/2017-May/000131.html
+  * Dropped changes - patches that were included in 16.11.2 stable:
+    - d/p/kni-fix-build-with-kernel-4.11.patch
+    - d/p/nicvf-0002-net-thunderx-fix-32-bit-build.patch
+    - d/p/nicvf-0006-mk-fix-lib-filtering-when-linking-app.patch
+    - d/p/nicvf-0008-net-thunderx-fix-stats-access-out-of-bounds.patch
+    - d/p/nicvf-0010-net-thunderx-fix-deadlock-in-Rx-path.patch
+
+  [ Luca Boccassi ]
+  * Optionally generate libdpdk-dbgsym metapackage that depends on every
+    librte/PMD binary package's dbgsym. Keep it disabled by default, and
+    let users choose to enable it by passing dbgsym_meta via DEB_BUILD_OPTIONS.
+    Thanks Jan Blunck for the patch!
+  * Generate dependency list of libdpdk-dev to all librte and PMDs packages
+    dynamically at build time.
+  * Generate list of recommends for dpdk dynamically at build time.
+  * dpdk-modules-$KVERS: depend on same kernel version used to build rather than
+    just recommend - in-kernel API/ABI is not stable.
+  * Support for building packages for the new mempool framework has been added.
+    In 17.05 and newer a mempool framework was added, that has to be loaded
+    like a PMD. So any "plugin" will be linked in RTE_EAL_PMD_PATH just like
+    the PMDs. No mempool plugins are built for now, so it is currently a no-op.
+  * Drop libethdev4, librte-cryptodev1 and librte-eal2 transitional packages,
+    no longer needed.
+  * Fix some upstream documentation links in the packages metadata.
+    Thanks Chas Williams!
+  * Fix building debugging symbols for -dbgsym packages. Thanks Chas Williams!
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Thu, 15 Jun 2017 11:30:23 +0100
+
+dpdk (16.11.1-2) experimental; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge stable update to 16.11.1; For a list of changes
+    see http://dpdk.org/ml/archives/dev/2017-March/058930.html
+  * dpdk.conf: add info about unwanted effects of multiple hugepage
+    mountpoints
+  * d/p/dpdk-dev-v3-eal-sPAPR-IOMMU-support-in-pci-probing-for-vfio-pci-
+    in-ppc64le.patch: sPAPR IOMMU based pci probing enabled for vfio-pci
+    devices.
+  * enable librte-pmd-i40e1 for ppc64el
+    - debian/control: enable arch onpackage
+    - d/p/dpdk-dev-v4-i40e-implement-vector-PMD-for-altivec.patch: add i40e
+      PMD / vector PMD implementation and enable by default on ppc64el
+  * fix library availability/dependency
+    - librte-kni is built on ppc64el, fix dependency from libdpdk-dev
+    - librte-pmd-fm10k1 is not built on ppc64el (empty pkg atm) adapt arch
+    - librte-pmd-i40e is built on all architectures now
+  * Fix up thunderx to make arm support useful on more devices (LP: #1691659)
+    - d/p/nicvf-00[01-10]* backports of 17.02/17.05 fixes for thunderx
+    - d/control: dependencies and package for librte-pmd-thunderx-nicvf
+    - d/librte-pmd-thunderx-nicvf1.symbols: tracking library symbols
+  * fix dpdk-rte-kni dkms issues with kernel 4.11 (LP: #1691830)
+    - d/p/kni-fix-build-with-kernel-4.11.patch: fix pci_enable_msix usage
+    - d/p/kni-fix-ethtool-build-with-kernel-4.11.patch: Use new signal header
+  * ensure man pages are bundled with executables on all architectures
+  * d/p/fix-vhost-user-socket-permission.patch: updated to work with newer
+    openvswitch versions
+
+  [ Luca Boccassi ]
+  * Simplify debian/rules by using upstream's install target
+    and Debian's multiarch dir. Thanks Jan Blunck!
+  * Clarify that only the kni and igb_uio kernel modules are
+    distributed exclusively under the GPL2 in debian/copyright
+  * Add new DEB_BUILD_OPTIONS "nodoc" to allow users to avoid
+    building the DPDK documentation
+  * Add new DEB_BUILD_OPTIONS "nostatic" to allow users to avoid
+    building the DPDK static libraries
+  * Add try-restart to dpdk.init script
+  * Update Standards-Version to 4.0.0
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Thu, 25 May 2017 11:46:35 +0100
+
+dpdk (16.11-1) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge stable release 16.11 and adapt patches
+    - imported latest stable release from dpdk-16.11.tar.gz
+      stable release changelog at
+      http://dpdk.org/doc/guides-16.11/rel_notes/release_16_11.html
+    - Delete patches that are upstream:
+      - d/p/dpdk-dev-ppc-enable-*
+      - d/p/dpdk-dev-v2-*-4*
+      - d/p/rte-devel-build-env.patch
+      - d/p/rte-compile-pre-cppflags.patch
+      - d/p/make-load-devel-config-not-to-appear-as-executable.patch
+      - d/p/dpdk-dev-doc-fix-old-dpdk-nic-bind.py-references.patch
+      - d/p/fix-double-license-info.patch
+  * Added changes
+    - add qede pmd now built by default
+    - add new librte-net library
+    - update symbols files to match the new release
+    - make autotest dep8 test always pass (failed fatally on e.g. LP).
+      We want to stabilize and get more logs of different environments before
+      we can enable it as a gating test.
+    - Make dpdk-dev's ${RTE_SDK}/${RTE_TARGET}/lib symlink multiarch aware
+    - d/control: apply wrap and sort
+    - d/control: Make the python-pyelftools only a Suggests
+    - d/t/test-linkage: fix issues on non-x86 architectures
+    - provide older ABI levels via backward compatibility of new DPDK libraries
+      - d/control: add compat packages for old ABI versions
+      - d/rules: generate and use multiarch aware link files for the soname
+        mapping
+
+  [ Luca Boccassi ]
+  * Make dpdk suggest dpdk-doc (Closes: #847626)
+
+  [ Luca Boccassi ]
+  * Set maintainer to pkg-dpdk-dev alioth list
+  * Make dpdk suggest dpdk-doc (Closes: #847626)
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Fri, 16 Dec 2016 18:19:07 +0000
+
+dpdk (16.07.2-1~git1) UNRELEASED; urgency=medium
+
+  * Merge stable release 16.07.2 and adapt patches
+    - imported latest stable release from dpdk-16.07.2.tar.gz
+      stable release changelog at
+      http://dpdk.org/doc/guides-16.07/rel_notes/release_16_07.html
+    - Deleted:
+      - d/p/dpdk-dev-v2-kni-fix-build-with-kernel-4.8.patch
+      - d/p/fix-unusual-interpreter.patch
+      - d/p/dpdk-dev-examples-ip_pipeline-fix-pmd-driver-parameter.patch
+      - d/p/dpdk-dev-kni-fix-build-with-kernel-4.9.patch
+      - d/p/dpdk-dev-ppc-enable-7-7-examples-ip_pipeline-fix-lcore-mapping-for-
+        ppc64.patch
+    - Refreshed (only offset changes)
+      - d/p/dpdk-dev-ppc-enable-1-7-lpm-add-AltiVec-for-ppc64.patch
+      - d/p/dpdk-dev-ppc-enable-2-7-acl-add-AltiVec-for-ppc64.patch
+      - d/p/dpdk-dev-ppc-enable-4-7-sched-enable-on-ppc64le.patch
+      - d/p/dpdk-dev-ppc-enable-6-7-config-enable-packet-framework-on-
+        ppc64le.patch
+      - d/p/dpdk-dev-v2-2-4-doc-rendering-and-installation-of-man-pages.patch
+      - d/p/dpdk-dev-v2-3-4-doc-add-basic-invocation-info-for-dpdk-pmdinfo.patch
+      - d/p/dpdk-dev-v2-4-4-doc-add-basic-invocation-info-for-dpdk-devbind.patch
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 05 Dec 2016 07:08:01 +0100
+
+dpdk (16.07-3) unstable; urgency=medium
+
+  * Set myself as maintainer until the mailing list ACL problem
+    is resolved. (Closes: #843688)
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Fri, 25 Nov 2016 23:01:34 +0000
+
+dpdk (16.07-2) unstable; urgency=low
+
+  * Team upload.
+
+  [ Christian Ehrhardt ]
+  * Fix d/p/fix-vhost-user-socket-permission.patch for dpdk 16.07
+    server/client sockets.
+  * d/control add python-elftools and hwdata dependencies to dpdk for the tool
+    dpdk-pmdinfo.
+  * d/rules utilize RTE_EAL_PMD_PATH to autoload pmd drivers
+    - d/dpdk-doc.README.Debian document usage of RTE_EAL_PMD_PATH
+    - d/control let the runtime of dpdk recommend the pmd drivers to make them
+      available for auto-probing devices.
+  * d/rules support DEB_BUILD_OPTIONS parallel
+  * d/rules bundle autotest as it is ready after build into dpdk-dev
+    to make it available for autopkgtest and likewise developers.
+  * enable dpdk autotests
+    - d/t/test-autotest enable autotests as dep8 test. These fail in many
+      build environments, so put them in an adt where required characteristics
+      can be specified
+
+  [ Gowrishankar Muthukrishnan ]
+  * d/p/dpdk-dev-examples-ip_pipeline-fix-pmd-driver-parameter.patch to make
+    ip_pipeline work properly with -d eal parameter
+  * Update to d/p/dpdk-dev-examples-ip_pipeline-fix-pmd-driver-parameter.patch
+    fixing dl_open issues.
+
+  [ Santiago R.R. ]
+  * debian/rules: Only export hardening related building HOST_/EXTRA flags
+    when dpkg-dev < 1.18.11. On newer dpkg-dev versions, dpkg-buildflags
+    handle them directly and are injected by gcc (6.x). Closes: #843685.
+
+  [ Luca Boccassi ]
+  * Fix DKMS build to use the requested kernel version rather than the running
+    one. (Closes: #843864)
+  * Fix kernel modules build failures due to the new -fPIE default by passing
+    -fno-PIE.
+  * Backport dpdk-dev-kni-fix-build-with-kernel-4.9.patch to fix kernel modules
+    build failures on Linux 4.9.
+  * Mark dpdk-doc as Multi-Arch: foreign
+  * Finalize changelog for upload to unstable.
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Mon, 14 Nov 2016 18:27:53 +0000
+
+dpdk (16.07-1) unstable; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.07 release
+  * Cleanup Lintian Warnings
+    - d/p/fix-unusual-interpreter.patch fixes "W: dpdk-doc:
+      unusual-interpreter"
+    - d/p/fix-double-license-info.patch fixes "W: dpdk-rte-kni-dkms:
+      extra-license-file"
+  * Renamed d/p/ubuntu-fix-vhost-user-socket-permission.patch to
+    d/p/fix-vhost-user-socket-permission.patch
+  * Add lintian-overrides for: E: dpdk-dev: arch-dependent-file-in-usr-share
+    These binaries are part of the sdk and meant to be shipped with the sdk.
+  * d/p/dpdk-dev-doc-fix-old-dpdk-nic-bind.py-references.patch to fix the
+    docs in regard to 16.07 changes renaming dpdk_nic_bind
+  * d/p/make-load-devel-config-not-to-appear-as-executable.patch to avoid
+    accidentally executing as script and to fix unusual-interpreter lintian
+    warning.
+  * fix d/t/test-initscripts on more recent systemd environments
+  * enable dpdk for ppc64el
+    - add ppc64el arch to valid dpdk pmds and rte libraries
+    - select power config and machine for dpdk build system
+    - disable xen pmd for ppc64el
+    - d/tests: make tests compatible with ppc64el
+    - d/dpdk.conf, d/dpdk-init add 16M huge page support
+    - d/p/fix-power-default-config.patch enable bond PMD on ppc64el
+  * add man pages for installed binaries
+    - add backport of patches from upstream
+    - call generation of man pages in d/rules
+  * d/t/test-dkms retain dkms logs for debugging
+  * fix rte_kni dkms build with kernel >= 4.8
+    - d/p/dpdk-dev-v2-kni-fix-build-with-kernel-4.8.patch replaced macro with
+      its value in kni ethtool drivers.
+
+  [ Anders Roxell ]
+  * debian/control: add pciutils to the dpdk depends list, since lspci is used
+    by the devbind script
+
+  [ Luca Boccassi ]
+  * Add ${shlib:Depends} to dpdk-dev dependencies
+  * Install api and guides in dpdk-doc
+  * Convert debian/rules to new style DH targets
+  * Add Recommends: python to dpdk-doc since it ships python scripts among the
+    examples, fixes Lintian warning about missing python dependencies
+  * Fix typo in dpdk-doc.README.Debian, fixes "W: dpdk-doc:
+    spelling-error-in-readme-debian to to (duplicate word) to"
+  * Fix upstream rc versions by using "~" instead of "-". 16.07-rc1 evaluates
+    as newer than 16.07 which causes issues with Debian tools and Lintian
+    errors and warnings:
+    - W: libethdev4: latest-debian-changelog-entry-without-new-version
+    - E: libethdev4: symbols-file-contains-current-version-with-debian-revision
+      on symbol DPDK_16.04@DPDK_16.04 and 114 others
+  * Add lintian-overrides for: "W: dpdk-doc: embedded-javascript-library"
+  * Add optional binary kernel modules package, disabled by default (build with
+    DEB_BUILD_OPTIONS=kernel_modules to enable). If enabled will build kernel
+    modules against the local, current kernel version (override by adding
+    ksrc=<path/to/kernel/sources> to DEB_BUILD_OPTIONS) into a
+    dpdk-modules-<kernel version> package
+  * Set HOST_/EXTRA/CPP/C/LDFLAGS in d/rules so that all built objects pick up
+    all flags set by the dpkg environment, like hardening flags
+  * Add rte-compile-pre-cppflags.patch to make all DPDK objects pick up the
+    user specified or environment specified CPP/C/LDFLAGS.
+    Fixes Lintian warning:
+    - W: dpdk-dev: hardening-no-relro
+         usr/share/dpdk/x86_64-default-linuxapp-gcc/app/dpdk-pmdinfogen
+  * Add a brief HOWTO to debian/README.source with instructions to build the
+    packages, for CI systems and the like.
+  * Build with RTE_DEVEL_BUILD=n to avoid building test pmds with an rpath
+    hardcoded to the package build PATH. Fixes Lintian Error:
+    - E: dpdk: binary-or-shlib-defines-rpath usr/bin/dpdk-pdump
+         /home/lboccass/git/dpdk_deb/debian/build/shared-root/lib
+  * Fix d/watch file to point to fast.dpdk.org/rel
+  * Allow DPDK_CONFIG, RTE_MACHINE, RTE_TARGET overrides via DEB_BUILD_OPTIONS
+  * Initial Debian release. (Closes: #815760)
+  * Use ?= to allow env var overrides in d/rules
+  * Finalize changelog for upload to unstable.
+
+  [ Santiago RR ]
+  * improve debian/copyright
+  * remove duplicate entries from d/control
+  * debian/control:
+    - dpdk: recommends dkms packages (dpdk-igb-uio-dkms, dpdk-rte-kni-dkms) on
+      arm64 and suggest for other architectures.
+
+  [ Gowrishankar Muthukrishnan ]
+  * enable formerly disabled libraries in ppc64le config
+  * d/control provide now supported packages for ppc64le
+  * d/p/dpdk-dev-ppc-enable-* backports from dpdk to enable more features
+    for ppc64le
+
+ -- Luca Boccassi <luca.boccassi@gmail.com>  Tue, 27 Sep 2016 16:40:31 +0100
+
+dpdk (16.07~rc5-1) UNRELEASED; urgency=medium
+
+  [ Ricardo Salveti de Araujo ]
+  * Merge with upstream DPDK 16.07-rc5 release
+
+  [ Luca Boccassi ]
+  * Generate pkgconfig and ship it in libdpdk-dev
+  * Document use of dquilt for patches in debian/README.source
+
+ -- Ricardo Salveti de Araujo <rsalveti@rsalveti.net>  Tue, 26 Jul 2016 14:13:38 -0300
+
+dpdk (16.07~rc4-1) UNRELEASED; urgency=medium
+
+  * Merge with upstream DPDK 16.07-rc4 release
+    - Tools renamed, dpdk_nic_bind is now dpdk-devbind
+  * Adapt d/p/ubuntu-fix-vhost-user-socket-permission.patch for dpdk 16.07-rc4
+
+ -- Ricardo Salveti de Araujo <rsalveti@rsalveti.net>  Mon, 25 Jul 2016 13:38:13 -0300
+
+dpdk (16.07~rc3-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.07-rc3 release
+  * droping patches/backports that are already upstream in DPDK 16.07-rc3
+    - d/p/ubuntu-fix-bond-symbol-export.patch
+    - d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+  * adapt d/p/ubuntu-fix-vhost-user-socket-permission.patch for dpdk 16.07-rc3
+  * update symbols
+
+  [ Ricardo Salveti de Araujo ]
+  * debian/rules:
+    - Allow all make commands to be verbose
+    - Fix libdpdk-dev headers path
+  * Renaming package librte-pmd-e10001 to librte-pmd-e1000-1, to avoid mixing
+    package name with soversion (lintian package-name-doesnt-match-sonames)
+  * Adding package librte-pmd-bnxt1
+  * Merging symbols files, handling the arch differences inline instead
+
+  [ Anders Roxell ]
+  * debian/control: add libpcap-dev to libdpdk-dev's Depends list
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 19 Jul 2016 08:32:06 +0200
+
+dpdk (16.07~rc1-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.07-rc1 release
+  * droping patches/backports that are already upstream in DPDK 16.07
+    - d/p/ubuntu-backport-39-lpm-fix-freeing-in-compatibility-mode.patch
+      This was formerly part of a combined patch that we dropped because the
+      majority is upstream (d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch).
+    - d/p/ubuntu-backport-40-linking-fixes-stage-[1-4]-4.patch
+      d/p/ubuntu-backport-44-linking-cleanup.patch
+      Fixing underlinking and overlinking issues in apps and libraries.
+    - d/p/ubuntu-backport-41-fix-install-tar-1.29.patch
+      Fix issues with tar >=1.29 (Yakkety)
+    - d/p/ubuntu-backport-42-increase-default-logging-level.patch
+      avoid default debug messages causing a perf degradation
+    - d/p/ubuntu-backport-43-fix-level-type-retrieving.patch
+      Fix type retrieving which was broken in standard threads
+    - d/p/ubuntu-fix-xenvirt-support-dynamic-page-size.patch: fix build
+      failure on arm64
+  * droping patches/backports that are no more applicable
+    - d/p/ubuntu-backport-38-* was never accepted despite looking good.
+      Upstream discussion around proper successor started.
+  * keeping patches:
+    - d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+      Was never accepted, Upstream discussion around proper successor started.
+  * adapt debian/* to upstream changes
+    - update symbols and ABI versions
+    - add librte-pdump1
+  * adding changes
+   - fix exported symbols of librte_pmd_bond (sent upstream, can be dropped
+     later)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 06 Jul 2016 09:40:49 +0200
+
+dpdk (16.04-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.04 release
+  * droping patches/backports that are already upstream in DPDK 16.04
+    - d/p/ubuntu-fix-doc-installpath.patch
+    - d/p/ubuntu-fix-testpmd-without-xen.patch
+    - d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch
+    - d/p/ubuntu-backport-[01-32,34-35] backports for stability
+    - d/p/ubuntu-backport-[36-37] but keep doc and example changes in d/*
+  * droping patches for soname / linking fixups.
+    - Upstream now goes with proper soname/abi/api handling per sublib plus a
+      linker script.
+    - dropped d/p/ubuntu-combined-shared-lib-abiversion.patch
+    - dropped d/p/ubuntu-fix-library-linkage.patch
+  * keeping patches:
+    - d/p/ubuntu-backport-38-* fix for memory leak
+      this now applies as is, so changed from a modified backport to match the
+      post 16.04 upstream commit now.
+    - d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+    - doc and example changes that were related to d/p/ubuntu-backport-[36-37]
+    - d/p/ubuntu-fix-vhost-user-socket-permission.patch adapted for dpdk-16.04:
+      In the new build system with sublibs the exposed function needs to be
+      listed in lib/librte_eal/linuxapp/eal/rte_eal_version.map
+  * adding upstream backports - can be dropped when merging DPDK 16.07.
+    - d/p/ubuntu-backport-39-lpm-fix-freeing-in-compatibility-mode.patch
+      This was formerly part of a combined patch that we dropped because the
+      majority is upstream (d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch).
+    - d/p/ubuntu-backport-40-linking-fixes-stage-[1-4]-4.patch
+      d/p/ubuntu-backport-44-linking-cleanup.patch
+      Fixing underlinking and overlinking issues in apps and libraries.
+    - d/p/ubuntu-backport-41-fix-install-tar-1.29.patch
+      Fix issues with tar >=1.29 (Yakkety)
+    - d/p/ubuntu-backport-42-increase-default-logging-level.patch
+      avoid default debug messages causing a perf degradation
+    - d/p/ubuntu-backport-43-fix-level-type-retrieving.patch
+      Fix type retrieving which was broken in standard threads
+  * adapt to new build system
+    - drop enabling the following build config symbols as they no more exist
+        CONFIG_RTE_BUILD_COMBINE_LIBS
+    - Sub-Libraries are now packaged in a versioned package per library. That
+      allows consumers of dpdk to just depend on what they need. As well as
+      installation of multiple .so versions concurrently.
+    - added the hidden dependency of librte_eal to librte_mempool
+    - use dpkg-buildflags and properly enable hardening
+  * Adding DKMS package for rte_kni (LP: #1592786)
+
+  [ Ricardo Salveti ]
+  * Adding support for ARM64:
+    - debian/control: adding arm64 to the supported architecture list
+    - debian/rules: supporting dpdk config and machine for arm64
+    - d/p/ubuntu-fix-xenvirt-support-dynamic-page-size.patch: fix build
+      failure on arm64
+    - debian/dpdk-sdk-env.sh: generating the right RTE_TARGET during build
+      time, so we can also make it compatible with ARM64
+    - debian/tests: also making tests compatible with ARM64
+  * Adding DKMS package for igb_uio
+  * Build static dpdk with -fPIC so it can be used by shared libraries
+  * debian/copyright: fixing Canonical's copyright entry
+  * Renaming symbol files so they can match the right package
+  * Drop the arch specific symbol files, as they are identical
+
+  [ Anders Roxell ]
+  * debian/dpdk.init: add remote_fs (lintian)
+  * debian/control: fixing week-library-dev-dependency (lintian)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 17 May 2016 14:23:21 +0200
+
+dpdk (2.2.0-0ubuntu9) yakkety; urgency=medium
+
+  * d/p/ubuntu-backport-[36-37] fix virtio issues (LP: #1570195):
+    - don't let DPDK initialize virtio devices still in use by the kernel
+    - this avoids conflicts between kernel and dpdk usage of those devices
+    - an admin now has to unbind/bind devices as on physical hardware
+    - this is in the dpdk 16.04 release and delta can then be dropped
+    - d/dpdk-doc.README.Debian update for changes in virtio-pci handling
+    - d/dpdk.interfaces update for changes in virtio-pci handling
+  * d/p/ubuntu-backport-38... fix for memory leak (LP: #1570466):
+    - call vhost_destroy_device on removing vhost user ports to fix memory leak
+    - this likely is in the dpdk 16.07 release and delta can then be dropped
+  * d/p/ubuntu-fix-vhost-user-socket-permission.patch fox (LP: #1546565):
+    - when vhost_user sockets are created they are owner:group of the process
+    - the DPDK api to create those has no way to specify owner:group
+    - to fix that without breaking the API and potential workaround code in
+      consumers of the library like openvswitch 2.6 for example. This patch
+      adds an EAL commandline option to specify user:group created vhost_user
+      sockets should have.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 27 Apr 2016 07:52:48 -0500
+
+dpdk (2.2.0-0ubuntu7) xenial; urgency=medium
+
+  * Increase max_map_count after setting huge pages (LP: #1507921):
+    - The default config of 65530 would cause issues as soon as about 64GB or
+      more are used as 2M huge pages for dpdk.
+    - Increase this value to base+2*#hugepages to avoid issues on huge systems.
+  * d/p/ubuntu-backport-[28-32,34-35] backports for stability (LP: #1568838):
+     - these will be in the 16.04 dpdk release, delta can then be dropped.
+     - 5 fixes that do not change api/behaviour but fix serious issues.
+        - 01 f82f705b lpm: fix allocation of an existing object
+        - 02 f9bd3342 hash: fix multi-process support
+        - 03 1aadacb5 hash: fix allocation of an existing object
+        - 04 5d7bfb73 hash: fix race condition at creation
+        - 05 fe671356 vfio: fix resource leak
+        - 06 356445f9 port: fix ring writer buffer overflow
+        - 07 52f7a5ae port: fix burst size mask type
+  * d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+     - this will likely be in dpdk release 16.07 and delta can then be dropped.
+     - fixes a crash on using fd's >1023 (LP: #1566874)
+  * d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch fix lpm_free (LP: #1569375)
+     - the old patches had an error freeing a pointer which had no meta data
+     - that lead to a crash on any lpm_free call
+     - folded into the fix that generally covers the lpm allocation and free
+       weaknesses already (also there this particular mistake was added)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 12 Apr 2016 16:13:47 +0200
+
+dpdk (2.2.0-0ubuntu6) xenial; urgency=medium
+
+  * d/dpdk-init fix handling of multiple huge page sizes (LP: #1557532):
+     - dpdk-init now ensures non-default-hugepage-size mountpoints are
+       available as well.
+     - extra mountpoints are only created if requested in dpdk.conf and not yet
+       available (e.g. by the admin).
+  * d/dpdk-init fix issues with unassigned devices (LP: #1558485):
+     - dpdk-init no more checks /sys/.../driver of the device unconditionally
+     - removed the superfluous tr call in that path
+  * d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch lpm/lpm6 (LP: #1554009):
+     - lpm/lpm6 fix use after free on lpm[6]_create
+     - lpm/lpm6 fix missing frees of rules_tbl substructure
+     - lpm/lpm6 fix missing free of lpm due to early exit
+     - make RTE_LOG messages of the failed allocation unique
+  * d/p/ubuntu-backport-[01-26] backport for stability (LP: #1559981):
+     - these will be in the following dpdk release and delta can then be dropped
+     - 26 fixes that do not change api/behaviour but fix serious issues
+        - 01 d3a274ce app/testpmd: handle SIGINT and SIGTERM
+        - 02 308df2bf Handle SIGINT and SIGTERM in l3fwd.
+        - 03 da82ee17 tools: fix unbinding failure handling
+        - 04 16c1814c tools: support Python 3 in bind script
+        - 05 bb9f4085 tools: support binding to built-in kernel modules
+        - 06 6e7caa1a eal/linux: support built-in kernel modules
+        - 07 86f36ff9 mempool: fix leak when creation fails
+        - 08 ca67ed28 vhost: fix leak of fds and mmaps
+        - 09 fa11a8a7 port: fix crash for ring writer nodrop
+        - 10 04f36690 port: fix crash for ethdev writer nodrop
+        - 11 c7a4ff80 i40e: fix overflow
+        - 12 097e920c i40e: fix inverted check for no refcount
+        - 13 330aa319 i40e: fix VLAN filtering
+        - 14 9f44dd3d i40e/base: fix missing check for stopped admin queue
+        - 15 8a880736 i40e/base: fix driver load failure
+        - 16 7656a546 fm10k: fix VLAN flag in scattered Rx
+        - 17 c6fb0e55 pcap: fix captured frame length
+        - 18 6e027237 bonding: fix detach of bonded device
+        - 19 df3e8ad7 bonding: fix detach of slave devices
+        - 20 786c990a bonding: copy entire config structure in mode 4
+        - 21 6698820b bonding: do not ignore multicast in mode 4
+        - 22 8997a10b bonding: fix active slaves with no primary
+        - 23 7a7122ed bonding: do not activate slave twice
+        - 24 2186fff3 bonding: fix crash when no slave device
+        - 25 c680a4a8 virtio: fix crash in statistics functions
+        - 26 3b1e3e4e virtio: fix descriptors pointing to the same buffer
+  * d/p/ubuntu-backport-27-virtio-fix-restart.patch for (LP: #1559981):
+     - fixing re-initializing the ethdev as openvswitch-dpdk does in the
+       virtio pmd driver by moving the detection of already being initialized
+       from virtio_dev_close to virtio_dev_start/stop
+     - this will be in the following dpdk release and delta can then be dropped
+  * d/rules build with debuginfo (LP: #1560839):
+     - exporting CFLAGS for all dpdk build processes
+     - dh_strip will automatically and create -dbgsym packages accordingly
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 23 Mar 2016 10:34:50 +0100
+
+dpdk (2.2.0-0ubuntu5) xenial; urgency=medium
+
+  * d/t/test-initscripts fix issues regarding 1G hugepages
+     - the dep8 was already taking care of 1G hugepages being not supported in
+       some environments. But it was failing when supported, but not enough
+       memory available.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 09 Mar 2016 17:19:24 +0000
+
+dpdk (2.2.0-0ubuntu4) xenial; urgency=medium
+
+  * harden d/dpdk-init for configuration issues (LP: #1551601):
+     - detect and warn about bad bus specifications.
+     - detect and warn about incomplete device specifications.
+     - detect and warn about non existing pci IDs.
+     - avoid failing when working with unassigned devices.
+     - d/t/test-initscripts now testing various misconfigs.
+     - d/t/test-initscripts now also verifying service status.
+  * d/dpdk-init d/dpdk.conf now also support 1G hugepages (LP: #1551767):
+     - detect and warn if 1G pages are not available but configured.
+     - d/t/test-initscripts now also testing hugepage allocations.
+     - d/dpdk.conf has an option to drop caches to incease the likeliness of
+       successful 1G hugepage allocations (default off).
+  * d/rules replaced uname -m with DEB_HOST_GNU_CPU (LP: #1551796):
+  * fix testpmd to run without Xen environment (LP: #1551752):
+     - upstream discussion is slow, but we need a fix now. We can drop this
+       and change to the upstream solution when it is available.
+  * avoid errors due to missing modules (LP: #1554397):
+     - d/dpdk-init gracefully warns about missing modules.
+     - d/control now suggests linux-image-generic.
+     - d/dpdk.interfaces has a comment that makes the user aware.
+  * d/dpdk-init fix failure loading vfio-pci (LP: #1554214):
+     - d/dpdk-init no more converts "-" to "_" to make vfio-pci work
+     - d/dpdk.interfaces enhanced comments and updated examples
+     - d/dpdk-doc.README.debian got extra notes about using some modules
+  * unify whitespace/tabs in packaging and scripts
+     - tabs/spaces to just spaces in d/dpdk-init and d/dpdk.init.
+     - few remaining spaces to tabs in d/rules
+  * d/t/test-* now satisfy shellcheck
+  * d/* fix various comments and guides to be more readable
+  * d/dpdk-init and d/copyright updated copyright information
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 09 Mar 2016 08:48:58 +0000
+
+dpdk (2.2.0-0ubuntu3) xenial; urgency=medium
+
+  * Guard dep8 tests against non supported platforms (LP: #1551158):
+    - d/t/control now avoids failing due to "dependencies are unsatisfiable"
+      when fetching packages. The packages architecture restrictions got added
+      to avoid that.
+    - d/t/check-dpdk-supported-arch.sh is called by all DPDK tests to ensure
+      the platform is supported. If not it skips the test.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 29 Feb 2016 11:03:39 +0000
+
+dpdk (2.2.0-0ubuntu2) xenial; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * fix libdpdk.so library linking (LP: #1547517)
+    - libdpdk.so now has proper linkage information (was underlinked)
+      Note: this can be dropped when moving to DPDK 2.3 with linker script
+            instead of combined shared lib.
+    - remove reference to extra linkage needed when building against -ldpdk
+      in dpdk-doc README.
+    - add dep8 d/t/test-linkage to verify linking dpdk works as expected.
+  * d/control remove ${shlibs:Depends} on package with no linked binary
+    avoiding dpkg-gencontrol build warning about unknown ${shlibs:Depends}.
+  * d/dpdk-doc.README.debian fix path to DPDK build environment variable
+    helper script in README file.
+  * Update VCS Info in d/control to include our repositories.
+
+  [  James Page ]
+  * d/*: wrap-and-sort.
+  * d/control: Trim trailing whitespace.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 25 Feb 2016 16:07:21 +0000
+
+dpdk (2.2.0-0ubuntu1) xenial; urgency=low
+
+  * Merge from Upstream to DPDK 2.2
+    Remaining changes:
+    - Set soabi for the combined shared library
+  * Drop changes:
+    - configuring RTE_LIBNAME to dpdk as it is the upstream default now
+    - enabled formerly non building components as they build properly in 2.2
+    - d/p/ubunut-avoid-texlive-fonts-extra, d/control:
+      Replace use of DejaVuSansMono is no more needed as upstream changed the
+      font. Thereby we can drop our delta.
+    - d/p/ubuntu-fix-gcc5-ftbs.patch no more needed with DPDK 2.2
+  * Added changes
+    - Disable CONFIG_RTE_NEXT_ABI as required for packaging (git 506f51cc)
+    - Enable LIBRTE_PMD_PCAP which is useful for some DPDK testcase examples
+      this adds a build dependency to libpcap-dev
+    - Fully support DH_VERBOSE for build debugging convenience
+    - adapt to new make infrastructure of dpdk 2.2
+    - d/README.debian: convert into d/dpdk-doc.README.debian
+    - d/dpdk-doc.README.debian: update recommendations about sdk env variables
+    - d/dpdk-sdk-env.sh: now deployed in /usr/share/dpdk to be opt in
+    - enable XEN support for dpdk (LP: #1521289).
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 17 Feb 2016 09:29:28 +0100
+
+dpdk (2.0.0-0ubuntu3) xenial; urgency=medium
+
+  * Only generate HTML documentation, easing backports to 14.04 and
+    reducing the time to build and size of the -doc package (LP: #1524700).
+
+ -- James Page <james.page@ubuntu.com>  Thu, 10 Dec 2015 10:23:51 +0000
+
+dpdk (2.0.0-0ubuntu2) xenial; urgency=low
+
+  * d/p/ubunut-avoid-texlive-fonts-extra, d/control:
+    Replace use of DejaVuSansMono by courier and drop dependency on the
+    texlive-fonts-extra package (which is in universe).
+  * d/watch added to allow use of uscan to check for upstream releases.
+  * d/dpdk-init: fix error if bash variables could not be resolved that
+    appeared as "[: -gt: unexpected operator" (had no functional impact)
+  * d/dpdk-init:
+    Replace use of head and cut (in /usr/bin) commands with sed (in /bin)
+    while also adding /usr/bin to the PATH used on direct /etc/init.d/dpdk
+    invocation. The PATH is only updated to be on the safe side, there
+    should be no other commands from /usr/bin used (LP: #1516543).
+  * d/t/test-mountpoint: add dep8 test to cover the issue of LP #1517075.
+  * d/dpdk-dev.install: Copy the SDK makefiles into place (LP: #1517075).
+
+ -- Stefan Bader <stefan.bader@canonical.com>  Tue, 17 Nov 2015 11:50:15 +0100
+
+dpdk (2.0.0-0ubuntu1) wily; urgency=low
+
+  * Initial release (LP: #1487538)
+
+ -- Stefan Bader <stefan.bader@canonical.com>  Mon, 01 Jun 2015 18:46:38 +0200

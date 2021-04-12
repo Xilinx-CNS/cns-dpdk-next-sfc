@@ -697,7 +697,13 @@ efx_mae_mport_by_pcie_mh_function(
 	    MAE_MPORT_SELECTOR_FUNC_VF_ID, vf);
 
 	memset(mportp, 0, sizeof (*mportp));
-	mportp->sel = dword.ed_u32[0];
+	/*
+	 * The constructed DWORD is little-endian,
+	 * but the resulting value is meant to be
+	 * passed to MCDIs, where it will undergo
+	 * host-order to little endian conversion.
+	 */
+	mportp->sel = EFX_DWORD_FIELD(dword, EFX_DWORD_0);
 
 	return (0);
 
