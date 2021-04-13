@@ -2575,9 +2575,13 @@ static int sfc_eth_dev_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 	bool dev_created;
 	int rc;
 
-	rc = sfc_parse_rte_devargs(pci_dev->device.devargs->args, &eth_da);
-	if (rc != 0)
-		return rc;
+	if (pci_dev->device.devargs != NULL) {
+		rc = sfc_parse_rte_devargs(pci_dev->device.devargs->args, &eth_da);
+		if (rc != 0)
+			return rc;
+	} else {
+		memset(&eth_da, 0, sizeof(eth_da));
+	}
 
 	init_data.nb_representors = eth_da.nb_representor_ports;
 
