@@ -13,6 +13,6 @@ librte_telemetry.so.21 librte-telemetry21 #MINVER#
  rte_tel_data_start_array@EXPERIMENTAL 20.08
  rte_tel_data_start_dict@EXPERIMENTAL 20.08
  rte_tel_data_string@EXPERIMENTAL 20.08
- rte_telemetry_init@EXPERIMENTAL 19.11
- rte_telemetry_legacy_register@EXPERIMENTAL 20.08
+ rte_telemetry_init@INTERNAL 21.04-1
+ rte_telemetry_legacy_register@INTERNAL 21.04-1
  rte_telemetry_register_cmd@EXPERIMENTAL 20.08
