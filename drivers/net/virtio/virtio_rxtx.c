@@ -1741,6 +1741,12 @@ virtio_xmit_pkts_prepare(void *tx_queue __rte_unused, struct rte_mbuf **tx_pkts,
 			break;
 		}
 
+		/* Xilinx virtio-net dies if too many segments */
+		if (unlikely(m->nb_segs > 185)) {
+			rte_errno = EINVAL;
+			break;
+		}
+
 		/* Do VLAN tag insertion */
 		if (unlikely(m->ol_flags & RTE_MBUF_F_TX_VLAN)) {
 			error = rte_vlan_insert(&m);
