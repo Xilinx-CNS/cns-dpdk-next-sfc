@@ -572,8 +572,8 @@ extern int8_t tx_pthresh;
 extern int8_t tx_hthresh;
 extern int8_t tx_wthresh;
 
-extern uint16_t tx_udp_src_port;
-extern uint16_t tx_udp_dst_port;
+extern uint16_t tx_l4_src_port;
+extern uint16_t tx_l4_dst_port;
 
 extern uint32_t tx_ip_src_addr;
 extern uint32_t tx_ip_dst_addr;
