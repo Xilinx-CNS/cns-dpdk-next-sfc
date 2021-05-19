@@ -61,6 +61,7 @@ RTE_DEFINE_PER_LCORE(uint8_t, _ip_var); /**< IP address variation */
 
 static union pkt_l4_hdr_t {
 	struct rte_udp_hdr udp;	/**< UDP header of tx packets. */
+	struct rte_tcp_hdr tcp; /**< TCP header of tx packets. */
 } pkt_l4_hdr; /**< Layer 4 header of tx packets. */
 
 static uint64_t timestamp_mask; /**< Timestamp dynamic flag mask */
@@ -113,8 +114,19 @@ setup_pkt_l4_ip_headers(uint8_t ip_proto, struct rte_ipv4_hdr *ip_hdr,
 	uint32_t ip_cksum;
 	uint16_t pkt_len;
 	struct rte_udp_hdr *udp_hdr;
+	struct rte_tcp_hdr *tcp_hdr;
 
 	switch (ip_proto) {
+	case IPPROTO_TCP:
+		/*
+		 * Initialize TCP header.
+		 */
+		pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_tcp_hdr));
+		tcp_hdr = &l4_hdr->tcp;
+		tcp_hdr->src_port = rte_cpu_to_be_16(tx_l4_src_port);
+		tcp_hdr->dst_port = rte_cpu_to_be_16(tx_l4_dst_port);
+		tcp_hdr->data_off = (sizeof(struct rte_tcp_hdr) << 2) & 0xF0;
+		break;
 	case IPPROTO_UDP:
 		/*
 		 * Initialize UDP header.
@@ -190,6 +202,8 @@ update_pkt_header(struct rte_mbuf *pkt, uint32_t total_pkt_len)
 	ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
 
 	switch (ip_hdr->next_proto_id) {
+	case IPPROTO_TCP:
+		break;
 	case IPPROTO_UDP:
 		/* update UDP packet length */
 		udp_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_udp_hdr *,
@@ -233,6 +247,12 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 	pkt->l2_len = sizeof(struct rte_ether_hdr);
 	pkt->l3_len = sizeof(struct rte_ipv4_hdr);
 
+	if (txonly_tso_segsz > 0) {
+		pkt->tso_segsz = txonly_tso_segsz;
+		pkt->ol_flags |= RTE_MBUF_F_TX_TCP_SEG | RTE_MBUF_F_TX_IPV4 |
+				 RTE_MBUF_F_TX_IP_CKSUM;
+	}
+
 	pkt_len = pkt->data_len;
 	pkt_seg = pkt;
 	for (i = 1; i < nb_segs; i++) {
@@ -268,6 +288,12 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 		RTE_PER_LCORE(_ip_var) = ip_var;
 	}
 	switch (ip_hdr->next_proto_id) {
+	case IPPROTO_TCP:
+		copy_buf_to_pkt(&pkt_l4_hdr.tcp, sizeof(pkt_l4_hdr.tcp), pkt,
+				sizeof(struct rte_ether_hdr) +
+				sizeof(struct rte_ipv4_hdr));
+		l4_hdr_size = sizeof(pkt_l4_hdr.tcp);
+		break;
 	case IPPROTO_UDP:
 		copy_buf_to_pkt(&pkt_l4_hdr.udp, sizeof(pkt_l4_hdr.udp), pkt,
 				sizeof(struct rte_ether_hdr) +
@@ -278,6 +304,7 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 		l4_hdr_size = 0;
 		break;
 	}
+	pkt->l4_len = l4_hdr_size;
 
 	if (unlikely(tx_pkt_split == TX_PKT_SPLIT_RND) || txonly_multi_flow)
 		update_pkt_header(pkt, pkt_len);
@@ -460,6 +487,7 @@ tx_only_begin(portid_t pi)
 {
 	uint16_t pkt_hdr_len, pkt_data_len;
 	int dynf;
+	uint8_t ip_proto;
 
 	pkt_hdr_len = (uint16_t)(sizeof(struct rte_ether_hdr) +
 				 sizeof(struct rte_ipv4_hdr) +
@@ -475,7 +503,8 @@ tx_only_begin(portid_t pi)
 		return -EINVAL;
 	}
 
-	setup_pkt_l4_ip_headers(IPPROTO_UDP, &pkt_ip_hdr, &pkt_l4_hdr,
+	ip_proto = txonly_tso_segsz > 0 ? IPPROTO_TCP : IPPROTO_UDP;
+	setup_pkt_l4_ip_headers(ip_proto, &pkt_ip_hdr, &pkt_l4_hdr,
 				pkt_data_len);
 
 	timestamp_enable = false;
