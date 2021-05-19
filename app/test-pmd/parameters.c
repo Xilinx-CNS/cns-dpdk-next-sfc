@@ -838,7 +838,7 @@ launch_args_parse(int argc, char** argv)
 					rte_exit(EXIT_FAILURE,
 						 "Invalid UDP port: %s\n",
 						 optarg);
-				tx_udp_src_port = n;
+				tx_l4_src_port = n;
 				if (*end == ',') {
 					char *dst = end + 1;
 
@@ -848,9 +848,9 @@ launch_args_parse(int argc, char** argv)
 						rte_exit(EXIT_FAILURE,
 							 "Invalid destination UDP port: %s\n",
 							 dst);
-					tx_udp_dst_port = n;
+					tx_l4_dst_port = n;
 				} else {
-					tx_udp_dst_port = n;
+					tx_l4_dst_port = n;
 				}
 
 			}

@@ -47,8 +47,8 @@ struct tx_timestamp {
 };
 
 /* use RFC863 Discard Protocol */
-uint16_t tx_udp_src_port = 9;
-uint16_t tx_udp_dst_port = 9;
+uint16_t tx_l4_src_port = 9;
+uint16_t tx_l4_dst_port = 9;
 
 /* use RFC5735 / RFC2544 reserved network test addresses */
 uint32_t tx_ip_src_addr = (198U << 24) | (18 << 16) | (0 << 8) | 1;
@@ -58,7 +58,10 @@ uint32_t tx_ip_dst_addr = (198U << 24) | (18 << 16) | (0 << 8) | 2;
 
 static struct rte_ipv4_hdr pkt_ip_hdr; /**< IP header of transmitted packets. */
 RTE_DEFINE_PER_LCORE(uint8_t, _ip_var); /**< IP address variation */
-static struct rte_udp_hdr pkt_udp_hdr; /**< UDP header of tx packets. */
+
+static union pkt_l4_hdr_t {
+	struct rte_udp_hdr udp;	/**< UDP header of tx packets. */
+} pkt_l4_hdr; /**< Layer 4 header of tx packets. */
 
 static uint64_t timestamp_mask; /**< Timestamp dynamic flag mask */
 static int32_t timestamp_off; /**< Timestamp dynamic field offset */
@@ -103,22 +106,30 @@ copy_buf_to_pkt(void* buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
 }
 
 static void
-setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
-			 struct rte_udp_hdr *udp_hdr,
-			 uint16_t pkt_data_len)
+setup_pkt_l4_ip_headers(uint8_t ip_proto, struct rte_ipv4_hdr *ip_hdr,
+			union pkt_l4_hdr_t *l4_hdr, uint16_t pkt_data_len)
 {
 	uint16_t *ptr16;
 	uint32_t ip_cksum;
 	uint16_t pkt_len;
+	struct rte_udp_hdr *udp_hdr;
 
-	/*
-	 * Initialize UDP header.
-	 */
-	pkt_len = (uint16_t) (pkt_data_len + sizeof(struct rte_udp_hdr));
-	udp_hdr->src_port = rte_cpu_to_be_16(tx_udp_src_port);
-	udp_hdr->dst_port = rte_cpu_to_be_16(tx_udp_dst_port);
-	udp_hdr->dgram_len      = RTE_CPU_TO_BE_16(pkt_len);
-	udp_hdr->dgram_cksum    = 0; /* No UDP checksum. */
+	switch (ip_proto) {
+	case IPPROTO_UDP:
+		/*
+		 * Initialize UDP header.
+		 */
+		pkt_len = (uint16_t)(pkt_data_len + sizeof(struct rte_udp_hdr));
+		udp_hdr = &l4_hdr->udp;
+		udp_hdr->src_port = rte_cpu_to_be_16(tx_l4_src_port);
+		udp_hdr->dst_port = rte_cpu_to_be_16(tx_l4_dst_port);
+		udp_hdr->dgram_len      = RTE_CPU_TO_BE_16(pkt_len);
+		udp_hdr->dgram_cksum    = 0; /* No UDP checksum. */
+		break;
+	default:
+		pkt_len = pkt_data_len;
+		break;
+	}
 
 	/*
 	 * Initialize IP header.
@@ -128,7 +139,7 @@ setup_pkt_udp_ip_headers(struct rte_ipv4_hdr *ip_hdr,
 	ip_hdr->type_of_service   = 0;
 	ip_hdr->fragment_offset = 0;
 	ip_hdr->time_to_live   = IP_DEFTTL;
-	ip_hdr->next_proto_id = IPPROTO_UDP;
+	ip_hdr->next_proto_id = ip_proto;
 	ip_hdr->packet_id = 0;
 	ip_hdr->total_length   = RTE_CPU_TO_BE_16(pkt_len);
 	ip_hdr->src_addr = rte_cpu_to_be_32(tx_ip_src_addr);
@@ -163,27 +174,32 @@ update_pkt_header(struct rte_mbuf *pkt, uint32_t total_pkt_len)
 {
 	struct rte_ipv4_hdr *ip_hdr;
 	struct rte_udp_hdr *udp_hdr;
-	uint16_t pkt_data_len;
+	uint16_t ip_data_len;
 	uint16_t pkt_len;
 
-	pkt_data_len = (uint16_t) (total_pkt_len - (
+	ip_data_len = (uint16_t) (total_pkt_len - (
 					sizeof(struct rte_ether_hdr) +
-					sizeof(struct rte_ipv4_hdr) +
-					sizeof(struct rte_udp_hdr)));
-	/* update UDP packet length */
-	udp_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_udp_hdr *,
-				sizeof(struct rte_ether_hdr) +
-				sizeof(struct rte_ipv4_hdr));
-	pkt_len = (uint16_t) (pkt_data_len + sizeof(struct rte_udp_hdr));
-	udp_hdr->dgram_len = RTE_CPU_TO_BE_16(pkt_len);
+					sizeof(struct rte_ipv4_hdr)));
 
 	/* update IP packet length and checksum */
 	ip_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_ipv4_hdr *,
 				sizeof(struct rte_ether_hdr));
 	ip_hdr->hdr_checksum = 0;
-	pkt_len = (uint16_t) (pkt_len + sizeof(struct rte_ipv4_hdr));
+	pkt_len = (uint16_t) (ip_data_len + sizeof(struct rte_ipv4_hdr));
 	ip_hdr->total_length = RTE_CPU_TO_BE_16(pkt_len);
 	ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
+
+	switch (ip_hdr->next_proto_id) {
+	case IPPROTO_UDP:
+		/* update UDP packet length */
+		udp_hdr = rte_pktmbuf_mtod_offset(pkt, struct rte_udp_hdr *,
+					sizeof(struct rte_ether_hdr) +
+					sizeof(struct rte_ipv4_hdr));
+		udp_hdr->dgram_len = RTE_CPU_TO_BE_16(ip_data_len);
+		break;
+	default:
+		break;
+	}
 }
 
 static inline bool
@@ -194,8 +210,9 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 {
 	struct rte_mbuf *pkt_segs[RTE_MAX_SEGS_PER_PKT];
 	struct rte_mbuf *pkt_seg;
-	uint32_t nb_segs, pkt_len;
+	uint32_t nb_segs, pkt_len, l4_hdr_size;
 	uint8_t i;
+	struct rte_ipv4_hdr *ip_hdr;
 
 	if (unlikely(tx_pkt_split == TX_PKT_SPLIT_RND))
 		nb_segs = rte_rand() % tx_pkt_nb_segs + 1;
@@ -231,14 +248,14 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 	copy_buf_to_pkt(eth_hdr, sizeof(*eth_hdr), pkt, 0);
 	copy_buf_to_pkt(&pkt_ip_hdr, sizeof(pkt_ip_hdr), pkt,
 			sizeof(struct rte_ether_hdr));
+
+	ip_hdr = rte_pktmbuf_mtod_offset(pkt,
+			struct rte_ipv4_hdr *,
+			sizeof(struct rte_ether_hdr));
 	if (txonly_multi_flow) {
 		uint8_t  ip_var = RTE_PER_LCORE(_ip_var);
-		struct rte_ipv4_hdr *ip_hdr;
 		uint32_t addr;
 
-		ip_hdr = rte_pktmbuf_mtod_offset(pkt,
-				struct rte_ipv4_hdr *,
-				sizeof(struct rte_ether_hdr));
 		/*
 		 * Generate multiple flows by varying IP src addr. This
 		 * enables packets are well distributed by RSS in
@@ -250,9 +267,17 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 		ip_hdr->src_addr = rte_cpu_to_be_32(addr);
 		RTE_PER_LCORE(_ip_var) = ip_var;
 	}
-	copy_buf_to_pkt(&pkt_udp_hdr, sizeof(pkt_udp_hdr), pkt,
-			sizeof(struct rte_ether_hdr) +
-			sizeof(struct rte_ipv4_hdr));
+	switch (ip_hdr->next_proto_id) {
+	case IPPROTO_UDP:
+		copy_buf_to_pkt(&pkt_l4_hdr.udp, sizeof(pkt_l4_hdr.udp), pkt,
+				sizeof(struct rte_ether_hdr) +
+				sizeof(struct rte_ipv4_hdr));
+		l4_hdr_size = sizeof(pkt_l4_hdr.udp);
+		break;
+	default:
+		l4_hdr_size = 0;
+		break;
+	}
 
 	if (unlikely(tx_pkt_split == TX_PKT_SPLIT_RND) || txonly_multi_flow)
 		update_pkt_header(pkt, pkt_len);
@@ -309,7 +334,7 @@ pkt_burst_prepare(struct rte_mbuf *pkt, struct rte_mempool *mbp,
 		copy_buf_to_pkt(&timestamp_mark, sizeof(timestamp_mark), pkt,
 			sizeof(struct rte_ether_hdr) +
 			sizeof(struct rte_ipv4_hdr) +
-			sizeof(pkt_udp_hdr));
+			l4_hdr_size);
 	}
 	/*
 	 * Complete first mbuf of packet and append it to the
@@ -450,7 +475,8 @@ tx_only_begin(portid_t pi)
 		return -EINVAL;
 	}
 
-	setup_pkt_udp_ip_headers(&pkt_ip_hdr, &pkt_udp_hdr, pkt_data_len);
+	setup_pkt_l4_ip_headers(IPPROTO_UDP, &pkt_ip_hdr, &pkt_l4_hdr,
+				pkt_data_len);
 
 	timestamp_enable = false;
 	timestamp_mask = 0;
