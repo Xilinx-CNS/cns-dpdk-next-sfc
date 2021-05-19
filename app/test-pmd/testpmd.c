@@ -256,6 +256,9 @@ enum tx_pkt_split tx_pkt_split = TX_PKT_SPLIT_OFF;
 uint8_t txonly_multi_flow;
 /**< Whether multiple flows are generated in TXONLY mode. */
 
+uint16_t txonly_tso_segsz;
+/**< TSO MSS for generated packets in TXONLY mode. */
+
 uint32_t tx_pkt_times_inter;
 /**< Timings for send scheduling in TXONLY mode, time between bursts. */
 
@@ -1570,6 +1573,15 @@ init_config_port_offloads(portid_t pid, uint32_t socket_id)
 	if (!(port->dev_info.tx_offload_capa & RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE))
 		port->dev_conf.txmode.offloads &=
 			~RTE_ETH_TX_OFFLOAD_MBUF_FAST_FREE;
+
+	if (txonly_tso_segsz > 0) {
+		if ((ports[pid].dev_info.tx_offload_capa &
+		    RTE_ETH_TX_OFFLOAD_TCP_TSO) == 0) {
+			rte_exit(EXIT_FAILURE,
+				 "TSO isn't supported for port %d\n", pid);
+		}
+		port->dev_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_TCP_TSO;
+	}
 
 	/* Apply Rx offloads configuration */
 	for (i = 0; i < port->dev_info.max_rx_queues; i++)

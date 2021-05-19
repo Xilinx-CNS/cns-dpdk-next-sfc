@@ -164,6 +164,7 @@ usage(char* progname)
 	printf("  --txpkts=X[,Y]*: set TX segment sizes"
 		" or total packet length.\n");
 	printf("  --txonly-multi-flow: generate multiple flows in txonly mode\n");
+	printf("  --txonly-tso-mss=N: enable TSO offload and generate packets with specified MSS in txonly mode\n");
 	printf("  --tx-ip=src,dst: IP addresses in Tx-only mode\n");
 	printf("  --tx-udp=src[,dst]: UDP ports in Tx-only mode\n");
 	printf("  --eth-link-speed: force link speed.\n");
@@ -675,6 +676,7 @@ launch_args_parse(int argc, char** argv)
 		{ "rxpkts",			1, 0, 0 },
 		{ "txpkts",			1, 0, 0 },
 		{ "txonly-multi-flow",		0, 0, 0 },
+		{ "txonly-tso-mss",		1, 0, 0 },
 		{ "rxq-share",			2, 0, 0 },
 		{ "eth-link-speed",		1, 0, 0 },
 		{ "disable-link-check",		0, 0, 0 },
@@ -1350,6 +1352,14 @@ launch_args_parse(int argc, char** argv)
 			}
 			if (!strcmp(lgopts[opt_idx].name, "txonly-multi-flow"))
 				txonly_multi_flow = 1;
+			if (!strcmp(lgopts[opt_idx].name, "txonly-tso-mss")) {
+				n = atoi(optarg);
+				if (n >= 0 && n <= UINT16_MAX)
+					txonly_tso_segsz = n;
+				else
+					rte_exit(EXIT_FAILURE,
+						 "TSO MSS must be >= 0 and <= UINT16_MAX\n");
+			}
 			if (!strcmp(lgopts[opt_idx].name, "rxq-share")) {
 				if (optarg == NULL) {
 					rxq_share = UINT32_MAX;
