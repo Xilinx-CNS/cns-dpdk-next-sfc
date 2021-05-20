@@ -59,6 +59,9 @@ add_ipv4(struct rte_flow_item *items,
 	ipv4_specs[ti].hdr.src_addr = RTE_BE32(para.src_ip);
 	ipv4_masks[ti].hdr.src_addr = RTE_BE32(0xffffffff);
 
+	ipv4_specs[ti].hdr.dst_addr = RTE_BE32(239 + para.src_ip);
+	ipv4_masks[ti].hdr.dst_addr = RTE_BE32(0xffffffff);
+
 	items[items_counter].type = RTE_FLOW_ITEM_TYPE_IPV4;
 	items[items_counter].spec = &ipv4_specs[ti];
 	items[items_counter].mask = &ipv4_masks[ti];
@@ -107,6 +110,12 @@ add_udp(struct rte_flow_item *items,
 {
 	static struct rte_flow_item_udp udp_spec;
 	static struct rte_flow_item_udp udp_mask;
+
+	udp_mask.hdr.dst_port = RTE_BE16(0xffff);
+	udp_spec.hdr.dst_port = RTE_BE16(239);
+
+	udp_mask.hdr.src_port = RTE_BE16(0xffff);
+	udp_spec.hdr.src_port = RTE_BE16(45);
 
 	items[items_counter].type = RTE_FLOW_ITEM_TYPE_UDP;
 	items[items_counter].spec = &udp_spec;

@@ -40,8 +40,8 @@
 #include "flow_gen.h"
 
 #define MAX_BATCHES_COUNT          100
-#define DEFAULT_RULES_COUNT    4000000
-#define DEFAULT_RULES_BATCH     100000
+#define DEFAULT_RULES_COUNT       4000
+#define DEFAULT_RULES_BATCH        100
 #define DEFAULT_GROUP                0
 
 struct rte_flow *flow;
