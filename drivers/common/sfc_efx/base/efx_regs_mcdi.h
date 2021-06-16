@@ -439,7 +439,7 @@
  */
 #define	PCIE_INTERFACE_HOST_PRIMARY 0x0
 /* enum: Riverhead and keystone products have a second PCIe interface to which
- * an on-NIC ARM module is expected to be connecte.
+ * an on-NIC ARM module is expected to be connected.
  */
 #define	PCIE_INTERFACE_NIC_EMBEDDED 0x1
 /* enum: For MCDI commands issued over a PCIe interface, this value is
@@ -627,7 +627,7 @@
 #define	MAE_MCDI_ENCAP_TYPE_L2GRE 0x4 /* enum */
 
 /* MAE_MPORT_END enum: Selects which end of the logical link identified by an
- * MPORT_SELECTOR is targetted by an operation.
+ * MPORT_SELECTOR is targeted by an operation.
  */
 /* enum: Selects the port on the MAE virtual switch */
 #define	MAE_MPORT_END_MAE 0x1
@@ -9342,10 +9342,16 @@
 #define	NVRAM_PARTITION_TYPE_FPGA_STAGE2 0xb06
 /* enum: FPGA User XCLBIN / Programmable Region 0 bitstream */
 #define	NVRAM_PARTITION_TYPE_FPGA_REGION0 0xb07
+/* enum: FPGA User XCLBIN (this is intentionally an alias of FPGA_REGION0) */
+#define	NVRAM_PARTITION_TYPE_FPGA_XCLBIN_USER 0xb07
 /* enum: FPGA jump instruction (a.k.a. boot) partition to select Stage1
  * bitstream
  */
 #define	NVRAM_PARTITION_TYPE_FPGA_JUMP 0xb08
+/* enum: FPGA Validate XCLBIN */
+#define	NVRAM_PARTITION_TYPE_FPGA_XCLBIN_VALIDATE 0xb09
+/* enum: FPGA XOCL Configuration information */
+#define	NVRAM_PARTITION_TYPE_FPGA_XOCL_CONFIG 0xb0a
 /* enum: MUM firmware partition */
 #define	NVRAM_PARTITION_TYPE_MUM_FIRMWARE 0xc00
 /* enum: SUC firmware partition (this is intentionally an alias of
@@ -12913,9 +12919,9 @@
 
 /***********************************/
 /* MC_CMD_GET_VI_TLP_PROCESSING
- * Get TLP steering and ordering information for a VI. The caller must must
- * have the GRP_FUNC_DMA privilege and must be the currently-assigned user of
- * this VI or an ancestor of the current user (see MC_CMD_SET_VI_USER).
+ * Get TLP steering and ordering information for a VI. The caller must have the
+ * GRP_FUNC_DMA privilege and must be the currently-assigned user of this VI or
+ * an ancestor of the current user (see MC_CMD_SET_VI_USER).
  */
 #define	MC_CMD_GET_VI_TLP_PROCESSING 0xb0
 #define	MC_CMD_GET_VI_TLP_PROCESSING_MSGSET 0xb0
@@ -12955,9 +12961,9 @@
 
 /***********************************/
 /* MC_CMD_SET_VI_TLP_PROCESSING
- * Set TLP steering and ordering information for a VI. The caller must must
- * have the GRP_FUNC_DMA privilege and must be the currently-assigned user of
- * this VI or an ancestor of the current user (see MC_CMD_SET_VI_USER).
+ * Set TLP steering and ordering information for a VI. The caller must have the
+ * GRP_FUNC_DMA privilege and must be the currently-assigned user of this VI or
+ * an ancestor of the current user (see MC_CMD_SET_VI_USER).
  */
 #define	MC_CMD_SET_VI_TLP_PROCESSING 0xb1
 #define	MC_CMD_SET_VI_TLP_PROCESSING_MSGSET 0xb1
@@ -19896,6 +19902,18 @@
 #define	MC_CMD_GET_FUNCTION_INFO_OUT_VF_OFST 4
 #define	MC_CMD_GET_FUNCTION_INFO_OUT_VF_LEN 4
 
+/* MC_CMD_GET_FUNCTION_INFO_OUT_V2 msgresponse */
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_LEN 12
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_PF_OFST 0
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_PF_LEN 4
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_VF_OFST 4
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_VF_LEN 4
+/* Values from PCIE_INTERFACE enumeration. For NICs with a single interface, or
+ * in the case of a V1 response, this should be HOST_PRIMARY.
+ */
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_INTF_OFST 8
+#define	MC_CMD_GET_FUNCTION_INFO_OUT_V2_INTF_LEN 4
+
 
 /***********************************/
 /* MC_CMD_ENABLE_OFFLINE_BIST
@@ -25678,6 +25696,9 @@
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_USER_MARK_OFST 0
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_USER_MARK_LBN 6
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_USER_MARK_WIDTH 1
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_INGRESS_MPORT_OFST 0
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_INGRESS_MPORT_LBN 7
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_INGRESS_MPORT_WIDTH 1
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_INGRESS_VPORT_OFST 0
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_INGRESS_VPORT_LBN 7
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_INGRESS_VPORT_WIDTH 1
@@ -25687,6 +25708,12 @@
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_VLAN_STRIP_TCI_OFST 0
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_VLAN_STRIP_TCI_LBN 9
 #define	MC_CMD_GET_RX_PREFIX_ID_IN_VLAN_STRIP_TCI_WIDTH 1
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_VLAN_STRIPPED_OFST 0
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_VLAN_STRIPPED_LBN 10
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_VLAN_STRIPPED_WIDTH 1
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_VSWITCH_STATUS_OFST 0
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_VSWITCH_STATUS_LBN 11
+#define	MC_CMD_GET_RX_PREFIX_ID_IN_VSWITCH_STATUS_WIDTH 1
 
 /* MC_CMD_GET_RX_PREFIX_ID_OUT msgresponse */
 #define	MC_CMD_GET_RX_PREFIX_ID_OUT_LENMIN 8
@@ -25732,9 +25759,12 @@
 #define	RX_PREFIX_FIELD_INFO_PARTIAL_TSTAMP 0x4 /* enum */
 #define	RX_PREFIX_FIELD_INFO_RSS_HASH 0x5 /* enum */
 #define	RX_PREFIX_FIELD_INFO_USER_MARK 0x6 /* enum */
+#define	RX_PREFIX_FIELD_INFO_INGRESS_MPORT 0x7 /* enum */
 #define	RX_PREFIX_FIELD_INFO_INGRESS_VPORT 0x7 /* enum */
 #define	RX_PREFIX_FIELD_INFO_CSUM_FRAME 0x8 /* enum */
 #define	RX_PREFIX_FIELD_INFO_VLAN_STRIP_TCI 0x9 /* enum */
+#define	RX_PREFIX_FIELD_INFO_VLAN_STRIPPED 0xa /* enum */
+#define	RX_PREFIX_FIELD_INFO_VSWITCH_STATUS 0xb /* enum */
 #define	RX_PREFIX_FIELD_INFO_TYPE_LBN 24
 #define	RX_PREFIX_FIELD_INFO_TYPE_WIDTH 8
 
@@ -26059,6 +26089,8 @@
 #define	MC_CMD_FPGA_IN_OP_SET_INTERNAL_LINK 0x5
 /* enum: Read internal link configuration. */
 #define	MC_CMD_FPGA_IN_OP_GET_INTERNAL_LINK 0x6
+/* enum: Get MAC statistics of FPGA external port. */
+#define	MC_CMD_FPGA_IN_OP_GET_MAC_STATS 0x7
 
 /* MC_CMD_FPGA_OP_GET_VERSION_IN msgrequest: Get the FPGA version string. A
  * free-format string is returned in response to this command. Any checks on
@@ -26201,6 +26233,55 @@
 /* Link speed set on FPGA internal port MAC. */
 #define	MC_CMD_FPGA_OP_GET_INTERNAL_LINK_OUT_SPEED_OFST 4
 #define	MC_CMD_FPGA_OP_GET_INTERNAL_LINK_OUT_SPEED_LEN 4
+
+/* MC_CMD_FPGA_OP_GET_MAC_STATS_IN msgrequest: Get FPGA external port MAC
+ * statistics.
+ */
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_IN_LEN 4
+/* Sub-command code. Must be OP_GET_MAC_STATS. */
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_IN_OP_OFST 0
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_IN_OP_LEN 4
+
+/* MC_CMD_FPGA_OP_GET_MAC_STATS_OUT msgresponse */
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_LENMIN 4
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_LENMAX 252
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_LENMAX_MCDI2 1020
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_LEN(num) (4+8*(num))
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_NUM(len) (((len)-4)/8)
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_NUM_STATS_OFST 0
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_NUM_STATS_LEN 4
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_OFST 4
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_LEN 8
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_LO_OFST 4
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_LO_LEN 4
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_LO_LBN 32
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_LO_WIDTH 32
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_HI_OFST 8
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_HI_LEN 4
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_HI_LBN 64
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_HI_WIDTH 32
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_MINNUM 0
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_MAXNUM 31
+#define	MC_CMD_FPGA_OP_GET_MAC_STATS_OUT_STATISTICS_MAXNUM_MCDI2 127
+#define	MC_CMD_FPGA_MAC_TX_TOTAL_PACKETS 0x0 /* enum */
+#define	MC_CMD_FPGA_MAC_TX_TOTAL_BYTES 0x1 /* enum */
+#define	MC_CMD_FPGA_MAC_TX_TOTAL_GOOD_PACKETS 0x2 /* enum */
+#define	MC_CMD_FPGA_MAC_TX_TOTAL_GOOD_BYTES 0x3 /* enum */
+#define	MC_CMD_FPGA_MAC_TX_BAD_FCS 0x4 /* enum */
+#define	MC_CMD_FPGA_MAC_TX_PAUSE 0x5 /* enum */
+#define	MC_CMD_FPGA_MAC_TX_USER_PAUSE 0x6 /* enum */
+#define	MC_CMD_FPGA_MAC_RX_TOTAL_PACKETS 0x7 /* enum */
+#define	MC_CMD_FPGA_MAC_RX_TOTAL_BYTES 0x8 /* enum */
+#define	MC_CMD_FPGA_MAC_RX_TOTAL_GOOD_PACKETS 0x9 /* enum */
+#define	MC_CMD_FPGA_MAC_RX_TOTAL_GOOD_BYTES 0xa /* enum */
+#define	MC_CMD_FPGA_MAC_RX_BAD_FCS 0xb /* enum */
+#define	MC_CMD_FPGA_MAC_RX_PAUSE 0xc /* enum */
+#define	MC_CMD_FPGA_MAC_RX_USER_PAUSE 0xd /* enum */
+#define	MC_CMD_FPGA_MAC_RX_UNDERSIZE 0xe /* enum */
+#define	MC_CMD_FPGA_MAC_RX_OVERSIZE 0xf /* enum */
+#define	MC_CMD_FPGA_MAC_RX_FRAMING_ERR 0x10 /* enum */
+#define	MC_CMD_FPGA_MAC_FEC_UNCORRECTED_ERRORS 0x11 /* enum */
+#define	MC_CMD_FPGA_MAC_FEC_CORRECTED_ERRORS 0x12 /* enum */
 
 
 /***********************************/
@@ -26898,7 +26979,7 @@
 /***********************************/
 /* MC_CMD_SET_CLIENT_MAC_ADDRESSES
  * Set the permanent MAC addresses for a client. The caller must by an
- * adminstrator of the target client. See MC_CMD_GET_CLIENT_MAC_ADDRESSES for
+ * administrator of the target client. See MC_CMD_GET_CLIENT_MAC_ADDRESSES for
  * additional detail.
  */
 #define	MC_CMD_SET_CLIENT_MAC_ADDRESSES 0x1c5
@@ -27470,17 +27551,17 @@
 #define	PCIE_FUNCTION_VF_NULL 0xffff
 #define	PCIE_FUNCTION_VF_LBN 16
 #define	PCIE_FUNCTION_VF_WIDTH 16
-/* PCIe interface of the function. Values should be taken from the the
+/* PCIe interface of the function. Values should be taken from the
  * PCIE_INTERFACE enum
  */
 #define	PCIE_FUNCTION_INTF_OFST 4
 #define	PCIE_FUNCTION_INTF_LEN 4
 /* enum: Host PCIe interface. (Alias for HOST_PRIMARY, provided for backwards
- * compatability)
+ * compatibility)
  */
 #define	PCIE_FUNCTION_INTF_HOST 0x0
 /* enum: Application Processor interface (alias for NIC_EMBEDDED, provided for
- * backwards compatability)
+ * backwards compatibility)
  */
 #define	PCIE_FUNCTION_INTF_AP 0x1
 #define	PCIE_FUNCTION_INTF_LBN 32
@@ -28273,7 +28354,7 @@
 #define	MC_CMD_GET_CLIENT_HANDLE_IN_FUNC_HI_LBN 64
 #define	MC_CMD_GET_CLIENT_HANDLE_IN_FUNC_HI_WIDTH 32
 /* enum: NULL value for the INTF field of struct PCIE_FUNCTION. Provided for
- * backwards compatability only, callers should use PCIE_INTERFACE_CALLER.
+ * backwards compatibility only, callers should use PCIE_INTERFACE_CALLER.
  */
 #define	MC_CMD_GET_CLIENT_HANDLE_IN_PCIE_FUNCTION_INTF_NULL 0xffffffff
 #define	MC_CMD_GET_CLIENT_HANDLE_IN_FUNC_PF_OFST 4
@@ -29262,6 +29343,8 @@
 /* enum: The MPORT assigned to a given PCIe function (see also FWRIVERHD-1108)
  */
 #define	MAE_MPORT_SELECTOR_TYPE_MH_FUNC 0x5
+/* enum: This is guaranteed never to be a valid selector type */
+#define	MAE_MPORT_SELECTOR_TYPE_INVALID 0xff
 #define	MAE_MPORT_SELECTOR_MPORT_ID_OFST 0
 #define	MAE_MPORT_SELECTOR_MPORT_ID_LBN 0
 #define	MAE_MPORT_SELECTOR_MPORT_ID_WIDTH 24
@@ -29322,7 +29405,7 @@
 /*               MAE_MPORT_END */
 #define	MAE_LINK_ENDPOINT_SELECTOR_LINK_END_LBN 32
 #define	MAE_LINK_ENDPOINT_SELECTOR_LINK_END_WIDTH 32
-/* A field for accessing the endoint selector as a collection of bits */
+/* A field for accessing the endpoint selector as a collection of bits */
 #define	MAE_LINK_ENDPOINT_SELECTOR_FLAT_OFST 0
 #define	MAE_LINK_ENDPOINT_SELECTOR_FLAT_LEN 8
 #define	MAE_LINK_ENDPOINT_SELECTOR_FLAT_LO_OFST 0
@@ -29693,7 +29776,8 @@
  * header must be constructed as a valid packet with 0-length payload.
  * Specifically, the L3/L4 lengths & checksums will only be incrementally fixed
  * by the NIC, rather than recomputed entirely. Currently only IPv4, IPv6 and
- * UDP are supported.
+ * UDP are supported. If the maximum number of headers have already been
+ * allocated then the command will fail with MC_CMD_ERR_ENOSPC.
  */
 #define	MC_CMD_MAE_ENCAP_HEADER_ALLOC 0x148
 #define	MC_CMD_MAE_ENCAP_HEADER_ALLOC_MSGSET 0x148
@@ -29796,7 +29880,9 @@
 /* MC_CMD_MAE_MAC_ADDR_ALLOC
  * Allocate MAC address. Hardware implementations have MAC addresses programmed
  * into an indirection table, and clients should take care not to allocate the
- * same MAC address twice (but instead reuse its ID).
+ * same MAC address twice (but instead reuse its ID). If the maximum number of
+ * MAC addresses have already been allocated then the command will fail with
+ * MC_CMD_ERR_ENOSPC.
  */
 #define	MC_CMD_MAE_MAC_ADDR_ALLOC 0x15e
 #define	MC_CMD_MAE_MAC_ADDR_ALLOC_MSGSET 0x15e
@@ -29860,7 +29946,9 @@
 /***********************************/
 /* MC_CMD_MAE_ACTION_SET_ALLOC
  * Allocate an action set, which can be referenced either in response to an
- * Action Rule, or as part of an Action Set List.
+ * Action Rule, or as part of an Action Set List. If the maxmimum number of
+ * action sets have already been allocated then the command will fail with
+ * MC_CMD_ERR_ENOSPC.
  */
 #define	MC_CMD_MAE_ACTION_SET_ALLOC 0x14d
 #define	MC_CMD_MAE_ACTION_SET_ALLOC_MSGSET 0x14d
@@ -30121,7 +30209,9 @@
 /* MC_CMD_MAE_ACTION_SET_LIST_ALLOC
  * Allocate an action set list (ASL) that can be referenced by an ID. The ASL
  * ID can be used when inserting an action rule, so that for each packet
- * matching the rule every action set in the list is applied.
+ * matching the rule every action set in the list is applied. If the maximum
+ * number of ASLs have already been allocated then the command will fail with
+ * MC_CMD_ERR_ENOSPC.
  */
 #define	MC_CMD_MAE_ACTION_SET_LIST_ALLOC 0x14f
 #define	MC_CMD_MAE_ACTION_SET_LIST_ALLOC_MSGSET 0x14f
@@ -30206,7 +30296,8 @@
 /***********************************/
 /* MC_CMD_MAE_OUTER_RULE_INSERT
  * Inserts an Outer Rule, which controls encapsulation parsing, and may
- * influence the Lookup Sequence.
+ * influence the Lookup Sequence. If the maximum number of rules have already
+ * been inserted then the command will fail with MC_CMD_ERR_ENOSPC.
  */
 #define	MC_CMD_MAE_OUTER_RULE_INSERT 0x15a
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_MSGSET 0x15a
@@ -30350,7 +30441,8 @@
 /* MC_CMD_MAE_ACTION_RULE_INSERT
  * Insert a rule specify that packets matching a filter be processed according
  * to a previous allocated action. Masks can be set as indicated by
- * MC_CMD_MAE_GET_MATCH_FIELD_CAPABILITIES.
+ * MC_CMD_MAE_GET_MATCH_FIELD_CAPABILITIES. If the maximum number of rules have
+ * already been inserted then the command will fail with MC_CMD_ERR_ENOSPC.
  */
 #define	MC_CMD_MAE_ACTION_RULE_INSERT 0x15c
 #define	MC_CMD_MAE_ACTION_RULE_INSERT_MSGSET 0x15c
@@ -30671,7 +30763,7 @@
 #define	MAE_MPORT_DESC_VNIC_CLIENT_TYPE_PLUGIN 0x2 /* enum */
 #define	MAE_MPORT_DESC_VNIC_CLIENT_TYPE_LBN 320
 #define	MAE_MPORT_DESC_VNIC_CLIENT_TYPE_WIDTH 32
-/* The PCIe interface on which the funcion lives. CJK: We need an enumeration
+/* The PCIe interface on which the function lives. CJK: We need an enumeration
  * of interfaces that we extend as new interface (types) appear. This belongs
  * elsewhere and should be referenced from here
  */
@@ -30694,6 +30786,108 @@
 #define	MAE_MPORT_DESC_VNIC_PLUGIN_TBD_LEN 4
 #define	MAE_MPORT_DESC_VNIC_PLUGIN_TBD_LBN 352
 #define	MAE_MPORT_DESC_VNIC_PLUGIN_TBD_WIDTH 32
+
+/* MAE_MPORT_DESC_V2 structuredef */
+#define	MAE_MPORT_DESC_V2_LEN 56
+#define	MAE_MPORT_DESC_V2_MPORT_ID_OFST 0
+#define	MAE_MPORT_DESC_V2_MPORT_ID_LEN 4
+#define	MAE_MPORT_DESC_V2_MPORT_ID_LBN 0
+#define	MAE_MPORT_DESC_V2_MPORT_ID_WIDTH 32
+/* Reserved for future purposes, contains information independent of caller */
+#define	MAE_MPORT_DESC_V2_FLAGS_OFST 4
+#define	MAE_MPORT_DESC_V2_FLAGS_LEN 4
+#define	MAE_MPORT_DESC_V2_FLAGS_LBN 32
+#define	MAE_MPORT_DESC_V2_FLAGS_WIDTH 32
+#define	MAE_MPORT_DESC_V2_CALLER_FLAGS_OFST 8
+#define	MAE_MPORT_DESC_V2_CALLER_FLAGS_LEN 4
+#define	MAE_MPORT_DESC_V2_CAN_RECEIVE_ON_OFST 8
+#define	MAE_MPORT_DESC_V2_CAN_RECEIVE_ON_LBN 0
+#define	MAE_MPORT_DESC_V2_CAN_RECEIVE_ON_WIDTH 1
+#define	MAE_MPORT_DESC_V2_CAN_DELIVER_TO_OFST 8
+#define	MAE_MPORT_DESC_V2_CAN_DELIVER_TO_LBN 1
+#define	MAE_MPORT_DESC_V2_CAN_DELIVER_TO_WIDTH 1
+#define	MAE_MPORT_DESC_V2_CAN_DELETE_OFST 8
+#define	MAE_MPORT_DESC_V2_CAN_DELETE_LBN 2
+#define	MAE_MPORT_DESC_V2_CAN_DELETE_WIDTH 1
+#define	MAE_MPORT_DESC_V2_IS_ZOMBIE_OFST 8
+#define	MAE_MPORT_DESC_V2_IS_ZOMBIE_LBN 3
+#define	MAE_MPORT_DESC_V2_IS_ZOMBIE_WIDTH 1
+#define	MAE_MPORT_DESC_V2_CALLER_FLAGS_LBN 64
+#define	MAE_MPORT_DESC_V2_CALLER_FLAGS_WIDTH 32
+/* Not the ideal name; it's really the type of thing connected to the m-port */
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_OFST 12
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_LEN 4
+/* enum: Connected to a MAC... */
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_NET_PORT 0x0
+/* enum: Adds metadata and delivers to another m-port */
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_ALIAS 0x1
+/* enum: Connected to a VNIC. */
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_VNIC 0x2
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_LBN 96
+#define	MAE_MPORT_DESC_V2_MPORT_TYPE_WIDTH 32
+/* 128-bit value available to drivers for m-port identification. */
+#define	MAE_MPORT_DESC_V2_UUID_OFST 16
+#define	MAE_MPORT_DESC_V2_UUID_LEN 16
+#define	MAE_MPORT_DESC_V2_UUID_LBN 128
+#define	MAE_MPORT_DESC_V2_UUID_WIDTH 128
+/* Big wadge of space reserved for other common properties */
+#define	MAE_MPORT_DESC_V2_RESERVED_OFST 32
+#define	MAE_MPORT_DESC_V2_RESERVED_LEN 8
+#define	MAE_MPORT_DESC_V2_RESERVED_LO_OFST 32
+#define	MAE_MPORT_DESC_V2_RESERVED_LO_LEN 4
+#define	MAE_MPORT_DESC_V2_RESERVED_LO_LBN 256
+#define	MAE_MPORT_DESC_V2_RESERVED_LO_WIDTH 32
+#define	MAE_MPORT_DESC_V2_RESERVED_HI_OFST 36
+#define	MAE_MPORT_DESC_V2_RESERVED_HI_LEN 4
+#define	MAE_MPORT_DESC_V2_RESERVED_HI_LBN 288
+#define	MAE_MPORT_DESC_V2_RESERVED_HI_WIDTH 32
+#define	MAE_MPORT_DESC_V2_RESERVED_LBN 256
+#define	MAE_MPORT_DESC_V2_RESERVED_WIDTH 64
+/* Logical port index. Only valid when type NET Port. */
+#define	MAE_MPORT_DESC_V2_NET_PORT_IDX_OFST 40
+#define	MAE_MPORT_DESC_V2_NET_PORT_IDX_LEN 4
+#define	MAE_MPORT_DESC_V2_NET_PORT_IDX_LBN 320
+#define	MAE_MPORT_DESC_V2_NET_PORT_IDX_WIDTH 32
+/* The m-port delivered to */
+#define	MAE_MPORT_DESC_V2_ALIAS_DELIVER_MPORT_ID_OFST 40
+#define	MAE_MPORT_DESC_V2_ALIAS_DELIVER_MPORT_ID_LEN 4
+#define	MAE_MPORT_DESC_V2_ALIAS_DELIVER_MPORT_ID_LBN 320
+#define	MAE_MPORT_DESC_V2_ALIAS_DELIVER_MPORT_ID_WIDTH 32
+/* The type of thing that owns the VNIC */
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_OFST 40
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_LEN 4
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_FUNCTION 0x1 /* enum */
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_PLUGIN 0x2 /* enum */
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_LBN 320
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_WIDTH 32
+/* The PCIe interface on which the function lives. CJK: We need an enumeration
+ * of interfaces that we extend as new interface (types) appear. This belongs
+ * elsewhere and should be referenced from here
+ */
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_INTERFACE_OFST 44
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_INTERFACE_LEN 4
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_INTERFACE_LBN 352
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_INTERFACE_WIDTH 32
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_PF_IDX_OFST 48
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_PF_IDX_LEN 2
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_PF_IDX_LBN 384
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_PF_IDX_WIDTH 16
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_VF_IDX_OFST 50
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_VF_IDX_LEN 2
+/* enum: Indicates that the function is a PF */
+#define	MAE_MPORT_DESC_V2_VF_IDX_NULL 0xffff
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_VF_IDX_LBN 400
+#define	MAE_MPORT_DESC_V2_VNIC_FUNCTION_VF_IDX_WIDTH 16
+/* Reserved. Should be ignored for now. */
+#define	MAE_MPORT_DESC_V2_VNIC_PLUGIN_TBD_OFST 44
+#define	MAE_MPORT_DESC_V2_VNIC_PLUGIN_TBD_LEN 4
+#define	MAE_MPORT_DESC_V2_VNIC_PLUGIN_TBD_LBN 352
+#define	MAE_MPORT_DESC_V2_VNIC_PLUGIN_TBD_WIDTH 32
+/* A client handle for the VNIC's owner. Only valid for type VNIC. */
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE_OFST 52
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE_LEN 4
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE_LBN 416
+#define	MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE_WIDTH 32
 
 
 /***********************************/
