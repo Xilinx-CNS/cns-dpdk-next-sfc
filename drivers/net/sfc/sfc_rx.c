@@ -13,6 +13,7 @@
 
 #include "sfc.h"
 #include "sfc_debug.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_log.h"
 #include "sfc_ev.h"
 #include "sfc_rx.h"
@@ -1225,6 +1226,12 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	info.buf_size = buf_size;
 	info.batch_max = encp->enc_rx_batch_max;
 	info.prefix_size = encp->enc_rx_prefix_size;
+
+	if (ethdev_qid == 0 && sfc_flow_tunnel_is_supported(sa))
+		info.user_mark_mask = SFC_FT_USER_MARK_MASK;
+	else
+		info.user_mark_mask = UINT32_MAX;
+
 	info.flags = rxq_info->rxq_flags;
 	info.rxq_entries = rxq_info->entries;
 	info.rxq_hw_ring = rxq->mem.esm_base;

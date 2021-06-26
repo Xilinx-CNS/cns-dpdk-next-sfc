@@ -92,6 +92,19 @@ struct sfc_dp_rx_qcreate_info {
 	efsys_dma_addr_t	fcw_offset;
 	/** VI window size shift */
 	unsigned int		vi_window_shift;
+
+	/**
+	 * User mark mask for the corresponding packet prefix field.
+	 *
+	 * On default dataplane queue, provided that tunnel offload
+	 * is supported (EF100 HW), it equals SFC_FT_USER_MARK_MASK
+	 * in order to strip PMD-internal (higher) bits in the mark.
+	 *
+	 * For all other queues (including MAE counter queue, which
+	 * uses the mark to get 32-bit generation count values), or
+	 * when tunnel offload is unsupported, it equals UINT32_MAX.
+	 */
+	uint32_t		user_mark_mask;
 };
 
 /**
