@@ -4209,6 +4209,12 @@ typedef enum efx_mae_field_id_e {
 	EFX_MAE_FIELD_ENC_HAS_OVLAN,
 	EFX_MAE_FIELD_ENC_HAS_IVLAN,
 
+	/*
+	 * Fields which can be set by efx_mae_match_spec_field_set()
+	 * or by using dedicated field-specific helper APIs.
+	 */
+	EFX_MAE_FIELD_RECIRC_ID,
+
 	EFX_MAE_FIELD_NIDS
 } efx_mae_field_id_t;
 
@@ -4380,6 +4386,12 @@ efx_mae_match_spec_mport_set(
 	__in_opt			const efx_mport_sel_t *maskp);
 
 LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_match_spec_recirc_id_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				uint8_t recirc_id);
+
+LIBEFX_API
 extern	__checkReturn			boolean_t
 efx_mae_match_specs_equal(
 	__in				const efx_mae_match_spec_t *left,
@@ -4512,6 +4524,18 @@ efx_mae_match_specs_class_cmp(
 typedef struct efx_mae_rule_id_s {
 	uint32_t id;
 } efx_mae_rule_id_t;
+
+/*
+ * Set the initial recirculation ID. Packets matching this outer
+ * rule will bear this ID when handed over to action rule lookup.
+ *
+ * Use efx_mae_match_spec_recirc_id_set() to match on this ID in an action rule.
+ */
+LIBEFX_API
+extern	__checkReturn		efx_rc_t
+efx_mae_outer_rule_recirc_id_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				uint8_t recirc_id);
 
 LIBEFX_API
 extern	__checkReturn		efx_rc_t
