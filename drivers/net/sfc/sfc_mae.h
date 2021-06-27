@@ -16,6 +16,7 @@
 
 #include "efx.h"
 
+#include "sfc_flow_tunnel.h"
 #include "sfc_stats.h"
 
 #ifdef __cplusplus
@@ -323,6 +324,7 @@ struct sfc_mae_parse_ctx {
 	struct sfc_mae_pattern_data	pattern_data;
 	efx_tunnel_protocol_t		encap_type;
 	unsigned int			priority;
+	uint32_t			ft_mark;
 };
 
 int sfc_mae_attach(struct sfc_adapter *sa);

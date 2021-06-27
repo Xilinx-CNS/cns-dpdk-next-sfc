@@ -2661,6 +2661,7 @@ static int
 sfc_flow_insert(struct sfc_adapter *sa, struct rte_flow *flow,
 		struct rte_flow_error *error)
 {
+	struct sfc_flow_spec *spec = &flow->spec;
 	const struct sfc_flow_ops_by_spec *ops;
 	int rc;
 
@@ -2672,11 +2673,38 @@ sfc_flow_insert(struct sfc_adapter *sa, struct rte_flow *flow,
 		return rte_errno;
 	}
 
+	/*
+	 * In this particular tunnel offload implementation, for a given tunnel,
+	 * full offload path is provided by MAE rules. They, in turn, relate to
+	 * a VNRX rule (a JUMP rule), which is needed to handle "miss" scenario.
+	 *
+	 * A full offload rule is actually an action rule (AR) which is chained
+	 * with an outer rule (OR). These full offload rules must have the very
+	 * same outer match criteria, that is, the ARs differ and the OR is the
+	 * same. This way, the whole group of full offload rules can be enabled
+	 * or disabled by enabling or disabling the OR. If the VNRX (JUMP) rule
+	 * is not present (caller-specific rule insertion order), the MAE rules
+	 * have to be kept inactive, for consistency with the high level design
+	 * of the model which assumes no traffic in full offload rules when the
+	 * JUMP rule is not present. Below call names the OR itself an MAE rule.
+	 *
+	 * Check its status and enable it in the case when the VNRX rule is set.
+	 */
+	rc = sfc_flow_tunnel_mae_rule_enable(sa, spec->ft_mark);
+	if (rc != 0)
+		goto fail;
+
 	rc = ops->insert(sa, flow);
 	if (rc != 0) {
-		rte_flow_error_set(error, rc, RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
-				   NULL, "Failed to insert the flow rule");
+		sfc_flow_tunnel_mae_rule_disable(sa, spec->ft_mark);
+		goto fail;
 	}
+
+	return 0;
+
+fail:
+	rte_flow_error_set(error, rc, RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
+			   NULL, "Failed to insert the flow rule");
 
 	return rc;
 }
@@ -2711,6 +2739,9 @@ sfc_flow_remove(struct sfc_adapter *sa, struct rte_flow *flow,
 		rte_flow_error_set(error, rc, RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
 				   NULL, "Failed to remove the flow rule");
 	}
+
+	/* See the sfc_flow_tunnel_mae_rule_enable() explanation above. */
+	sfc_flow_tunnel_mae_rule_disable(sa, spec->ft_mark);
 
 	return rc;
 }

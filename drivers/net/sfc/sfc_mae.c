@@ -16,6 +16,7 @@
 #include "efx.h"
 
 #include "sfc.h"
+#include "sfc_flow.h"
 #include "sfc_flow_tunnel.h"
 #include "sfc_mae_counter.h"
 #include "sfc_log.h"
@@ -954,6 +955,8 @@ sfc_mae_flow_cleanup(struct sfc_adapter *sa,
 
 	if (spec_mae->match_spec != NULL)
 		efx_mae_match_spec_fini(sa->nic, spec_mae->match_spec);
+
+	sfc_flow_tunnel_mae_rule_cleanup(sa, spec->ft_mark);
 }
 
 static int
@@ -1172,6 +1175,51 @@ sfc_mae_rule_process_pattern_data(struct sfc_mae_parse_ctx *ctx,
 fail:
 	return rte_flow_error_set(error, rc, RTE_FLOW_ERROR_TYPE_ITEM, NULL,
 				  "Failed to process pattern data");
+}
+
+static int
+sfc_mae_rule_parse_item_mark(const struct rte_flow_item *item,
+			     struct sfc_flow_parse_ctx *ctx,
+			     struct rte_flow_error *error)
+{
+	const struct rte_flow_item_mark *spec = item->spec;
+	struct sfc_mae_parse_ctx *ctx_mae = ctx->mae;
+	struct sfc_flow_tunnel *ft;
+	uint32_t user_mark;
+
+	if (spec == NULL) {
+		return rte_flow_error_set(error, EINVAL,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"NULL spec in item MARK");
+	}
+
+	ft = sfc_flow_tunnel_pick(ctx_mae->sa, spec->id);
+	if (ft == NULL) {
+		sfc_err(ctx_mae->sa,
+			"tunnel offload: MAE: invalid tunnel");
+		goto error;
+	}
+
+	if (ft->refcnt == 0) {
+		sfc_err(ctx_mae->sa, "tunnel offload: MAE: tunnel=%u doesn't exist",
+			ft->id);
+		goto error;
+	}
+
+	user_mark = SFC_FT_GET_USER_MARK(spec->id);
+	if (user_mark != 0) {
+		sfc_err(ctx_mae->sa,
+			"tunnel offload: MAE: invalid action MARK");
+		goto error;
+	}
+
+	ctx_mae->ft_mark = spec->id;
+
+	return 0;
+
+error:
+	return rte_flow_error_set(error, EINVAL, RTE_FLOW_ERROR_TYPE_ITEM,
+				  item, "invalid item MARK");
 }
 
 static int
@@ -2123,6 +2171,14 @@ sfc_mae_rule_parse_item_tunnel(const struct rte_flow_item *item,
 
 static const struct sfc_flow_item sfc_flow_items[] = {
 	{
+		.type = RTE_FLOW_ITEM_TYPE_MARK,
+		.name = "MARK",
+		.prev_layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.ctx_type = SFC_FLOW_PARSE_CTX_MAE,
+		.parse = sfc_mae_rule_parse_item_mark,
+	},
+	{
 		.type = RTE_FLOW_ITEM_TYPE_PORT_ID,
 		.name = "PORT_ID",
 		/*
@@ -2254,6 +2310,12 @@ sfc_mae_rule_process_outer(struct sfc_adapter *sa,
 	int rc;
 
 	if (ctx->encap_type == EFX_TUNNEL_PROTOCOL_NONE) {
+		if (ctx->ft_mark != 0) {
+			return rte_flow_error_set(error, ENOTSUP,
+				RTE_FLOW_ERROR_TYPE_ITEM, NULL,
+				"tunnel offload: MAE: no outer match criteria");
+		}
+
 		*rulep = NULL;
 		goto no_or_id;
 	}
@@ -2264,6 +2326,23 @@ sfc_mae_rule_process_outer(struct sfc_adapter *sa,
 		return rte_flow_error_set(error, ENOTSUP,
 					  RTE_FLOW_ERROR_TYPE_ITEM, NULL,
 					  "Inconsistent pattern (outer)");
+	}
+
+	if (ctx->ft_mark != 0) {
+		rc = sfc_flow_tunnel_mae_rule_attach(sa, ctx->encap_type,
+						     ctx->match_spec_outer,
+						     ctx->match_spec_action,
+						     ctx->ft_mark);
+		if (rc != 0) {
+			return rte_flow_error_set(error, rc,
+				RTE_FLOW_ERROR_TYPE_ITEM, NULL,
+				"tunnel offload: MAE: failed to attach to an outer rule");
+		}
+
+		/* The spec has now been tracked by the tunnel entry. */
+		ctx->match_spec_outer = NULL;
+		*rulep = NULL;
+		return 0;
 	}
 
 	*rulep = sfc_mae_outer_rule_attach(sa, ctx->match_spec_outer,
@@ -2467,6 +2546,7 @@ sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 	}
 
 	spec->match_spec = ctx_mae.match_spec_action;
+	flow_spec->ft_mark = ctx_mae.ft_mark;
 
 	return 0;
 
@@ -3263,6 +3343,17 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_action_set_spec_init;
 
+	if (flow_spec->ft_mark != 0) {
+		/*
+		 * In this particular tunnel offload implementation, there is
+		 * no partial offload in VNRX (JUMP) rules. MAE rules provide
+		 * full offload, so inject an implicit action DECAP over here.
+		 */
+		rc = efx_mae_action_set_populate_decap(spec);
+		if (rc != 0)
+			goto fail_enforce_ft_decap;
+	}
+
 	/* Cleanup after previous encap. header bounce buffer usage. */
 	sfc_mae_bounce_eh_invalidate(&mae->bounce_eh);
 
@@ -3316,6 +3407,7 @@ fail_process_encap_header:
 fail_rule_parse_action:
 	efx_mae_action_set_spec_fini(sa->nic, spec);
 
+fail_enforce_ft_decap:
 fail_action_set_spec_init:
 	if (rc > 0 && rte_errno == 0) {
 		rc = rte_flow_error_set(error, rc,

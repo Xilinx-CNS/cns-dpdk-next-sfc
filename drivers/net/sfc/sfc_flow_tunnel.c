@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "efx.h"
+
 #include "sfc.h"
 #include "sfc_flow.h"
 #include "sfc_flow_tunnel.h"
@@ -245,4 +247,160 @@ fail:
 	return rte_flow_error_set(error, rc,
 				  RTE_FLOW_ERROR_TYPE_HANDLE, NULL,
 				  "tunnel offload: VNRX rule detection failed");
+}
+
+int
+sfc_flow_tunnel_mae_rule_attach(struct sfc_adapter *sa,
+				efx_tunnel_protocol_t encap_type,
+				efx_mae_match_spec_t *outer_spec,
+				efx_mae_match_spec_t *action_spec,
+				uint32_t ft_mark)
+{
+	struct sfc_flow_tunnel_mae_rule *ft_mae_rule;
+	struct sfc_flow_tunnel *ft;
+	const char *or_status;
+	int rc;
+
+	ft = sfc_flow_tunnel_pick(sa, ft_mark);
+	if (ft == NULL) {
+		sfc_err(sa, "tunnel offload: MAE: invalid tunnel");
+		return EINVAL;
+	}
+
+	/*
+	 * Do this here for correct comparison
+	 * in efx_mae_match_specs_equal().
+	 */
+	rc = efx_mae_outer_rule_recirc_id_set(outer_spec, ft->id + 1);
+	if (rc != 0) {
+		sfc_err(sa, "tunnel offload: MAE: failed to initialise RECIRC_ID in the outer rule: %s",
+			strerror(rc));
+		return rc;
+	}
+
+	ft_mae_rule = &ft->mae_rule;
+
+	if (ft_mae_rule->refcnt != 0) {
+		if (encap_type != ft_mae_rule->encap_type ||
+		    !efx_mae_match_specs_equal(outer_spec,
+					       ft_mae_rule->outer_spec)) {
+			sfc_err(sa, "tunnel offload: MAE: diverging outer rule spec");
+			return EINVAL;
+		}
+
+
+		efx_mae_match_spec_fini(sa->nic, outer_spec);
+		outer_spec = ft_mae_rule->outer_spec;
+
+		or_status = "existing";
+	} else {
+		ft_mae_rule->outer_rule.id = EFX_MAE_RSRC_ID_INVALID;
+
+		or_status = "newly added";
+	}
+
+	rc = efx_mae_match_spec_recirc_id_set(action_spec, ft->id + 1);
+	if (rc != 0) {
+		sfc_err(sa, "tunnel offload: MAE: failed to set match on RECIRC_ID in the action rule: %s",
+			strerror(rc));
+		return rc;
+	}
+
+	sfc_dbg(sa, "tunnel offload: MAE: attached to %s rule in tunnel=%u",
+		or_status, ft->id);
+
+	ft_mae_rule->encap_type = encap_type;
+	ft_mae_rule->outer_spec = outer_spec;
+
+	++(ft_mae_rule->refcnt);
+
+	return 0;
+}
+
+void
+sfc_flow_tunnel_mae_rule_cleanup(struct sfc_adapter *sa, uint32_t ft_mark)
+{
+	struct sfc_flow_tunnel_mae_rule *ft_mae_rule;
+	struct sfc_flow_tunnel *ft;
+
+	ft = sfc_flow_tunnel_pick(sa, ft_mark);
+	if (ft == NULL)
+		return;
+
+	ft_mae_rule = &ft->mae_rule;
+
+	SFC_ASSERT(ft_mae_rule->refcnt != 0);
+	--(ft_mae_rule->refcnt);
+
+	if (ft_mae_rule->refcnt == 0) {
+		SFC_ASSERT(ft_mae_rule->outer_rule.id ==
+			   EFX_MAE_RSRC_ID_INVALID);
+
+		sfc_dbg(sa, "tunnel offload: MAE: cleaned outer rule data in tunnel=%u",
+			ft->id);
+
+		efx_mae_match_spec_fini(sa->nic, ft_mae_rule->outer_spec);
+		ft_mae_rule->encap_type = EFX_TUNNEL_PROTOCOL_NONE;
+		ft_mae_rule->outer_spec = NULL;
+	}
+}
+
+int
+sfc_flow_tunnel_mae_rule_enable(struct sfc_adapter *sa, uint32_t ft_mark)
+{
+	struct sfc_flow_tunnel_mae_rule *ft_mae_rule;
+	struct sfc_flow_tunnel *ft;
+	int rc;
+
+	ft = sfc_flow_tunnel_pick(sa, ft_mark);
+	if (ft == NULL)
+		return 0;
+
+	ft_mae_rule = &ft->mae_rule;
+
+	if (ft_mae_rule->outer_rule.id == EFX_MAE_RSRC_ID_INVALID &&
+	    ft_mae_rule->outer_spec != NULL && ft->vnrx_rule_is_set) {
+		rc = efx_mae_outer_rule_insert(sa->nic, ft_mae_rule->outer_spec,
+					       ft_mae_rule->encap_type,
+					       &ft_mae_rule->outer_rule);
+		if (rc != 0) {
+			sfc_err(sa, "tunnel offload: MAE: failed to enable outer rule in tunnel=%u: %s",
+				ft->id, strerror(rc));
+			return rc;
+		}
+
+		sfc_dbg(sa, "tunnel offload: MAE: enabled outer rule in tunnel=%u: OR_ID=0x%08x",
+			ft->id, ft_mae_rule->outer_rule.id);
+	}
+
+	return 0;
+}
+
+void
+sfc_flow_tunnel_mae_rule_disable(struct sfc_adapter *sa, uint32_t ft_mark)
+{
+	struct sfc_flow_tunnel_mae_rule *ft_mae_rule;
+	struct sfc_flow_tunnel *ft;
+	int rc;
+
+	ft = sfc_flow_tunnel_pick(sa, ft_mark);
+	if (ft == NULL)
+		return;
+
+	ft_mae_rule = &ft->mae_rule;
+
+	if (ft_mae_rule->outer_rule.id != EFX_MAE_RSRC_ID_INVALID &&
+	    (ft_mae_rule->refcnt == 1 || !ft->vnrx_rule_is_set)) {
+		rc = efx_mae_outer_rule_remove(sa->nic,
+					       &ft_mae_rule->outer_rule);
+		if (rc == 0) {
+			sfc_dbg(sa, "tunnel offload: MAE: disabled outer rule in tunnel=%u with OR_ID=0x%08x",
+				ft->id, ft_mae_rule->outer_rule.id);
+		} else {
+			sfc_err(sa, "tunnel offload: MAE: failed to disable outer rule in tunnel=%u with OR_ID=0x%08x: %s",
+				ft->id, ft_mae_rule->outer_rule.id,
+				strerror(rc));
+		}
+		ft_mae_rule->outer_rule.id = EFX_MAE_RSRC_ID_INVALID;
+	}
 }
