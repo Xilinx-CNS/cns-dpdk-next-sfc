@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <rte_flow.h>
+
 #include "efx.h"
 
 #ifdef __cplusplus
@@ -36,6 +38,9 @@ typedef uint8_t sfc_ft_id_t;
 #define SFC_FT_GET_USER_MARK(_mark) \
 	((_mark) & SFC_FT_USER_MARK_MASK)
 
+#define SFC_FT_ID_TO_MARK(_id) \
+	(((_id) + 1) << SFC_FT_USER_MARK_BITS)
+
 #define SFC_FT_MAX_NTUNNELS	((1U << SFC_FT_TUNNEL_MARK_BITS) - 1)
 
 /** Expected (maximum) number of pattern items in a VNRX rule */
@@ -60,9 +65,17 @@ struct sfc_flow_tunnel {
 	struct sfc_flow_tunnel_bounce	vnrx_rule_bounce_buf;
 
 	bool				vnrx_rule_is_set;
+	struct rte_flow_tunnel		rte_tunnel;
 	struct sfc_flow_tunnel_mae_rule	mae_rule;
 	unsigned int			refcnt;
 	sfc_ft_id_t			id;
+
+	struct rte_flow_action_mark	action_mark;
+	struct rte_flow_action		action;
+
+	struct rte_flow_item_mark	item_mark_v;
+	struct rte_flow_item_mark	item_mark_m;
+	struct rte_flow_item		item;
 };
 
 struct sfc_adapter;
@@ -92,6 +105,33 @@ void sfc_flow_tunnel_mae_rule_cleanup(struct sfc_adapter *sa, uint32_t ft_mark);
 int sfc_flow_tunnel_mae_rule_enable(struct sfc_adapter *sa, uint32_t ft_mark);
 
 void sfc_flow_tunnel_mae_rule_disable(struct sfc_adapter *sa, uint32_t ft_mark);
+
+int sfc_flow_tunnel_decap_set(struct rte_eth_dev *dev,
+			      struct rte_flow_tunnel *tunnel,
+			      struct rte_flow_action **pmd_actions,
+			      uint32_t *num_of_actions,
+			      struct rte_flow_error *err);
+
+int sfc_flow_tunnel_match(struct rte_eth_dev *dev,
+			  struct rte_flow_tunnel *tunnel,
+			  struct rte_flow_item **pmd_items,
+			  uint32_t *num_of_items,
+			  struct rte_flow_error *err);
+
+int sfc_flow_tunnel_item_release(struct rte_eth_dev *dev,
+				 struct rte_flow_item *pmd_items,
+				 uint32_t num_items,
+				 struct rte_flow_error *err);
+
+int sfc_flow_tunnel_action_decap_release(struct rte_eth_dev *dev,
+					 struct rte_flow_action *pmd_actions,
+					 uint32_t num_actions,
+					 struct rte_flow_error *err);
+
+int sfc_flow_tunnel_get_restore_info(struct rte_eth_dev *dev,
+				     struct rte_mbuf *m,
+				     struct rte_flow_restore_info *info,
+				     struct rte_flow_error *err);
 
 #ifdef __cplusplus
 }
