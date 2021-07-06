@@ -61,6 +61,12 @@ struct sfc_flow_spec_filter {
 	boolean_t rss_hash_required;
 	/* RSS configuration */
 	struct sfc_flow_rss rss_conf;
+	/* Flow Tunnel (FT): Indicates whether the flow has RTE counter ID */
+	bool ft_rte_counter_id_valid;
+	/* Flow Tunnel (FT): RTE counter ID used by the caller in the flow */
+	uint32_t ft_rte_counter_id;
+	/* Flow Tunnel (FT): Counter reset value */
+	uint64_t ft_reset_hit_counter;
 };
 
 /* MAE-specific flow specification */

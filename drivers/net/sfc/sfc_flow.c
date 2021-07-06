@@ -40,6 +40,7 @@ static sfc_flow_parse_cb_t sfc_flow_parse_rte_to_filter;
 static sfc_flow_parse_cb_t sfc_flow_parse_rte_to_mae;
 static sfc_flow_insert_cb_t sfc_flow_filter_insert;
 static sfc_flow_remove_cb_t sfc_flow_filter_remove;
+static sfc_flow_query_cb_t sfc_flow_filter_query;
 
 static const struct sfc_flow_ops_by_spec sfc_flow_ops_filter = {
 	.parse = sfc_flow_parse_rte_to_filter,
@@ -47,7 +48,7 @@ static const struct sfc_flow_ops_by_spec sfc_flow_ops_filter = {
 	.cleanup = NULL,
 	.insert = sfc_flow_filter_insert,
 	.remove = sfc_flow_filter_remove,
-	.query = NULL,
+	.query = sfc_flow_filter_query,
 };
 
 static const struct sfc_flow_ops_by_spec sfc_flow_ops_mae = {
@@ -1595,7 +1596,9 @@ sfc_flow_filter_insert(struct sfc_adapter *sa,
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_rss *rss = &sas->rss;
-	struct sfc_flow_spec_filter *spec_filter = &flow->spec.filter;
+	struct sfc_flow_spec *spec = &flow->spec;
+	struct sfc_flow_tunnel *ft = sfc_flow_tunnel_pick(sa, spec->ft_mark);
+	struct sfc_flow_spec_filter *spec_filter = &spec->filter;
 	struct sfc_flow_rss *flow_rss = &spec_filter->rss_conf;
 	uint32_t efs_rss_context = EFX_RSS_CONTEXT_DEFAULT;
 	boolean_t create_context;
@@ -1604,6 +1607,20 @@ sfc_flow_filter_insert(struct sfc_adapter *sa,
 
 	create_context = spec_filter->rss || (spec_filter->rss_hash_required &&
 			rss->dummy_rss_context == EFX_RSS_CONTEXT_DEFAULT);
+
+	if (ft != NULL) {
+		struct sfc_rxq_info *rxq_info;
+		uint64_t *vnrx_hit_counters;
+
+		rxq_info = sfc_rxq_info_by_ethdev_qid(sas, 0);
+
+		SFC_ASSERT(sa->priv.dp_rx->get_ft_vnrx_hit_count != NULL);
+		vnrx_hit_counters =
+			sa->priv.dp_rx->get_ft_vnrx_hit_count(rxq_info->dp);
+
+		spec_filter->ft_reset_hit_counter = vnrx_hit_counters[ft->id] +
+						    ft->mae_hit_count;
+	}
 
 	if (create_context) {
 		unsigned int rss_spread;
@@ -2548,6 +2565,77 @@ fail_bad_value:
 }
 
 static int
+sfc_flow_query_ft_counter(struct rte_eth_dev *dev,
+			  struct sfc_flow_spec *spec,
+			  const struct rte_flow_action *action,
+			  void *data_ptr,
+			  struct rte_flow_error *error)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_flow_tunnel *ft = sfc_flow_tunnel_pick(sa, spec->ft_mark);
+	const struct rte_flow_action_count *action_count = action->conf;
+	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
+	struct sfc_flow_spec_filter *spec_filter = &spec->filter;
+	struct rte_flow_query_count *data = data_ptr;
+	struct sfc_rxq_info *rxq_info;
+	uint64_t *vnrx_hit_counters;
+	uint64_t hits;
+
+	if (ft == NULL || !spec_filter->ft_rte_counter_id_valid) {
+		return rte_flow_error_set(error, EINVAL,
+					  RTE_FLOW_ERROR_TYPE_ACTION, NULL,
+					  "the flow has no counters");
+	}
+
+	if (action_count != NULL &&
+	    action_count->id != spec_filter->ft_rte_counter_id) {
+		return rte_flow_error_set(error, EINVAL,
+					  RTE_FLOW_ERROR_TYPE_ACTION_CONF,
+					  NULL, "wrong RTE counter ID");
+	}
+
+	/* Packets which missed in MAE and hit the filter in VNRX. */
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, 0);
+	SFC_ASSERT(sa->priv.dp_rx->get_ft_vnrx_hit_count != NULL);
+	vnrx_hit_counters = sa->priv.dp_rx->get_ft_vnrx_hit_count(rxq_info->dp);
+	hits = vnrx_hit_counters[ft->id];
+
+	/* Packets which hit the associated rule(s) in MAE. */
+	ft = &sa->flow_tunnels[ft->id];
+	hits += ft->mae_hit_count;
+
+	data->bytes_set = 0;
+
+	data->hits_set = 1;
+	data->hits = hits - spec_filter->ft_reset_hit_counter;
+
+	if (data->reset != 0)
+		spec_filter->ft_reset_hit_counter = hits;
+
+	return 0;
+}
+
+static int
+sfc_flow_filter_query(struct rte_eth_dev *dev,
+		      struct rte_flow *flow,
+		      const struct rte_flow_action *action,
+		      void *data_ptr,
+		      struct rte_flow_error *error)
+{
+	struct sfc_flow_spec *spec = &flow->spec;
+
+	switch (action->type) {
+	case RTE_FLOW_ACTION_TYPE_COUNT:
+		return sfc_flow_query_ft_counter(dev, spec, action,
+						 data_ptr, error);
+	default:
+		return rte_flow_error_set(error, ENOTSUP,
+			RTE_FLOW_ERROR_TYPE_ACTION, NULL,
+			"query for action of this type is not supported");
+	}
+}
+
+static int
 sfc_flow_parse_rte_to_mae(struct rte_eth_dev *dev,
 			  const struct rte_flow_item pattern[],
 			  const struct rte_flow_action actions[],
@@ -3042,6 +3130,8 @@ sfc_flow_start(struct sfc_adapter *sa)
 	sfc_log_init(sa, "entry");
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	sfc_flow_tunnel_reset_mae_hit_counts(sa);
 
 	TAILQ_FOREACH(flow, &sa->flow_list, entries) {
 		rc = sfc_flow_insert(sa, flow, NULL);

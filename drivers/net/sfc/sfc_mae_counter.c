@@ -99,6 +99,8 @@ sfc_mae_counter_enable(struct sfc_adapter *sa,
 		       &p->value.pkts_bytes.int128, __ATOMIC_RELAXED);
 	p->generation_count = generation_count;
 
+	p->ft_mae_hit_count = counterp->ft_mae_hit_count;
+
 	/*
 	 * The flag is set at the very end of add operation and reset
 	 * at the beginning of delete operation. Release ordering is
@@ -209,6 +211,14 @@ sfc_mae_counter_increment(struct sfc_adapter *sa,
 	 */
 	__atomic_store(&p->value.pkts_bytes,
 		       &cnt_val.pkts_bytes, __ATOMIC_RELAXED);
+
+	if (p->ft_mae_hit_count != NULL) {
+		uint64_t ft_mae_hit_count;
+
+		ft_mae_hit_count = *p->ft_mae_hit_count + pkts;
+		__atomic_store_n(p->ft_mae_hit_count, ft_mae_hit_count,
+				 __ATOMIC_RELAXED);
+	}
 
 	sfc_info(sa, "update MAE counter #%u: pkts+%" PRIu64 "=%" PRIu64
 		 ", bytes+%" PRIu64 "=%" PRIu64, mae_counter_id,
@@ -824,4 +834,14 @@ sfc_mae_counter_get(struct sfc_mae_counters *counters,
 	}
 
 	return 0;
+}
+
+bool
+sfc_mae_counter_stream_enabled(struct sfc_adapter *sa)
+{
+	if ((sa->counter_rxq.state & SFC_COUNTER_RXQ_INITIALIZED) == 0 ||
+	    sfc_get_service_lcore(SOCKET_ID_ANY) == RTE_MAX_LCORE)
+		return B_FALSE;
+	else
+		return B_TRUE;
 }

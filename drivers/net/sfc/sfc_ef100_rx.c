@@ -91,6 +91,20 @@ struct sfc_ef100_rxq {
 
 	/* Datapath receive queue anchor */
 	struct sfc_dp_rxq		dp;
+
+	/*
+	 * Flow Tunnel (FT) VNIC Rx (VNRX) hit counters.
+	 *
+	 * The PMD supports tunnel offload model. Tunnel packets are supposed
+	 * to hit MAE rules comprising narrow match criteria and action DECAP.
+	 * Decapsulated packets go to destinations decided by the application.
+	 *
+	 * Tunnel packets which miss in MAE end up in admin's PF and hit VNRX
+	 * filters which use relaxed match criteria. These packets are marked
+	 * and delivered to default Rx queue. For a given tunnel, the mark is
+	 * associated with the tunnel SW data object and its VNRX hit counter.
+	 */
+	uint64_t	ft_vnrx_hit_counters[SFC_FT_MAX_NTUNNELS];
 };
 
 static inline struct sfc_ef100_rxq *
@@ -385,7 +399,7 @@ static const efx_rx_prefix_layout_t sfc_ef100_rx_prefix_layout = {
 };
 
 static bool
-sfc_ef100_rx_prefix_to_offloads(const struct sfc_ef100_rxq *rxq,
+sfc_ef100_rx_prefix_to_offloads(struct sfc_ef100_rxq *rxq,
 				const efx_xword_t *rx_prefix,
 				struct rte_mbuf *m)
 {
@@ -438,6 +452,8 @@ sfc_ef100_rx_prefix_to_offloads(const struct sfc_ef100_rxq *rxq,
 			ol_flags |= sfc_dp_ft_id_valid;
 			*RTE_MBUF_DYNFIELD(m, sfc_dp_ft_id_offset,
 					   sfc_ft_id_t *) = ft_id;
+
+			++(rxq->ft_vnrx_hit_counters[ft_id]);
 		}
 	}
 
@@ -951,6 +967,15 @@ sfc_ef100_rx_get_pushed(struct sfc_dp_rxq *dp_rxq)
 	return rxq->added;
 }
 
+static sfc_dp_rx_get_ft_vnrx_hit_count sfc_ef100_get_ft_vnrx_hit_count;
+static uint64_t *
+sfc_ef100_get_ft_vnrx_hit_count(struct sfc_dp_rxq *dp_rxq)
+{
+	struct sfc_ef100_rxq *rxq = sfc_ef100_rxq_by_dp_rxq(dp_rxq);
+
+	return rxq->ft_vnrx_hit_counters;
+}
+
 struct sfc_dp_rx sfc_ef100_rx = {
 	.dp = {
 		.name		= SFC_KVARG_DATAPATH_EF100,
@@ -980,5 +1005,6 @@ struct sfc_dp_rx sfc_ef100_rx = {
 	.intr_enable		= sfc_ef100_rx_intr_enable,
 	.intr_disable		= sfc_ef100_rx_intr_disable,
 	.get_pushed		= sfc_ef100_rx_get_pushed,
+	.get_ft_vnrx_hit_count	= sfc_ef100_get_ft_vnrx_hit_count,
 	.pkt_burst		= sfc_ef100_recv_pkts,
 };

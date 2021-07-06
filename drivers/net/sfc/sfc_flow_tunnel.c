@@ -15,6 +15,7 @@
 #include "sfc_flow.h"
 #include "sfc_flow_tunnel.h"
 #include "sfc_mae.h"
+#include "sfc_mae_counter.h"
 
 bool
 sfc_flow_tunnel_is_supported(struct sfc_adapter *sa)
@@ -117,10 +118,13 @@ sfc_flow_tunnel_detect_vnrx_rule(struct sfc_adapter *sa,
 				 struct rte_flow *flow,
 				 struct rte_flow_error *error)
 {
+	const struct rte_flow_action_count *action_count;
 	const struct rte_flow_action_mark *action_mark;
 	const struct rte_flow_action_jump *action_jump;
 	struct sfc_flow_spec *spec = &flow->spec;
+	bool rte_counter_id_valid = B_FALSE;
 	unsigned int nb_actions_mark = 0;
+	uint32_t rte_counter_id = 0;
 	struct sfc_flow_tunnel *ft;
 	uint32_t ft_mark = 0;
 	bool jump = B_FALSE;
@@ -176,6 +180,17 @@ sfc_flow_tunnel_detect_vnrx_rule(struct sfc_adapter *sa,
 			continue;
 
 		switch (actions->type) {
+		case RTE_FLOW_ACTION_TYPE_COUNT:
+			action_count = actions->conf;
+			if (rte_counter_id_valid || action_count->shared ||
+			    !sfc_mae_counter_stream_enabled(sa)) {
+				rc = EINVAL;
+			} else {
+				rte_counter_id = action_count->id;
+				rte_counter_id_valid = B_TRUE;
+			}
+			break;
+
 		case RTE_FLOW_ACTION_TYPE_MARK:
 			action_mark = actions->conf;
 
@@ -205,6 +220,8 @@ sfc_flow_tunnel_detect_vnrx_rule(struct sfc_adapter *sa,
 
 	ft = sfc_flow_tunnel_pick(sa, ft_mark);
 	if (ft != NULL && jump) {
+		struct sfc_flow_spec_filter *spec_filter = &spec->filter;
+
 		sfc_dbg(sa, "tunnel offload: VNRX rule is detected: doing pre-parsing");
 
 		if (rc != 0) {
@@ -234,6 +251,9 @@ sfc_flow_tunnel_detect_vnrx_rule(struct sfc_adapter *sa,
 			goto fail;
 
 		refined_attr->transfer = 0;
+
+		spec_filter->ft_rte_counter_id_valid = rte_counter_id_valid;
+		spec_filter->ft_rte_counter_id = rte_counter_id;
 
 		spec->ft_mark = ft_mark;
 	} else {
@@ -699,4 +719,22 @@ fail:
 	return rte_flow_error_set(err, rc,
 				  RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
 				  "tunnel offload: get_restore_info failed");
+}
+
+void
+sfc_flow_tunnel_reset_mae_hit_counts(struct sfc_adapter *sa)
+{
+	unsigned int i;
+
+	/*
+	 * This function is supposed to be invoked by
+	 * sfc_flow_start() before enabling any flows.
+	 */
+	SFC_ASSERT(sa->state != SFC_ETHDEV_STARTED);
+
+	for (i = 0; i < RTE_DIM(sa->flow_tunnels); ++i) {
+		struct sfc_flow_tunnel *ft = &sa->flow_tunnels[i];
+
+		ft->mae_hit_count = 0;
+	}
 }

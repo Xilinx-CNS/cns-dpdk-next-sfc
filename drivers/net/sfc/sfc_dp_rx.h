@@ -220,6 +220,9 @@ typedef int (sfc_dp_rx_intr_disable_t)(struct sfc_dp_rxq *dp_rxq);
 /** Get number of pushed Rx buffers */
 typedef unsigned int (sfc_dp_rx_get_pushed_t)(struct sfc_dp_rxq *dp_rxq);
 
+/** Get Flow Tunnel (FT) VNIC Rx (VNRX) hit counters */
+typedef uint64_t * (sfc_dp_rx_get_ft_vnrx_hit_count)(struct sfc_dp_rxq *dp_rxq);
+
 /** Receive datapath definition */
 struct sfc_dp_rx {
 	struct sfc_dp				dp;
@@ -256,6 +259,7 @@ struct sfc_dp_rx {
 	sfc_dp_rx_intr_enable_t			*intr_enable;
 	sfc_dp_rx_intr_disable_t		*intr_disable;
 	sfc_dp_rx_get_pushed_t			*get_pushed;
+	sfc_dp_rx_get_ft_vnrx_hit_count		*get_ft_vnrx_hit_count;
 	eth_rx_burst_t				pkt_burst;
 };
 

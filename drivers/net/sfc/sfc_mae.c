@@ -742,6 +742,7 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 		       const struct rte_flow_action actions[],
 		       efx_mae_actions_t *spec,
 		       struct sfc_mae_encap_header *encap_header,
+		       uint64_t *ft_mae_hit_count,
 		       unsigned int n_counters,
 		       struct sfc_mae_action_set **action_setp)
 {
@@ -768,6 +769,15 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 			return ENOMEM;
 		}
 
+		for (i = 0; i < n_counters; ++i) {
+			action_set->counters[i].rte_id_valid = B_FALSE;
+			action_set->counters[i].mae_id.id =
+				EFX_MAE_RSRC_ID_INVALID;
+
+			action_set->counters[i].ft_mae_hit_count =
+				ft_mae_hit_count;
+		}
+
 		for (action = actions, i = 0;
 		     action->type != RTE_FLOW_ACTION_TYPE_END && i < n_counters;
 		     ++action) {
@@ -778,11 +788,11 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 
 			conf = action->conf;
 
-			action_set->counters[i].mae_id.id =
-				EFX_MAE_RSRC_ID_INVALID;
+			action_set->counters[i].rte_id_valid = B_TRUE;
 			action_set->counters[i].rte_id = conf->id;
 			i++;
 		}
+
 		action_set->n_counters = n_counters;
 	}
 
@@ -3327,8 +3337,9 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	struct sfc_mae_actions_bundle bundle = {0};
 	const struct rte_flow_action *action;
 	struct sfc_mae *mae = &sa->mae;
+	uint64_t *ft_mae_hit_count;
+	unsigned int n_count = 0;
 	efx_mae_actions_t *spec;
-	unsigned int n_count;
 	int rc;
 
 	rte_errno = 0;
@@ -3354,6 +3365,29 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			goto fail_enforce_ft_decap;
 	}
 
+	for (action = actions;
+	     action->type != RTE_FLOW_ACTION_TYPE_END; ++action) {
+		if (action->type == RTE_FLOW_ACTION_TYPE_COUNT)
+			++n_count;
+	}
+
+	if (n_count == 0 && flow_spec->ft_mark != 0 &&
+	    sfc_mae_counter_stream_enabled(sa)) {
+		/*
+		 * The user opted not to use action COUNT in this rule, but the
+		 * counter should be enabled implicitly because packets hitting
+		 * this rule (and other rules with the same FT mark) contribute
+		 * to the total number of hits observed for the specific tunnel.
+		 *
+		 * See sfc_flow_query_ft_counter().
+		 */
+		rc = efx_mae_action_set_populate_count(spec);
+		if (rc != 0)
+			goto fail_enforce_ft_count;
+
+		n_count = 1;
+	}
+
 	/* Cleanup after previous encap. header bounce buffer usage. */
 	sfc_mae_bounce_eh_invalidate(&mae->bounce_eh);
 
@@ -3377,11 +3411,21 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_process_encap_header;
 
-	n_count = efx_mae_action_set_get_nb_count(spec);
 	if (n_count > 1) {
 		rc = ENOTSUP;
 		sfc_err(sa, "too many count actions requested: %u", n_count);
 		goto fail_nb_count;
+	}
+
+	if (flow_spec->ft_mark != 0) {
+		struct sfc_flow_tunnel *ft;
+
+		ft = sfc_flow_tunnel_pick(sa, flow_spec->ft_mark);
+		SFC_ASSERT(ft != NULL);
+
+		ft_mae_hit_count = &ft->mae_hit_count;
+	} else {
+		ft_mae_hit_count = NULL;
 	}
 
 	spec_mae->action_set = sfc_mae_action_set_attach(sa, encap_header,
@@ -3392,7 +3436,8 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 		return 0;
 	}
 
-	rc = sfc_mae_action_set_add(sa, actions, spec, encap_header, n_count,
+	rc = sfc_mae_action_set_add(sa, actions, spec, encap_header,
+				    ft_mae_hit_count, n_count,
 				    &spec_mae->action_set);
 	if (rc != 0)
 		goto fail_action_set_add;
@@ -3407,6 +3452,7 @@ fail_process_encap_header:
 fail_rule_parse_action:
 	efx_mae_action_set_spec_fini(sa->nic, spec);
 
+fail_enforce_ft_count:
 fail_enforce_ft_decap:
 fail_action_set_spec_init:
 	if (rc > 0 && rte_errno == 0) {
@@ -3639,9 +3685,12 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 	for (i = 0; i < action_set->n_counters; i++) {
 		/*
 		 * Get the first available counter of the flow rule if
-		 * counter ID is not specified.
+		 * counter ID is not specified, provided that this
+		 * counter is not an automatic (implicit) one.
 		 */
-		if (conf != NULL && action_set->counters[i].rte_id != conf->id)
+		if ((conf != NULL &&
+		     action_set->counters[i].rte_id != conf->id) ||
+		    !action_set->counters[i].rte_id_valid)
 			continue;
 
 		rc = sfc_mae_counter_get(&sa->mae.counter_registry.counters,
@@ -3657,7 +3706,7 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 
 	return rte_flow_error_set(error, ENOENT,
 				  RTE_FLOW_ERROR_TYPE_ACTION, action,
-				  "No such flow rule action count ID");
+				  "No such flow rule action or such count ID");
 }
 
 int

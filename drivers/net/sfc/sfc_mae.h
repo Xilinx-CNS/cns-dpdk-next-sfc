@@ -63,6 +63,13 @@ struct sfc_mae_counter_id {
 	efx_counter_t			mae_id;
 	/* ID of a counter in RTE */
 	uint32_t			rte_id;
+	/*
+	 * Points to one of the FT entry MAE hit counts;
+	 * see struct sfc_flow_tunnel. For non-FT, NULL.
+	 */
+	uint64_t			*ft_mae_hit_count;
+	/* RTE counter ID validity status */
+	bool				rte_id_valid;
 };
 
 /** Action set registry entry */
@@ -102,6 +109,8 @@ struct sfc_mae_counter {
 	uint32_t			generation_count;
 	union sfc_pkts_bytes		value;
 	union sfc_pkts_bytes		reset;
+
+	uint64_t			*ft_mae_hit_count;
 };
 
 struct sfc_mae_counters_xstats {

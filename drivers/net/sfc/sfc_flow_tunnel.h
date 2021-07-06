@@ -65,6 +65,7 @@ struct sfc_flow_tunnel {
 	struct sfc_flow_tunnel_bounce	vnrx_rule_bounce_buf;
 
 	bool				vnrx_rule_is_set;
+	uint64_t			mae_hit_count;
 	struct rte_flow_tunnel		rte_tunnel;
 	struct sfc_flow_tunnel_mae_rule	mae_rule;
 	unsigned int			refcnt;
@@ -132,6 +133,8 @@ int sfc_flow_tunnel_get_restore_info(struct rte_eth_dev *dev,
 				     struct rte_mbuf *m,
 				     struct rte_flow_restore_info *info,
 				     struct rte_flow_error *err);
+
+void sfc_flow_tunnel_reset_mae_hit_counts(struct sfc_adapter *sa);
 
 #ifdef __cplusplus
 }
