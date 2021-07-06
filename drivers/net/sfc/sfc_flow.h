@@ -89,6 +89,15 @@ struct sfc_flow_spec {
 		/* MAE-based (lower-level HW switch flows) specification */
 		struct sfc_flow_spec_mae mae;
 	};
+
+	/*
+	 * Flow Tunnel (FT) Rx packet prefix mark.
+	 *
+	 * If it equals 0, the flow has nothing to do with tunnel offload.
+	 * Otherwise, it comprises the tunnel mark (high bits) and, for a
+	 * filter flow, a user mark (which is optional) in its lower bits.
+	 */
+	uint32_t ft_mark;
 };
 
 /* PMD-specific definition of the opaque type from rte_flow.h */

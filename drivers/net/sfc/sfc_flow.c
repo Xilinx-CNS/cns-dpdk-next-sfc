@@ -1774,6 +1774,28 @@ sfc_flow_parse_actions(struct sfc_adapter *sa,
 	const uint32_t mark_actions_mask = (1UL << RTE_FLOW_ACTION_TYPE_MARK) |
 					   (1UL << RTE_FLOW_ACTION_TYPE_FLAG);
 
+	if (spec->ft_mark != 0) {
+		struct rte_flow_action_queue action_queue = { .index = 0 };
+
+		/*
+		 * Flow actions have already been processed by tunnel offload
+		 * extension. Insert the combined tunnel + user mark value to
+		 * the filter template. Steer matching packets to default RxQ.
+		 */
+		spec_filter->template.efs_flags |= EFX_FILTER_FLAG_ACTION_MARK;
+		spec_filter->template.efs_mark = spec->ft_mark;
+
+		rc = sfc_flow_parse_queue(sa, &action_queue, flow);
+		if (rc != 0) {
+			rte_flow_error_set(error, EINVAL,
+					   RTE_FLOW_ERROR_TYPE_ACTION, NULL,
+					   "tunnel offload: can't add filter action QUEUE");
+			return -rte_errno;
+		}
+
+		return 0;
+	}
+
 	if (actions == NULL) {
 		rte_flow_error_set(error, EINVAL,
 				   RTE_FLOW_ERROR_TYPE_ACTION_NUM, NULL,
@@ -2557,10 +2579,31 @@ sfc_flow_parse(struct rte_eth_dev *dev,
 	       struct rte_flow_error *error)
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	const struct rte_flow_item *refined_pattern;
 	const struct sfc_flow_ops_by_spec *ops;
+	struct rte_flow_attr refined_attr;
+	struct sfc_flow_spec *spec;
+	struct sfc_flow_tunnel *ft;
 	int rc;
 
-	rc = sfc_flow_parse_attr(sa, attr, flow, error);
+	/*
+	 * If the given flow rule has attribute transfer as well as action
+	 * MARK (opaque to the caller) and action JUMP, drop the attribute
+	 * and pre-process the actions. This (VNRX) rule is supposed to be
+	 * a filter to catch tunnel packets that miss on MAE lookup. These
+	 * correspond to "partially offloaded" packets; the mark will help
+	 * to identify them if the caller tries to request tunnel recovery.
+	 *
+	 * If the flow rule is indeed a VNRX one, then the pattern will be
+	 * processed by the filter backend. Action parsing will be skipped.
+	 */
+	rc = sfc_flow_tunnel_detect_vnrx_rule(sa, attr, pattern, actions,
+					      &refined_attr, &refined_pattern,
+					      flow, error);
+	if (rc != 0)
+		return rc;
+
+	rc = sfc_flow_parse_attr(sa, &refined_attr, flow, error);
 	if (rc != 0)
 		return rc;
 
@@ -2572,7 +2615,20 @@ sfc_flow_parse(struct rte_eth_dev *dev,
 		return -rte_errno;
 	}
 
-	return ops->parse(dev, pattern, actions, flow, error);
+	rc = ops->parse(dev, refined_pattern, actions, flow, error);
+	if (rc != 0)
+		return rc;
+
+	spec = &flow->spec;
+	ft = sfc_flow_tunnel_pick(sa, spec->ft_mark);
+	if (ft != NULL) {
+		if (flow->spec.type == SFC_FLOW_SPEC_FILTER)
+			ft->vnrx_rule_is_set = B_TRUE;
+
+		++(ft->refcnt);
+	}
+
+	return 0;
 }
 
 static struct rte_flow *
@@ -2631,7 +2687,17 @@ sfc_flow_remove(struct sfc_adapter *sa, struct rte_flow *flow,
 		struct rte_flow_error *error)
 {
 	const struct sfc_flow_ops_by_spec *ops;
+	struct sfc_flow_spec *spec = &flow->spec;
+	struct sfc_flow_tunnel *ft = sfc_flow_tunnel_pick(sa, spec->ft_mark);
 	int rc;
+
+	if (ft != NULL) {
+		if (flow->spec.type == SFC_FLOW_SPEC_FILTER)
+			ft->vnrx_rule_is_set = B_FALSE;
+
+		SFC_ASSERT(ft->refcnt != 0);
+		--(ft->refcnt);
+	}
 
 	ops = sfc_flow_get_ops_by_spec(flow);
 	if (ops == NULL || ops->remove == NULL) {

@@ -27,6 +27,7 @@
 #include "sfc_debug.h"
 #include "sfc_log.h"
 #include "sfc_filter.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_sriov.h"
 #include "sfc_mae.h"
 #include "sfc_dp.h"
@@ -212,6 +213,8 @@ struct sfc_adapter {
 	struct sfc_intr			intr;
 	struct sfc_port			port;
 	struct sfc_sw_xstats		sw_xstats;
+	/* Registry of tunnel contexts used for tunnel offload model support */
+	struct sfc_flow_tunnel		flow_tunnels[SFC_FT_MAX_NTUNNELS];
 	struct sfc_filter		filter;
 	struct sfc_mae			mae;
 	struct sfc_repr_proxy		repr_proxy;
