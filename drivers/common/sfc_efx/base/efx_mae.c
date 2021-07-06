@@ -134,9 +134,18 @@ efx_mae_get_outer_rule_caps(
 		uint32_t match_flag;
 		uint32_t mask_flag;
 
+#if 1
+		/* FIXME: OvS new demo. Temporary hack (ThomasC). */
+		if (i == MAE_FIELD_ENC_L4_DPORT) {
+			field_caps[i].emfc_support = MAE_FIELD_SUPPORTED_MATCH_OPTIONAL;
+		} else {
+#endif
 		field_caps[i].emfc_support = MCDI_OUT_INDEXED_DWORD_FIELD(req,
 		    MAE_GET_OR_CAPS_OUT_FIELD_FLAGS, i,
 		    MAE_FIELD_FLAGS_SUPPORT_STATUS);
+#if 1
+		}
+#endif
 
 		match_flag = MCDI_OUT_INDEXED_DWORD_FIELD(req,
 		    MAE_GET_OR_CAPS_OUT_FIELD_FLAGS, i,

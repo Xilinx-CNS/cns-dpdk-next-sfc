@@ -1176,7 +1176,10 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	     DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM) != 0)
 		rxq_info->type_flags |= EFX_RXQ_FLAG_INNER_CLASSES;
 
+	/* FIXME: OvS new demo. Temporary hack. */
+#if 0
 	if (offloads & DEV_RX_OFFLOAD_RSS_HASH)
+#endif
 		rxq_info->type_flags |= EFX_RXQ_FLAG_RSS_HASH;
 
 	rc = sfc_ev_qinit(sa, SFC_EVQ_TYPE_RX, sw_index,
@@ -1205,8 +1208,13 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 		RTE_MAX(rx_free_thresh, SFC_RX_REFILL_BULK);
 	rxq_info->refill_mb_pool = mb_pool;
 
+	/* FIXME: OvS new demo. Temporary hack. */
+#if 0
 	if (rss->hash_support == EFX_RX_HASH_AVAILABLE && rss->channels > 0 &&
 	    (offloads & DEV_RX_OFFLOAD_RSS_HASH))
+#else
+	if (rss->hash_support == EFX_RX_HASH_AVAILABLE)
+#endif
 		rxq_info->rxq_flags = SFC_RXQ_FLAG_RSS_HASH;
 	else
 		rxq_info->rxq_flags = 0;
