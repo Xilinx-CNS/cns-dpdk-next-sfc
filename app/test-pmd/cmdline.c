@@ -17017,6 +17017,117 @@ cmdline_parse_inst_t cmd_show_capability = {
 	},
 };
 
+/* *** show port representors information *** */
+struct cmd_representor_info_result {
+	cmdline_fixed_string_t cmd_show;
+	cmdline_fixed_string_t cmd_port;
+	cmdline_fixed_string_t cmd_keyword;
+	portid_t cmd_pid;
+};
+
+static void
+cmd_representor_info_parsed(void *parsed_result,
+		__rte_unused struct cmdline *cl,
+		__rte_unused void *data)
+{
+	struct cmd_representor_info_result *res = parsed_result;
+	struct rte_eth_representor_info *info;
+	uint32_t i;
+	int ret;
+	int num;
+
+	if (!rte_eth_dev_is_valid_port(res->cmd_pid)) {
+		fprintf(stderr, "Invalid port id %u\n", res->cmd_pid);
+		return;
+	}
+
+	ret = rte_eth_representor_info_get(res->cmd_pid, NULL);
+	if (ret < 0) {
+		fprintf(stderr,
+			"Failed to get the number of representor info ranges for port %hu: %s\n",
+			res->cmd_pid, rte_strerror(-ret));
+		return;
+	}
+	num = ret;
+
+	info = calloc(1, sizeof(*info) + num * sizeof(info->ranges[0]));
+	if (info == NULL) {
+		fprintf(stderr,
+			"Failed to allocate memory for representor info for port %hu\n",
+			res->cmd_pid);
+		return;
+	}
+	info->nb_ranges_alloc = num;
+
+	ret = rte_eth_representor_info_get(res->cmd_pid, info);
+	if (ret < 0) {
+		fprintf(stderr,
+			"Failed to get the representor info for port %hu: %s\n",
+			res->cmd_pid, rte_strerror(-ret));
+		free(info);
+		return;
+	}
+
+	printf("Port controller: %hu\n", info->controller);
+	printf("Port PF: %hu\n", info->pf);
+	printf("Ranges: %u\n", info->nb_ranges);
+	for (i = 0; i < info->nb_ranges; i++) {
+		printf("%u:\n", i);
+		printf("  Name: %s\n", info->ranges[i].name);
+		printf("  Controller: %d\n", info->ranges[i].controller);
+		printf("  PF: %d\n", info->ranges[i].pf);
+		switch (info->ranges[i].type) {
+		case RTE_ETH_REPRESENTOR_NONE:
+			printf("  Type: NONE\n");
+			break;
+		case RTE_ETH_REPRESENTOR_VF:
+			printf("  Type: VF\n");
+			printf("  VF: %d\n", info->ranges[i].vf);
+			break;
+		case RTE_ETH_REPRESENTOR_SF:
+			printf("  Type: SF\n");
+			printf("  SF: %d\n", info->ranges[i].sf);
+			break;
+		case RTE_ETH_REPRESENTOR_PF:
+			printf("  Type: PF\n");
+			break;
+		default:
+			printf("  Type: UNKNOWN VALUE\n");
+			break;
+		}
+		printf("  Range: [%u-%u]\n", info->ranges[i].id_base,
+		       info->ranges[i].id_end);
+	}
+
+	free(info);
+}
+
+cmdline_parse_token_string_t cmd_representor_info_show =
+	TOKEN_STRING_INITIALIZER(struct cmd_representor_info_result,
+			cmd_show, "show");
+cmdline_parse_token_string_t cmd_representor_info_port =
+	TOKEN_STRING_INITIALIZER(struct cmd_representor_info_result,
+			cmd_port, "port");
+cmdline_parse_token_num_t cmd_representor_info_pid =
+	TOKEN_NUM_INITIALIZER(struct cmd_representor_info_result,
+			cmd_pid, RTE_UINT16);
+cmdline_parse_token_string_t cmd_representor_info_keyword =
+	TOKEN_STRING_INITIALIZER(struct cmd_representor_info_result,
+			cmd_keyword, "representors");
+
+cmdline_parse_inst_t cmd_representor_info = {
+	.f = cmd_representor_info_parsed,
+	.data = NULL,
+	.help_str = "show port <port_id> representors",
+	.tokens = {
+		(void *)&cmd_representor_info_show,
+		(void *)&cmd_representor_info_port,
+		(void *)&cmd_representor_info_pid,
+		(void *)&cmd_representor_info_keyword,
+		NULL,
+	},
+};
+
 /* *** show fec mode per port configuration *** */
 struct cmd_show_fec_metadata_result {
 	cmdline_fixed_string_t cmd_show;
@@ -17871,6 +17982,7 @@ cmdline_parse_ctx_t main_ctx[] = {
 	(cmdline_parse_inst_t *)&cmd_show_fec_mode,
 	(cmdline_parse_inst_t *)&cmd_set_fec_mode,
 	(cmdline_parse_inst_t *)&cmd_show_capability,
+	(cmdline_parse_inst_t *)&cmd_representor_info,
 	NULL,
 };
 
