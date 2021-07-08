@@ -30,6 +30,7 @@
 #include "sfc_dp_rx.h"
 #include "sfc_repr.h"
 #include "sfc_sw_stats.h"
+#include "sfc_switch.h"
 
 #define SFC_XSTAT_ID_INVALID_VAL  UINT64_MAX
 #define SFC_XSTAT_ID_INVALID_NAME '\0'
@@ -1928,6 +1929,267 @@ sfc_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 	return sap->dp_rx->intr_disable(rxq_info->dp);
 }
 
+struct process_mport_journal_ctx {
+	struct sfc_adapter		*sa;
+	uint16_t			switch_domain_id;
+	uint32_t			mcdi_handle;
+};
+
+/* This function assumes that the lock on the SFC adapter is already held */
+static efx_rc_t
+sfc_process_mport_journal(efx_mport_desc_t *mport, void *data)
+{
+	struct sfc_mae_switch_port_request req;
+	struct process_mport_journal_ctx *ctx = data;
+	efx_mport_sel_t entity_selector;
+	efx_mport_sel_t null_selector;
+	uint16_t switch_port_id;
+	efx_rc_t efx_rc;
+	int rc;
+
+	if (mport->emd_zombie) {
+		sfc_dbg(ctx->sa, "mport is a zombie, skipping");
+		return 0;
+	}
+	if (mport->emd_type != EFX_MPORT_TYPE_VNIC) {
+		sfc_dbg(ctx->sa, "mport is not a VNIC, skipping");
+		return 0;
+	}
+	if (mport->emd_vnic.ev_client_type != EFX_MPORT_VNIC_CLIENT_FUNCTION) {
+		sfc_dbg(ctx->sa, "mport is not a function, skipping");
+		return 0;
+	}
+	if (mport->emd_vnic.ev_handle == ctx->mcdi_handle) {
+		sfc_dbg(ctx->sa, "mport is this driver instance, skipping");
+		return 0;
+	}
+
+	sfc_dbg(ctx->sa,
+		"processing mport id %u (controller %u pf %hu vf %hu)",
+		mport->emd_id.id, mport->emd_vnic.ev_fn_interface,
+		mport->emd_vnic.ev_pf, mport->emd_vnic.ev_vf);
+
+	efx_mae_mport_null(&null_selector);
+
+	/* Build Mport selector */
+	efx_rc = efx_mae_mport_by_pcie_mh_function(
+						mport->emd_vnic.ev_fn_interface,
+						mport->emd_vnic.ev_pf,
+						mport->emd_vnic.ev_vf,
+						&entity_selector);
+	if (efx_rc != 0) {
+		sfc_err(ctx->sa, "failed to build entity mport selector for c%upf%huvf%hu",
+			mport->emd_vnic.ev_fn_interface,
+			mport->emd_vnic.ev_pf,
+			mport->emd_vnic.ev_vf);
+		return efx_rc;
+	}
+
+	rc = sfc_mae_switch_port_id_by_entity(ctx->switch_domain_id,
+					      &entity_selector,
+					      SFC_MAE_SWITCH_PORT_REPRESENTOR,
+					      &switch_port_id);
+	switch (rc) {
+	case 0:
+		/* Already registered */
+		break;
+	case ENOENT:
+		req.type = SFC_MAE_SWITCH_PORT_REPRESENTOR;
+		req.entity_mportp = &entity_selector;
+		req.ethdev_mportp = &null_selector;
+		req.ethdev_port_id = RTE_MAX_ETHPORTS;
+
+		rc = sfc_mae_assign_switch_port(ctx->switch_domain_id,
+						&req, &switch_port_id);
+		if (rc != 0) {
+			sfc_err(ctx->sa,
+				"failed to assign MAE switch port for c%upf%huvf%hu: %s",
+				mport->emd_vnic.ev_fn_interface,
+				mport->emd_vnic.ev_pf,
+				mport->emd_vnic.ev_vf,
+				rte_strerror(rc));
+			return rc;
+		}
+		break;
+	default:
+		sfc_err(ctx->sa, "failed to find MAE switch port for c%upf%huvf%hu: %s",
+			mport->emd_vnic.ev_fn_interface,
+			mport->emd_vnic.ev_pf,
+			mport->emd_vnic.ev_vf,
+			rte_strerror(rc));
+		return rc;
+	}
+
+
+	return 0;
+}
+
+static void
+sfc_count_representors_cb(enum sfc_mae_switch_port_type type,
+			  const efx_mport_sel_t *ethdev_mportp,
+			  uint16_t ethdev_port_id,
+			  const efx_mport_sel_t *entity_mportp,
+			  uint16_t switch_port_id,
+			  void *data)
+{
+	int *counter = data;
+
+	SFC_ASSERT(counter != NULL);
+
+	(void)(ethdev_mportp);
+	(void)(ethdev_port_id);
+	(void)(entity_mportp);
+	(void)(switch_port_id);
+
+	if (type == SFC_MAE_SWITCH_PORT_REPRESENTOR)
+		(*counter)++;
+}
+
+struct sfc_get_representors_ctx {
+	struct rte_eth_representor_info	*info;
+	struct sfc_adapter		*sa;
+};
+
+static void
+sfc_get_representors_cb(enum sfc_mae_switch_port_type type,
+			const efx_mport_sel_t *ethdev_mportp,
+			uint16_t ethdev_port_id,
+			const efx_mport_sel_t *entity_mportp,
+			uint16_t switch_port_id,
+			void *data)
+{
+	struct sfc_get_representors_ctx *ctx = data;
+	struct rte_eth_representor_range *range;
+	efx_rc_t efx_rc;
+	efx_pcie_interface_t intf;
+	uint16_t pf;
+	uint16_t vf;
+	int ret;
+
+	SFC_ASSERT(ctx != NULL);
+	SFC_ASSERT(ctx->info != NULL);
+	SFC_ASSERT(ctx->sa != NULL);
+
+	(void)(ethdev_mportp);
+	(void)(ethdev_port_id);
+	(void)(entity_mportp);
+
+	if (type != SFC_MAE_SWITCH_PORT_REPRESENTOR) {
+		sfc_dbg(ctx->sa, "not a representor, skipping");
+		return;
+	}
+	if (ctx->info->nb_ranges == ctx->info->nb_ranges_alloc) {
+		sfc_dbg(ctx->sa, "info structure is full already");
+		return;
+	}
+
+	efx_rc = efx_mae_mport_parse_pcie_function(entity_mportp, &intf, &pf,
+						   &vf);
+	if (efx_rc != 0) {
+		sfc_err(ctx->sa, "failed to parse mport selector");
+		return;
+	}
+
+	range = &ctx->info->ranges[ctx->info->nb_ranges];
+	range->controller = intf;
+	range->pf = pf;
+	range->id_base = switch_port_id;
+	range->id_end = switch_port_id;
+
+	if (vf != EFX_PCI_VF_INVALID) {
+		range->type = RTE_ETH_REPRESENTOR_VF;
+		range->vf = vf;
+		ret = snprintf(range->name, RTE_DEV_NAME_MAX_LEN,
+			       "c%dpf%dvf%d", range->controller, range->pf,
+			       range->vf);
+	} else {
+		range->type = RTE_ETH_REPRESENTOR_PF;
+		ret = snprintf(range->name, RTE_DEV_NAME_MAX_LEN,
+			 "c%dpf%d", range->controller, range->pf);
+	}
+	if (ret >= RTE_DEV_NAME_MAX_LEN) {
+		sfc_err(ctx->sa, "representor name has been truncated: %s",
+			range->name);
+	}
+
+	ctx->info->nb_ranges++;
+}
+
+static int
+sfc_representor_info_get(struct rte_eth_dev *dev,
+			 struct rte_eth_representor_info *info)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_get_representors_ctx get_repr_ctx;
+	struct process_mport_journal_ctx ctx;
+	const efx_nic_cfg_t *nic_cfg;
+	uint32_t nb_repr;
+	efx_rc_t efx_rc;
+	int rc;
+
+	sfc_adapter_lock(sa);
+
+	if (sa->mae.status != SFC_MAE_STATUS_SUPPORTED) {
+		sfc_adapter_unlock(sa);
+		return -ENOTSUP;
+	}
+
+	memset(&ctx, 0, sizeof(ctx));
+	ctx.sa = sa;
+	rc = sfc_mae_switch_domain_id_by_adapter(sa, &ctx.switch_domain_id);
+	if (rc != 0) {
+		sfc_adapter_unlock(sa);
+		return -EINVAL;
+	}
+	rc = efx_mcdi_get_own_client_handle(sa->nic, &ctx.mcdi_handle);
+	if (rc != 0) {
+		sfc_adapter_unlock(sa);
+		return -EINVAL;
+	}
+
+	efx_rc = efx_mae_read_mport_journal(sa->nic, sfc_process_mport_journal,
+					    &ctx);
+	if (efx_rc != 0) {
+		sfc_err(sa, "failed to process MAE mport journal");
+		sfc_adapter_unlock(sa);
+		SFC_ASSERT(efx_rc > 0);
+		return -efx_rc;
+	}
+
+	nb_repr = 0;
+	rc = sfc_mae_switch_ports_iterate(ctx.switch_domain_id,
+					  sfc_count_representors_cb,
+					  &nb_repr);
+	if (rc != 0) {
+		sfc_adapter_unlock(sa);
+		SFC_ASSERT(rc > 0);
+		return -rc;
+	}
+
+	if (info == NULL) {
+		sfc_adapter_unlock(sa);
+		return nb_repr;
+	}
+
+	nic_cfg = efx_nic_cfg_get(sa->nic);
+	info->controller = nic_cfg->enc_intf;
+	info->pf = nic_cfg->enc_pf;
+
+	get_repr_ctx.info = info;
+	get_repr_ctx.sa = sa;
+	rc = sfc_mae_switch_ports_iterate(ctx.switch_domain_id,
+					  sfc_get_representors_cb,
+					  &get_repr_ctx);
+	if (rc != 0) {
+		sfc_adapter_unlock(sa);
+		SFC_ASSERT(rc > 0);
+		return -rc;
+	}
+
+	sfc_adapter_unlock(sa);
+	return nb_repr;
+}
+
 static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.dev_configure			= sfc_dev_configure,
 	.dev_start			= sfc_dev_start,
@@ -1975,6 +2237,7 @@ static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.xstats_get_by_id		= sfc_xstats_get_by_id,
 	.xstats_get_names_by_id		= sfc_xstats_get_names_by_id,
 	.pool_ops_supported		= sfc_pool_ops_supported,
+	.representor_info_get		= sfc_representor_info_get,
 };
 
 struct sfc_ethdev_init_data {

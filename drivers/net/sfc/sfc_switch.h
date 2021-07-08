@@ -41,6 +41,17 @@ struct sfc_mae_switch_port_request {
 	uint16_t				ethdev_port_id;
 };
 
+typedef void (sfc_mae_switch_port_iterator_cb)(enum sfc_mae_switch_port_type type,
+					       const efx_mport_sel_t *ethdev_mport,
+					       uint16_t ethdev_port_id,
+					       const efx_mport_sel_t *entity_mport,
+					       uint16_t switch_port_id,
+					       void *data);
+
+int sfc_mae_switch_ports_iterate(uint16_t switch_domain_id,
+				 sfc_mae_switch_port_iterator_cb *cb,
+				 void *data);
+
 int sfc_mae_assign_switch_domain(struct sfc_adapter *sa,
 				 uint16_t *switch_domain_id);
 
@@ -48,9 +59,17 @@ int sfc_mae_assign_switch_port(uint16_t switch_domain_id,
 			       const struct sfc_mae_switch_port_request *req,
 			       uint16_t *switch_port_id);
 
+int sfc_mae_switch_domain_id_by_adapter(struct sfc_adapter *sa,
+					uint16_t *switch_domain_id);
+
 int sfc_mae_switch_port_by_ethdev(uint16_t switch_domain_id,
 				  uint16_t ethdev_port_id,
 				  efx_mport_sel_t *mport_sel);
+
+int sfc_mae_switch_port_id_by_entity(uint16_t switch_domain_id,
+				     const efx_mport_sel_t *entity_mportp,
+				     enum sfc_mae_switch_port_type type,
+				     uint16_t *switch_port_id);
 
 #ifdef __cplusplus
 }
