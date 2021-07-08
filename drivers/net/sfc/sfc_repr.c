@@ -14,6 +14,8 @@
 #include <rte_malloc.h>
 #include <ethdev_driver.h>
 
+#include "efx.h"
+
 #include "sfc_log.h"
 #include "sfc_debug.h"
 #include "sfc_repr.h"
@@ -940,13 +942,17 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	const struct sfc_repr_init_data *repr_data = init_params;
 	struct sfc_repr_shared *srs = sfc_repr_shared_by_eth_dev(dev);
 	struct sfc_mae_switch_port_request switch_port_request;
+	efx_mport_sel_t null_selector;
 	struct sfc_repr *sr;
 	int ret;
 
 	SFC_GENERIC_LOG(INFO, "%s() entry", __func__);
 
+	efx_mae_mport_null(&null_selector);
+
 	memset(&switch_port_request, 0, sizeof(switch_port_request));
 	switch_port_request.type = SFC_MAE_SWITCH_PORT_REPRESENTOR;
+	switch_port_request.ethdev_mportp = &null_selector;
 	switch_port_request.entity_mportp = &repr_data->mport_sel;
 	switch_port_request.ethdev_port_id = dev->data->port_id;
 
