@@ -131,6 +131,7 @@ INTERNAL {
 	efx_mae_mport_free;
 	efx_mae_mport_id_by_selector;
 	efx_mae_mport_null;
+	efx_mae_mport_parse_pcie_function;
 	efx_mae_outer_rule_insert;
 	efx_mae_outer_rule_remove;
 	efx_mae_read_mport_journal;

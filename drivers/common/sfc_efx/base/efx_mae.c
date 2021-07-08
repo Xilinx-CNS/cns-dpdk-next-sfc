@@ -800,6 +800,32 @@ fail1:
 	return (rc);
 }
 
+static	__checkReturn			efx_rc_t
+efx_mae_intf_from_selector(
+	__in				uint32_t selector_intf,
+	__out				efx_pcie_interface_t *intfp)
+{
+	efx_rc_t rc;
+
+	switch (selector_intf) {
+	case MAE_MPORT_SELECTOR_HOST_PRIMARY:
+		*intfp = PCIE_INTERFACE_HOST_PRIMARY;
+		break;
+	case MAE_MPORT_SELECTOR_NIC_EMBEDDED:
+		*intfp = PCIE_INTERFACE_NIC_EMBEDDED;
+		break;
+	default:
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
 	__checkReturn			efx_rc_t
 efx_mae_mport_by_pcie_mh_function(
 	__in				efx_pcie_interface_t intf,
@@ -842,6 +868,48 @@ efx_mae_mport_by_pcie_mh_function(
 
 fail3:
 	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_mport_parse_pcie_function(
+	__in				const efx_mport_sel_t *mportp,
+	__out				efx_pcie_interface_t *intf,
+	__out				uint16_t *pf,
+	__out				uint16_t *vf)
+{
+	uint32_t selector_intf;
+	efx_dword_t dword;
+	efx_rc_t rc;
+
+	dword.ed_u32[0] = mportp->sel;
+	if (EFX_DWORD_FIELD(dword, MAE_MPORT_SELECTOR_TYPE) !=
+	    MAE_MPORT_SELECTOR_TYPE_MH_FUNC) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (intf != NULL)
+		*intf = EFX_DWORD_FIELD(dword, MAE_MPORT_SELECTOR_FUNC_INTF_ID);
+	if (intf != NULL) {
+		selector_intf =
+		    EFX_DWORD_FIELD(dword, MAE_MPORT_SELECTOR_FUNC_INTF_ID);
+		rc = efx_mae_intf_from_selector(selector_intf, intf);
+		if (rc != 0) {
+			goto fail2;
+		}
+	}
+	if (pf != NULL)
+		*pf = EFX_DWORD_FIELD(dword, MAE_MPORT_SELECTOR_FUNC_MH_PF_ID);
+	if (vf != NULL)
+		*vf = EFX_DWORD_FIELD(dword, MAE_MPORT_SELECTOR_FUNC_VF_ID);
+
+	return (0);
+
 fail2:
 	EFSYS_PROBE(fail2);
 fail1:

@@ -4323,6 +4323,19 @@ efx_mae_mport_by_pcie_mh_function(
 	__out				efx_mport_sel_t *mportp);
 
 /*
+ * Extract entity information from mport selector.
+ *
+ * This function requires the selector to have type MH_FUNC.
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_parse_pcie_function(
+	__in				const efx_mport_sel_t *mportp,
+	__out				efx_pcie_interface_t *intf,
+	__out				uint16_t *pf,
+	__out				uint16_t *vf);
+
+/*
  * Get MPORT selector by an MPORT ID
  *
  * The resulting MPORT selector is opaque to the caller and can be
