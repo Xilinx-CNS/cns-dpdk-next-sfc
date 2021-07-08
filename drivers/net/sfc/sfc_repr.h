@@ -26,7 +26,7 @@ extern "C" {
 /** Max count of the representor Tx queues */
 #define SFC_REPR_TXQ_MAX	1
 
-int sfc_repr_create(struct rte_eth_dev *parent, uint16_t representor_id,
+int sfc_repr_create(struct rte_eth_dev *parent, const char *name,
 		    uint16_t switch_domain_id,
 		    const efx_mport_sel_t *mport_sel);
 

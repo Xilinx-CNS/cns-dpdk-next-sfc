@@ -918,7 +918,6 @@ static const struct eth_dev_ops sfc_repr_dev_ops = {
 
 struct sfc_repr_init_data {
 	uint16_t		pf_port_id;
-	uint16_t		repr_id;
 	uint16_t		switch_domain_id;
 	efx_mport_sel_t		mport_sel;
 };
@@ -967,7 +966,7 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	}
 
 	ret = sfc_repr_proxy_add_port(repr_data->pf_port_id,
-				      repr_data->repr_id,
+				      srs->switch_port_id,
 				      dev->data->port_id,
 				      &repr_data->mport_sel);
 	if (ret != 0) {
@@ -994,7 +993,7 @@ sfc_repr_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	dev->process_private = sr;
 
 	srs->pf_port_id = repr_data->pf_port_id;
-	srs->repr_id = repr_data->repr_id;
+	srs->repr_id = srs->switch_port_id;
 	srs->switch_domain_id = repr_data->switch_domain_id;
 
 	dev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
@@ -1024,7 +1023,7 @@ fail_mac_addrs:
 
 fail_alloc_sr:
 	(void)sfc_repr_proxy_del_port(repr_data->pf_port_id,
-				      repr_data->repr_id);
+				      srs->switch_port_id);
 
 fail_create_port:
 fail_mae_assign_switch_port:
@@ -1033,27 +1032,19 @@ fail_mae_assign_switch_port:
 }
 
 int
-sfc_repr_create(struct rte_eth_dev *parent, uint16_t representor_id,
+sfc_repr_create(struct rte_eth_dev *parent, const char *name,
 		uint16_t switch_domain_id, const efx_mport_sel_t *mport_sel)
 {
 	struct sfc_repr_init_data repr_data;
-	char name[RTE_ETH_NAME_MAX_LEN];
 	int ret;
 	struct rte_eth_dev *dev;
 
 	SFC_GENERIC_LOG(INFO, "%s() entry", __func__);
 
-	if (snprintf(name, sizeof(name), "net_%s_representor_%u",
-		     parent->device->name, representor_id) >= (int)sizeof(name)) {
-		SFC_GENERIC_LOG(ERR, "%s() failed name too long", __func__);
-		return -ENAMETOOLONG;
-	}
-
 	dev = rte_eth_dev_allocated(name);
 	if (dev == NULL) {
 		memset(&repr_data, 0, sizeof(repr_data));
 		repr_data.pf_port_id = parent->data->port_id;
-		repr_data.repr_id = representor_id;
 		repr_data.switch_domain_id = switch_domain_id;
 		repr_data.mport_sel = *mport_sel;
 

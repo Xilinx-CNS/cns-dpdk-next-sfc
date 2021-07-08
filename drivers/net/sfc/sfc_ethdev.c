@@ -2546,17 +2546,146 @@ sfc_eth_dev_find_or_create(struct rte_pci_device *pci_dev,
 }
 
 static int
+sfc_eth_dev_create_repr(struct sfc_adapter *sa,
+			uint16_t controller,
+			uint16_t port,
+			uint16_t repr_port,
+			enum rte_eth_representor_type type)
+{
+	char name[RTE_ETH_NAME_MAX_LEN];
+	efx_mport_sel_t mport_sel;
+	int ret;
+	int rc;
+
+	switch (type) {
+	case RTE_ETH_REPRESENTOR_NONE:
+		return 0;
+	case RTE_ETH_REPRESENTOR_VF:
+		ret = snprintf(name, sizeof(name),
+			      "net_%s_representor_c%hupf%huvf%hu",
+			      sa->eth_dev->device->name, controller, port,
+			      repr_port);
+		break;
+	case RTE_ETH_REPRESENTOR_PF:
+		ret = snprintf(name, sizeof(name),
+			      "net_%s_representor_c%hupf%hu",
+			      sa->eth_dev->device->name, controller, port);
+		break;
+	case RTE_ETH_REPRESENTOR_SF:
+		sfc_err(sa, "SF representors are not supported");
+		return ENOTSUP;
+	default:
+		sfc_err(sa, "unknown representor type: %d", type);
+		return ENOTSUP;
+	}
+	if (ret >= (int)sizeof(name)) {
+		sfc_err(sa, "representor name is too long: %s", name);
+		return ENAMETOOLONG;
+	}
+
+	rc = efx_mae_mport_by_pcie_mh_function(
+			controller,
+			port,
+			repr_port,
+			&mport_sel);
+	if (rc != 0) {
+		sfc_err(sa,
+			"failed to get m-port selector for controller %hu port %hu repr_port %hu: %s",
+			controller, port, repr_port, rte_strerror(-rc));
+		return rc;
+	}
+
+	rc = sfc_repr_create(sa->eth_dev, name,
+			     sa->mae.switch_domain_id, &mport_sel);
+	if (rc != 0) {
+		sfc_err(sa,
+			"failed to create representor for controller %hu port %hu repr_port %hu: %s",
+			controller, port, repr_port, rte_strerror(-rc));
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
+sfc_eth_dev_create_repr_port(struct sfc_adapter *sa,
+			     const struct rte_eth_devargs *eth_da,
+			     uint16_t controller,
+			     uint16_t port)
+{
+	int first_error = 0;
+	uint16_t i;
+	int rc;
+
+	if (eth_da->type == RTE_ETH_REPRESENTOR_PF) {
+		return sfc_eth_dev_create_repr(sa, controller, port,
+					       EFX_PCI_VF_INVALID,
+					       eth_da->type);
+	}
+
+	for (i = 0; i < eth_da->nb_representor_ports; i++) {
+		rc = sfc_eth_dev_create_repr(sa, controller, port,
+					     eth_da->representor_ports[i],
+					     eth_da->type);
+		if (rc != 0 && first_error == 0)
+			first_error = rc;
+	}
+
+	return first_error;
+}
+
+static int
+sfc_eth_dev_create_repr_controller(struct sfc_adapter *sa,
+				   const struct rte_eth_devargs *eth_da,
+				   uint16_t controller)
+{
+	const efx_nic_cfg_t *encp;
+	int first_error = 0;
+	uint16_t default_port;
+	uint16_t i;
+	int rc;
+
+	if (eth_da->nb_ports == 0) {
+		encp = efx_nic_cfg_get(sa->nic);
+		default_port = encp->enc_intf == controller ? encp->enc_pf : 0;
+		return sfc_eth_dev_create_repr_port(sa, eth_da, controller,
+						    default_port);
+	}
+
+	for (i = 0; i < eth_da->nb_ports; i++) {
+		rc = sfc_eth_dev_create_repr_port(sa, eth_da, controller,
+						  eth_da->ports[i]);
+		if (rc != 0 && first_error == 0)
+			first_error = rc;
+	}
+
+	return first_error;
+}
+
+static int
 sfc_eth_dev_create_representors(struct rte_eth_dev *dev,
 				const struct rte_eth_devargs *eth_da)
 {
+	const efx_nic_cfg_t *encp;
 	struct sfc_adapter *sa;
-	unsigned int i;
-	int rc;
-
-	if (eth_da->nb_representor_ports == 0)
-		return 0;
+	uint16_t i;
 
 	sa = sfc_adapter_by_eth_dev(dev);
+
+	switch(eth_da->type) {
+	case RTE_ETH_REPRESENTOR_NONE:
+		return 0;
+	case RTE_ETH_REPRESENTOR_PF:
+	case RTE_ETH_REPRESENTOR_VF:
+		break;
+	case RTE_ETH_REPRESENTOR_SF:
+		sfc_err(sa, "SF representors are not supported");
+		return -ENOTSUP;
+	default:
+		sfc_err(sa, "unknown representor type: %d",
+			eth_da->type);
+		return -ENOTSUP;
+	}
 
 	if (!sa->switchdev) {
 		sfc_err(sa, "cannot create representors in non-switchdev mode");
@@ -2565,31 +2694,17 @@ sfc_eth_dev_create_representors(struct rte_eth_dev *dev,
 
 	if (!sfc_repr_available(sfc_sa2shared(sa))) {
 		sfc_err(sa, "cannot create representors: unsupported");
-
 		return -ENOTSUP;
 	}
 
-	for (i = 0; i < eth_da->nb_representor_ports; ++i) {
-		const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
-		efx_mport_sel_t mport_sel;
-
-		rc = efx_mae_mport_by_pcie_function(encp->enc_pf,
-				eth_da->representor_ports[i], &mport_sel);
-		if (rc != 0) {
-			sfc_err(sa,
-				"failed to get representor %u m-port: %s - ignore",
-				eth_da->representor_ports[i],
-				rte_strerror(-rc));
-			continue;
+	if (eth_da->nb_mh_controllers > 0) {
+		for (i = 0; i < eth_da->nb_mh_controllers; i++) {
+			sfc_eth_dev_create_repr_controller(sa, eth_da,
+						eth_da->mh_controllers[i]);
 		}
-
-		rc = sfc_repr_create(dev, eth_da->representor_ports[i],
-				     sa->mae.switch_domain_id, &mport_sel);
-		if (rc != 0) {
-			sfc_err(sa, "cannot create representor %u: %s - ignore",
-				eth_da->representor_ports[i],
-				rte_strerror(-rc));
-		}
+	} else {
+		encp = efx_nic_cfg_get(sa->nic);
+		sfc_eth_dev_create_repr_controller(sa, eth_da, encp->enc_intf);
 	}
 
 	return 0;
