@@ -82,6 +82,9 @@ efx_family(
 
 #if EFSYS_OPT_PCI
 
+/* PCIe interface numbers for multi-host configurations. */
+typedef uint32_t efx_pcie_interface_t;
+
 typedef struct efx_pci_ops_s {
 	/*
 	 * Function for reading PCIe configuration space.
@@ -4232,6 +4235,21 @@ efx_mae_mport_by_phy_port(
 LIBEFX_API
 extern	__checkReturn			efx_rc_t
 efx_mae_mport_by_pcie_function(
+	__in				uint32_t pf,
+	__in				uint32_t vf,
+	__out				efx_mport_sel_t *mportp);
+
+/*
+ * Get MPORT selector of a multi-host PCIe function.
+ *
+ * The resulting MPORT selector is opaque to the caller and can be
+ * passed as an argument to efx_mae_match_spec_mport_set()
+ * and efx_mae_action_set_populate_deliver().
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_by_pcie_mh_function(
+	__in				efx_pcie_interface_t intf,
 	__in				uint32_t pf,
 	__in				uint32_t vf,
 	__out				efx_mport_sel_t *mportp);
