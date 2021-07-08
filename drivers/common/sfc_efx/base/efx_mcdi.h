@@ -520,6 +520,33 @@ efx_mcdi_set_nic_addr_regions(
 						 _member_ofst)),	\
 		EFX_DWORD_1) << 32)
 
+#define MCDI_STRUCT_MEMBER(_buf, _type, _ofst)				\
+	((_type *)((char *)_buf + _ofst ## _OFST))	\
+
+#define MCDI_STRUCT_BYTE(_buf, _ofst)					\
+	EFX_BYTE_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_byte_t, _ofst),	\
+		       EFX_BYTE_0)
+
+#define MCDI_STRUCT_BYTE_FIELD(_buf, _ofst, _field)			\
+	EFX_BYTE_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_byte_t, _ofst),	\
+		       _field)
+
+#define MCDI_STRUCT_WORD(_buf, _ofst)					\
+	EFX_WORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_word_t, _ofst),	\
+		       EFX_WORD_0)
+
+#define MCDI_STRUCT_WORD_FIELD(_buf, _ofst, _field)			\
+	EFX_WORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_word_t, _ofst),	\
+		       _field)
+
+#define MCDI_STRUCT_DWORD(_buf, _ofst)					\
+	EFX_DWORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_dword_t, _ofst),	\
+			EFX_DWORD_0)
+
+#define MCDI_STRUCT_DWORD_FIELD(_buf, _ofst, _field)			\
+	EFX_DWORD_FIELD(*MCDI_STRUCT_MEMBER(_buf, efx_dword_t, _ofst),	\
+			_field)
+
 #define	MCDI_EV_FIELD(_eqp, _field)					\
 	EFX_QWORD_FIELD(*_eqp, MCDI_EVENT_ ## _field)
 
