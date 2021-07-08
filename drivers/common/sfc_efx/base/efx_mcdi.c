@@ -2140,18 +2140,19 @@ fail1:
 efx_mcdi_get_function_info(
 	__in			efx_nic_t *enp,
 	__out			uint32_t *pfp,
-	__out_opt		uint32_t *vfp)
+	__out_opt		uint32_t *vfp,
+	__out_opt		efx_pcie_interface_t *intfp)
 {
 	efx_mcdi_req_t req;
 	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_GET_FUNCTION_INFO_IN_LEN,
-		MC_CMD_GET_FUNCTION_INFO_OUT_LEN);
+		MC_CMD_GET_FUNCTION_INFO_OUT_V2_LEN);
 	efx_rc_t rc;
 
 	req.emr_cmd = MC_CMD_GET_FUNCTION_INFO;
 	req.emr_in_buf = payload;
 	req.emr_in_length = MC_CMD_GET_FUNCTION_INFO_IN_LEN;
 	req.emr_out_buf = payload;
-	req.emr_out_length = MC_CMD_GET_FUNCTION_INFO_OUT_LEN;
+	req.emr_out_length = MC_CMD_GET_FUNCTION_INFO_OUT_V2_LEN;
 
 	efx_mcdi_execute(enp, &req);
 
@@ -2168,6 +2169,15 @@ efx_mcdi_get_function_info(
 	*pfp = MCDI_OUT_DWORD(req, GET_FUNCTION_INFO_OUT_PF);
 	if (vfp != NULL)
 		*vfp = MCDI_OUT_DWORD(req, GET_FUNCTION_INFO_OUT_VF);
+
+	if (intfp != NULL) {
+		if (req.emr_out_length >= MC_CMD_GET_FUNCTION_INFO_OUT_V2_LEN) {
+			*intfp =
+			    MCDI_OUT_DWORD(req, GET_FUNCTION_INFO_OUT_V2_INTF);
+		} else {
+			*intfp = PCIE_INTERFACE_HOST_PRIMARY;
+		}
+	}
 
 	return (0);
 
