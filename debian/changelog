@@ -1,3 +1,12 @@
+dpdk (20.11.2-1) experimental; urgency=medium
+
+  * New upstream release candidate 20.11.2
+    For details see https://doc.dpdk.org/guides/rel_notes/release_20_11.html
+  * Fix uscan regex to match 20.11.x
+  * Drop test-catch-coredumps.patch, merged upstream
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 09 Jul 2021 16:20:03 +0100
+
 dpdk (20.11.1-4) experimental; urgency=medium
 
   * Add disable_lcores_autotest_ppc.patch to fix ppc64el autopkgtest
