@@ -254,7 +254,9 @@ rte_eth_iterator_init(struct rte_dev_iterator *iter, const char *devargs_str)
 	}
 
 	/* Convert bus args to new syntax for use with new API dev_iterate. */
-	if (strcmp(iter->bus->name, "vdev") == 0) {
+	if ((strcmp(iter->bus->name, "vdev") == 0) ||
+		(strcmp(iter->bus->name, "fslmc") == 0) ||
+		(strcmp(iter->bus->name, "dpaa_bus") == 0)) {
 		bus_param_key = "name";
 	} else if (strcmp(iter->bus->name, "pci") == 0) {
 		bus_param_key = "addr";
@@ -5258,6 +5260,8 @@ rte_eth_dev_get_reg_info(uint16_t port_id, struct rte_dev_reg_info *info)
 	struct rte_eth_dev *dev;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+	if (info == NULL)
+		return -EINVAL;
 
 	dev = &rte_eth_devices[port_id];
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->get_reg, -ENOTSUP);
@@ -5282,6 +5286,8 @@ rte_eth_dev_get_eeprom(uint16_t port_id, struct rte_dev_eeprom_info *info)
 	struct rte_eth_dev *dev;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+	if (info == NULL)
+		return -EINVAL;
 
 	dev = &rte_eth_devices[port_id];
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->get_eeprom, -ENOTSUP);
@@ -5294,6 +5300,8 @@ rte_eth_dev_set_eeprom(uint16_t port_id, struct rte_dev_eeprom_info *info)
 	struct rte_eth_dev *dev;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+	if (info == NULL)
+		return -EINVAL;
 
 	dev = &rte_eth_devices[port_id];
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->set_eeprom, -ENOTSUP);
@@ -5307,6 +5315,8 @@ rte_eth_dev_get_module_info(uint16_t port_id,
 	struct rte_eth_dev *dev;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+	if (modinfo == NULL)
+		return -EINVAL;
 
 	dev = &rte_eth_devices[port_id];
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->get_module_info, -ENOTSUP);
@@ -5320,6 +5330,8 @@ rte_eth_dev_get_module_eeprom(uint16_t port_id,
 	struct rte_eth_dev *dev;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+	if (info == NULL || info->data == NULL || info->length == 0)
+		return -EINVAL;
 
 	dev = &rte_eth_devices[port_id];
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->get_module_eeprom, -ENOTSUP);
