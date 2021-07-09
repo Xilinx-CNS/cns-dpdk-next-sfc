@@ -237,9 +237,6 @@ qede_fw_version_get(struct rte_eth_dev *dev, char *fw_ver, size_t fw_size)
 	static char ver_str[QEDE_PMD_DRV_VER_STR_SIZE];
 	size_t size;
 
-	if (fw_ver == NULL)
-		return 0;
-
 	if (IS_PF(edev))
 		snprintf(ver_str, QEDE_PMD_DRV_VER_STR_SIZE, "%s",
 			 QEDE_PMD_FW_VERSION);
@@ -2139,8 +2136,10 @@ int qede_rss_hash_update(struct rte_eth_dev *eth_dev,
 		/* RSS hash key */
 		if (key) {
 			if (len > (ECORE_RSS_KEY_SIZE * sizeof(uint32_t))) {
-				DP_ERR(edev, "RSS key length exceeds limit\n");
-				return -EINVAL;
+				len = ECORE_RSS_KEY_SIZE * sizeof(uint32_t);
+				DP_NOTICE(edev, false,
+					  "RSS key length too big, trimmed to %d\n",
+					  len);
 			}
 			DP_INFO(edev, "Applying user supplied hash key\n");
 			rss_params.update_rss_key = 1;
