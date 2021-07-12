@@ -13,3 +13,4 @@ Depends: dpdk-dev [amd64 arm64 i386 ppc64el], python3, python3-pexpect
 Tests: test-fastsuite
 Restrictions: allow-stderr, skippable
 Depends: build-essential, @builddeps@
+Architecture: amd64 arm64 armhf i386 ppc64el
