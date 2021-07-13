@@ -1,0 +1,49 @@
+Description: Skip tests failing in test environment
+ These tests generally work but fail in a Ubuntu autopkgtest environment.
+ This is consistent across all architectures.
+ Skip those as they do not represent real regressions.
+Forwarded: no
+X-Not-Forwarded-Reason: This only applies to autopkgtest environments
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2021-07-13
+--- a/app/test/meson.build
++++ b/app/test/meson.build
+@@ -210,7 +210,7 @@ fast_tests = [
+         ['fib6_autotest', true],
+         ['func_reentrancy_autotest', false],
+         ['flow_classify_autotest', false],
+-        ['hash_autotest', true],
++        ['hash_autotest', false],
+         ['interrupt_autotest', true],
+         ['ipfrag_autotest', false],
+         ['logs_autotest', true],
+@@ -225,9 +225,9 @@ fast_tests = [
+         ['memzone_autotest', false],
+         ['meter_autotest', true],
+         ['multiprocess_autotest', false],
+-        ['per_lcore_autotest', true],
++        ['per_lcore_autotest', false],
+         ['prefetch_autotest', true],
+-        ['rcu_qsbr_autotest', true],
++        ['rcu_qsbr_autotest', false],
+         ['red_autotest', true],
+         ['rib_autotest', true],
+         ['rib6_autotest', true],
+@@ -242,7 +242,7 @@ fast_tests = [
+         ['stack_autotest', false],
+         ['stack_lf_autotest', false],
+         ['string_autotest', true],
+-        ['table_autotest', true],
++        ['table_autotest', false],
+         ['tailq_autotest', true],
+         ['timer_autotest', false],
+         ['user_delay_us', true],
+@@ -262,7 +262,7 @@ fast_tests = [
+         ['power_autotest', true],
+         ['power_kvm_vm_autotest', false],
+         ['reorder_autotest', true],
+-        ['service_autotest', true],
++        ['service_autotest', false],
+         ['thash_autotest', true],
+         ['trace_autotest', true],
+ ]
