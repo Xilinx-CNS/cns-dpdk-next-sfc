@@ -1,10 +1,12 @@
 Tests: test-initscripts
 Restrictions: allow-stderr, isolation-machine, needs-root, skippable
 Depends: dpdk, gawk, mount, systemd, sysvinit-utils, iproute2
+Architecture: amd64 arm64 armhf i386 ppc64el
 
 Tests: test-linkage
 Restrictions: allow-stderr, skippable
 Depends: libdpdk-dev, libc6-dev, gcc, grep, libpcap-dev, pax-utils, pkg-config
+Architecture: amd64 arm64 armhf i386 ppc64el
 
 Tests: test-autotest
 Restrictions: allow-stderr, isolation-machine, needs-root, skippable
