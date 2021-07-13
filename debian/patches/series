@@ -1,3 +1,4 @@
 0001-eal-linux-force-iova-mode-va-with-no-huge-option.patch
 disable_lcores_autotest_ppc.patch
 disable_autopkgtest_fails.patch
+disable_armhf_autopkgtest_fails.patch
