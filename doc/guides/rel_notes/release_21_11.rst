@@ -55,6 +55,12 @@ New Features
      Also, make sure to start the actual text at the margin.
      =======================================================
 
+* **Updated Solarflare network PMD.**
+
+  Updated the Solarflare ``sfc_efx`` driver with changes including:
+
+  * Added port representors support on SN1000 SmartNICs
+
 
 Removed Items
 -------------
