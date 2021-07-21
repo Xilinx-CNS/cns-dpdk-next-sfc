@@ -90,6 +90,12 @@ New Features
   * Added rte_flow support for dual VLAN insert and strip actions.
   * Added rte_tm support.
 
+* **Updated Solarflare network PMD.**
+
+  Updated the Solarflare ``sfc_efx`` driver with changes including:
+
+  * Added port representors support on SN1000 SmartNICs
+
 * **Updated Marvell cnxk crypto PMD.**
 
   * Added AES-CBC SHA1-HMAC support in lookaside protocol (IPsec) for CN10K.
