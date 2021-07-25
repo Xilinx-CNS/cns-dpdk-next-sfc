@@ -2406,9 +2406,10 @@ sfc_mae_rule_encap_parse_fini(struct sfc_adapter *sa,
 int
 sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 			   const struct rte_flow_item pattern[],
-			   struct sfc_flow_spec_mae *spec,
+			   struct sfc_flow_spec *flow_spec,
 			   struct rte_flow_error *error)
 {
+	struct sfc_flow_spec_mae *spec = &flow_spec->mae;
 	struct sfc_mae_parse_ctx ctx_mae;
 	struct sfc_flow_parse_ctx ctx;
 	int rc;
@@ -3238,9 +3239,10 @@ sfc_mae_process_encap_header(struct sfc_adapter *sa,
 int
 sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			   const struct rte_flow_action actions[],
-			   struct sfc_flow_spec_mae *spec_mae,
+			   struct sfc_flow_spec *flow_spec,
 			   struct rte_flow_error *error)
 {
+	struct sfc_flow_spec_mae *spec_mae = &flow_spec->mae;
 	struct sfc_mae_encap_header *encap_header = NULL;
 	struct sfc_mae_actions_bundle bundle = {0};
 	const struct rte_flow_action *action;

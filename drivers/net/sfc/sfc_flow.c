@@ -2556,14 +2556,13 @@ sfc_flow_parse_rte_to_mae(struct rte_eth_dev *dev,
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct sfc_flow_spec *spec = &flow->spec;
-	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
 	int rc;
 
-	rc = sfc_mae_rule_parse_pattern(sa, pattern, spec_mae, error);
+	rc = sfc_mae_rule_parse_pattern(sa, pattern, spec, error);
 	if (rc != 0)
 		return rc;
 
-	rc = sfc_mae_rule_parse_actions(sa, actions, spec_mae, error);
+	rc = sfc_mae_rule_parse_actions(sa, actions, spec, error);
 	if (rc != 0)
 		return rc;
 

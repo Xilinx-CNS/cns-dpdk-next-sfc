@@ -330,11 +330,11 @@ void sfc_mae_detach(struct sfc_adapter *sa);
 sfc_flow_cleanup_cb_t sfc_mae_flow_cleanup;
 int sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 			       const struct rte_flow_item pattern[],
-			       struct sfc_flow_spec_mae *spec,
+			       struct sfc_flow_spec *flow_spec,
 			       struct rte_flow_error *error);
 int sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 			       const struct rte_flow_action actions[],
-			       struct sfc_flow_spec_mae *spec_mae,
+			       struct sfc_flow_spec *flow_spec,
 			       struct rte_flow_error *error);
 sfc_flow_verify_cb_t sfc_mae_flow_verify;
 sfc_flow_insert_cb_t sfc_mae_flow_insert;
