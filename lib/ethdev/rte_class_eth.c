@@ -95,14 +95,32 @@ eth_representor_cmp(const char *key __rte_unused,
 		c = i / (np * nf);
 		p = (i / nf) % np;
 		f = i % nf;
-		if (rte_eth_representor_id_get(edev,
+		/*
+		 * rte_eth_representor_id_get expects to receive port ID of
+		 * the master device, but in order to maintain compatibility
+		 * with mlx5's hardware bonding and legacy representor
+		 * specification using just VF numbers, the representor's port
+		 * ID is tried first.
+		 */
+		ret = rte_eth_representor_id_get(edev->data->port_id,
 			eth_da.type,
 			eth_da.nb_mh_controllers == 0 ? -1 :
 					eth_da.mh_controllers[c],
 			eth_da.nb_ports == 0 ? -1 : eth_da.ports[p],
 			eth_da.nb_representor_ports == 0 ? -1 :
 					eth_da.representor_ports[f],
-			&id) < 0)
+			&id);
+		if (ret == -ENOTSUP)
+			ret = rte_eth_representor_id_get(
+				edev->data->parent_port_id,
+				eth_da.type,
+				eth_da.nb_mh_controllers == 0 ? -1 :
+						eth_da.mh_controllers[c],
+				eth_da.nb_ports == 0 ? -1 : eth_da.ports[p],
+				eth_da.nb_representor_ports == 0 ? -1 :
+						eth_da.representor_ports[f],
+				&id);
+		if (ret < 0)
 			continue;
 		if (data->representor_id == id)
 			return 0;
