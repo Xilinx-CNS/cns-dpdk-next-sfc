@@ -543,6 +543,23 @@ mlx5_dev_spawn(struct rte_device *dpdk_dev,
 	if (priv->representor) {
 		eth_dev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
 		eth_dev->data->representor_id = priv->representor_id;
+		MLX5_ETH_FOREACH_DEV(port_id, priv->pci_dev) {
+			struct mlx5_priv *opriv =
+				rte_eth_devices[port_id].data->dev_private;
+			if (opriv &&
+			    opriv->master &&
+			    opriv->domain_id == priv->domain_id &&
+			    opriv->sh == priv->sh) {
+				eth_dev->data->parent_port_id =
+					rte_eth_devices[port_id].data->port_id;
+				break;
+			}
+		}
+		if (port_id >= RTE_MAX_ETHPORTS) {
+			DRV_LOG(ERR, "no master device for representor");
+			err = ENODEV;
+			goto error;
+		}
 	}
 	/*
 	 * Store associated network device interface index. This index

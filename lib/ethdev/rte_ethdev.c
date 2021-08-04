@@ -5997,7 +5997,7 @@ parse_cleanup:
 }
 
 int
-rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
+rte_eth_representor_id_get(uint16_t port_id,
 			   enum rte_eth_representor_type type,
 			   int controller, int pf, int representor_port,
 			   uint16_t *repr_id)
@@ -6013,7 +6013,7 @@ rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
 		return -EINVAL;
 
 	/* Get PMD representor range info. */
-	ret = rte_eth_representor_info_get(ethdev->data->port_id, NULL);
+	ret = rte_eth_representor_info_get(port_id, NULL);
 	if (ret == -ENOTSUP && type == RTE_ETH_REPRESENTOR_VF &&
 	    controller == -1 && pf == -1) {
 		/* Direct mapping for legacy VF representor. */
@@ -6028,7 +6028,7 @@ rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
 	if (info == NULL)
 		return -ENOMEM;
 	info->nb_ranges_alloc = n;
-	ret = rte_eth_representor_info_get(ethdev->data->port_id, info);
+	ret = rte_eth_representor_info_get(port_id, info);
 	if (ret < 0)
 		goto out;
 
@@ -6047,7 +6047,7 @@ rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
 			continue;
 		if (info->ranges[i].id_end < info->ranges[i].id_base) {
 			RTE_LOG(WARNING, EAL, "Port %hu invalid representor ID Range %u - %u, entry %d\n",
-				ethdev->data->port_id, info->ranges[i].id_base,
+				port_id, info->ranges[i].id_base,
 				info->ranges[i].id_end, i);
 			continue;
 
