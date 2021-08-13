@@ -7,8 +7,8 @@ Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
 Last-Update: 2021-07-13
 --- a/app/test/meson.build
 +++ b/app/test/meson.build
-@@ -228,10 +228,8 @@ fast_tests = [
-         ['per_lcore_autotest', false],
+@@ -240,10 +240,8 @@
+         ['pflock_autotest', true],
          ['prefetch_autotest', true],
          ['rcu_qsbr_autotest', false],
 -        ['red_autotest', true],
@@ -18,15 +18,15 @@ Last-Update: 2021-07-13
          ['rwlock_test1_autotest', true],
          ['rwlock_rda_autotest', true],
          ['rwlock_rds_wrm_autotest', true],
-@@ -422,6 +420,11 @@ if arch_subdir != 'ppc'
- 	fast_tests += [['lcores_autotest', true]]
+@@ -431,6 +429,11 @@
+     test_deps += 'crypto_scheduler'
  endif
  
 +# These tests consistently fail on arm (containerized) test environments
 +if arch_subdir != 'arm'
-+	fast_tests += [['red_autotest', true], ['ring_autotest', true]]
++    fast_tests += [['red_autotest', true], ['ring_autotest', true]]
 +endif
 +
  foreach d:test_deps
- 	def_lib = get_option('default_library')
- 	test_dep_objs += get_variable(def_lib + '_rte_' + d)
+     def_lib = get_option('default_library')
+     test_dep_objs += get_variable(def_lib + '_rte_' + d)

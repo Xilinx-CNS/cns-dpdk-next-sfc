@@ -8,7 +8,7 @@ Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
 Last-Update: 2021-07-13
 --- a/app/test/meson.build
 +++ b/app/test/meson.build
-@@ -210,7 +210,7 @@ fast_tests = [
+@@ -220,7 +220,7 @@
          ['fib6_autotest', true],
          ['func_reentrancy_autotest', false],
          ['flow_classify_autotest', false],
@@ -16,29 +16,30 @@ Last-Update: 2021-07-13
 +        ['hash_autotest', false],
          ['interrupt_autotest', true],
          ['ipfrag_autotest', false],
-         ['logs_autotest', true],
-@@ -225,9 +225,9 @@ fast_tests = [
+         ['lcores_autotest', true],
+@@ -236,10 +236,10 @@
          ['memzone_autotest', false],
          ['meter_autotest', true],
          ['multiprocess_autotest', false],
 -        ['per_lcore_autotest', true],
 +        ['per_lcore_autotest', false],
+         ['pflock_autotest', true],
          ['prefetch_autotest', true],
 -        ['rcu_qsbr_autotest', true],
 +        ['rcu_qsbr_autotest', false],
          ['red_autotest', true],
          ['rib_autotest', true],
          ['rib6_autotest', true],
-@@ -242,7 +242,7 @@ fast_tests = [
+@@ -254,7 +254,7 @@
          ['stack_autotest', false],
          ['stack_lf_autotest', false],
          ['string_autotest', true],
 -        ['table_autotest', true],
 +        ['table_autotest', false],
          ['tailq_autotest', true],
+         ['ticketlock_autotest', true],
          ['timer_autotest', false],
-         ['user_delay_us', true],
-@@ -262,7 +262,7 @@ fast_tests = [
+@@ -274,7 +274,7 @@
          ['power_autotest', true],
          ['power_kvm_vm_autotest', false],
          ['reorder_autotest', true],

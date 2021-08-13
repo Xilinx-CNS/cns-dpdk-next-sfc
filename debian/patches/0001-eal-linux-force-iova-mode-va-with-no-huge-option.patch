@@ -6,9 +6,9 @@ Description: eal/linux: force iova-mode va with no-huge option
  "--no-huge --iova-mode=va".  When --no-huge is used setting --iova-mode=pa
  will have no effect.
 Origin: https://patchwork.dpdk.org/project/dpdk/patch/20200402171241.13258-2-dwilder@us.ibm.com/
---- a/lib/librte_eal/linux/eal.c
-+++ b/lib/librte_eal/linux/eal.c
-@@ -1071,6 +1071,11 @@
+--- a/lib/eal/linux/eal.c
++++ b/lib/eal/linux/eal.c
+@@ -1078,6 +1078,11 @@
  
  	phys_addrs = rte_eal_using_phys_addrs() != 0;
  
@@ -20,7 +20,7 @@ Origin: https://patchwork.dpdk.org/project/dpdk/patch/20200402171241.13258-2-dwi
  	/* if no EAL option "--iova-mode=<pa|va>", use bus IOVA scheme */
  	if (internal_conf->iova_mode == RTE_IOVA_DC) {
  		/* autodetect the IOVA mapping mode */
-@@ -1079,18 +1084,7 @@
+@@ -1086,18 +1091,7 @@
  		if (iova_mode == RTE_IOVA_DC) {
  			RTE_LOG(DEBUG, EAL, "Buses did not request a specific IOVA mode.\n");
  
@@ -40,7 +40,7 @@ Origin: https://patchwork.dpdk.org/project/dpdk/patch/20200402171241.13258-2-dwi
  				/* we have an IOMMU, pick IOVA as VA mode */
  				iova_mode = RTE_IOVA_VA;
  				RTE_LOG(DEBUG, EAL, "IOMMU is available, selecting IOVA as VA mode.\n");
-@@ -1101,6 +1095,12 @@
+@@ -1108,6 +1102,12 @@
  				iova_mode = RTE_IOVA_PA;
  				RTE_LOG(DEBUG, EAL, "IOMMU is not available, selecting IOVA as PA mode.\n");
  			}
