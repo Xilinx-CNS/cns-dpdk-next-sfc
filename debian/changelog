@@ -1,3 +1,35 @@
+dpdk (21.08-1) experimental; urgency=medium
+
+  [ Luca Boccassi ]
+  * autopkgtest: restrict to amd64 arm64 armhf i386 ppc64el
+
+  [ Christian Ehrhardt ]
+  * d/p/disable_autopkgtest_fails.patch: disable failures that do not
+    represent regressions
+  * d/t/control: restrict more tests to avoid badpkg failures on e.g.
+    s390x
+  * d/p/disable_armhf_autopkgtest_fails.patch: disable arm failures that
+    do not represent regressions
+  * d/p/disable_ppc64_autopkgtest_fails.patch: skip known false-positives
+    (LP: #1939861)
+
+  [ Luca Boccassi ]
+  * New upstream release candidate 21.08
+    For details see https://doc.dpdk.org/guides/rel_notes/release_21_08.html
+  * Drop and refresh patches for 21.08
+  * Add python3-pyelftools build dependency
+  * Add new packages for new libraries librte-bus-auxiliary, librte-
+    compress-mlx5-21, librte-crypto-mlx5-21, librte-net-ionic21, librte-
+    net-ngbe21, librte-common-cnxk21, librte-crypto-cnxk21, librte-event-
+    cnxk21, librte-mempool-cnxk21, librte-net-cnxk21, librte-net-octeontx-ep21,
+    librte-raw-cnxk-bphy21
+  * Update symbols files for 21.08
+  * Update d/copyright for new paths
+  * Add new false positives to dpdk-doc.lintian-overrides
+  * Drop librte-event-dlb21, removed upstream
+
+ -- Luca Boccassi <bluca@debian.org>  Fri, 13 Aug 2021 17:24:46 +0100
+
 dpdk (20.11.2-1) experimental; urgency=medium
 
   * New upstream release candidate 20.11.2
