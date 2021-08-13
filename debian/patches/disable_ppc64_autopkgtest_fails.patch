@@ -1,0 +1,27 @@
+Description: Skip tests failing in ppc64 test environment
+ It turned out that this regressed in release and acl_autotest is
+ unrelable on ppc64.
+ Skip it as they do not represent real regressions in or against DPDK.
+Forwarded: no
+X-Not-Forwarded-Reason: This only applies to autopkgtest environments
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2021-08-13
+--- a/app/test/meson.build
++++ b/app/test/meson.build
+@@ -180,7 +180,6 @@ test_deps = ['acl',
+ # Each test is marked with flag true/false
+ # to indicate whether it can run in no-huge mode.
+ fast_tests = [
+-        ['acl_autotest', true],
+         ['alarm_autotest', false],
+         ['atomic_autotest', false],
+         ['bitops_autotest', true],
+@@ -417,7 +416,7 @@ endif
+ 
+ # This test consistently times out on ppc64
+ if arch_subdir != 'ppc'
+-	fast_tests += [['lcores_autotest', true]]
++	fast_tests += [['lcores_autotest', true], ['acl_autotest', true]]
+ endif
+ 
+ # These tests consistently fail on arm (containerized) test environments

@@ -2,3 +2,4 @@
 disable_lcores_autotest_ppc.patch
 disable_autopkgtest_fails.patch
 disable_armhf_autopkgtest_fails.patch
+disable_ppc64_autopkgtest_fails.patch
