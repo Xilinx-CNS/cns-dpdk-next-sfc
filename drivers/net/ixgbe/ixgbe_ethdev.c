@@ -27,8 +27,8 @@
 #include <rte_eal.h>
 #include <rte_alarm.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_random.h>
 #include <rte_dev.h>
@@ -304,10 +304,8 @@ static int ixgbe_add_5tuple_filter(struct rte_eth_dev *dev,
 			struct ixgbe_5tuple_filter *filter);
 static void ixgbe_remove_5tuple_filter(struct rte_eth_dev *dev,
 			struct ixgbe_5tuple_filter *filter);
-static int ixgbe_dev_filter_ctrl(struct rte_eth_dev *dev,
-		     enum rte_filter_type filter_type,
-		     enum rte_filter_op filter_op,
-		     void *arg);
+static int ixgbe_dev_flow_ops_get(struct rte_eth_dev *dev,
+				  const struct rte_flow_ops **ops);
 static int ixgbevf_dev_set_mtu(struct rte_eth_dev *dev, uint16_t mtu);
 
 static int ixgbe_dev_set_mc_addr_list(struct rte_eth_dev *dev,
@@ -538,7 +536,7 @@ static const struct eth_dev_ops ixgbe_eth_dev_ops = {
 	.reta_query           = ixgbe_dev_rss_reta_query,
 	.rss_hash_update      = ixgbe_dev_rss_hash_update,
 	.rss_hash_conf_get    = ixgbe_dev_rss_hash_conf_get,
-	.filter_ctrl          = ixgbe_dev_filter_ctrl,
+	.flow_ops_get         = ixgbe_dev_flow_ops_get,
 	.set_mc_addr_list     = ixgbe_dev_set_mc_addr_list,
 	.rxq_info_get         = ixgbe_rxq_info_get,
 	.txq_info_get         = ixgbe_txq_info_get,
@@ -560,6 +558,7 @@ static const struct eth_dev_ops ixgbe_eth_dev_ops = {
 	.udp_tunnel_port_del  = ixgbe_dev_udp_tunnel_port_del,
 	.tm_ops_get           = ixgbe_tm_ops_get,
 	.tx_done_cleanup      = ixgbe_dev_tx_done_cleanup,
+	.get_monitor_addr     = ixgbe_get_monitor_addr,
 };
 
 /*
@@ -606,6 +605,7 @@ static const struct eth_dev_ops ixgbevf_eth_dev_ops = {
 	.rss_hash_update      = ixgbe_dev_rss_hash_update,
 	.rss_hash_conf_get    = ixgbe_dev_rss_hash_conf_get,
 	.tx_done_cleanup      = ixgbe_dev_tx_done_cleanup,
+	.get_monitor_addr     = ixgbe_get_monitor_addr,
 };
 
 /* store statistics names and its offset in stats structure */
@@ -1716,6 +1716,13 @@ eth_ixgbe_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 			return retval;
 	} else
 		memset(&eth_da, 0, sizeof(eth_da));
+
+	if (eth_da.nb_representor_ports > 0 &&
+	    eth_da.type != RTE_ETH_REPRESENTOR_VF) {
+		PMD_DRV_LOG(ERR, "unsupported representor type: %s\n",
+			    pci_dev->device.devargs->args);
+		return -ENOTSUP;
+	}
 
 	retval = rte_eth_dev_create(&pci_dev->device, pci_dev->device.name,
 		sizeof(struct ixgbe_adapter),
@@ -6814,27 +6821,11 @@ ixgbe_add_del_ethertype_filter(struct rte_eth_dev *dev,
 }
 
 static int
-ixgbe_dev_filter_ctrl(__rte_unused struct rte_eth_dev *dev,
-		     enum rte_filter_type filter_type,
-		     enum rte_filter_op filter_op,
-		     void *arg)
+ixgbe_dev_flow_ops_get(__rte_unused struct rte_eth_dev *dev,
+		       const struct rte_flow_ops **ops)
 {
-	int ret = 0;
-
-	switch (filter_type) {
-	case RTE_ETH_FILTER_GENERIC:
-		if (filter_op != RTE_ETH_FILTER_GET)
-			return -EINVAL;
-		*(const void **)arg = &ixgbe_flow_ops;
-		break;
-	default:
-		PMD_DRV_LOG(WARNING, "Filter type (%d) not supported",
-							filter_type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
+	*ops = &ixgbe_flow_ops;
+	return 0;
 }
 
 static u8 *
@@ -8465,15 +8456,12 @@ RTE_PMD_REGISTER_KMOD_DEP(net_ixgbe_vf, "* igb_uio | vfio-pci");
 RTE_PMD_REGISTER_PARAM_STRING(net_ixgbe_vf,
 			      IXGBEVF_DEVARG_PFLINK_FULLCHK "=<0|1>");
 
-RTE_LOG_REGISTER(ixgbe_logtype_init, pmd.net.ixgbe.init, NOTICE);
-RTE_LOG_REGISTER(ixgbe_logtype_driver, pmd.net.ixgbe.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(ixgbe_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(ixgbe_logtype_driver, driver, NOTICE);
 
-#ifdef RTE_LIBRTE_IXGBE_DEBUG_RX
-RTE_LOG_REGISTER(ixgbe_logtype_rx, pmd.net.ixgbe.rx, DEBUG);
+#ifdef RTE_ETHDEV_DEBUG_RX
+RTE_LOG_REGISTER_SUFFIX(ixgbe_logtype_rx, rx, DEBUG);
 #endif
-#ifdef RTE_LIBRTE_IXGBE_DEBUG_TX
-RTE_LOG_REGISTER(ixgbe_logtype_tx, pmd.net.ixgbe.tx, DEBUG);
-#endif
-#ifdef RTE_LIBRTE_IXGBE_DEBUG_TX_FREE
-RTE_LOG_REGISTER(ixgbe_logtype_tx_free, pmd.net.ixgbe.tx_free, DEBUG);
+#ifdef RTE_ETHDEV_DEBUG_TX
+RTE_LOG_REGISTER_SUFFIX(ixgbe_logtype_tx, tx, DEBUG);
 #endif

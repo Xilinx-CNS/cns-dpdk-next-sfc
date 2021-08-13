@@ -230,7 +230,6 @@ processed_pkts(struct test_perf *t)
 	uint8_t i;
 	uint64_t total = 0;
 
-	rte_smp_rmb();
 	for (i = 0; i < t->nb_workers; i++)
 		total += t->worker[i].processed_pkts;
 
@@ -243,7 +242,6 @@ total_latency(struct test_perf *t)
 	uint8_t i;
 	uint64_t total = 0;
 
-	rte_smp_rmb();
 	for (i = 0; i < t->nb_workers; i++)
 		total += t->worker[i].latency;
 
@@ -333,7 +331,6 @@ perf_launch_lcores(struct evt_test *test, struct evt_options *opt,
 					opt->prod_type ==
 					EVT_PROD_TYPE_EVENT_TIMER_ADPTR) {
 					t->done = true;
-					rte_smp_wmb();
 					break;
 				}
 			}
@@ -347,7 +344,6 @@ perf_launch_lcores(struct evt_test *test, struct evt_options *opt,
 				rte_event_dev_dump(opt->dev_id, stdout);
 				evt_err("No schedules for seconds, deadlock");
 				t->done = true;
-				rte_smp_wmb();
 				break;
 			}
 			dead_lock_remaining = remaining;

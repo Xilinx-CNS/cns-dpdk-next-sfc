@@ -5,7 +5,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <rte_log.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_flow_driver.h>
 #include <rte_ether.h>
 #include <rte_ip.h>
@@ -1208,7 +1208,8 @@ enic_copy_action_v2(struct enic *enic,
 			const struct rte_flow_action_mark *mark =
 				(const struct rte_flow_action_mark *)
 				actions->conf;
-
+			if (enic->use_noscatter_vec_rx_handler)
+				return ENOTSUP;
 			if (overlap & MARK)
 				return ENOTSUP;
 			overlap |= MARK;
@@ -1228,6 +1229,8 @@ enic_copy_action_v2(struct enic *enic,
 			break;
 		}
 		case RTE_FLOW_ACTION_TYPE_FLAG: {
+			if (enic->use_noscatter_vec_rx_handler)
+				return ENOTSUP;
 			if (overlap & MARK)
 				return ENOTSUP;
 			overlap |= MARK;

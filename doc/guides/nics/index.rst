@@ -19,6 +19,7 @@ Network Interface Controller Drivers
     axgbe
     bnx2x
     bnxt
+    cnxk
     cxgbe
     dpaa
     dpaa2
@@ -47,9 +48,11 @@ Network Interface Controller Drivers
     netvsc
     nfb
     nfp
+    ngbe
     null
     octeontx
     octeontx2
+    octeontx_ep
     pfe
     qede
     sfc_efx

@@ -93,7 +93,7 @@ Additionally the event mode introduces two submodes of processing packets:
   protocol use case, the worker thread resembles l2fwd worker thread as the IPsec
   processing is done entirely in HW. This mode can be used to benchmark the raw
   performance of the HW. The driver submode is selected with --single-sa option
-  (used also by poll mode). When --single-sa option is used in conjution with event
+  (used also by poll mode). When --single-sa option is used in conjunction with event
   mode then index passed to --single-sa is ignored.
 
 * App submode: This submode has all the features currently implemented with the
@@ -500,7 +500,7 @@ The SA rule syntax is shown as follows:
 
     sa <dir> <spi> <cipher_algo> <cipher_key> <auth_algo> <auth_key>
     <mode> <src_ip> <dst_ip> <action_type> <port_id> <fallback>
-    <flow-direction> <port_id> <queue_id>
+    <flow-direction> <port_id> <queue_id> <udp-encap>
 
 where each options means:
 
@@ -708,6 +708,17 @@ where each options means:
 
    * *port_id*: Port ID of the NIC for which the SA is configured.
    * *queue_id*: Queue ID to which traffic should be redirected.
+
+ ``<udp-encap>``
+
+ * Option to enable IPsec UDP encapsulation for NAT Traversal.
+   Only *lookaside-protocol-offload* mode is supported at the moment.
+
+ * Optional: Yes, it is disabled by default
+
+ * Syntax:
+
+   * *udp-encap*
 
 Example SA rules:
 

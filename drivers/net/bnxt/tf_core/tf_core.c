@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2019-2020 Broadcom
+ * Copyright(c) 2019-2021 Broadcom
  * All rights reserved.
  */
 
@@ -18,7 +18,7 @@
 #include "bnxt.h"
 #include "rand.h"
 #include "tf_common.h"
-#include "hwrm_tf.h"
+#include "tf_ext_flow_handle.h"
 
 int
 tf_open_session(struct tf *tfp,
@@ -35,6 +35,7 @@ tf_open_session(struct tf *tfp,
 	 * firmware open session succeeds.
 	 */
 	if (parms->device_type != TF_DEVICE_TYPE_WH &&
+	    parms->device_type != TF_DEVICE_TYPE_THOR &&
 	    parms->device_type != TF_DEVICE_TYPE_SR) {
 		TFP_DRV_LOG(ERR,
 			    "Unsupported device type %d\n",
@@ -250,6 +251,7 @@ int tf_delete_em_entry(struct tf *tfp,
 	struct tf_session      *tfs;
 	struct tf_dev_info     *dev;
 	int rc;
+	unsigned int flag = 0;
 
 	TF_CHECK_PARMS2(tfp, parms);
 
@@ -273,12 +275,11 @@ int tf_delete_em_entry(struct tf *tfp,
 		return rc;
 	}
 
-	if (parms->mem == TF_MEM_EXTERNAL)
-		rc = dev->ops->tf_dev_delete_ext_em_entry(tfp, parms);
-	else if (parms->mem == TF_MEM_INTERNAL)
+	TF_GET_FLAG_FROM_FLOW_HANDLE(parms->flow_handle, flag);
+	if ((flag & TF_FLAGS_FLOW_HANDLE_INTERNAL))
 		rc = dev->ops->tf_dev_delete_int_em_entry(tfp, parms);
 	else
-		return -EINVAL;
+		rc = dev->ops->tf_dev_delete_ext_em_entry(tfp, parms);
 
 	if (rc) {
 		TFP_DRV_LOG(ERR,
@@ -762,7 +763,8 @@ tf_set_tcam_entry(struct tf *tfp,
 		return rc;
 	}
 
-	if (dev->ops->tf_dev_set_tcam == NULL) {
+	if (dev->ops->tf_dev_set_tcam == NULL ||
+	    dev->ops->tf_dev_word_align == NULL) {
 		rc = -EOPNOTSUPP;
 		TFP_DRV_LOG(ERR,
 			    "%s: Operation not supported, rc:%s\n",
@@ -776,7 +778,7 @@ tf_set_tcam_entry(struct tf *tfp,
 	sparms.idx = parms->idx;
 	sparms.key = parms->key;
 	sparms.mask = parms->mask;
-	sparms.key_size = TF_BITS2BYTES_WORD_ALIGN(parms->key_sz_in_bits);
+	sparms.key_size = dev->ops->tf_dev_word_align(parms->key_sz_in_bits);
 	sparms.result = parms->result;
 	sparms.result_size = TF_BITS2BYTES_WORD_ALIGN(parms->result_sz_in_bits);
 
@@ -794,10 +796,68 @@ tf_set_tcam_entry(struct tf *tfp,
 
 int
 tf_get_tcam_entry(struct tf *tfp __rte_unused,
-		  struct tf_get_tcam_entry_parms *parms __rte_unused)
+		  struct tf_get_tcam_entry_parms *parms)
 {
+	int rc;
+	struct tf_session *tfs;
+	struct tf_dev_info *dev;
+	struct tf_tcam_get_parms gparms;
+
 	TF_CHECK_PARMS2(tfp, parms);
-	return -EOPNOTSUPP;
+
+	memset(&gparms, 0, sizeof(struct tf_tcam_get_parms));
+
+
+	/* Retrieve the session information */
+	rc = tf_session_get_session(tfp, &tfs);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup session, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	/* Retrieve the device information */
+	rc = tf_session_get_device(tfs, &dev);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup device, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	if (dev->ops->tf_dev_get_tcam == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "%s: Operation not supported, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	gparms.dir = parms->dir;
+	gparms.type = parms->tcam_tbl_type;
+	gparms.idx = parms->idx;
+	gparms.key = parms->key;
+	gparms.key_size = dev->ops->tf_dev_word_align(parms->key_sz_in_bits);
+	gparms.mask = parms->mask;
+	gparms.result = parms->result;
+	gparms.result_size = TF_BITS2BYTES_WORD_ALIGN(parms->result_sz_in_bits);
+
+	rc = dev->ops->tf_dev_get_tcam(tfp, &gparms);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: TCAM get failed, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+	parms->key_sz_in_bits = gparms.key_size * 8;
+	parms->result_sz_in_bits = gparms.result_size * 8;
+
+	return 0;
 }
 
 int
@@ -856,6 +916,110 @@ tf_free_tcam_entry(struct tf *tfp,
 
 	return 0;
 }
+
+#ifdef TF_TCAM_SHARED
+int
+tf_move_tcam_shared_entries(struct tf *tfp,
+			    struct tf_move_tcam_shared_entries_parms *parms)
+{
+	int rc;
+	struct tf_session *tfs;
+	struct tf_dev_info *dev;
+
+	TF_CHECK_PARMS2(tfp, parms);
+
+	/* Retrieve the session information */
+	rc = tf_session_get_session(tfp, &tfs);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup session, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	/* Retrieve the device information */
+	rc = tf_session_get_device(tfs, &dev);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup device, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	if (dev->ops->tf_dev_move_tcam == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "%s: Operation not supported, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	rc = dev->ops->tf_dev_move_tcam(tfp, parms);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: TCAM shared entries move failed, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	return 0;
+}
+
+int
+tf_clear_tcam_shared_entries(struct tf *tfp,
+			     struct tf_clear_tcam_shared_entries_parms *parms)
+{
+	int rc;
+	struct tf_session *tfs;
+	struct tf_dev_info *dev;
+
+	TF_CHECK_PARMS2(tfp, parms);
+
+	/* Retrieve the session information */
+	rc = tf_session_get_session(tfp, &tfs);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup session, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	/* Retrieve the device information */
+	rc = tf_session_get_device(tfs, &dev);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup device, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	if (dev->ops->tf_dev_clear_tcam == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "%s: Operation not supported, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	rc = dev->ops->tf_dev_clear_tcam(tfp, parms);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: TCAM shared entries clear failed, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	return 0;
+}
+#endif /* TF_TCAM_SHARED */
 
 int
 tf_alloc_tbl_entry(struct tf *tfp,
@@ -1302,6 +1466,58 @@ tf_bulk_get_tbl_entry(struct tf *tfp,
 	return rc;
 }
 
+int tf_get_shared_tbl_increment(struct tf *tfp,
+				struct tf_get_shared_tbl_increment_parms *parms)
+{
+	int rc = 0;
+	struct tf_session *tfs;
+	struct tf_dev_info *dev;
+
+	TF_CHECK_PARMS2(tfp, parms);
+
+	/* Retrieve the session information */
+	rc = tf_session_get_session(tfp, &tfs);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup session, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	/* Retrieve the device information */
+	rc = tf_session_get_device(tfs, &dev);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Failed to lookup device, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	/* Internal table type processing */
+
+	if (dev->ops->tf_dev_get_shared_tbl_increment == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "%s: Operation not supported, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return -EOPNOTSUPP;
+	}
+
+	rc = dev->ops->tf_dev_get_shared_tbl_increment(tfp, parms);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "%s: Get table increment not supported, rc:%s\n",
+			    tf_dir_2_str(parms->dir),
+			    strerror(-rc));
+		return rc;
+	}
+
+	return rc;
+}
+
 int
 tf_alloc_tbl_scope(struct tf *tfp,
 		   struct tf_alloc_tbl_scope_parms *parms)
@@ -1529,6 +1745,98 @@ tf_get_if_tbl_entry(struct tf *tfp,
 			    tf_dir_2_str(parms->dir),
 			    strerror(-rc));
 		return rc;
+	}
+
+	return 0;
+}
+
+int tf_get_session_info(struct tf *tfp,
+			struct tf_get_session_info_parms *parms)
+{
+	int rc;
+	struct tf_session      *tfs;
+	struct tf_dev_info     *dev;
+
+	TF_CHECK_PARMS2(tfp, parms);
+
+	/* Retrieve the session information */
+	rc = tf_session_get_session(tfp, &tfs);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "Failed to lookup session, rc:%s\n",
+			    strerror(-rc));
+		return rc;
+	}
+
+	/* Retrieve the device information */
+	rc = tf_session_get_device(tfs, &dev);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "Failed to lookup device, rc:%s\n",
+			    strerror(-rc));
+		return rc;
+	}
+
+	TF_CHECK_PARMS2(tfp, parms);
+
+	if (dev->ops->tf_dev_get_ident_resc_info == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "Operation not supported, rc:%s\n",
+			    strerror(-rc));
+		return rc;
+	}
+
+	rc = dev->ops->tf_dev_get_ident_resc_info(tfp, parms->session_info.ident);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "Ident get resc info failed, rc:%s\n",
+			    strerror(-rc));
+	}
+
+	if (dev->ops->tf_dev_get_tbl_resc_info == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "Operation not supported, rc:%s\n",
+			    strerror(-rc));
+		return rc;
+	}
+
+	rc = dev->ops->tf_dev_get_tbl_resc_info(tfp, parms->session_info.tbl);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "Tbl get resc info failed, rc:%s\n",
+			    strerror(-rc));
+	}
+
+	if (dev->ops->tf_dev_get_tcam_resc_info == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "Operation not supported, rc:%s\n",
+			    strerror(-rc));
+		return rc;
+	}
+
+	rc = dev->ops->tf_dev_get_tcam_resc_info(tfp, parms->session_info.tcam);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "TCAM get resc info failed, rc:%s\n",
+			    strerror(-rc));
+	}
+
+	if (dev->ops->tf_dev_get_em_resc_info == NULL) {
+		rc = -EOPNOTSUPP;
+		TFP_DRV_LOG(ERR,
+			    "Operation not supported, rc:%s\n",
+			    strerror(-rc));
+		return rc;
+	}
+
+	rc = dev->ops->tf_dev_get_em_resc_info(tfp, parms->session_info.em);
+	if (rc) {
+		TFP_DRV_LOG(ERR,
+			    "EM get resc info failed, rc:%s\n",
+			    strerror(-rc));
 	}
 
 	return 0;

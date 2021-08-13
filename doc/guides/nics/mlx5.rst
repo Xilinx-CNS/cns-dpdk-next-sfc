@@ -74,6 +74,7 @@ Features
 - RX VLAN stripping.
 - TX VLAN insertion.
 - RX CRC stripping configuration.
+- TX mbuf fast free offload.
 - Promiscuous mode on PF and VF.
 - Multicast promiscuous mode on PF and VF.
 - Hardware checksum offloads.
@@ -98,9 +99,39 @@ Features
 - Hardware LRO.
 - Hairpin.
 - Multiple-thread flow insertion.
+- Matching on IPv4 Internet Header Length (IHL).
+- Matching on GTP extension header with raw encap/decap action.
+- Matching on Geneve TLV option header with raw encap/decap action.
+- RSS support in sample action.
+- E-Switch mirroring and jump.
+- E-Switch mirroring and modify.
+- 21844 flow priorities for ingress or egress flow groups greater than 0 and for any transfer
+  flow group.
+- Flow metering, including meter policy API.
+- Flow meter hierarchy.
+- Flow integrity offload API.
+- Connection tracking.
+- Sub-Function representors.
+- Sub-Function.
+
 
 Limitations
 -----------
+
+- Windows support:
+
+  On Windows, the features are limited:
+
+  - Promiscuous mode is not supported
+  - The following rules are supported:
+
+    - IPv4/UDP with CVLAN filtering
+    - Unicast MAC filtering
+
+  - Additional rules are supported from WinOF2 version 2.70:
+
+    - IPv4/TCP with CVLAN filtering
+    - L4 steering rules for port RSS of UDP, TCP and IP
 
 - For secondary process:
 
@@ -153,9 +184,9 @@ Limitations
 
   - Flow rules having a VLAN pop offload command as one of their actions and
     are lacking a match on VLAN as one of their items are not supported.
-  - The command is not supported on egress traffic.
+  - The command is not supported on egress traffic in NIC mode.
 
-- VLAN push offload is not supported on ingress traffic.
+- VLAN push offload is not supported on ingress traffic in NIC mode.
 
 - VLAN set PCP offload is not supported on existing headers.
 
@@ -164,8 +195,16 @@ Limitations
   size and ``txq_inline_min`` settings and may be from 2 (worst case forced by maximal
   inline settings) to 58.
 
-- Flows with a VXLAN Network Identifier equal (or ends to be equal)
-  to 0 are not supported.
+- Match on VXLAN supports the following fields only:
+
+     - VNI
+     - Last reserved 8-bits
+
+  Last reserved 8-bits matching is only supported When using DV flow
+  engine (``dv_flow_en`` = 1).
+  For ConnectX-5, the UDP destination port must be the standard one (4789).
+  Group zero's behavior may differ which depends on FW.
+  Matching value equals 0 (value & mask) is not supported.
 
 - L3 VXLAN and VXLAN-GPE tunnels cannot be supported together with MPLSoGRE and MPLSoUDP.
 
@@ -175,7 +214,19 @@ Limitations
      - OAM
      - protocol type
      - options length
-       Currently, the only supported options length value is 0.
+
+- Match on Geneve TLV option is supported on the following fields:
+
+     - Class
+     - Type
+     - Length
+     - Data
+
+  Only one Class/Type/Length Geneve TLV option is supported per shared device.
+  Class/Type/Length fields must be specified as well as masks.
+  Class/Type/Length specified masks must be full.
+  Matching Geneve TLV option without specifying data is not supported.
+  Matching Geneve TLV option with ``data & mask == 0`` is not supported.
 
 - VF: flow rules created on VF devices can only match traffic targeted at the
   configured MAC addresses (see ``rte_eth_dev_mac_addr_add()``).
@@ -185,6 +236,10 @@ Limitations
      - v_pt_rsv_flags: E flag, S flag, PN flag
      - msg_type
      - teid
+
+- Match on GTP extension header only for GTP PDU session container (next
+  extension header type = 0x85).
+- Match on GTP extension header is not supported in group 0.
 
 - No Tx metadata go to the E-Switch steering domain for the Flow group 0.
   The flows within group 0 and set metadata action are rejected by hardware.
@@ -320,11 +375,38 @@ Limitations
     for some NICs (such as ConnectX-6 Dx, ConnectX-6 Lx, and BlueField-2).
     The capability bit ``scatter_fcs_w_decap_disable`` shows NIC support.
 
+- TX mbuf fast free:
+
+  - fast free offload assumes the all mbufs being sent are originated from the
+    same memory pool and there is no any extra references to the mbufs (the
+    reference counter for each mbuf is equal 1 on tx_burst call). The latter
+    means there should be no any externally attached buffers in mbufs. It is
+    an application responsibility to provide the correct mbufs if the fast
+    free offload is engaged. The mlx5 PMD implicitly produces the mbufs with
+    externally attached buffers if MPRQ option is enabled, hence, the fast
+    free offload is neither supported nor advertised if there is MPRQ enabled.
+
 - Sample flow:
 
-  - Supports ``RTE_FLOW_ACTION_TYPE_SAMPLE`` action only within NIC Rx and E-Switch steering domain.
-  - The E-Switch Sample flow must have the eswitch_manager VPORT destination (PF or ECPF) and no additional actions.
-  - For ConnectX-5, the ``RTE_FLOW_ACTION_TYPE_SAMPLE`` is typically used as first action in the E-Switch egress flow if with header modify or encapsulation actions.
+  - Supports ``RTE_FLOW_ACTION_TYPE_SAMPLE`` action only within NIC Rx and
+    E-Switch steering domain.
+  - For E-Switch Sampling flow with sample ratio > 1, additional actions are not
+    supported in the sample actions list.
+  - For ConnectX-5, the ``RTE_FLOW_ACTION_TYPE_SAMPLE`` is typically used as
+    first action in the E-Switch egress flow if with header modify or
+    encapsulation actions.
+  - For NIC Rx flow, supports ``MARK``, ``COUNT``, ``QUEUE``, ``RSS`` in the
+    sample actions list.
+  - For E-Switch mirroring flow, supports ``RAW ENCAP``, ``Port ID``,
+    ``VXLAN ENCAP``, ``NVGRE ENCAP`` in the sample actions list.
+
+- Modify Field flow:
+
+  - Supports the 'set' operation only for ``RTE_FLOW_ACTION_TYPE_MODIFY_FIELD`` action.
+  - Modification of an arbitrary place in a packet via the special ``RTE_FLOW_FIELD_START`` Field ID is not supported.
+  - Modification of the 802.1Q Tag, VXLAN Network or GENEVE Network ID's is not supported.
+  - Encapsulation levels are not supported, can modify outermost header fields only.
+  - Offsets must be 32-bits aligned, cannot skip past the boundary of a field.
 
 - IPv6 header item 'proto' field, indicating the next header protocol, should
   not be set as extension header.
@@ -337,6 +419,50 @@ Limitations
 
   - Hairpin between two ports could only manual binding and explicit Tx flow mode. For single port hairpin, all the combinations of auto/manual binding and explicit/implicit Tx flow mode could be supported.
   - Hairpin in switchdev SR-IOV mode is not supported till now.
+
+- Meter:
+
+  - All the meter colors with drop action will be counted only by the global drop statistics.
+  - Yellow detection is only supported with ASO metering.
+  - Red color must be with drop action.
+  - Meter statistics are supported only for drop case.
+  - A meter action created with pre-defined policy must be the last action in the flow except single case where the policy actions are:
+     - green: NULL or END.
+     - yellow: NULL or END.
+     - RED: DROP / END.
+  - The only supported meter policy actions:
+     - green: QUEUE, RSS, PORT_ID, JUMP, DROP, MARK and SET_TAG.
+     - yellow: QUEUE, RSS, PORT_ID, JUMP, DROP, MARK and SET_TAG.
+     - RED: must be DROP.
+  - Policy actions of RSS for green and yellow should have the same configuration except queues.
+  - meter profile packet mode is supported.
+  - meter profiles of RFC2697, RFC2698 and RFC4115 are supported.
+
+- Integrity:
+
+  - Integrity offload is enabled for **ConnectX-6** family.
+  - Verification bits provided by the hardware are ``l3_ok``, ``ipv4_csum_ok``, ``l4_ok``, ``l4_csum_ok``.
+  - ``level`` value 0 references outer headers.
+  - Multiple integrity items not supported in a single flow rule.
+  - Flow rule items supplied by application must explicitly specify network headers referred by integrity item.
+    For example, if integrity item mask sets ``l4_ok`` or ``l4_csum_ok`` bits, reference to L4 network header,
+    TCP or UDP, must be in the rule pattern as well::
+
+      flow create 0 ingress pattern integrity level is 0 value mask l3_ok value spec l3_ok / eth / ipv6 / end …
+      or
+      flow create 0 ingress pattern integrity level is 0 value mask l4_ok value spec 0 / eth / ipv4 proto is udp / end …
+
+- Connection tracking:
+
+  - Cannot co-exist with ASO meter, ASO age action in a single flow rule.
+  - Flow rules insertion rate and memory consumption need more optimization.
+  - 256 ports maximum.
+  - 4M connections maximum.
+
+- Multi-thread flow insertion:
+
+  - In order to achieve best insertion rate, application should manage the flows per lcore.
+  - Better to disable memory reclaim by setting ``reclaim_mem_mode`` to 0 to accelerate the flow object allocation and release with cache.
 
 Statistics
 ----------
@@ -590,6 +716,13 @@ Driver options
   For ConnectX-4 Lx NIC, it is allowed to specify values below 18, but
   it is not recommended and may prevent NIC from sending packets over
   some configurations.
+
+  For ConnectX-4 and ConnectX-4 Lx NICs, automatically configured value
+  is insufficient for some traffic, because they require at least all L2 headers
+  to be inlined. For example, Q-in-Q adds 4 bytes to default 18 bytes
+  of Ethernet and VLAN, thus ``txq_inline_min`` must be set to 22.
+  MPLS would add 4 bytes per label. Final value must account for all possible
+  L2 encapsulation headers used in particular environment.
 
   Please, note, this minimal data inlining disengages eMPW feature (Enhanced
   Multi-Packet Write), because last one does not support partial packet inlining.
@@ -871,14 +1004,22 @@ Driver options
 - ``representor`` parameter [list]
 
   This parameter can be used to instantiate DPDK Ethernet devices from
-  existing port (or VF) representors configured on the device.
+  existing port (PF, VF or SF) representors configured on the device.
 
   It is a standard parameter whose format is described in
   :ref:`ethernet_device_standard_device_arguments`.
 
-  For instance, to probe port representors 0 through 2::
+  For instance, to probe VF port representors 0 through 2::
 
-    representor=[0-2]
+    <PCI_BDF>,representor=vf[0-2]
+
+  To probe SF port representors 0 through 2::
+
+    <PCI_BDF>,representor=sf[0-2]
+
+  To probe VF port representors 0 through 2 on both PFs of bonding device::
+
+    <Primary_PCI_BDF>,representor=pf[0,1]vf[0-2]
 
 - ``max_dump_files_num`` parameter [int]
 
@@ -943,6 +1084,20 @@ Driver options
   tunnel-decapsulated packets.
   If set to 0, this option forces the FCS feature and rejects tunnel
   decapsulation in the flow engine for such devices.
+
+  By default, the PMD will set this value to 1.
+
+- ``allow_duplicate_pattern`` parameter [int]
+
+  There are two options to choose:
+
+  - 0. Prevent insertion of rules with the same pattern items on non-root table.
+    In this case, only the first rule is inserted and the following rules are
+    rejected and error code EEXIST is returned.
+
+  - 1. Allow insertion of rules with the same pattern items.
+    In this case, all rules are inserted but only the first rule takes effect,
+    the next rule takes effect only if the previous rules are deleted.
 
   By default, the PMD will set this value to 1.
 
@@ -1019,6 +1174,10 @@ Below are some firmware configurations listed.
    or
    FLEX_PARSER_PROFILE_ENABLE=1
 
+- enable Geneve TLV option flow matching::
+
+   FLEX_PARSER_PROFILE_ENABLE=0
+
 - enable GTP flow matching::
 
    FLEX_PARSER_PROFILE_ENABLE=3
@@ -1028,8 +1187,8 @@ Below are some firmware configurations listed.
    FLEX_PARSER_PROFILE_ENABLE=4
    PROG_PARSE_GRAPH=1
 
-Prerequisites
--------------
+Linux Prerequisites
+-------------------
 
 This driver relies on external libraries and kernel drivers for resources
 allocations and initialization. The following dependencies are not part of
@@ -1142,7 +1301,44 @@ required from that distribution.
 
    Several versions of Mellanox OFED/EN are available. Installing the version
    this DPDK release was developed and tested against is strongly
-   recommended. Please check the `prerequisites`_.
+   recommended. Please check the `linux prerequisites`_.
+
+Windows Prerequisites
+---------------------
+
+This driver relies on external libraries and kernel drivers for resources
+allocations and initialization. The dependencies in the following sub-sections
+are not part of DPDK, and must be installed separately.
+
+Compilation Prerequisites
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+DevX SDK installation
+^^^^^^^^^^^^^^^^^^^^^
+
+The DevX SDK must be installed on the machine building the Windows PMD.
+Additional information can be found at
+`How to Integrate Windows DevX in Your Development Environment
+<https://docs.mellanox.com/display/winof2v250/RShim+Drivers+and+Usage#RShimDriversandUsage-DevXInterface>`__.
+
+Runtime Prerequisites
+~~~~~~~~~~~~~~~~~~~~~
+
+WinOF2 version 2.60 or higher must be installed on the machine.
+
+WinOF2 installation
+^^^^^^^^^^^^^^^^^^^
+
+The driver can be downloaded from the following site:
+`WINOF2
+<https://www.mellanox.com/products/adapter-software/ethernet/windows/winof-2>`__
+
+DevX Enablement
+^^^^^^^^^^^^^^^
+
+DevX for Windows must be enabled in the Windows registry.
+The keys ``DevxEnabled`` and ``DevxFsRules`` must be set.
+Additional information can be found in the WinOF2 user manual.
 
 Supported NICs
 --------------
@@ -1191,7 +1387,7 @@ Below are detailed device names:
 Quick Start Guide on OFED/EN
 ----------------------------
 
-1. Download latest Mellanox OFED/EN. For more info check the  `prerequisites`_.
+1. Download latest Mellanox OFED/EN. For more info check the `linux prerequisites`_.
 
 
 2. Install the required libraries and kernel modules either by installing
@@ -1250,15 +1446,15 @@ Quick Start Guide on OFED/EN
 Enable switchdev mode
 ---------------------
 
-Switchdev mode is a mode in E-Switch, that binds between representor and VF.
-Representor is a port in DPDK that is connected to a VF in such a way
-that assuming there are no offload flows, each packet that is sent from the VF
-will be received by the corresponding representor. While each packet that is
-sent to a representor will be received by the VF.
+Switchdev mode is a mode in E-Switch, that binds between representor and VF or SF.
+Representor is a port in DPDK that is connected to a VF or SF in such a way
+that assuming there are no offload flows, each packet that is sent from the VF or SF
+will be received by the corresponding representor. While each packet that is or SF
+sent to a representor will be received by the VF or SF.
 This is very useful in case of SRIOV mode, where the first packet that is sent
-by the VF will be received by the DPDK application which will decide if this
+by the VF or SF will be received by the DPDK application which will decide if this
 flow should be offloaded to the E-Switch. After offloading the flow packet
-that the VF that are matching the flow will not be received any more by
+that the VF or SF that are matching the flow will not be received any more by
 the DPDK application.
 
 1. Enable SRIOV mode::
@@ -1281,9 +1477,56 @@ the DPDK application.
 
         echo -n "<device pci address" > /sys/bus/pci/drivers/mlx5_core/unbind
 
-5. Enbale switchdev mode::
+5. Enable switchdev mode::
 
         echo switchdev > /sys/class/net/<net device>/compat/devlink/mode
+
+Sub-Function support
+--------------------
+
+Sub-Function is a portion of the PCI device, a SF netdev has its own
+dedicated queues (txq, rxq).
+A SF shares PCI level resources with other SFs and/or with its parent PCI function.
+
+0. Requirement::
+
+        OFED version >= 5.4-0.3.3.0
+
+1. Configure SF feature::
+
+        # Run mlxconfig on both PFs on host and ECPFs on BlueField.
+        mlxconfig -d <mst device> set PER_PF_NUM_SF=1 PF_TOTAL_SF=252 PF_SF_BAR_SIZE=12
+
+2. Enable switchdev mode::
+
+        mlxdevm dev eswitch set pci/<DBDF> mode switchdev
+
+3. Add SF port::
+
+        mlxdevm port add pci/<DBDF> flavour pcisf pfnum 0 sfnum <sfnum>
+
+        Get SFID from output: pci/<DBDF>/<SFID>
+
+4. Modify MAC address::
+
+        mlxdevm port function set pci/<DBDF>/<SFID> hw_addr <MAC>
+
+5. Activate SF port::
+
+        mlxdevm port function set pci/<DBDF>/<ID> state active
+
+6. Devargs to probe SF device::
+
+        auxiliary:mlx5_core.sf.<num>,dv_flow_en=1
+
+Sub-Function representor support
+--------------------------------
+
+A SF netdev supports E-Switch representation offload
+similar to PF and VF representors.
+Use <sfnum> to probe SF representor::
+
+        testpmd> port attach <PCI_BDF>,representor=sf<sfnum>,dv_flow_en=1
 
 Performance tuning
 ------------------
@@ -1308,7 +1551,7 @@ Performance tuning
    for better performance. For VMs, verify that the right CPU
    and NUMA node are pinned according to the above. Run::
 
-        lstopo-no-graphics
+        lstopo-no-graphics --merge
 
    to identify the NUMA node to which the PCIe adapter is connected.
 
@@ -1411,16 +1654,24 @@ Supported hardware offloads
    |                       | |               | | rdma-core 23  |
    |                       | |               | | ConnectX-4    |
    +-----------------------+-----------------+-----------------+
-   | RSS shared action     | |               | | DPDK 20.11    |
-   |                       | |     N/A       | | OFED 5.2      |
-   |                       | |               | | rdma-core 33  |
-   |                       | |               | | ConnectX-5    |
+   | Shared action         | |               | |               |
+   |                       | | :numref:`sact`| | :numref:`sact`|
+   |                       | |               | |               |
+   |                       | |               | |               |
    +-----------------------+-----------------+-----------------+
    | | VLAN                | | DPDK 19.11    | | DPDK 19.11    |
    | | (of_pop_vlan /      | | OFED 4.7-1    | | OFED 4.7-1    |
    | | of_push_vlan /      | | ConnectX-5    | | ConnectX-5    |
    | | of_set_vlan_pcp /   | |               | |               |
    | | of_set_vlan_vid)    | |               | |               |
+   +-----------------------+-----------------+-----------------+
+   | | VLAN                | | DPDK 21.05    | |               |
+   | | ingress and /       | | OFED 5.3      | |    N/A        |
+   | | of_push_vlan /      | | ConnectX-6 Dx | |               |
+   +-----------------------+-----------------+-----------------+
+   | | VLAN                | | DPDK 21.05    | |               |
+   | | egress and /        | | OFED 5.3      | |    N/A        |
+   | | of_pop_vlan /       | | ConnectX-6 Dx | |               |
    +-----------------------+-----------------+-----------------+
    | Encapsulation         | | DPDK 19.05    | | DPDK 19.02    |
    | (VXLAN / NVGRE / RAW) | | OFED 4.7-1    | | OFED 4.6      |
@@ -1489,15 +1740,62 @@ Supported hardware offloads
    |                       | |  rdma-core 26 | | rdma-core 26  |
    |                       | |  ConnectX-5   | | ConnectX-5    |
    +-----------------------+-----------------+-----------------+
+   | ASO Metering          | |  DPDK 21.05   | | DPDK 21.05    |
+   |                       | |  OFED 5.3     | | OFED 5.3      |
+   |                       | |  rdma-core 33 | | rdma-core 33  |
+   |                       | |  ConnectX-6 Dx| | ConnectX-6 Dx |
+   +-----------------------+-----------------+-----------------+
+   | Metering Hierarchy    | |  DPDK 21.08   | | DPDK 21.08    |
+   |                       | |  OFED 5.3     | | OFED 5.3      |
+   |                       | |  N/A          | | N/A           |
+   |                       | |  ConnectX-6 Dx| | ConnectX-6 Dx |
+   +-----------------------+-----------------+-----------------+
    | Sampling              | |  DPDK 20.11   | | DPDK 20.11    |
    |                       | |  OFED 5.1-2   | | OFED 5.1-2    |
    |                       | |  rdma-core 32 | | N/A           |
    |                       | |  ConnectX-5   | | ConnectX-5    |
    +-----------------------+-----------------+-----------------+
-   | Age shared action     | |  DPDK 20.11   | | DPDK 20.11    |
-   |                       | |  OFED 5.2     | | OFED 5.2      |
-   |                       | |  rdma-core 32 | | rdma-core 32  |
+   | Encapsulation         | |  DPDK 21.02   | | DPDK 21.02    |
+   | GTP PSC               | |  OFED 5.2     | | OFED 5.2      |
+   |                       | |  rdma-core 35 | | rdma-core 35  |
    |                       | |  ConnectX-6 Dx| | ConnectX-6 Dx |
+   +-----------------------+-----------------+-----------------+
+   | Encapsulation         | | DPDK 21.02    | | DPDK 21.02    |
+   | GENEVE TLV option     | | OFED 5.2      | | OFED 5.2      |
+   |                       | | rdma-core 34  | | rdma-core 34  |
+   |                       | | ConnectX-6 Dx | | ConnectX-6 Dx |
+   +-----------------------+-----------------+-----------------+
+   | Modify Field          | | DPDK 21.02    | | DPDK 21.02    |
+   |                       | | OFED 5.2      | | OFED 5.2      |
+   |                       | | rdma-core 35  | | rdma-core 35  |
+   |                       | | ConnectX-5    | | ConnectX-5    |
+   +-----------------------+-----------------+-----------------+
+   | Connection tracking   | |               | | DPDK 21.05    |
+   |                       | |     N/A       | | OFED 5.3      |
+   |                       | |               | | rdma-core 35  |
+   |                       | |               | | ConnectX-6 Dx |
+   +-----------------------+-----------------+-----------------+
+
+.. table:: Minimal SW/HW versions for shared action offload
+   :name: sact
+
+   +-----------------------+-----------------+-----------------+
+   | Shared Action         | with E-Switch   | with NIC        |
+   +=======================+=================+=================+
+   | RSS                   | |               | | DPDK 20.11    |
+   |                       | |     N/A       | | OFED 5.2      |
+   |                       | |               | | rdma-core 33  |
+   |                       | |               | | ConnectX-5    |
+   +-----------------------+-----------------+-----------------+
+   | Age                   | | DPDK 20.11    | | DPDK 20.11    |
+   |                       | | OFED 5.2      | | OFED 5.2      |
+   |                       | | rdma-core 32  | | rdma-core 32  |
+   |                       | | ConnectX-6 Dx | | ConnectX-6 Dx |
+   +-----------------------+-----------------+-----------------+
+   | Count                 | | DPDK 21.05    | | DPDK 21.05    |
+   |                       | | OFED 4.6      | | OFED 4.6      |
+   |                       | | rdma-core 24  | | rdma-core 23  |
+   |                       | | ConnectX-5    | | ConnectX-5    |
    +-----------------------+-----------------+-----------------+
 
 Notes for metadata
@@ -1592,11 +1890,11 @@ ConnectX-4/ConnectX-5/ConnectX-6/BlueField devices managed by librte_net_mlx5.
 
 #. Request huge pages::
 
-      echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages/nr_hugepages
+      dpdk-hugepages.py --setup 2G
 
 #. Start testpmd with basic parameters::
 
-      testpmd -l 8-15 -n 4 -a 05:00.0 -a 05:00.1 -a 06:00.0 -a 06:00.1 -- --rxq=2 --txq=2 -i
+      dpdk-testpmd -l 8-15 -n 4 -a 05:00.0 -a 05:00.1 -a 06:00.0 -a 06:00.1 -- --rxq=2 --txq=2 -i
 
    Example output::
 
@@ -1658,13 +1956,16 @@ all flows with assistance of external tools.
 
    .. code-block:: console
 
-       testpmd> flow dump <port> <output_file>
+       To dump all flows:
+       testpmd> flow dump <port> all <output_file>
+       and dump one flow:
+       testpmd> flow dump <port> rule <rule_id> <output_file>
 
    - call rte_flow_dev_dump api:
 
    .. code-block:: console
 
-       rte_flow_dev_dump(port, file, NULL);
+       rte_flow_dev_dump(port, flow, file, NULL);
 
 #. Dump human-readable flows from raw file:
 
@@ -1672,4 +1973,30 @@ all flows with assistance of external tools.
 
    .. code-block:: console
 
-       mlx_steering_dump.py -f <output_file>
+       mlx_steering_dump.py -f <output_file> -flowptr <flow_ptr>
+
+How to share a meter between ports in the same switch domain
+------------------------------------------------------------
+
+This section demonstrates how to use the shared meter. A meter M can be created
+on port X and to be shared with a port Y on the same switch domain by the next way:
+
+.. code-block:: console
+
+   flow create X ingress transfer pattern eth / port_id id is Y / end actions meter mtr_id M / end
+
+How to use meter hierarchy
+--------------------------
+
+This section demonstrates how to create and use a meter hierarchy.
+A termination meter M can be the policy green action of another termination meter N.
+The two meters are chained together as a chain. Using meter N in a flow will apply
+both the meters in hierarchy on that flow.
+
+.. code-block:: console
+
+   add port meter policy 0 1 g_actions queue index 0 / end y_actions end r_actions drop / end
+   create port meter 0 M 1 1 yes 0xffff 1 0
+   add port meter policy 0 2 g_actions meter mtr_id M / end y_actions end r_actions drop / end
+   create port meter 0 N 2 2 yes 0xffff 1 0
+   flow create 0 ingress group 1 pattern eth / end actions meter mtr_id N / end

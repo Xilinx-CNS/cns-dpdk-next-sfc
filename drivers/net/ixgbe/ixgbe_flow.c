@@ -25,7 +25,7 @@
 #include <rte_eal.h>
 #include <rte_alarm.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_malloc.h>
 #include <rte_random.h>
 #include <rte_dev.h>
@@ -3437,6 +3437,7 @@ ixgbe_flow_destroy(struct rte_eth_dev *dev,
 			TAILQ_REMOVE(&ixgbe_flow_list,
 				ixgbe_flow_mem_ptr, entries);
 			rte_free(ixgbe_flow_mem_ptr);
+			break;
 		}
 	}
 	rte_free(flow);

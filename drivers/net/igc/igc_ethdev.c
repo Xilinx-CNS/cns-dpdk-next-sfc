@@ -8,8 +8,8 @@
 #include <rte_string_fns.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_alarm.h>
 
@@ -297,7 +297,7 @@ static const struct eth_dev_ops eth_igc_ops = {
 	.vlan_offload_set	= eth_igc_vlan_offload_set,
 	.vlan_tpid_set		= eth_igc_vlan_tpid_set,
 	.vlan_strip_queue_set	= eth_igc_vlan_strip_queue_set,
-	.filter_ctrl		= eth_igc_filter_ctrl,
+	.flow_ops_get		= eth_igc_flow_ops_get,
 };
 
 /*

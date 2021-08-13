@@ -153,7 +153,7 @@ Runtime Config Options
 
       -a 0002:02:00.0,max_sqb_count=64
 
-   With the above configuration, each send queue's decscriptor buffer count is
+   With the above configuration, each send queue's descriptor buffer count is
    limited to a maximum of 64 buffers.
 
 - ``Switch header enable`` (default ``none``)
@@ -167,7 +167,7 @@ Runtime Config Options
 
    With the above configuration, higig2 will be enabled on that port and the
    traffic on this port should be higig2 traffic only. Supported switch header
-   types are "higig2", "dsa" and "chlen90b".
+   types are "chlen24b", "chlen90b", "dsa", "exdsa", "higig2" and "vlan_exdsa".
 
 - ``RSS tag as XOR`` (default ``0``)
 
@@ -242,7 +242,7 @@ configure the following features:
 #. Hierarchical scheduling
 #. Single rate - Two color, Two rate - Three color shaping
 
-Both DWRR and Static Priority(SP) hierarchial scheduling is supported.
+Both DWRR and Static Priority(SP) hierarchical scheduling is supported.
 
 Every parent can have atmost 10 SP Children and unlimited DWRR children.
 
@@ -362,6 +362,8 @@ Patterns:
    +----+--------------------------------+
    | 24 | RTE_FLOW_ITEM_TYPE_HIGIG2      |
    +----+--------------------------------+
+   | 25 | RTE_FLOW_ITEM_TYPE_RAW         |
+   +----+--------------------------------+
 
 .. note::
 
@@ -399,6 +401,12 @@ Actions:
    +----+-----------------------------------------+
    | 11 | RTE_FLOW_ACTION_TYPE_OF_POP_VLAN        |
    +----+-----------------------------------------+
+   | 12 | RTE_FLOW_ACTION_TYPE_PORT_ID            |
+   +----+-----------------------------------------+
+
+.. note::
+
+   ``RTE_FLOW_ACTION_TYPE_PORT_ID`` is only supported between PF and its VFs.
 
 .. _table_octeontx2_supported_egress_action_types:
 
@@ -417,3 +425,38 @@ Actions:
    +----+-----------------------------------------+
    | 5  | RTE_FLOW_ACTION_TYPE_OF_SET_VLAN_PCP    |
    +----+-----------------------------------------+
+
+Custom protocols supported in RTE Flow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``RTE_FLOW_ITEM_TYPE_RAW`` can be used to parse the below custom protocols.
+
+* ``vlan_exdsa`` and ``exdsa`` can be parsed at L2 level.
+* ``NGIO`` can be parsed at L3 level.
+
+For ``vlan_exdsa`` and ``exdsa``, the port has to be configured with the
+respective switch header.
+
+For example::
+
+   -a 0002:02:00.0,switch_header="vlan_exdsa"
+
+The below fields of ``struct rte_flow_item_raw`` shall be used to specify the
+pattern.
+
+- ``relative`` Selects the layer at which parsing is done.
+
+  - 0 for ``exdsa`` and ``vlan_exdsa``.
+
+  - 1 for  ``NGIO``.
+
+- ``offset`` The offset in the header where the pattern should be matched.
+- ``length`` Length of the pattern.
+- ``pattern`` Pattern as a byte string.
+
+Example usage in testpmd::
+
+   ./dpdk-testpmd -c 3 -w 0002:02:00.0,switch_header=exdsa -- -i \
+                  --rx-offloads=0x00080000 --rxq 8 --txq 8
+   testpmd> flow create 0 ingress pattern eth / raw relative is 0 pattern \
+          spec ab pattern mask ab offset is 4 / end actions queue index 1 / end

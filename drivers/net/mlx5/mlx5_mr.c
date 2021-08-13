@@ -7,7 +7,6 @@
 #include <rte_mempool.h>
 #include <rte_malloc.h>
 #include <rte_rwlock.h>
-#include <rte_bus_pci.h>
 
 #include <mlx5_common_mp.h>
 #include <mlx5_common_mr.h>
@@ -15,6 +14,8 @@
 #include "mlx5.h"
 #include "mlx5_mr.h"
 #include "mlx5_rxtx.h"
+#include "mlx5_rx.h"
+#include "mlx5_tx.h"
 
 struct mr_find_contig_memsegs_data {
 	uintptr_t addr;
@@ -28,98 +29,6 @@ struct mr_update_mp_data {
 	struct mlx5_mr_ctrl *mr_ctrl;
 	int ret;
 };
-
-/**
- * Callback for memory free event. Iterate freed memsegs and check whether it
- * belongs to an existing MR. If found, clear the bit from bitmap of MR. As a
- * result, the MR would be fragmented. If it becomes empty, the MR will be freed
- * later by mlx5_mr_garbage_collect(). Even if this callback is called from a
- * secondary process, the garbage collector will be called in primary process
- * as the secondary process can't call mlx5_mr_create().
- *
- * The global cache must be rebuilt if there's any change and this event has to
- * be propagated to dataplane threads to flush the local caches.
- *
- * @param sh
- *   Pointer to the Ethernet device shared context.
- * @param addr
- *   Address of freed memory.
- * @param len
- *   Size of freed memory.
- */
-static void
-mlx5_mr_mem_event_free_cb(struct mlx5_dev_ctx_shared *sh,
-			  const void *addr, size_t len)
-{
-	const struct rte_memseg_list *msl;
-	struct mlx5_mr *mr;
-	int ms_n;
-	int i;
-	int rebuild = 0;
-
-	DEBUG("device %s free callback: addr=%p, len=%zu",
-	      sh->ibdev_name, addr, len);
-	msl = rte_mem_virt2memseg_list(addr);
-	/* addr and len must be page-aligned. */
-	MLX5_ASSERT((uintptr_t)addr ==
-		    RTE_ALIGN((uintptr_t)addr, msl->page_sz));
-	MLX5_ASSERT(len == RTE_ALIGN(len, msl->page_sz));
-	ms_n = len / msl->page_sz;
-	rte_rwlock_write_lock(&sh->share_cache.rwlock);
-	/* Clear bits of freed memsegs from MR. */
-	for (i = 0; i < ms_n; ++i) {
-		const struct rte_memseg *ms;
-		struct mr_cache_entry entry;
-		uintptr_t start;
-		int ms_idx;
-		uint32_t pos;
-
-		/* Find MR having this memseg. */
-		start = (uintptr_t)addr + i * msl->page_sz;
-		mr = mlx5_mr_lookup_list(&sh->share_cache, &entry, start);
-		if (mr == NULL)
-			continue;
-		MLX5_ASSERT(mr->msl); /* Can't be external memory. */
-		ms = rte_mem_virt2memseg((void *)start, msl);
-		MLX5_ASSERT(ms != NULL);
-		MLX5_ASSERT(msl->page_sz == ms->hugepage_sz);
-		ms_idx = rte_fbarray_find_idx(&msl->memseg_arr, ms);
-		pos = ms_idx - mr->ms_base_idx;
-		MLX5_ASSERT(rte_bitmap_get(mr->ms_bmp, pos));
-		MLX5_ASSERT(pos < mr->ms_bmp_n);
-		DEBUG("device %s MR(%p): clear bitmap[%u] for addr %p",
-		      sh->ibdev_name, (void *)mr, pos, (void *)start);
-		rte_bitmap_clear(mr->ms_bmp, pos);
-		if (--mr->ms_n == 0) {
-			LIST_REMOVE(mr, mr);
-			LIST_INSERT_HEAD(&sh->share_cache.mr_free_list, mr, mr);
-			DEBUG("device %s remove MR(%p) from list",
-			      sh->ibdev_name, (void *)mr);
-		}
-		/*
-		 * MR is fragmented or will be freed. the global cache must be
-		 * rebuilt.
-		 */
-		rebuild = 1;
-	}
-	if (rebuild) {
-		mlx5_mr_rebuild_cache(&sh->share_cache);
-		/*
-		 * Flush local caches by propagating invalidation across cores.
-		 * rte_smp_wmb() is enough to synchronize this event. If one of
-		 * freed memsegs is seen by other core, that means the memseg
-		 * has been allocated by allocator, which will come after this
-		 * free call. Therefore, this store instruction (incrementing
-		 * generation below) will be guaranteed to be seen by other core
-		 * before the core sees the newly allocated memory.
-		 */
-		++sh->share_cache.dev_gen;
-		DEBUG("broadcasting local cache flush, gen=%d",
-		      sh->share_cache.dev_gen);
-		rte_smp_wmb();
-	}
-	rte_rwlock_write_unlock(&sh->share_cache.rwlock);
-}
 
 /**
  * Callback for memory event. This can be called from both primary and secondary
@@ -146,7 +55,8 @@ mlx5_mr_mem_event_cb(enum rte_mem_event event_type, const void *addr,
 		rte_rwlock_write_lock(&mlx5_shared_data->mem_event_rwlock);
 		/* Iterate all the existing mlx5 devices. */
 		LIST_FOREACH(sh, dev_list, mem_event_cb)
-			mlx5_mr_mem_event_free_cb(sh, addr, len);
+			mlx5_free_mr_by_addr(&sh->share_cache,
+					     sh->ibdev_name, addr, len);
 		rte_rwlock_write_unlock(&mlx5_shared_data->mem_event_rwlock);
 		break;
 	case RTE_MEM_EVENT_ALLOC:
@@ -288,33 +198,33 @@ mlx5_mr_update_ext_mp_cb(struct rte_mempool *mp, void *opaque,
 }
 
 /**
- * Finds the first ethdev that match the pci device.
+ * Finds the first ethdev that match the device.
  * The existence of multiple ethdev per pci device is only with representors.
  * On such case, it is enough to get only one of the ports as they all share
  * the same ibv context.
  *
- * @param pdev
- *   Pointer to the PCI device.
+ * @param dev
+ *   Pointer to the device.
  *
  * @return
  *   Pointer to the ethdev if found, NULL otherwise.
  */
 static struct rte_eth_dev *
-pci_dev_to_eth_dev(struct rte_pci_device *pdev)
+dev_to_eth_dev(struct rte_device *dev)
 {
 	uint16_t port_id;
 
-	port_id = rte_eth_find_next_of(0, &pdev->device);
+	port_id = rte_eth_find_next_of(0, dev);
 	if (port_id == RTE_MAX_ETHPORTS)
 		return NULL;
 	return &rte_eth_devices[port_id];
 }
 
 /**
- * DPDK callback to DMA map external memory to a PCI device.
+ * Callback to DMA map external memory to a device.
  *
- * @param pdev
- *   Pointer to the PCI device.
+ * @param rte_dev
+ *   Pointer to the generic device.
  * @param addr
  *   Starting virtual address of memory to be mapped.
  * @param iova
@@ -326,18 +236,18 @@ pci_dev_to_eth_dev(struct rte_pci_device *pdev)
  *   0 on success, negative value on error.
  */
 int
-mlx5_dma_map(struct rte_pci_device *pdev, void *addr,
-	     uint64_t iova __rte_unused, size_t len)
+mlx5_net_dma_map(struct rte_device *rte_dev, void *addr,
+		 uint64_t iova __rte_unused, size_t len)
 {
 	struct rte_eth_dev *dev;
 	struct mlx5_mr *mr;
 	struct mlx5_priv *priv;
 	struct mlx5_dev_ctx_shared *sh;
 
-	dev = pci_dev_to_eth_dev(pdev);
+	dev = dev_to_eth_dev(rte_dev);
 	if (!dev) {
 		DRV_LOG(WARNING, "unable to find matching ethdev "
-				 "to PCI device %p", (void *)pdev);
+				 "to device %s", rte_dev->name);
 		rte_errno = ENODEV;
 		return -1;
 	}
@@ -360,10 +270,10 @@ mlx5_dma_map(struct rte_pci_device *pdev, void *addr,
 }
 
 /**
- * DPDK callback to DMA unmap external memory to a PCI device.
+ * Callback to DMA unmap external memory to a device.
  *
- * @param pdev
- *   Pointer to the PCI device.
+ * @param rte_dev
+ *   Pointer to the generic device.
  * @param addr
  *   Starting virtual address of memory to be unmapped.
  * @param iova
@@ -375,8 +285,8 @@ mlx5_dma_map(struct rte_pci_device *pdev, void *addr,
  *   0 on success, negative value on error.
  */
 int
-mlx5_dma_unmap(struct rte_pci_device *pdev, void *addr,
-	       uint64_t iova __rte_unused, size_t len __rte_unused)
+mlx5_net_dma_unmap(struct rte_device *rte_dev, void *addr,
+		   uint64_t iova __rte_unused, size_t len __rte_unused)
 {
 	struct rte_eth_dev *dev;
 	struct mlx5_priv *priv;
@@ -384,44 +294,38 @@ mlx5_dma_unmap(struct rte_pci_device *pdev, void *addr,
 	struct mlx5_mr *mr;
 	struct mr_cache_entry entry;
 
-	dev = pci_dev_to_eth_dev(pdev);
+	dev = dev_to_eth_dev(rte_dev);
 	if (!dev) {
-		DRV_LOG(WARNING, "unable to find matching ethdev "
-				 "to PCI device %p", (void *)pdev);
+		DRV_LOG(WARNING, "unable to find matching ethdev to device %s",
+			rte_dev->name);
 		rte_errno = ENODEV;
 		return -1;
 	}
 	priv = dev->data->dev_private;
 	sh = priv->sh;
-	rte_rwlock_read_lock(&sh->share_cache.rwlock);
+	rte_rwlock_write_lock(&sh->share_cache.rwlock);
 	mr = mlx5_mr_lookup_list(&sh->share_cache, &entry, (uintptr_t)addr);
 	if (!mr) {
-		rte_rwlock_read_unlock(&sh->share_cache.rwlock);
-		DRV_LOG(WARNING, "address 0x%" PRIxPTR " wasn't registered "
-				 "to PCI device %p", (uintptr_t)addr,
-				 (void *)pdev);
+		rte_rwlock_write_unlock(&sh->share_cache.rwlock);
+		DRV_LOG(WARNING, "address 0x%" PRIxPTR " wasn't registered to device %s",
+			(uintptr_t)addr, rte_dev->name);
 		rte_errno = EINVAL;
 		return -1;
 	}
 	LIST_REMOVE(mr, mr);
-	mlx5_mr_free(mr, sh->share_cache.dereg_mr_cb);
-	DEBUG("port %u remove MR(%p) from list", dev->data->port_id,
+	DRV_LOG(DEBUG, "port %u remove MR(%p) from list", dev->data->port_id,
 	      (void *)mr);
+	mlx5_mr_free(mr, sh->share_cache.dereg_mr_cb);
 	mlx5_mr_rebuild_cache(&sh->share_cache);
 	/*
-	 * Flush local caches by propagating invalidation across cores.
-	 * rte_smp_wmb() is enough to synchronize this event. If one of
-	 * freed memsegs is seen by other core, that means the memseg
-	 * has been allocated by allocator, which will come after this
-	 * free call. Therefore, this store instruction (incrementing
-	 * generation below) will be guaranteed to be seen by other core
-	 * before the core sees the newly allocated memory.
+	 * No explicit wmb is needed after updating dev_gen due to
+	 * store-release ordering in unlock that provides the
+	 * implicit barrier at the software visible level.
 	 */
 	++sh->share_cache.dev_gen;
-	DEBUG("broadcasting local cache flush, gen=%d",
+	DRV_LOG(DEBUG, "broadcasting local cache flush, gen=%d",
 	      sh->share_cache.dev_gen);
-	rte_smp_wmb();
-	rte_rwlock_read_unlock(&sh->share_cache.rwlock);
+	rte_rwlock_write_unlock(&sh->share_cache.rwlock);
 	return 0;
 }
 

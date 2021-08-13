@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2020 Broadcom
+ * Copyright(c) 2014-2021 Broadcom
  * All rights reserved.
  */
 
@@ -93,6 +93,13 @@ ulp_fc_mgr_init(struct bnxt_ulp_context *ctxt)
 	/* Add the FC info tbl to the ulp context. */
 	bnxt_ulp_cntxt_ptr2_fc_info_set(ctxt, ulp_fc_info);
 
+	ulp_fc_info->num_counters = dparms->flow_count_db_entries;
+	if (!ulp_fc_info->num_counters) {
+		/* No need for software counters, call fw directly */
+		BNXT_TF_DBG(DEBUG, "Sw flow counter support not enabled\n");
+		return 0;
+	}
+
 	sw_acc_cntr_tbl_sz = sizeof(struct sw_acc_counter) *
 				dparms->flow_count_db_entries;
 
@@ -132,6 +139,7 @@ int32_t
 ulp_fc_mgr_deinit(struct bnxt_ulp_context *ctxt)
 {
 	struct bnxt_ulp_fc_info *ulp_fc_info;
+	struct hw_fc_mem_info *shd_info;
 	int i;
 
 	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
@@ -143,11 +151,15 @@ ulp_fc_mgr_deinit(struct bnxt_ulp_context *ctxt)
 
 	pthread_mutex_destroy(&ulp_fc_info->fc_lock);
 
-	for (i = 0; i < TF_DIR_MAX; i++)
-		rte_free(ulp_fc_info->sw_acc_tbl[i]);
+	if (ulp_fc_info->num_counters) {
+		for (i = 0; i < TF_DIR_MAX; i++)
+			rte_free(ulp_fc_info->sw_acc_tbl[i]);
 
-	for (i = 0; i < TF_DIR_MAX; i++)
-		ulp_fc_mgr_shadow_mem_free(&ulp_fc_info->shadow_hw_tbl[i]);
+		for (i = 0; i < TF_DIR_MAX; i++) {
+			shd_info = &ulp_fc_info->shadow_hw_tbl[i];
+			ulp_fc_mgr_shadow_mem_free(shd_info);
+		}
+	}
 
 	rte_free(ulp_fc_info);
 
@@ -169,7 +181,10 @@ bool ulp_fc_mgr_thread_isstarted(struct bnxt_ulp_context *ctxt)
 
 	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
 
-	return !!(ulp_fc_info->flags & ULP_FLAG_FC_THREAD);
+	if (ulp_fc_info)
+		return !!(ulp_fc_info->flags & ULP_FLAG_FC_THREAD);
+
+	return false;
 }
 
 /*
@@ -186,10 +201,9 @@ ulp_fc_mgr_thread_start(struct bnxt_ulp_context *ctxt)
 
 	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
 
-	if (!(ulp_fc_info->flags & ULP_FLAG_FC_THREAD)) {
+	if (ulp_fc_info && !(ulp_fc_info->flags & ULP_FLAG_FC_THREAD)) {
 		rte_eal_alarm_set(US_PER_S * ULP_FC_TIMER,
-				  ulp_fc_mgr_alarm_cb,
-				  (void *)ctxt);
+				  ulp_fc_mgr_alarm_cb, NULL);
 		ulp_fc_info->flags |= ULP_FLAG_FC_THREAD;
 	}
 
@@ -211,7 +225,7 @@ void ulp_fc_mgr_thread_cancel(struct bnxt_ulp_context *ctxt)
 		return;
 
 	ulp_fc_info->flags &= ~ULP_FLAG_FC_THREAD;
-	rte_eal_alarm_cancel(ulp_fc_mgr_alarm_cb, (void *)ctxt);
+	rte_eal_alarm_cancel(ulp_fc_mgr_alarm_cb, NULL);
 }
 
 /*
@@ -251,7 +265,8 @@ ulp_bulk_get_flow_stats(struct tf *tfp,
 	 */
 	parms.entry_sz_in_bytes = sizeof(uint64_t);
 	stats = (uint64_t *)fc_info->shadow_hw_tbl[dir].mem_va;
-	parms.physical_mem_addr = (uintptr_t)fc_info->shadow_hw_tbl[dir].mem_pa;
+	parms.physical_mem_addr = (uint64_t)
+		((uintptr_t)(fc_info->shadow_hw_tbl[dir].mem_pa));
 
 	if (!stats) {
 		PMD_DRV_LOG(ERR,
@@ -279,6 +294,74 @@ ulp_bulk_get_flow_stats(struct tf *tfp,
 								dparms);
 	}
 
+	return rc;
+}
+
+static int32_t
+ulp_fc_tf_flow_stat_get(struct bnxt_ulp_context *ctxt,
+			struct ulp_flow_db_res_params *res,
+			struct rte_flow_query_count *qcount)
+{
+	struct tf *tfp;
+	struct bnxt_ulp_device_params *dparms;
+	struct tf_get_tbl_entry_parms parms = { 0 };
+	struct tf_set_tbl_entry_parms	sparms = { 0 };
+	enum tf_tbl_type stype = TF_TBL_TYPE_ACT_STATS_64;
+	uint64_t stats = 0;
+	uint32_t dev_id = 0;
+	int32_t rc = 0;
+
+	tfp = bnxt_ulp_cntxt_tfp_get(ctxt, BNXT_ULP_SHARED_SESSION_NO);
+	if (!tfp) {
+		BNXT_TF_DBG(ERR, "Failed to get the truflow pointer\n");
+		return -EINVAL;
+	}
+
+	if (bnxt_ulp_cntxt_dev_id_get(ctxt, &dev_id)) {
+		BNXT_TF_DBG(DEBUG, "Failed to get device id\n");
+		bnxt_ulp_cntxt_entry_release();
+		return -EINVAL;
+	}
+
+	dparms = bnxt_ulp_device_params_get(dev_id);
+	if (!dparms) {
+		BNXT_TF_DBG(DEBUG, "Failed to device parms\n");
+		bnxt_ulp_cntxt_entry_release();
+		return -EINVAL;
+	}
+	parms.dir = res->direction;
+	parms.type = stype;
+	parms.idx = res->resource_hndl;
+	parms.data_sz_in_bytes = sizeof(uint64_t);
+	parms.data = (uint8_t *)&stats;
+	rc = tf_get_tbl_entry(tfp, &parms);
+	if (rc) {
+		PMD_DRV_LOG(ERR,
+			    "Get failed for id:0x%x rc:%d\n",
+			    parms.idx, rc);
+		return rc;
+	}
+	qcount->hits = FLOW_CNTR_PKTS(stats, dparms);
+	if (qcount->hits)
+		qcount->hits_set = 1;
+	qcount->bytes = FLOW_CNTR_BYTES(stats, dparms);
+	if (qcount->bytes)
+		qcount->bytes_set = 1;
+
+	if (qcount->reset) {
+		stats = 0;
+		sparms.dir = res->direction;
+		sparms.type = stype;
+		sparms.idx = res->resource_hndl;
+		sparms.data = (uint8_t *)&stats;
+		sparms.data_sz_in_bytes = sizeof(uint64_t);
+		rc = tf_set_tbl_entry(tfp, &sparms);
+		if (rc) {
+			PMD_DRV_LOG(ERR, "Set failed for id:0x%x rc:%d\n",
+				    sparms.idx, rc);
+			return rc;
+		}
+	}
 	return rc;
 }
 
@@ -316,8 +399,18 @@ static int ulp_get_single_flow_stat(struct bnxt_ulp_context *ctxt,
 	/* TBD - Get PKT/BYTE COUNT SHIFT/MASK from Template */
 	sw_cntr_indx = hw_cntr_id - fc_info->shadow_hw_tbl[dir].start_idx;
 	sw_acc_tbl_entry = &fc_info->sw_acc_tbl[dir][sw_cntr_indx];
-	sw_acc_tbl_entry->pkt_count = FLOW_CNTR_PKTS(stats, dparms);
-	sw_acc_tbl_entry->byte_count = FLOW_CNTR_BYTES(stats, dparms);
+	/* Some dpdk applications may accumulate the flow counters while some
+	 * may not. In cases where the application is accumulating the counters
+	 * the PMD need not do the accumulation itself and viceversa to report
+	 * the correct flow counters.
+	 */
+	if (ctxt->cfg_data->accum_stats) {
+		sw_acc_tbl_entry->pkt_count += FLOW_CNTR_PKTS(stats, dparms);
+		sw_acc_tbl_entry->byte_count += FLOW_CNTR_BYTES(stats, dparms);
+	} else {
+		sw_acc_tbl_entry->pkt_count = FLOW_CNTR_PKTS(stats, dparms);
+		sw_acc_tbl_entry->byte_count = FLOW_CNTR_BYTES(stats, dparms);
+	}
 
 	/* Update the parent counters if it is child flow */
 	if (sw_acc_tbl_entry->parent_flow_id) {
@@ -343,35 +436,48 @@ static int ulp_get_single_flow_stat(struct bnxt_ulp_context *ctxt,
  */
 
 void
-ulp_fc_mgr_alarm_cb(void *arg)
+ulp_fc_mgr_alarm_cb(void *arg __rte_unused)
 {
 	int rc = 0;
 	unsigned int j;
 	enum tf_dir i;
-	struct bnxt_ulp_context *ctxt = arg;
+	struct bnxt_ulp_context *ctxt;
 	struct bnxt_ulp_fc_info *ulp_fc_info;
 	struct bnxt_ulp_device_params *dparms;
 	struct tf *tfp;
 	uint32_t dev_id, hw_cntr_id = 0, num_entries = 0;
 
-	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
-	if (!ulp_fc_info)
+	ctxt = bnxt_ulp_cntxt_entry_acquire();
+	if (ctxt == NULL) {
+		BNXT_TF_DBG(INFO, "could not get the ulp context lock\n");
+		rte_eal_alarm_set(US_PER_S * ULP_FC_TIMER,
+				  ulp_fc_mgr_alarm_cb, NULL);
 		return;
+	}
+
+	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
+	if (!ulp_fc_info) {
+		bnxt_ulp_cntxt_entry_release();
+		return;
+	}
 
 	if (bnxt_ulp_cntxt_dev_id_get(ctxt, &dev_id)) {
 		BNXT_TF_DBG(DEBUG, "Failed to get device id\n");
+		bnxt_ulp_cntxt_entry_release();
 		return;
 	}
 
 	dparms = bnxt_ulp_device_params_get(dev_id);
 	if (!dparms) {
 		BNXT_TF_DBG(DEBUG, "Failed to device parms\n");
+		bnxt_ulp_cntxt_entry_release();
 		return;
 	}
 
-	tfp = bnxt_ulp_cntxt_tfp_get(ctxt);
+	tfp = bnxt_ulp_cntxt_tfp_get(ctxt, BNXT_ULP_SHARED_SESSION_NO);
 	if (!tfp) {
 		BNXT_TF_DBG(ERR, "Failed to get the truflow pointer\n");
+		bnxt_ulp_cntxt_entry_release();
 		return;
 	}
 
@@ -385,6 +491,7 @@ ulp_fc_mgr_alarm_cb(void *arg)
 	if (!ulp_fc_info->num_entries) {
 		pthread_mutex_unlock(&ulp_fc_info->fc_lock);
 		ulp_fc_mgr_thread_cancel(ctxt);
+		bnxt_ulp_cntxt_entry_release();
 		return;
 	}
 	/*
@@ -423,12 +530,13 @@ ulp_fc_mgr_alarm_cb(void *arg)
 
 	if (rc) {
 		ulp_fc_mgr_thread_cancel(ctxt);
+		bnxt_ulp_cntxt_entry_release();
 		return;
 	}
 out:
+	bnxt_ulp_cntxt_entry_release();
 	rte_eal_alarm_set(US_PER_S * ULP_FC_TIMER,
-			  ulp_fc_mgr_alarm_cb,
-			  (void *)ctxt);
+			  ulp_fc_mgr_alarm_cb, NULL);
 }
 
 /*
@@ -448,7 +556,10 @@ bool ulp_fc_mgr_start_idx_isset(struct bnxt_ulp_context *ctxt, enum tf_dir dir)
 
 	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
 
-	return ulp_fc_info->shadow_hw_tbl[dir].start_idx_is_set;
+	if (ulp_fc_info)
+		return ulp_fc_info->shadow_hw_tbl[dir].start_idx_is_set;
+
+	return false;
 }
 
 /*
@@ -503,6 +614,9 @@ int32_t ulp_fc_mgr_cntr_set(struct bnxt_ulp_context *ctxt, enum tf_dir dir,
 	if (!ulp_fc_info)
 		return -EIO;
 
+	if (!ulp_fc_info->num_counters)
+		return 0;
+
 	pthread_mutex_lock(&ulp_fc_info->fc_lock);
 	sw_cntr_idx = hw_cntr_id - ulp_fc_info->shadow_hw_tbl[dir].start_idx;
 	ulp_fc_info->sw_acc_tbl[dir][sw_cntr_idx].valid = true;
@@ -534,6 +648,9 @@ int32_t ulp_fc_mgr_cntr_reset(struct bnxt_ulp_context *ctxt, enum tf_dir dir,
 	ulp_fc_info = bnxt_ulp_cntxt_ptr2_fc_info_get(ctxt);
 	if (!ulp_fc_info)
 		return -EIO;
+
+	if (!ulp_fc_info->num_counters)
+		return 0;
 
 	pthread_mutex_lock(&ulp_fc_info->fc_lock);
 	sw_cntr_idx = hw_cntr_id - ulp_fc_info->shadow_hw_tbl[dir].start_idx;
@@ -588,11 +705,11 @@ int ulp_fc_mgr_query_count_get(struct bnxt_ulp_context *ctxt,
 		if (params.resource_func ==
 		     BNXT_ULP_RESOURCE_FUNC_INDEX_TABLE &&
 		     (params.resource_sub_type ==
-		      BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TYPE_INT_COUNT ||
+		      BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TABLE_INT_COUNT ||
 		      params.resource_sub_type ==
-		      BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TYPE_EXT_COUNT ||
+		      BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TABLE_EXT_COUNT ||
 		      params.resource_sub_type ==
-		      BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TYPE_INT_COUNT_ACC)) {
+		      BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TABLE_INT_COUNT_ACC)) {
 			found_cntr_resource = true;
 			break;
 		}
@@ -606,7 +723,13 @@ int ulp_fc_mgr_query_count_get(struct bnxt_ulp_context *ctxt,
 	dir = params.direction;
 	hw_cntr_id = params.resource_hndl;
 	if (params.resource_sub_type ==
-			BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TYPE_INT_COUNT) {
+			BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TABLE_INT_COUNT) {
+		if (!ulp_fc_info->num_counters)
+			return ulp_fc_tf_flow_stat_get(ctxt, &params, count);
+
+		/* TODO:
+		 * Think about optimizing with try_lock later
+		 */
 		pthread_mutex_lock(&ulp_fc_info->fc_lock);
 		sw_cntr_idx = hw_cntr_id -
 			ulp_fc_info->shadow_hw_tbl[dir].start_idx;
@@ -623,7 +746,7 @@ int ulp_fc_mgr_query_count_get(struct bnxt_ulp_context *ctxt,
 		}
 		pthread_mutex_unlock(&ulp_fc_info->fc_lock);
 	} else if (params.resource_sub_type ==
-			BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TYPE_INT_COUNT_ACC) {
+			BNXT_ULP_RESOURCE_SUB_TYPE_INDEX_TABLE_INT_COUNT_ACC) {
 		/* Get stats from the parent child table */
 		ulp_flow_db_parent_flow_count_get(ctxt, flow_id,
 						  &count->hits, &count->bytes,

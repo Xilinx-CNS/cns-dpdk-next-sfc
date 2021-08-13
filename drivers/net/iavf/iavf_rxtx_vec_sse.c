@@ -3,7 +3,7 @@
  */
 
 #include <stdint.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_malloc.h>
 
 #include "iavf.h"
@@ -88,7 +88,7 @@ iavf_rxq_rearm(struct iavf_rx_queue *rxq)
 		   rx_id, rxq->rxrearm_start, rxq->rxrearm_nb);
 
 	/* Update the tail pointer on the NIC */
-	IAVF_PCI_REG_WRITE(rxq->qrx_tail, rx_id);
+	IAVF_PCI_REG_WC_WRITE(rxq->qrx_tail, rx_id);
 }
 
 static inline void
@@ -110,16 +110,16 @@ desc_to_olflags_v(struct iavf_rx_queue *rxq, __m128i descs[4],
 	const __m128i cksum_mask = _mm_set_epi32(
 			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
 			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
+			PKT_RX_OUTER_IP_CKSUM_BAD,
 			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
 			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
+			PKT_RX_OUTER_IP_CKSUM_BAD,
 			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
 			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD,
+			PKT_RX_OUTER_IP_CKSUM_BAD,
 			PKT_RX_IP_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD |
 			PKT_RX_L4_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD |
-			PKT_RX_EIP_CKSUM_BAD);
+			PKT_RX_OUTER_IP_CKSUM_BAD);
 
 	/* map rss and vlan type to rss hash and vlan flag */
 	const __m128i vlan_flags = _mm_set_epi8(0, 0, 0, 0,
@@ -134,12 +134,12 @@ desc_to_olflags_v(struct iavf_rx_queue *rxq, __m128i descs[4],
 
 	const __m128i l3_l4e_flags = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
 			/* shift right 1 bit to make sure it not exceed 255 */
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
+			(PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
 			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_EIP_CKSUM_BAD |
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_OUTER_IP_CKSUM_BAD |
 			 PKT_RX_L4_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_EIP_CKSUM_BAD) >> 1,
+			(PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
+			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_OUTER_IP_CKSUM_BAD) >> 1,
 			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
 			(PKT_RX_IP_CKSUM_GOOD | PKT_RX_L4_CKSUM_BAD) >> 1,
 			PKT_RX_IP_CKSUM_BAD >> 1,
@@ -227,29 +227,29 @@ flex_desc_to_olflags_v(struct iavf_rx_queue *rxq, __m128i descs[4],
 
 	const __m128i cksum_mask = _mm_set_epi32(PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
+						 PKT_RX_OUTER_IP_CKSUM_BAD,
 						 PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
+						 PKT_RX_OUTER_IP_CKSUM_BAD,
 						 PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
+						 PKT_RX_OUTER_IP_CKSUM_BAD,
 						 PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD);
+						 PKT_RX_OUTER_IP_CKSUM_BAD);
 
 	/* map the checksum, rss and vlan fields to the checksum, rss
 	 * and vlan flag
 	 */
 	const __m128i cksum_flags = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0,
 			/* shift right 1 bit to make sure it not exceed 255 */
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
+			(PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
 			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
+			(PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
 			 PKT_RX_IP_CKSUM_GOOD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
+			(PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
 			 PKT_RX_IP_CKSUM_BAD) >> 1,
-			(PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
+			(PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_GOOD |
 			 PKT_RX_IP_CKSUM_GOOD) >> 1,
 			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
 			(PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_GOOD) >> 1,
@@ -1171,7 +1171,7 @@ iavf_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	PMD_TX_LOG(DEBUG, "port_id=%u queue_id=%u tx_tail=%u nb_pkts=%u",
 		   txq->port_id, txq->queue_id, tx_id, nb_pkts);
 
-	IAVF_PCI_REG_WRITE(txq->qtx_tail, txq->tx_tail);
+	IAVF_PCI_REG_WC_WRITE(txq->qtx_tail, txq->tx_tail);
 
 	return nb_pkts;
 }

@@ -8,8 +8,7 @@
 
 /**
  * @file
- *
- * RTE PCI Bus Interface
+ * PCI device & driver interface
  */
 
 #ifdef __cplusplus
@@ -91,37 +90,33 @@ struct rte_pci_device {
 
 #define RTE_ETH_DEV_TO_PCI(eth_dev)	RTE_DEV_TO_PCI((eth_dev)->device)
 
-/** Any PCI device identifier (vendor, device, ...) */
-#define PCI_ANY_ID (0xffff)
-#define RTE_CLASS_ANY_ID (0xffffff)
-
 #ifdef __cplusplus
 /** C++ macro used to help building up tables of device IDs */
 #define RTE_PCI_DEVICE(vend, dev) \
 	RTE_CLASS_ANY_ID,         \
 	(vend),                   \
 	(dev),                    \
-	PCI_ANY_ID,               \
-	PCI_ANY_ID
+	RTE_PCI_ANY_ID,           \
+	RTE_PCI_ANY_ID
 #else
 /** Macro used to help building up tables of device IDs */
 #define RTE_PCI_DEVICE(vend, dev)          \
 	.class_id = RTE_CLASS_ANY_ID,      \
 	.vendor_id = (vend),               \
 	.device_id = (dev),                \
-	.subsystem_vendor_id = PCI_ANY_ID, \
-	.subsystem_device_id = PCI_ANY_ID
+	.subsystem_vendor_id = RTE_PCI_ANY_ID, \
+	.subsystem_device_id = RTE_PCI_ANY_ID
 #endif
 
 /**
  * Initialisation function for the driver called during PCI probing.
  */
-typedef int (pci_probe_t)(struct rte_pci_driver *, struct rte_pci_device *);
+typedef int (rte_pci_probe_t)(struct rte_pci_driver *, struct rte_pci_device *);
 
 /**
  * Uninitialisation function for the driver called during hotplugging.
  */
-typedef int (pci_remove_t)(struct rte_pci_device *);
+typedef int (rte_pci_remove_t)(struct rte_pci_device *);
 
 /**
  * Driver-specific DMA mapping. After a successful call the device
@@ -168,8 +163,8 @@ struct rte_pci_driver {
 	TAILQ_ENTRY(rte_pci_driver) next;  /**< Next in list. */
 	struct rte_driver driver;          /**< Inherit core driver. */
 	struct rte_pci_bus *bus;           /**< PCI bus reference. */
-	pci_probe_t *probe;                /**< Device Probe function. */
-	pci_remove_t *remove;              /**< Device Remove function. */
+	rte_pci_probe_t *probe;            /**< Device probe function. */
+	rte_pci_remove_t *remove;          /**< Device remove function. */
 	pci_dma_map_t *dma_map;		   /**< device dma map function. */
 	pci_dma_unmap_t *dma_unmap;	   /**< device dma unmap function. */
 	const struct rte_pci_id *id_table; /**< ID table, NULL terminated. */
@@ -252,6 +247,20 @@ void rte_pci_dump(FILE *f);
  */
 __rte_experimental
 off_t rte_pci_find_ext_capability(struct rte_pci_device *dev, uint32_t cap);
+
+/**
+ * Enables/Disables Bus Master for device's PCI command register.
+ *
+ *  @param dev
+ *    A pointer to rte_pci_device structure.
+ *  @param enable
+ *    Enable or disable Bus Master.
+ *
+ *  @return
+ *  0 on success, -1 on error in PCI config space read/write.
+ */
+__rte_experimental
+int rte_pci_set_bus_master(struct rte_pci_device *dev, bool enable);
 
 /**
  * Register a PCI driver.

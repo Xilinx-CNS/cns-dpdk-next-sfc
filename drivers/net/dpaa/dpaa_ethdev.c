@@ -29,7 +29,7 @@
 #include <rte_eal.h>
 #include <rte_alarm.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_malloc.h>
 #include <rte_ring.h>
 
@@ -486,9 +486,6 @@ static int dpaa_eth_dev_close(struct rte_eth_dev *dev)
 	if (dpaa_intf->cgr_rx) {
 		for (loop = 0; loop < dpaa_intf->nb_rx_queues; loop++)
 			qman_delete_cgr(&dpaa_intf->cgr_rx[loop]);
-
-		qman_release_cgrid_range(dpaa_intf->cgr_rx[loop].cgrid,
-					 dpaa_intf->nb_rx_queues);
 	}
 
 	rte_free(dpaa_intf->cgr_rx);
@@ -497,9 +494,6 @@ static int dpaa_eth_dev_close(struct rte_eth_dev *dev)
 	if (dpaa_intf->cgr_tx) {
 		for (loop = 0; loop < MAX_DPAA_CORES; loop++)
 			qman_delete_cgr(&dpaa_intf->cgr_tx[loop]);
-
-		qman_release_cgrid_range(dpaa_intf->cgr_tx[loop].cgrid,
-					 MAX_DPAA_CORES);
 		rte_free(dpaa_intf->cgr_tx);
 		dpaa_intf->cgr_tx = NULL;
 	}
@@ -975,6 +969,12 @@ int dpaa_eth_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
 			DPAA_MEMPOOL_TO_POOL_INFO(mp)->bpid)) {
 			return -EINVAL;
 		}
+	}
+
+	if (dpaa_intf->bp_info && dpaa_intf->bp_info->bp &&
+	    dpaa_intf->bp_info->mp != mp) {
+		DPAA_PMD_WARN("Multiple pools on same interface not supported");
+		return -EINVAL;
 	}
 
 	/* Max packet can fit in single buffer */
@@ -1523,12 +1523,19 @@ dpaa_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 {
 	struct dpaa_if *dpaa_intf = dev->data->dev_private;
 	struct qman_fq *rxq;
+	int ret;
 
 	rxq = dev->data->rx_queues[queue_id];
 
 	qinfo->mp = dpaa_intf->bp_info->mp;
 	qinfo->scattered_rx = dev->data->scattered_rx;
 	qinfo->nb_desc = rxq->nb_desc;
+
+	/* Report the HW Rx buffer length to user */
+	ret = fman_if_get_maxfrm(dev->process_private);
+	if (ret > 0)
+		qinfo->rx_buf_size = ret;
+
 	qinfo->conf.rx_free_thresh = 1;
 	qinfo->conf.rx_drop_en = 1;
 	qinfo->conf.rx_deferred_start = 0;
@@ -2304,4 +2311,4 @@ static struct rte_dpaa_driver rte_dpaa_pmd = {
 };
 
 RTE_PMD_REGISTER_DPAA(net_dpaa, rte_dpaa_pmd);
-RTE_LOG_REGISTER(dpaa_logtype_pmd, pmd.net.dpaa, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(dpaa_logtype_pmd, NOTICE);

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2019-2020 Broadcom
+ * Copyright(c) 2019-2021 Broadcom
  * All rights reserved.
  */
 
@@ -15,38 +15,8 @@ struct tf;
  * The Table module provides processing of Internal TF table types.
  */
 
-/**
- * Table scope control block content
- */
-struct tf_em_caps {
-	uint32_t flags;
-	uint32_t supported;
-	uint32_t max_entries_supported;
-	uint16_t key_entry_size;
-	uint16_t record_entry_size;
-	uint16_t efc_entry_size;
-};
-
 /** Invalid table scope id */
 #define TF_TBL_SCOPE_INVALID 0xffffffff
-
-/**
- * Table Scope Control Block
- *
- * Holds private data for a table scope. Only one instance of a table
- * scope with Internal EM is supported.
- */
-struct tf_tbl_scope_cb {
-	uint32_t tbl_scope_id;
-       /** The pf or parent pf of the vf used for table scope creation
-	*/
-	uint16_t pf;
-	int index;
-	struct hcapi_cfa_em_ctx_mem_info em_ctx_info[TF_DIR_MAX];
-	struct tf_em_caps em_caps[TF_DIR_MAX];
-	struct stack ext_act_pool[TF_DIR_MAX];
-	uint32_t *ext_act_pool_mem[TF_DIR_MAX];
-};
 
 /**
  * Table configuration parameters
@@ -260,6 +230,16 @@ struct tf_tbl_get_bulk_parms {
 };
 
 /**
+ * Table RM database
+ *
+ * Table rm database
+ *
+ */
+struct tbl_rm_db {
+	struct rm_db *tbl_db[TF_DIR_MAX];
+};
+
+/**
  * @page tbl Table
  *
  * @ref tf_tbl_bind
@@ -415,5 +395,22 @@ int tf_tbl_get(struct tf *tfp,
  */
 int tf_tbl_bulk_get(struct tf *tfp,
 		    struct tf_tbl_get_bulk_parms *parms);
+
+/**
+ * Retrieves the allocated resource info
+ *
+ * [in] tfp
+ *   Pointer to TF handle, used for HCAPI communication
+ *
+ * [in] parms
+ *   Pointer to Table resource info parameters
+ *
+ * Returns
+ *   - (0) if successful.
+ *   - (-EINVAL) on failure.
+ */
+int
+tf_tbl_get_resc_info(struct tf *tfp,
+		     struct tf_tbl_resource_info *tbl);
 
 #endif /* TF_TBL_TYPE_H */

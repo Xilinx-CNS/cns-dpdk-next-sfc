@@ -19,7 +19,6 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <inttypes.h>
-#include <arpa/inet.h>
 
 #include <rte_common.h>
 #include <rte_byteorder.h>
@@ -143,6 +142,7 @@ usage(char* progname)
 	printf("  --hairpinq=N: set the number of hairpin queues per port to "
 	       "N.\n");
 	printf("  --burst=N: set the number of packets per burst to N.\n");
+	printf("  --flowgen-clones=N: set the number of single packet clones to send in flowgen mode. Should be less than burst value.\n");
 	printf("  --mbcache=N: set the cache of mbuf memory pool to N.\n");
 	printf("  --rxpt=N: set prefetch threshold register of RX rings to N.\n");
 	printf("  --rxht=N: set the host threshold register of RX rings to N.\n");
@@ -165,6 +165,7 @@ usage(char* progname)
 	printf("  --txonly-multi-flow: generate multiple flows in txonly mode\n");
 	printf("  --tx-ip=src,dst: IP addresses in Tx-only mode\n");
 	printf("  --tx-udp=src[,dst]: UDP ports in Tx-only mode\n");
+	printf("  --eth-link-speed: force link speed.\n");
 	printf("  --disable-link-check: disable check on link status when "
 	       "starting/stopping ports.\n");
 	printf("  --disable-device-start: do not automatically start port\n");
@@ -183,8 +184,10 @@ usage(char* progname)
 	printf("  --hot-plug: enable hot plug for device.\n");
 	printf("  --vxlan-gpe-port=N: UPD port of tunnel VXLAN-GPE\n");
 	printf("  --geneve-parsed-port=N: UPD port to parse GENEVE tunnel protocol\n");
+#ifndef RTE_EXEC_ENV_WINDOWS
 	printf("  --mlockall: lock all memory\n");
 	printf("  --no-mlockall: do not lock all memory\n");
+#endif
 	printf("  --mp-alloc <native|anon|xmem|xmemhuge>: mempool allocation method.\n"
 	       "    native: use regular DPDK memory to create and populate mempool\n"
 	       "    anon: use regular DPDK memory to create and anonymous memory to populate mempool\n"
@@ -209,7 +212,7 @@ usage(char* progname)
 
 #ifdef RTE_LIB_CMDLINE
 static int
-init_peer_eth_addrs(char *config_filename)
+init_peer_eth_addrs(const char *config_filename)
 {
 	FILE *config_file;
 	portid_t i;
@@ -227,7 +230,8 @@ init_peer_eth_addrs(char *config_filename)
 			break;
 
 		if (rte_ether_unformat_addr(buf, &peer_eth_addrs[i]) < 0) {
-			printf("Bad MAC address format on line %d\n", i+1);
+			fprintf(stderr, "Bad MAC address format on line %d\n",
+				i + 1);
 			fclose(config_file);
 			return -1;
 		}
@@ -281,10 +285,10 @@ print_invalid_socket_id_error(void)
 {
 	unsigned int i = 0;
 
-	printf("Invalid socket id, options are: ");
+	fprintf(stderr, "Invalid socket id, options are: ");
 	for (i = 0; i < num_sockets; i++) {
-		printf("%u%s", socket_ids[i],
-		      (i == num_sockets - 1) ? "\n" : ",");
+		fprintf(stderr, "%u%s", socket_ids[i],
+			(i == num_sockets - 1) ? "\n" : ",");
 	}
 }
 
@@ -400,7 +404,8 @@ parse_ringnuma_config(const char *q_arg)
 		}
 		ring_flag = (uint8_t)int_fld[FLD_FLAG];
 		if ((ring_flag < RX_RING_ONLY) || (ring_flag > RXTX_RING)) {
-			printf("Invalid ring-flag=%d config for port =%d\n",
+			fprintf(stderr,
+				"Invalid ring-flag=%d config for port =%d\n",
 				ring_flag,port_id);
 			return -1;
 		}
@@ -417,7 +422,8 @@ parse_ringnuma_config(const char *q_arg)
 			txring_numa[port_id] = socket_id;
 			break;
 		default:
-			printf("Invalid ring-flag=%d config for port=%d\n",
+			fprintf(stderr,
+				"Invalid ring-flag=%d config for port=%d\n",
 				ring_flag,port_id);
 			break;
 		}
@@ -464,6 +470,43 @@ parse_event_printing_config(const char *optarg, int enable)
 	else
 		event_print_mask &= ~mask;
 	return 0;
+}
+
+static int
+parse_link_speed(int n)
+{
+	uint32_t speed = ETH_LINK_SPEED_FIXED;
+
+	switch (n) {
+	case 1000:
+		speed |= ETH_LINK_SPEED_1G;
+		break;
+	case 10000:
+		speed |= ETH_LINK_SPEED_10G;
+		break;
+	case 25000:
+		speed |= ETH_LINK_SPEED_25G;
+		break;
+	case 40000:
+		speed |= ETH_LINK_SPEED_40G;
+		break;
+	case 50000:
+		speed |= ETH_LINK_SPEED_50G;
+		break;
+	case 100000:
+		speed |= ETH_LINK_SPEED_100G;
+		break;
+	case 200000:
+		speed |= ETH_LINK_SPEED_200G;
+		break;
+	case 100:
+	case 10:
+	default:
+		fprintf(stderr, "Unsupported fixed speed\n");
+		return 0;
+	}
+
+	return speed;
 }
 
 void
@@ -542,6 +585,7 @@ launch_args_parse(int argc, char** argv)
 		{ "hairpinq",			1, 0, 0 },
 		{ "hairpin-mode",		1, 0, 0 },
 		{ "burst",			1, 0, 0 },
+		{ "flowgen-clones",		1, 0, 0 },
 		{ "mbcache",			1, 0, 0 },
 		{ "txpt",			1, 0, 0 },
 		{ "txht",			1, 0, 0 },
@@ -558,6 +602,7 @@ launch_args_parse(int argc, char** argv)
 		{ "rxpkts",			1, 0, 0 },
 		{ "txpkts",			1, 0, 0 },
 		{ "txonly-multi-flow",		0, 0, 0 },
+		{ "eth-link-speed",		1, 0, 0 },
 		{ "disable-link-check",		0, 0, 0 },
 		{ "disable-device-start",	0, 0, 0 },
 		{ "no-lsc-interrupt",		0, 0, 0 },
@@ -569,8 +614,10 @@ launch_args_parse(int argc, char** argv)
 		{ "hot-plug",			0, 0, 0 },
 		{ "vxlan-gpe-port",		1, 0, 0 },
 		{ "geneve-parsed-port",		1, 0, 0 },
+#ifndef RTE_EXEC_ENV_WINDOWS
 		{ "mlockall",			0, 0, 0 },
 		{ "no-mlockall",		0, 0, 0 },
+#endif
 		{ "mp-alloc",			1, 0, 0 },
 		{ "tx-ip",			1, 0, 0 },
 		{ "tx-udp",			1, 0, 0 },
@@ -682,13 +729,13 @@ launch_args_parse(int argc, char** argv)
 						 "Invalid tx-ip: %s", optarg);
 
 				*end++ = 0;
-				if (inet_aton(optarg, &in) == 0)
+				if (inet_pton(AF_INET, optarg, &in) == 0)
 					rte_exit(EXIT_FAILURE,
 						 "Invalid source IP address: %s\n",
 						 optarg);
 				tx_ip_src_addr = rte_be_to_cpu_32(in.s_addr);
 
-				if (inet_aton(end, &in) == 0)
+				if (inet_pton(AF_INET, end, &in) == 0)
 					rte_exit(EXIT_FAILURE,
 						 "Invalid destination IP address: %s\n",
 						 optarg);
@@ -1067,6 +1114,14 @@ launch_args_parse(int argc, char** argv)
 				else
 					nb_pkt_per_burst = (uint16_t) n;
 			}
+			if (!strcmp(lgopts[opt_idx].name, "flowgen-clones")) {
+				n = atoi(optarg);
+				if (n >= 0)
+					nb_pkt_flowgen_clones = (uint16_t) n;
+				else
+					rte_exit(EXIT_FAILURE,
+						 "clones must be >= 0 and <= current burst\n");
+			}
 			if (!strcmp(lgopts[opt_idx].name, "mbcache")) {
 				n = atoi(optarg);
 				if ((n >= 0) &&
@@ -1203,6 +1258,11 @@ launch_args_parse(int argc, char** argv)
 				txonly_multi_flow = 1;
 			if (!strcmp(lgopts[opt_idx].name, "no-flush-rx"))
 				no_flush_rx = 1;
+			if (!strcmp(lgopts[opt_idx].name, "eth-link-speed")) {
+				n = atoi(optarg);
+				if (n >= 0 && parse_link_speed(n) > 0)
+					eth_link_speed = parse_link_speed(n);
+			}
 			if (!strcmp(lgopts[opt_idx].name, "disable-link-check"))
 				no_link_check = 1;
 			if (!strcmp(lgopts[opt_idx].name, "disable-device-start"))
@@ -1344,7 +1404,7 @@ launch_args_parse(int argc, char** argv)
 			break;
 		default:
 			usage(argv[0]);
-			printf("Invalid option: %s\n", argv[optind]);
+			fprintf(stderr, "Invalid option: %s\n", argv[optind]);
 			rte_exit(EXIT_FAILURE,
 				 "Command line is incomplete or incorrect\n");
 			break;
@@ -1353,7 +1413,7 @@ launch_args_parse(int argc, char** argv)
 
 	if (optind != argc) {
 		usage(argv[0]);
-		printf("Invalid parameter: %s\n", argv[optind]);
+		fprintf(stderr, "Invalid parameter: %s\n", argv[optind]);
 		rte_exit(EXIT_FAILURE, "Command line is incorrect\n");
 	}
 

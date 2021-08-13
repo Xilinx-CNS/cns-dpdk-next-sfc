@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2019-2020 Broadcom
+ * Copyright(c) 2019-2021 Broadcom
  * All rights reserved.
  */
 
@@ -10,34 +10,14 @@
 #include "tf_identifier.h"
 #include "tf_tbl.h"
 #include "tf_tcam.h"
+#ifdef TF_TCAM_SHARED
+#include "tf_tcam_shared.h"
+#endif
 #include "tf_if_tbl.h"
 #include "tf_global_cfg.h"
 
 struct tf;
 struct tf_session;
-
-/**
- * Device module types
- */
-enum tf_device_module_type {
-	/**
-	 * Identifier module
-	 */
-	TF_DEVICE_MODULE_TYPE_IDENTIFIER,
-	/**
-	 * Table type module
-	 */
-	TF_DEVICE_MODULE_TYPE_TABLE,
-	/**
-	 * TCAM module
-	 */
-	TF_DEVICE_MODULE_TYPE_TCAM,
-	/**
-	 * EM module
-	 */
-	TF_DEVICE_MODULE_TYPE_EM,
-	TF_DEVICE_MODULE_TYPE_MAX
-};
 
 /**
  * The Device module provides a general device template. A supported
@@ -108,6 +88,10 @@ int tf_dev_bind(struct tf *tfp,
 int tf_dev_unbind(struct tf *tfp,
 		  struct tf_dev_info *dev_handle);
 
+int
+tf_dev_bind_ops(enum tf_device_type type,
+		struct tf_dev_info *dev_handle);
+
 /**
  * Truflow device specific function hooks structure
  *
@@ -133,6 +117,27 @@ struct tf_dev_ops {
 	 */
 	int (*tf_dev_get_max_types)(struct tf *tfp,
 				    uint16_t *max_types);
+
+	/**
+	 * Retrieves the string description for the CFA resource
+	 * type
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] resource_id
+	 *   HCAPI cfa resource type id
+	 *
+	 * [out] resource_str
+	 *   Pointer to a string
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_resource_str)(struct tf *tfp,
+				       uint16_t resource_id,
+				       const char **resource_str);
 
 	/**
 	 * Retrieves the WC TCAM slice information that the device
@@ -219,7 +224,53 @@ struct tf_dev_ops {
 				   struct tf_ident_search_parms *parms);
 
 	/**
-	 * Allocation of a table type element.
+	 * Retrieves the identifier resource info.
+	 *
+	 * This API retrieves the identifier resource info from the rm db.
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to identifier info
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_ident_resc_info)(struct tf *tfp,
+					  struct tf_identifier_resource_info *parms);
+
+	/**
+	 * Get SRAM table information.
+	 *
+	 * Converts an internal RM allocated element offset to
+	 * a user address and vice versa.
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] type
+	 *   Truflow index table type, e.g. TF_TYPE_FULL_ACT_RECORD
+	 *
+	 * [in/out] base
+	 *   Pointer to the base address of the associated table type.
+	 *
+	 * [in/out] shift
+	 *   Pointer to any shift required for the associated table type.
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_tbl_info)(struct tf *tfp,
+				   void *tbl_db,
+				   enum tf_tbl_type type,
+				   uint16_t *base,
+				   uint16_t *shift);
+
+	/**
+	 * Allocation of an index table type element.
 	 *
 	 * This API allocates the specified table type element from a
 	 * device specific table type DB. The allocated element is
@@ -396,6 +447,41 @@ struct tf_dev_ops {
 				   struct tf_tbl_get_bulk_parms *parms);
 
 	/**
+	 * Gets the increment value to add to the shared session resource
+	 * start offset by for each count in the "stride"
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to get shared tbl increment parameters
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_shared_tbl_increment)(struct tf *tfp,
+				struct tf_get_shared_tbl_increment_parms *parms);
+
+	/**
+	 * Retrieves the table resource info.
+	 *
+	 * This API retrieves the table resource info from the rm db.
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to tbl info
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_tbl_resc_info)(struct tf *tfp,
+					 struct tf_tbl_resource_info *parms);
+
+	/**
 	 * Allocation of a tcam element.
 	 *
 	 * This API allocates the specified tcam element from a device
@@ -494,6 +580,59 @@ struct tf_dev_ops {
 	int (*tf_dev_get_tcam)(struct tf *tfp,
 			       struct tf_tcam_get_parms *parms);
 
+#ifdef TF_TCAM_SHARED
+	/**
+	 * Move TCAM shared entries
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to parameters
+	 *
+	 *    returns:
+	 *    0       - Success
+	 *    -EINVAL - Error
+	 */
+	int (*tf_dev_move_tcam)(struct tf *tfp,
+			       struct tf_move_tcam_shared_entries_parms *parms);
+
+	/**
+	 * Move TCAM shared entries
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to parameters
+	 *
+	 *    returns:
+	 *    0       - Success
+	 *    -EINVAL - Error
+	 */
+	int (*tf_dev_clear_tcam)(struct tf *tfp,
+			      struct tf_clear_tcam_shared_entries_parms *parms);
+
+#endif /* TF_TCAM_SHARED */
+
+	/**
+	 * Retrieves the tcam resource info.
+	 *
+	 * This API retrieves the tcam resource info from the rm db.
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to tcam info
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_tcam_resc_info)(struct tf *tfp,
+					 struct tf_tcam_resource_info *parms);
+
 	/**
 	 * Insert EM hash entry API
 	 *
@@ -527,6 +666,22 @@ struct tf_dev_ops {
 					  struct tf_delete_em_entry_parms *parms);
 
 	/**
+	 * Move EM hash entry API
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to E/EM move parameters
+	 *
+	 *    returns:
+	 *    0       - Success
+	 *    -EINVAL - Error
+	 */
+	int (*tf_dev_move_int_em_entry)(struct tf *tfp,
+					struct tf_move_em_entry_parms *parms);
+
+	/**
 	 * Insert EEM hash entry API
 	 *
 	 * [in] tfp
@@ -557,6 +712,42 @@ struct tf_dev_ops {
 	 */
 	int (*tf_dev_delete_ext_em_entry)(struct tf *tfp,
 					  struct tf_delete_em_entry_parms *parms);
+
+	/**
+	 * Retrieves the em resource info.
+	 *
+	 * This API retrieves the em resource info from the rm db.
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to em info
+	 *
+	 * Returns
+	 *   - (0) if successful.
+	 *   - (-EINVAL) on failure.
+	 */
+	int (*tf_dev_get_em_resc_info)(struct tf *tfp,
+				       struct tf_em_resource_info *parms);
+
+	/**
+	 * Move EEM hash entry API
+	 *
+	 *   Pointer to E/EM move parameters
+	 *
+	 * [in] tfp
+	 *   Pointer to TF handle
+	 *
+	 * [in] parms
+	 *   Pointer to em info
+	 *
+	 *    returns:
+	 *    0       - Success
+	 *    -EINVAL - Error
+	 */
+	int (*tf_dev_move_ext_em_entry)(struct tf *tfp,
+					struct tf_move_em_entry_parms *parms);
 
 	/**
 	 * Allocate EEM table scope
@@ -702,6 +893,41 @@ struct tf_dev_ops {
 	 */
 	int (*tf_dev_get_global_cfg)(struct tf *tfp,
 				     struct tf_global_cfg_parms *parms);
+
+	/**
+	 * Get mailbox
+	 *
+	 *    returns:
+	 *      mailbox
+	 */
+	int (*tf_dev_get_mailbox)(void);
+
+	/**
+	 * Convert length in bit to length in byte and align to word.
+	 * The word length depends on device type.
+	 *
+	 * [in] size
+	 *   Size in bit
+	 *
+	 * Returns
+	 *   Size in byte
+	 */
+	int (*tf_dev_word_align)(uint16_t size);
+
+	/**
+	 * Hash key using crc32 and lookup3
+	 *
+	 * [in] key_data
+	 *   Pointer to key
+	 *
+	 * [in] bitlen
+	 *   Number of key bits
+	 *
+	 * Returns
+	 *   Hashes
+	 */
+	uint64_t (*tf_dev_cfa_key_hash)(uint64_t *key_data,
+					  uint16_t bitlen);
 };
 
 /**
@@ -709,5 +935,7 @@ struct tf_dev_ops {
  */
 extern const struct tf_dev_ops tf_dev_ops_p4_init;
 extern const struct tf_dev_ops tf_dev_ops_p4;
+extern const struct tf_dev_ops tf_dev_ops_p58_init;
+extern const struct tf_dev_ops tf_dev_ops_p58;
 
 #endif /* _TF_DEVICE_H_ */

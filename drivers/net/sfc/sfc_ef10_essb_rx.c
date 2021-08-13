@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2017-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
@@ -220,7 +220,8 @@ sfc_ef10_essb_rx_qrefill(struct sfc_ef10_essb_rxq *rxq)
 
 	SFC_ASSERT(rxq->added != added);
 	rxq->added = added;
-	sfc_ef10_rx_qpush(rxq->doorbell, added, rxq_ptr_mask);
+	sfc_ef10_rx_qpush(rxq->doorbell, added, rxq_ptr_mask,
+			  &rxq->dp.dpq.rx_dbells);
 }
 
 static bool

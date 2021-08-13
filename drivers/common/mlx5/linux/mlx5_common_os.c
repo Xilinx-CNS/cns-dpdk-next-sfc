@@ -15,27 +15,16 @@
 #include <rte_string_fns.h>
 
 #include "mlx5_common.h"
-#include "mlx5_common_utils.h"
+#include "mlx5_common_log.h"
+#include "mlx5_common_os.h"
 #include "mlx5_glue.h"
 
 #ifdef MLX5_GLUE
 const struct mlx5_glue *mlx5_glue;
 #endif
 
-/**
- * Get PCI information by sysfs device path.
- *
- * @param dev_path
- *   Pointer to device sysfs folder name.
- * @param[out] pci_addr
- *   PCI bus address output buffer.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
- */
 int
-mlx5_dev_to_pci_addr(const char *dev_path,
-		     struct rte_pci_addr *pci_addr)
+mlx5_get_pci_addr(const char *dev_path, struct rte_pci_addr *pci_addr)
 {
 	FILE *file;
 	char line[32];
@@ -97,22 +86,34 @@ void
 mlx5_translate_port_name(const char *port_name_in,
 			 struct mlx5_switch_info *port_info_out)
 {
-	char pf_c1, pf_c2, vf_c1, vf_c2, eol;
+	char ctrl = 0, pf_c1, pf_c2, vf_c1, vf_c2, eol;
 	char *end;
 	int sc_items;
 
-	/*
-	 * Check for port-name as a string of the form pf0vf0
-	 * (support kernel ver >= 5.0 or OFED ver >= 4.6).
-	 */
+	sc_items = sscanf(port_name_in, "%c%d",
+			  &ctrl, &port_info_out->ctrl_num);
+	if (sc_items == 2 && ctrl == 'c') {
+		port_name_in++; /* 'c' */
+		port_name_in += snprintf(NULL, 0, "%d",
+					  port_info_out->ctrl_num);
+	}
+	/* Check for port-name as a string of the form pf0vf0 or pf0sf0 */
 	sc_items = sscanf(port_name_in, "%c%c%d%c%c%d%c",
 			  &pf_c1, &pf_c2, &port_info_out->pf_num,
 			  &vf_c1, &vf_c2, &port_info_out->port_name, &eol);
-	if (sc_items == 6 &&
-	    pf_c1 == 'p' && pf_c2 == 'f' &&
-	    vf_c1 == 'v' && vf_c2 == 'f') {
-		port_info_out->name_type = MLX5_PHYS_PORT_NAME_TYPE_PFVF;
-		return;
+	if (sc_items == 6 && pf_c1 == 'p' && pf_c2 == 'f') {
+		if (vf_c1 == 'v' && vf_c2 == 'f') {
+			/* Kernel ver >= 5.0 or OFED ver >= 4.6 */
+			port_info_out->name_type =
+					MLX5_PHYS_PORT_NAME_TYPE_PFVF;
+			return;
+		}
+		if (vf_c1 == 's' && vf_c2 == 'f') {
+			/* Kernel ver >= 5.11 or OFED ver >= 5.1 */
+			port_info_out->name_type =
+					MLX5_PHYS_PORT_NAME_TYPE_PFSF;
+			return;
+		}
 	}
 	/*
 	 * Check for port-name as a string of the form p0
@@ -146,17 +147,6 @@ mlx5_translate_port_name(const char *port_name_in,
 	port_info_out->name_type = MLX5_PHYS_PORT_NAME_TYPE_UNKNOWN;
 }
 
-/**
- * Get kernel interface name from IB device path.
- *
- * @param[in] ibdev_path
- *   Pointer to IB device path.
- * @param[out] ifname
- *   Interface name output buffer.
- *
- * @return
- *   0 on success, a negative errno value otherwise and rte_errno is set.
- */
 int
 mlx5_get_ifname_sysfs(const char *ibdev_path, char *ifname)
 {
@@ -411,3 +401,30 @@ glue_error:
 	mlx5_glue = NULL;
 }
 
+struct ibv_device *
+mlx5_os_get_ibv_device(const struct rte_pci_addr *addr)
+{
+	int n;
+	struct ibv_device **ibv_list = mlx5_glue->get_device_list(&n);
+	struct ibv_device *ibv_match = NULL;
+
+	if (ibv_list == NULL) {
+		rte_errno = ENOSYS;
+		return NULL;
+	}
+	while (n-- > 0) {
+		struct rte_pci_addr paddr;
+
+		DRV_LOG(DEBUG, "Checking device \"%s\"..", ibv_list[n]->name);
+		if (mlx5_get_pci_addr(ibv_list[n]->ibdev_path, &paddr) != 0)
+			continue;
+		if (rte_pci_addr_cmp(addr, &paddr) != 0)
+			continue;
+		ibv_match = ibv_list[n];
+		break;
+	}
+	if (ibv_match == NULL)
+		rte_errno = ENOENT;
+	mlx5_glue->free_device_list(ibv_list);
+	return ibv_match;
+}

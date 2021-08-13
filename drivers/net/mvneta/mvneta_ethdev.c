@@ -5,7 +5,7 @@
  */
 
 #include <rte_string_fns.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_kvargs.h>
 #include <rte_bus_vdev.h>
 
@@ -987,4 +987,4 @@ static struct rte_vdev_driver pmd_mvneta_drv = {
 
 RTE_PMD_REGISTER_VDEV(net_mvneta, pmd_mvneta_drv);
 RTE_PMD_REGISTER_PARAM_STRING(net_mvneta, "iface=<ifc>");
-RTE_LOG_REGISTER(mvneta_logtype, pmd.net.mvneta, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(mvneta_logtype, NOTICE);

@@ -1620,7 +1620,7 @@ test_get_rx_ol_flag_name(void)
 		VAL_NAME(PKT_RX_IP_CKSUM_BAD),
 		VAL_NAME(PKT_RX_IP_CKSUM_GOOD),
 		VAL_NAME(PKT_RX_IP_CKSUM_NONE),
-		VAL_NAME(PKT_RX_EIP_CKSUM_BAD),
+		VAL_NAME(PKT_RX_OUTER_IP_CKSUM_BAD),
 		VAL_NAME(PKT_RX_VLAN_STRIPPED),
 		VAL_NAME(PKT_RX_IEEE1588_PTP),
 		VAL_NAME(PKT_RX_IEEE1588_TMST),
@@ -2363,7 +2363,7 @@ test_pktmbuf_ext_shinfo_init_helper(struct rte_mempool *pktmbuf_pool)
 	if (rte_mbuf_refcnt_read(m) != 1)
 		GOTO_FAIL("%s: Invalid refcnt in mbuf\n", __func__);
 
-	buf_iova = rte_mempool_virt2iova(ext_buf_addr);
+	buf_iova = rte_mem_virt2iova(ext_buf_addr);
 	rte_pktmbuf_attach_extbuf(m, ext_buf_addr, buf_iova, buf_len,
 		ret_shinfo);
 	if (m->ol_flags != EXT_ATTACHED_MBUF)

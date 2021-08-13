@@ -4,7 +4,7 @@
 
 #include <linux/pci_regs.h>
 #include <rte_alarm.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 #include <rte_io.h>
 #include <rte_pci.h>
 #include <rte_vfio.h>
@@ -44,6 +44,9 @@ static int hns3vf_add_mc_mac_addr(struct hns3_hw *hw,
 				  struct rte_ether_addr *mac_addr);
 static int hns3vf_remove_mc_mac_addr(struct hns3_hw *hw,
 				     struct rte_ether_addr *mac_addr);
+static int hns3vf_dev_link_update(struct rte_eth_dev *eth_dev,
+				   __rte_unused int wait_to_complete);
+
 /* set PCI bus mastering */
 static int
 hns3vf_set_bus_master(const struct rte_pci_device *device, bool op)
@@ -173,7 +176,7 @@ hns3vf_add_uc_mac_addr(struct hns3_hw *hw, struct rte_ether_addr *mac_addr)
 				HNS3_MBX_MAC_VLAN_UC_ADD, mac_addr->addr_bytes,
 				RTE_ETHER_ADDR_LEN, false, NULL, 0);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "failed to add uc mac addr(%s), ret = %d",
 			 mac_str, ret);
@@ -193,7 +196,7 @@ hns3vf_remove_uc_mac_addr(struct hns3_hw *hw, struct rte_ether_addr *mac_addr)
 				mac_addr->addr_bytes, RTE_ETHER_ADDR_LEN,
 				false, NULL, 0);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "failed to add uc mac addr(%s), ret = %d",
 			 mac_str, ret);
@@ -213,7 +216,7 @@ hns3vf_add_mc_addr_common(struct hns3_hw *hw, struct rte_ether_addr *mac_addr)
 		addr = &hw->mc_addrs[i];
 		/* Check if there are duplicate addresses */
 		if (rte_is_same_ether_addr(addr, mac_addr)) {
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      addr);
 			hns3_err(hw, "failed to add mc mac addr, same addrs"
 				 "(%s) is added by the set_mc_mac_addr_list "
@@ -224,7 +227,7 @@ hns3vf_add_mc_addr_common(struct hns3_hw *hw, struct rte_ether_addr *mac_addr)
 
 	ret = hns3vf_add_mc_mac_addr(hw, mac_addr);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "failed to add mc mac addr(%s), ret = %d",
 			 mac_str, ret);
@@ -259,7 +262,7 @@ hns3vf_add_mac_addr(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 
 	rte_spinlock_unlock(&hw->lock);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "failed to add mac addr(%s), ret = %d", mac_str,
 			 ret);
@@ -286,7 +289,7 @@ hns3vf_remove_mac_addr(struct rte_eth_dev *dev, uint32_t idx)
 
 	rte_spinlock_unlock(&hw->lock);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "failed to remove mac addr(%s), ret = %d",
 			 mac_str, ret);
@@ -327,12 +330,12 @@ hns3vf_set_default_mac_addr(struct rte_eth_dev *dev,
 		 * -EPREM to VF driver through mailbox.
 		 */
 		if (ret == -EPERM) {
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      old_addr);
 			hns3_warn(hw, "Has permanet mac addr(%s) for vf",
 				  mac_str);
 		} else {
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      mac_addr);
 			hns3_err(hw, "Failed to set mac addr(%s) for vf: %d",
 				 mac_str, ret);
@@ -369,7 +372,7 @@ hns3vf_configure_mac_addr(struct hns3_adapter *hns, bool del)
 
 		if (ret) {
 			err = ret;
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      addr);
 			hns3_err(hw, "failed to %s mac addr(%s) index:%d "
 				 "ret = %d.", del ? "remove" : "restore",
@@ -391,7 +394,7 @@ hns3vf_add_mc_mac_addr(struct hns3_hw *hw,
 				mac_addr->addr_bytes, RTE_ETHER_ADDR_LEN, false,
 				NULL, 0);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "Failed to add mc mac addr(%s) for vf: %d",
 			 mac_str, ret);
@@ -412,7 +415,7 @@ hns3vf_remove_mc_mac_addr(struct hns3_hw *hw,
 				mac_addr->addr_bytes, RTE_ETHER_ADDR_LEN, false,
 				NULL, 0);
 	if (ret) {
-		rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+		hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 				      mac_addr);
 		hns3_err(hw, "Failed to remove mc mac addr(%s) for vf: %d",
 			 mac_str, ret);
@@ -442,7 +445,7 @@ hns3vf_set_mc_addr_chk_param(struct hns3_hw *hw,
 	for (i = 0; i < nb_mc_addr; i++) {
 		addr = &mc_addr_set[i];
 		if (!rte_is_multicast_ether_addr(addr)) {
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      addr);
 			hns3_err(hw,
 				 "failed to set mc mac addr, addr(%s) invalid.",
@@ -453,7 +456,7 @@ hns3vf_set_mc_addr_chk_param(struct hns3_hw *hw,
 		/* Check if there are duplicate addresses */
 		for (j = i + 1; j < nb_mc_addr; j++) {
 			if (rte_is_same_ether_addr(addr, &mc_addr_set[j])) {
-				rte_ether_format_addr(mac_str,
+				hns3_ether_format_addr(mac_str,
 						      RTE_ETHER_ADDR_FMT_SIZE,
 						      addr);
 				hns3_err(hw, "failed to set mc mac addr, "
@@ -470,7 +473,7 @@ hns3vf_set_mc_addr_chk_param(struct hns3_hw *hw,
 		for (j = 0; j < HNS3_VF_UC_MACADDR_NUM; j++) {
 			if (rte_is_same_ether_addr(addr,
 						   &hw->data->mac_addrs[j])) {
-				rte_ether_format_addr(mac_str,
+				hns3_ether_format_addr(mac_str,
 						      RTE_ETHER_ADDR_FMT_SIZE,
 						      addr);
 				hns3_err(hw, "failed to set mc mac addr, "
@@ -553,7 +556,7 @@ hns3vf_configure_all_mc_mac_addr(struct hns3_adapter *hns, bool del)
 			ret = hns3vf_add_mc_mac_addr(hw, addr);
 		if (ret) {
 			err = ret;
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      addr);
 			hns3_err(hw, "Failed to %s mc mac addr: %s for vf: %d",
 				 del ? "Remove" : "Restore", mac_str, ret);
@@ -776,7 +779,6 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 {
 	struct hns3_adapter *hns = dev->data->dev_private;
 	struct hns3_hw *hw = &hns->hw;
-	struct hns3_rss_conf *rss_cfg = &hw->rss_info;
 	struct rte_eth_conf *conf = &dev->data->dev_conf;
 	enum rte_eth_rx_mq_mode mq_mode = conf->rxmode.mq_mode;
 	uint16_t nb_rx_q = dev->data->nb_rx_queues;
@@ -799,13 +801,11 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 	 * work as usual. But these fake queues are imperceptible, and can not
 	 * be used by upper applications.
 	 */
-	if (!hns3_dev_indep_txrx_supported(hw)) {
-		ret = hns3_set_fake_rx_or_tx_queues(dev, nb_rx_q, nb_tx_q);
-		if (ret) {
-			hns3_err(hw, "fail to set Rx/Tx fake queues, ret = %d.",
-				 ret);
-			return ret;
-		}
+	ret = hns3_set_fake_rx_or_tx_queues(dev, nb_rx_q, nb_tx_q);
+	if (ret) {
+		hns3_err(hw, "fail to set Rx/Tx fake queues, ret = %d.", ret);
+		hw->cfg_max_queues = 0;
+		return ret;
 	}
 
 	hw->adapter_state = HNS3_NIC_CONFIGURING;
@@ -820,11 +820,6 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 		conf->rxmode.offloads |= DEV_RX_OFFLOAD_RSS_HASH;
 		hw->rss_dis_flag = false;
 		rss_conf = conf->rx_adv_conf.rss_conf;
-		if (rss_conf.rss_key == NULL) {
-			rss_conf.rss_key = rss_cfg->key;
-			rss_conf.rss_key_len = HNS3_RSS_KEY_SIZE;
-		}
-
 		ret = hns3_dev_rss_hash_update(dev, &rss_conf);
 		if (ret)
 			goto cfg_err;
@@ -863,17 +858,13 @@ hns3vf_dev_configure(struct rte_eth_dev *dev)
 	if (ret)
 		goto cfg_err;
 
-	hns->rx_simple_allowed = true;
-	hns->rx_vec_allowed = true;
-	hns->tx_simple_allowed = true;
-	hns->tx_vec_allowed = true;
-
 	hns3_init_rx_ptype_tble(dev);
 
 	hw->adapter_state = HNS3_NIC_CONFIGURED;
 	return 0;
 
 cfg_err:
+	hw->cfg_max_queues = 0;
 	(void)hns3_set_fake_rx_or_tx_queues(dev, 0, 0);
 	hw->adapter_state = HNS3_NIC_INITIALIZED;
 
@@ -908,7 +899,7 @@ hns3vf_dev_mtu_set(struct rte_eth_dev *dev, uint16_t mtu)
 	 * MTU value issued by hns3 VF PMD driver must be less than or equal to
 	 * PF's MTU.
 	 */
-	if (rte_atomic16_read(&hw->reset.resetting)) {
+	if (__atomic_load_n(&hw->reset.resetting, __ATOMIC_RELAXED)) {
 		hns3_err(hw, "Failed to set mtu during resetting");
 		return -EIO;
 	}
@@ -997,6 +988,9 @@ hns3vf_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 				 DEV_TX_OFFLOAD_MBUF_FAST_FREE |
 				 hns3_txvlan_cap_get(hw));
 
+	if (hns3_dev_outer_udp_cksum_supported(hw))
+		info->tx_offload_capa |= DEV_TX_OFFLOAD_OUTER_UDP_CKSUM;
+
 	if (hns3_dev_indep_txrx_supported(hw))
 		info->dev_capa = RTE_ETH_DEV_CAPA_RUNTIME_RX_QUEUE_SETUP |
 				 RTE_ETH_DEV_CAPA_RUNTIME_TX_QUEUE_SETUP;
@@ -1033,6 +1027,11 @@ hns3vf_dev_infos_get(struct rte_eth_dev *eth_dev, struct rte_eth_dev_info *info)
 	info->reta_size = hw->rss_ind_tbl_size;
 	info->hash_key_size = HNS3_RSS_KEY_SIZE;
 	info->flow_type_rss_offloads = HNS3_ETH_RSS_SUPPORT;
+
+	info->default_rxportconf.burst_size = HNS3_DEFAULT_PORT_CONF_BURST_SIZE;
+	info->default_txportconf.burst_size = HNS3_DEFAULT_PORT_CONF_BURST_SIZE;
+	info->default_rxportconf.nb_queues = HNS3_DEFAULT_PORT_CONF_QUEUES_NUM;
+	info->default_txportconf.nb_queues = HNS3_DEFAULT_PORT_CONF_QUEUES_NUM;
 	info->default_rxportconf.ring_size = HNS3_DEFAULT_RING_DESC;
 	info->default_txportconf.ring_size = HNS3_DEFAULT_RING_DESC;
 
@@ -1072,7 +1071,7 @@ hns3vf_check_event_cause(struct hns3_adapter *hns, uint32_t *clearval)
 		rst_ing_reg = hns3_read_dev(hw, HNS3_FUN_RST_ING);
 		hns3_warn(hw, "resetting reg: 0x%x", rst_ing_reg);
 		hns3_atomic_set_bit(HNS3_VF_RESET, &hw->reset.pending);
-		rte_atomic16_set(&hw->reset.disable_cmd, 1);
+		__atomic_store_n(&hw->reset.disable_cmd, 1, __ATOMIC_RELAXED);
 		val = hns3_read_dev(hw, HNS3_VF_RST_ING);
 		hns3_write_dev(hw, HNS3_VF_RST_ING, val | HNS3_VF_RST_ING_BIT);
 		val = cmdq_stat_reg & ~BIT(HNS3_VECTOR0_RST_INT_B);
@@ -1117,6 +1116,8 @@ hns3vf_interrupt_handler(void *param)
 
 	/* Read out interrupt causes */
 	event_cause = hns3vf_check_event_cause(hns, &clearval);
+	/* Clear interrupt causes */
+	hns3vf_clear_event_cause(hw, clearval);
 
 	switch (event_cause) {
 	case HNS3VF_VECTOR0_EVENT_RST:
@@ -1128,9 +1129,6 @@ hns3vf_interrupt_handler(void *param)
 	default:
 		break;
 	}
-
-	/* Clear interrupt causes */
-	hns3vf_clear_event_cause(hw, clearval);
 
 	/* Enable interrupt */
 	hns3vf_enable_irq0(hw);
@@ -1195,6 +1193,65 @@ hns3vf_query_dev_specifications(struct hns3_hw *hw)
 	return hns3vf_check_dev_specifications(hw);
 }
 
+void
+hns3vf_update_push_lsc_cap(struct hns3_hw *hw, bool supported)
+{
+	uint16_t val = supported ? HNS3_PF_PUSH_LSC_CAP_SUPPORTED :
+				   HNS3_PF_PUSH_LSC_CAP_NOT_SUPPORTED;
+	uint16_t exp = HNS3_PF_PUSH_LSC_CAP_UNKNOWN;
+	struct hns3_vf *vf = HNS3_DEV_HW_TO_VF(hw);
+
+	if (vf->pf_push_lsc_cap == HNS3_PF_PUSH_LSC_CAP_UNKNOWN)
+		__atomic_compare_exchange(&vf->pf_push_lsc_cap, &exp, &val, 0,
+					  __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
+}
+
+static void
+hns3vf_get_push_lsc_cap(struct hns3_hw *hw)
+{
+#define HNS3_CHECK_PUSH_LSC_CAP_TIMEOUT_MS	500
+
+	struct rte_eth_dev *dev = &rte_eth_devices[hw->data->port_id];
+	int32_t remain_ms = HNS3_CHECK_PUSH_LSC_CAP_TIMEOUT_MS;
+	uint16_t val = HNS3_PF_PUSH_LSC_CAP_NOT_SUPPORTED;
+	uint16_t exp = HNS3_PF_PUSH_LSC_CAP_UNKNOWN;
+	struct hns3_vf *vf = HNS3_DEV_HW_TO_VF(hw);
+
+	__atomic_store_n(&vf->pf_push_lsc_cap, HNS3_PF_PUSH_LSC_CAP_UNKNOWN,
+			 __ATOMIC_RELEASE);
+
+	(void)hns3_send_mbx_msg(hw, HNS3_MBX_GET_LINK_STATUS, 0, NULL, 0, false,
+				NULL, 0);
+
+	while (remain_ms > 0) {
+		rte_delay_ms(HNS3_POLL_RESPONE_MS);
+		if (__atomic_load_n(&vf->pf_push_lsc_cap, __ATOMIC_ACQUIRE) !=
+			HNS3_PF_PUSH_LSC_CAP_UNKNOWN)
+			break;
+		remain_ms--;
+	}
+
+	/*
+	 * When exit above loop, the pf_push_lsc_cap could be one of the three
+	 * state: unknown (means pf not ack), not_supported, supported.
+	 * Here config it as 'not_supported' when it's 'unknown' state.
+	 */
+	__atomic_compare_exchange(&vf->pf_push_lsc_cap, &exp, &val, 0,
+				  __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
+
+	if (__atomic_load_n(&vf->pf_push_lsc_cap, __ATOMIC_ACQUIRE) ==
+		HNS3_PF_PUSH_LSC_CAP_SUPPORTED) {
+		hns3_info(hw, "detect PF support push link status change!");
+	} else {
+		/*
+		 * Framework already set RTE_ETH_DEV_INTR_LSC bit because driver
+		 * declared RTE_PCI_DRV_INTR_LSC in drv_flags. So here cleared
+		 * the RTE_ETH_DEV_INTR_LSC capability.
+		 */
+		dev->data->dev_flags &= ~RTE_ETH_DEV_INTR_LSC;
+	}
+}
+
 static int
 hns3vf_get_capability(struct hns3_hw *hw)
 {
@@ -1221,6 +1278,7 @@ hns3vf_get_capability(struct hns3_hw *hw)
 		hw->intr.mapping_mode = HNS3_INTR_MAPPING_VEC_RSV_ONE;
 		hw->intr.gl_unit = HNS3_INTR_COALESCE_GL_UINT_2US;
 		hw->tso_mode = HNS3_TSO_SW_CAL_PSEUDO_H_CSUM;
+		hw->drop_stats_mode = HNS3_PKTS_DROP_STATS_MODE1;
 		hw->min_tx_pkt_len = HNS3_HIP08_MIN_TX_PKT_LEN;
 		hw->rss_info.ipv6_sctp_offload_supported = false;
 		hw->promisc_mode = HNS3_UNLIMIT_PROMISC_MODE;
@@ -1238,6 +1296,7 @@ hns3vf_get_capability(struct hns3_hw *hw)
 	hw->intr.mapping_mode = HNS3_INTR_MAPPING_VEC_ALL;
 	hw->intr.gl_unit = HNS3_INTR_COALESCE_GL_UINT_1US;
 	hw->tso_mode = HNS3_TSO_HW_CAL_PSEUDO_H_CSUM;
+	hw->drop_stats_mode = HNS3_PKTS_DROP_STATS_MODE2;
 	hw->min_tx_pkt_len = HNS3_HIP09_MIN_TX_PKT_LEN;
 	hw->rss_info.ipv6_sctp_offload_supported = true;
 	hw->promisc_mode = HNS3_LIMIT_PROMISC_MODE;
@@ -1348,27 +1407,47 @@ hns3vf_get_queue_depth(struct hns3_hw *hw)
 	return 0;
 }
 
-static int
-hns3vf_get_tc_info(struct hns3_hw *hw)
+static void
+hns3vf_update_caps(struct hns3_hw *hw, uint32_t caps)
 {
-	uint8_t resp_msg;
-	int ret;
+	if (hns3_get_bit(caps, HNS3VF_CAPS_VLAN_FLT_MOD_B))
+		hns3_set_bit(hw->capability,
+				HNS3_DEV_SUPPORT_VF_VLAN_FLT_MOD_B, 1);
+}
+
+static int
+hns3vf_get_num_tc(struct hns3_hw *hw)
+{
+	uint8_t num_tc = 0;
 	uint32_t i;
-
-	ret = hns3_send_mbx_msg(hw, HNS3_MBX_GET_TCINFO, 0, NULL, 0,
-				true, &resp_msg, sizeof(resp_msg));
-	if (ret) {
-		hns3_err(hw, "VF request to get TC info from PF failed %d",
-			 ret);
-		return ret;
-	}
-
-	hw->hw_tc_map = resp_msg;
 
 	for (i = 0; i < HNS3_MAX_TC_NUM; i++) {
 		if (hw->hw_tc_map & BIT(i))
-			hw->num_tc++;
+			num_tc++;
 	}
+	return num_tc;
+}
+
+static int
+hns3vf_get_basic_info(struct hns3_hw *hw)
+{
+	uint8_t resp_msg[HNS3_MBX_MAX_RESP_DATA_SIZE];
+	struct hns3_basic_info *basic_info;
+	int ret;
+
+	ret = hns3_send_mbx_msg(hw, HNS3_MBX_GET_BASIC_INFO, 0, NULL, 0,
+				true, resp_msg, sizeof(resp_msg));
+	if (ret) {
+		hns3_err(hw, "failed to get basic info from PF, ret = %d.",
+				ret);
+		return ret;
+	}
+
+	basic_info = (struct hns3_basic_info *)resp_msg;
+	hw->hw_tc_map = basic_info->hw_tc_map;
+	hw->num_tc = hns3vf_get_num_tc(hw);
+	hw->pf_vf_if_version = basic_info->pf_vf_if_version;
+	hns3vf_update_caps(hw, basic_info->caps);
 
 	return 0;
 }
@@ -1406,6 +1485,13 @@ hns3vf_get_configuration(struct hns3_hw *hw)
 		return ret;
 	}
 
+	hns3vf_get_push_lsc_cap(hw);
+
+	/* Get basic info from PF */
+	ret = hns3vf_get_basic_info(hw);
+	if (ret)
+		return ret;
+
 	/* Get queue configuration from PF */
 	ret = hns3vf_get_queue_info(hw);
 	if (ret)
@@ -1421,12 +1507,7 @@ hns3vf_get_configuration(struct hns3_hw *hw)
 	if (ret)
 		return ret;
 
-	ret = hns3vf_get_port_base_vlan_filter_state(hw);
-	if (ret)
-		return ret;
-
-	/* Get tc configuration from PF */
-	return hns3vf_get_tc_info(hw);
+	return hns3vf_get_port_base_vlan_filter_state(hw);
 }
 
 static int
@@ -1441,14 +1522,58 @@ hns3vf_set_tc_queue_mapping(struct hns3_adapter *hns, uint16_t nb_rx_q,
 static void
 hns3vf_request_link_info(struct hns3_hw *hw)
 {
+	struct hns3_vf *vf = HNS3_DEV_HW_TO_VF(hw);
+	bool send_req;
 	int ret;
 
-	if (rte_atomic16_read(&hw->reset.resetting))
+	if (__atomic_load_n(&hw->reset.resetting, __ATOMIC_RELAXED))
 		return;
+
+	send_req = vf->pf_push_lsc_cap == HNS3_PF_PUSH_LSC_CAP_NOT_SUPPORTED ||
+		   vf->req_link_info_cnt > 0;
+	if (!send_req)
+		return;
+
 	ret = hns3_send_mbx_msg(hw, HNS3_MBX_GET_LINK_STATUS, 0, NULL, 0, false,
 				NULL, 0);
-	if (ret)
-		hns3_err(hw, "Failed to fetch link status from PF: %d", ret);
+	if (ret) {
+		hns3_err(hw, "failed to fetch link status, ret = %d", ret);
+		return;
+	}
+
+	if (vf->req_link_info_cnt > 0)
+		vf->req_link_info_cnt--;
+}
+
+void
+hns3vf_update_link_status(struct hns3_hw *hw, uint8_t link_status,
+			  uint32_t link_speed, uint8_t link_duplex)
+{
+	struct rte_eth_dev *dev = &rte_eth_devices[hw->data->port_id];
+	struct hns3_vf *vf = HNS3_DEV_HW_TO_VF(hw);
+	struct hns3_mac *mac = &hw->mac;
+	int ret;
+
+	/*
+	 * PF kernel driver may push link status when VF driver is in resetting,
+	 * driver will stop polling job in this case, after resetting done
+	 * driver will start polling job again.
+	 * When polling job started, driver will get initial link status by
+	 * sending request to PF kernel driver, then could update link status by
+	 * process PF kernel driver's link status mailbox message.
+	 */
+	if (!__atomic_load_n(&vf->poll_job_started, __ATOMIC_RELAXED))
+		return;
+
+	if (hw->adapter_state != HNS3_NIC_STARTED)
+		return;
+
+	mac->link_status = link_status;
+	mac->link_speed = link_speed;
+	mac->link_duplex = link_duplex;
+	ret = hns3vf_dev_link_update(dev, 0);
+	if (ret == 0 && dev->data->dev_conf.intr_conf.lsc != 0)
+		hns3_start_report_lse(dev);
 }
 
 static int
@@ -1476,7 +1601,7 @@ hns3vf_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 	struct hns3_hw *hw = &hns->hw;
 	int ret;
 
-	if (rte_atomic16_read(&hw->reset.resetting)) {
+	if (__atomic_load_n(&hw->reset.resetting, __ATOMIC_RELAXED)) {
 		hns3_err(hw,
 			 "vf set vlan id failed during resetting, vlan_id =%u",
 			 vlan_id);
@@ -1493,6 +1618,26 @@ hns3vf_vlan_filter_set(struct rte_eth_dev *dev, uint16_t vlan_id, int on)
 }
 
 static int
+hns3vf_en_vlan_filter(struct hns3_hw *hw, bool enable)
+{
+	uint8_t msg_data;
+	int ret;
+
+	if (!hns3_dev_vf_vlan_flt_supported(hw))
+		return 0;
+
+	msg_data = enable ? 1 : 0;
+	ret = hns3_send_mbx_msg(hw, HNS3_MBX_SET_VLAN,
+			HNS3_MBX_ENABLE_VLAN_FILTER, &msg_data,
+			sizeof(msg_data), true, NULL, 0);
+	if (ret)
+		hns3_err(hw, "%s vlan filter failed, ret = %d.",
+				enable ? "enable" : "disable", ret);
+
+	return ret;
+}
+
+static int
 hns3vf_en_hw_strip_rxvtag(struct hns3_hw *hw, bool enable)
 {
 	uint8_t msg_data;
@@ -1502,7 +1647,8 @@ hns3vf_en_hw_strip_rxvtag(struct hns3_hw *hw, bool enable)
 	ret = hns3_send_mbx_msg(hw, HNS3_MBX_SET_VLAN, HNS3_MBX_VLAN_RX_OFF_CFG,
 				&msg_data, sizeof(msg_data), false, NULL, 0);
 	if (ret)
-		hns3_err(hw, "vf enable strip failed, ret =%d", ret);
+		hns3_err(hw, "vf %s strip failed, ret = %d.",
+				enable ? "enable" : "disable", ret);
 
 	return ret;
 }
@@ -1515,13 +1661,26 @@ hns3vf_vlan_offload_set(struct rte_eth_dev *dev, int mask)
 	unsigned int tmp_mask;
 	int ret = 0;
 
-	if (rte_atomic16_read(&hw->reset.resetting)) {
+	if (__atomic_load_n(&hw->reset.resetting, __ATOMIC_RELAXED)) {
 		hns3_err(hw, "vf set vlan offload failed during resetting, "
 			     "mask = 0x%x", mask);
 		return -EIO;
 	}
 
 	tmp_mask = (unsigned int)mask;
+
+	if (tmp_mask & ETH_VLAN_FILTER_MASK) {
+		rte_spinlock_lock(&hw->lock);
+		/* Enable or disable VLAN filter */
+		if (dev_conf->rxmode.offloads & DEV_RX_OFFLOAD_VLAN_FILTER)
+			ret = hns3vf_en_vlan_filter(hw, true);
+		else
+			ret = hns3vf_en_vlan_filter(hw, false);
+		rte_spinlock_unlock(&hw->lock);
+		if (ret)
+			return ret;
+	}
+
 	/* Vlan stripping setting */
 	if (tmp_mask & ETH_VLAN_STRIP_MASK) {
 		rte_spinlock_lock(&hw->lock);
@@ -1619,9 +1778,10 @@ hns3vf_dev_configure_vlan(struct rte_eth_dev *dev)
 	}
 
 	/* Apply vlan offload setting */
-	ret = hns3vf_vlan_offload_set(dev, ETH_VLAN_STRIP_MASK);
+	ret = hns3vf_vlan_offload_set(dev, ETH_VLAN_STRIP_MASK |
+					ETH_VLAN_FILTER_MASK);
 	if (ret)
-		hns3_err(hw, "dev config vlan offload failed, ret =%d", ret);
+		hns3_err(hw, "dev config vlan offload failed, ret = %d.", ret);
 
 	return ret;
 }
@@ -1663,8 +1823,8 @@ hns3vf_service_handler(void *param)
 
 	/*
 	 * The query link status and reset processing are executed in the
-	 * interrupt thread.When the IMP reset occurs, IMP will not respond,
-	 * and the query operation will time out after 30ms. In the case of
+	 * interrupt thread. When the IMP reset occurs, IMP will not respond,
+	 * and the query operation will timeout after 30ms. In the case of
 	 * multiple PF/VFs, each query failure timeout causes the IMP reset
 	 * interrupt to fail to respond within 100ms.
 	 * Before querying the link status, check whether there is a reset
@@ -1677,6 +1837,31 @@ hns3vf_service_handler(void *param)
 
 	rte_eal_alarm_set(HNS3VF_SERVICE_INTERVAL, hns3vf_service_handler,
 			  eth_dev);
+}
+
+static void
+hns3vf_start_poll_job(struct rte_eth_dev *dev)
+{
+#define HNS3_REQUEST_LINK_INFO_REMAINS_CNT	3
+
+	struct hns3_vf *vf = HNS3_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+
+	if (vf->pf_push_lsc_cap == HNS3_PF_PUSH_LSC_CAP_SUPPORTED)
+		vf->req_link_info_cnt = HNS3_REQUEST_LINK_INFO_REMAINS_CNT;
+
+	__atomic_store_n(&vf->poll_job_started, 1, __ATOMIC_RELAXED);
+
+	hns3vf_service_handler(dev);
+}
+
+static void
+hns3vf_stop_poll_job(struct rte_eth_dev *dev)
+{
+	struct hns3_vf *vf = HNS3_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+
+	rte_eal_alarm_cancel(hns3vf_service_handler, dev);
+
+	__atomic_store_n(&vf->poll_job_started, 0, __ATOMIC_RELAXED);
 }
 
 static int
@@ -1789,6 +1974,8 @@ hns3vf_init_vf(struct rte_eth_dev *eth_dev)
 		goto err_cmd_init;
 	}
 
+	hns3_tx_push_init(eth_dev);
+
 	/* Get VF resource */
 	ret = hns3_query_vf_resource(hw);
 	if (ret)
@@ -1820,6 +2007,13 @@ hns3vf_init_vf(struct rte_eth_dev *eth_dev)
 	if (ret)
 		goto err_get_config;
 
+	/* Hardware statistics of imissed registers cleared. */
+	ret = hns3_update_imissed_stats(hw, true);
+	if (ret) {
+		hns3_err(hw, "clear imissed stats failed, ret = %d", ret);
+		goto err_set_tc_queue;
+	}
+
 	ret = hns3vf_set_tc_queue_mapping(hns, hw->tqps_num, hw->tqps_num);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "failed to set tc info, ret = %d.", ret);
@@ -1836,7 +2030,7 @@ hns3vf_init_vf(struct rte_eth_dev *eth_dev)
 	if (ret)
 		goto err_set_tc_queue;
 
-	hns3_set_default_rss_args(hw);
+	hns3_rss_set_default_args(hw);
 
 	ret = hns3vf_set_alive(hw, true);
 	if (ret) {
@@ -1877,6 +2071,7 @@ hns3vf_uninit_vf(struct rte_eth_dev *eth_dev)
 	(void)hns3_config_gro(hw, false);
 	(void)hns3vf_set_alive(hw, false);
 	(void)hns3vf_set_promisc_mode(hw, false, false, false);
+	hns3_flow_uninit(eth_dev);
 	hns3_tqp_stats_uninit(hw);
 	hns3vf_disable_irq0(hw);
 	rte_intr_disable(&pci_dev->intr_handle);
@@ -1903,10 +2098,10 @@ hns3vf_do_stop(struct hns3_adapter *hns)
 	 * during reset and is required to be released after the reset is
 	 * completed.
 	 */
-	if (rte_atomic16_read(&hw->reset.resetting) == 0)
+	if (__atomic_load_n(&hw->reset.resetting,  __ATOMIC_RELAXED) == 0)
 		hns3_dev_release_mbufs(hns);
 
-	if (rte_atomic16_read(&hw->reset.disable_cmd) == 0) {
+	if (__atomic_load_n(&hw->reset.disable_cmd, __ATOMIC_RELAXED) == 0) {
 		hns3vf_configure_mac_addr(hns, true);
 		ret = hns3_reset_all_tqps(hns);
 		if (ret) {
@@ -1968,17 +2163,18 @@ hns3vf_dev_stop(struct rte_eth_dev *dev)
 	/* Disable datapath on secondary process. */
 	hns3_mp_req_stop_rxtx(dev);
 	/* Prevent crashes when queues are still in use. */
-	rte_delay_ms(hw->tqps_num);
+	rte_delay_ms(hw->cfg_max_queues);
 
 	rte_spinlock_lock(&hw->lock);
-	if (rte_atomic16_read(&hw->reset.resetting) == 0) {
+	if (__atomic_load_n(&hw->reset.resetting, __ATOMIC_RELAXED) == 0) {
 		hns3_stop_tqps(hw);
 		hns3vf_do_stop(hns);
 		hns3vf_unmap_rx_interrupt(dev);
 		hw->adapter_state = HNS3_NIC_CONFIGURED;
 	}
 	hns3_rx_scattered_reset(dev);
-	rte_eal_alarm_cancel(hns3vf_service_handler, dev);
+	hns3vf_stop_poll_job(dev);
+	hns3_stop_report_lse(dev);
 	rte_spinlock_unlock(&hw->lock);
 
 	return 0;
@@ -1991,11 +2187,8 @@ hns3vf_dev_close(struct rte_eth_dev *eth_dev)
 	struct hns3_hw *hw = &hns->hw;
 	int ret = 0;
 
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
-		rte_free(eth_dev->process_private);
-		eth_dev->process_private = NULL;
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
-	}
 
 	if (hw->adapter_state == HNS3_NIC_STARTED)
 		ret = hns3vf_dev_stop(eth_dev);
@@ -2009,8 +2202,6 @@ hns3vf_dev_close(struct rte_eth_dev *eth_dev)
 	hns3vf_uninit_vf(eth_dev);
 	hns3_free_all_queues(eth_dev);
 	rte_free(hw->reset.wait_data);
-	rte_free(eth_dev->process_private);
-	eth_dev->process_private = NULL;
 	hns3_mp_uninit_primary();
 	hns3_warn(hw, "Close port %u finished", hw->data->port_id);
 
@@ -2097,6 +2288,8 @@ hns3vf_do_start(struct hns3_adapter *hns, bool reset_queue)
 	if (ret)
 		return ret;
 
+	hns3_enable_rxd_adv_layout(hw);
+
 	ret = hns3_init_queues(hns, reset_queue);
 	if (ret)
 		hns3_err(hw, "failed to init queues, ret = %d.", ret);
@@ -2116,21 +2309,22 @@ hns3vf_map_rx_interrupt(struct rte_eth_dev *dev)
 	uint16_t q_id;
 	int ret;
 
-	if (dev->data->dev_conf.intr_conf.rxq == 0)
+	/*
+	 * hns3 needs a separate interrupt to be used as event interrupt which
+	 * could not be shared with task queue pair, so KERNEL drivers need
+	 * support multiple interrupt vectors.
+	 */
+	if (dev->data->dev_conf.intr_conf.rxq == 0 ||
+	    !rte_intr_cap_multiple(intr_handle))
 		return 0;
 
-	/* disable uio/vfio intr/eventfd mapping */
 	rte_intr_disable(intr_handle);
+	intr_vector = hw->used_rx_queues;
+	/* It creates event fd for each intr vector when MSIX is used */
+	if (rte_intr_efd_enable(intr_handle, intr_vector))
+		return -EINVAL;
 
-	/* check and configure queue intr-vector mapping */
-	if (rte_intr_cap_multiple(intr_handle) ||
-	    !RTE_ETH_DEV_SRIOV(dev).active) {
-		intr_vector = hw->used_rx_queues;
-		/* It creates event fd for each intr vector when MSIX is used */
-		if (rte_intr_efd_enable(intr_handle, intr_vector))
-			return -EINVAL;
-	}
-	if (rte_intr_dp_is_en(intr_handle) && !intr_handle->intr_vec) {
+	if (intr_handle->intr_vec == NULL) {
 		intr_handle->intr_vec =
 			rte_zmalloc("intr_vec",
 				    hw->used_rx_queues * sizeof(int), 0);
@@ -2146,28 +2340,26 @@ hns3vf_map_rx_interrupt(struct rte_eth_dev *dev)
 		vec = RTE_INTR_VEC_RXTX_OFFSET;
 		base = RTE_INTR_VEC_RXTX_OFFSET;
 	}
-	if (rte_intr_dp_is_en(intr_handle)) {
-		for (q_id = 0; q_id < hw->used_rx_queues; q_id++) {
-			ret = hns3vf_bind_ring_with_vector(hw, vec, true,
-							   HNS3_RING_TYPE_RX,
-							   q_id);
-			if (ret)
-				goto vf_bind_vector_error;
-			intr_handle->intr_vec[q_id] = vec;
-			if (vec < base + intr_handle->nb_efd - 1)
-				vec++;
-		}
+
+	for (q_id = 0; q_id < hw->used_rx_queues; q_id++) {
+		ret = hns3vf_bind_ring_with_vector(hw, vec, true,
+						   HNS3_RING_TYPE_RX, q_id);
+		if (ret)
+			goto vf_bind_vector_error;
+		intr_handle->intr_vec[q_id] = vec;
+		/*
+		 * If there are not enough efds (e.g. not enough interrupt),
+		 * remaining queues will be bond to the last interrupt.
+		 */
+		if (vec < base + intr_handle->nb_efd - 1)
+			vec++;
 	}
 	rte_intr_enable(intr_handle);
 	return 0;
 
 vf_bind_vector_error:
-	rte_intr_efd_disable(intr_handle);
-	if (intr_handle->intr_vec) {
-		free(intr_handle->intr_vec);
-		intr_handle->intr_vec = NULL;
-	}
-	return ret;
+	free(intr_handle->intr_vec);
+	intr_handle->intr_vec = NULL;
 vf_alloc_intr_vec_error:
 	rte_intr_efd_disable(intr_handle);
 	return ret;
@@ -2212,7 +2404,7 @@ hns3vf_dev_start(struct rte_eth_dev *dev)
 	int ret;
 
 	PMD_INIT_FUNC_TRACE();
-	if (rte_atomic16_read(&hw->reset.resetting))
+	if (__atomic_load_n(&hw->reset.resetting, __ATOMIC_RELAXED))
 		return -EBUSY;
 
 	rte_spinlock_lock(&hw->lock);
@@ -2252,18 +2444,16 @@ hns3vf_dev_start(struct rte_eth_dev *dev)
 	hns3_rx_scattered_calc(dev);
 	hns3_set_rxtx_function(dev);
 	hns3_mp_req_start_rxtx(dev);
-	hns3vf_service_handler(dev);
 
 	hns3vf_restore_filter(dev);
 
 	/* Enable interrupt of all rx queues before enabling queues */
 	hns3_dev_all_rx_queue_intr_enable(hw, true);
-
-	/*
-	 * After finished the initialization, start all tqps to receive/transmit
-	 * packets and refresh all queue status.
-	 */
 	hns3_start_tqps(hw);
+
+	if (dev->data->dev_conf.intr_conf.lsc != 0)
+		hns3vf_dev_link_update(dev, 0);
+	hns3vf_start_poll_job(dev);
 
 	return ret;
 
@@ -2323,7 +2513,8 @@ hns3vf_is_reset_pending(struct hns3_adapter *hns)
 	/* Check the registers to confirm whether there is reset pending */
 	hns3vf_check_event_cause(hns, NULL);
 	reset = hns3vf_get_reset_level(hw, &hw->reset.pending);
-	if (hw->reset.level != HNS3_NONE_RESET && hw->reset.level < reset) {
+	if (hw->reset.level != HNS3_NONE_RESET && reset != HNS3_NONE_RESET &&
+	    hw->reset.level < reset) {
 		hns3_warn(hw, "High level reset %d is pending", reset);
 		return true;
 	}
@@ -2391,7 +2582,7 @@ hns3vf_prepare_reset(struct hns3_adapter *hns)
 		if (ret)
 			return ret;
 	}
-	rte_atomic16_set(&hw->reset.disable_cmd, 1);
+	__atomic_store_n(&hw->reset.disable_cmd, 1, __ATOMIC_RELAXED);
 
 	return 0;
 }
@@ -2403,15 +2594,22 @@ hns3vf_stop_service(struct hns3_adapter *hns)
 	struct rte_eth_dev *eth_dev;
 
 	eth_dev = &rte_eth_devices[hw->data->port_id];
-	if (hw->adapter_state == HNS3_NIC_STARTED)
-		rte_eal_alarm_cancel(hns3vf_service_handler, eth_dev);
+	if (hw->adapter_state == HNS3_NIC_STARTED) {
+		/*
+		 * Make sure call update link status before hns3vf_stop_poll_job
+		 * because update link status depend on polling job exist.
+		 */
+		hns3vf_update_link_status(hw, ETH_LINK_DOWN, hw->mac.link_speed,
+					  hw->mac.link_duplex);
+		hns3vf_stop_poll_job(eth_dev);
+	}
 	hw->mac.link_status = ETH_LINK_DOWN;
 
 	hns3_set_rxtx_function(eth_dev);
 	rte_wmb();
 	/* Disable datapath on secondary process. */
 	hns3_mp_req_stop_rxtx(eth_dev);
-	rte_delay_ms(hw->tqps_num);
+	rte_delay_ms(hw->cfg_max_queues);
 
 	rte_spinlock_lock(&hw->lock);
 	if (hw->adapter_state == HNS3_NIC_STARTED ||
@@ -2427,7 +2625,7 @@ hns3vf_stop_service(struct hns3_adapter *hns)
 	 * from table space. Hence, for function reset software intervention is
 	 * required to delete the entries.
 	 */
-	if (rte_atomic16_read(&hw->reset.disable_cmd) == 0)
+	if (__atomic_load_n(&hw->reset.disable_cmd, __ATOMIC_RELAXED) == 0)
 		hns3vf_configure_all_mc_mac_addr(hns, true);
 	rte_spinlock_unlock(&hw->lock);
 
@@ -2444,7 +2642,7 @@ hns3vf_start_service(struct hns3_adapter *hns)
 	hns3_set_rxtx_function(eth_dev);
 	hns3_mp_req_start_rxtx(eth_dev);
 	if (hw->adapter_state == HNS3_NIC_STARTED) {
-		hns3vf_service_handler(eth_dev);
+		hns3vf_start_poll_job(eth_dev);
 
 		/* Enable interrupt of all rx queues before enabling queues */
 		hns3_dev_all_rx_queue_intr_enable(hw, true);
@@ -2493,7 +2691,7 @@ hns3vf_check_default_mac_change(struct hns3_hw *hw)
 		ret = rte_is_same_ether_addr(&hw->data->mac_addrs[0], hw_mac);
 		if (!ret) {
 			rte_ether_addr_copy(hw_mac, &hw->data->mac_addrs[0]);
-			rte_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
+			hns3_ether_format_addr(mac_str, RTE_ETHER_ADDR_FMT_SIZE,
 					      &hw->data->mac_addrs[0]);
 			hns3_warn(hw, "Default MAC address has been changed to:"
 				  " %s by the host PF kernel ethdev driver",
@@ -2606,8 +2804,10 @@ hns3vf_reset_service(void *param)
 	 * The interrupt may have been lost. It is necessary to handle
 	 * the interrupt to recover from the error.
 	 */
-	if (rte_atomic16_read(&hns->hw.reset.schedule) == SCHEDULE_DEFERRED) {
-		rte_atomic16_set(&hns->hw.reset.schedule, SCHEDULE_REQUESTED);
+	if (__atomic_load_n(&hw->reset.schedule, __ATOMIC_RELAXED) ==
+			    SCHEDULE_DEFERRED) {
+		__atomic_store_n(&hw->reset.schedule, SCHEDULE_REQUESTED,
+				 __ATOMIC_RELAXED);
 		hns3_err(hw, "Handling interrupts in delayed tasks");
 		hns3vf_interrupt_handler(&rte_eth_devices[hw->data->port_id]);
 		reset_level = hns3vf_get_reset_level(hw, &hw->reset.pending);
@@ -2616,7 +2816,7 @@ hns3vf_reset_service(void *param)
 			hns3_atomic_set_bit(HNS3_VF_RESET, &hw->reset.pending);
 		}
 	}
-	rte_atomic16_set(&hns->hw.reset.schedule, SCHEDULE_NONE);
+	__atomic_store_n(&hw->reset.schedule, SCHEDULE_NONE, __ATOMIC_RELAXED);
 
 	/*
 	 * Hardware reset has been notified, we now have to poll & check if
@@ -2731,11 +2931,12 @@ static const struct eth_dev_ops hns3vf_eth_dev_ops = {
 	.rss_hash_conf_get  = hns3_dev_rss_hash_conf_get,
 	.reta_update        = hns3_dev_rss_reta_update,
 	.reta_query         = hns3_dev_rss_reta_query,
-	.filter_ctrl        = hns3_dev_filter_ctrl,
+	.flow_ops_get       = hns3_dev_flow_ops_get,
 	.vlan_filter_set    = hns3vf_vlan_filter_set,
 	.vlan_offload_set   = hns3vf_vlan_offload_set,
 	.get_reg            = hns3_get_regs,
 	.dev_supported_ptypes_get = hns3_dev_supported_ptypes_get,
+	.tx_done_cleanup    = hns3_tx_done_cleanup,
 };
 
 static const struct hns3_reset_ops hns3vf_reset_ops = {
@@ -2757,15 +2958,6 @@ hns3vf_dev_init(struct rte_eth_dev *eth_dev)
 
 	PMD_INIT_FUNC_TRACE();
 
-	eth_dev->process_private = (struct hns3_process_private *)
-	    rte_zmalloc_socket("hns3_filter_list",
-			       sizeof(struct hns3_process_private),
-			       RTE_CACHE_LINE_SIZE, eth_dev->device->numa_node);
-	if (eth_dev->process_private == NULL) {
-		PMD_INIT_LOG(ERR, "Failed to alloc memory for process private");
-		return -ENOMEM;
-	}
-
 	hns3_flow_init(eth_dev);
 
 	hns3_set_rxtx_function(eth_dev);
@@ -2778,12 +2970,10 @@ hns3vf_dev_init(struct rte_eth_dev *eth_dev)
 					  "process, ret = %d", ret);
 			goto err_mp_init_secondary;
 		}
-
 		hw->secondary_cnt++;
+		hns3_tx_push_init(eth_dev);
 		return 0;
 	}
-
-	eth_dev->data->dev_flags |= RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS;
 
 	ret = hns3_mp_init_primary();
 	if (ret) {
@@ -2796,6 +2986,7 @@ hns3vf_dev_init(struct rte_eth_dev *eth_dev)
 	hw->adapter_state = HNS3_NIC_UNINITIALIZED;
 	hns->is_vf = true;
 	hw->data = eth_dev->data;
+	hns3_parse_devargs(eth_dev);
 
 	ret = hns3_reset_init(hw);
 	if (ret)
@@ -2839,7 +3030,8 @@ hns3vf_dev_init(struct rte_eth_dev *eth_dev)
 
 	hw->adapter_state = HNS3_NIC_INITIALIZED;
 
-	if (rte_atomic16_read(&hns->hw.reset.schedule) == SCHEDULE_PENDING) {
+	if (__atomic_load_n(&hw->reset.schedule, __ATOMIC_RELAXED) ==
+			    SCHEDULE_PENDING) {
 		hns3_err(hw, "Reschedule reset service after dev_init");
 		hns3_schedule_reset(hns);
 	} else {
@@ -2863,10 +3055,10 @@ err_mp_init_primary:
 err_mp_init_secondary:
 	eth_dev->dev_ops = NULL;
 	eth_dev->rx_pkt_burst = NULL;
+	eth_dev->rx_descriptor_status = NULL;
 	eth_dev->tx_pkt_burst = NULL;
 	eth_dev->tx_pkt_prepare = NULL;
-	rte_free(eth_dev->process_private);
-	eth_dev->process_private = NULL;
+	eth_dev->tx_descriptor_status = NULL;
 
 	return ret;
 }
@@ -2879,11 +3071,8 @@ hns3vf_dev_uninit(struct rte_eth_dev *eth_dev)
 
 	PMD_INIT_FUNC_TRACE();
 
-	if (rte_eal_process_type() != RTE_PROC_PRIMARY) {
-		rte_free(eth_dev->process_private);
-		eth_dev->process_private = NULL;
+	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
-	}
 
 	if (hw->adapter_state < HNS3_NIC_CLOSING)
 		hns3vf_dev_close(eth_dev);
@@ -2915,7 +3104,7 @@ static const struct rte_pci_id pci_id_hns3vf_map[] = {
 
 static struct rte_pci_driver rte_hns3vf_pmd = {
 	.id_table = pci_id_hns3vf_map,
-	.drv_flags = RTE_PCI_DRV_NEED_MAPPING,
+	.drv_flags = RTE_PCI_DRV_NEED_MAPPING | RTE_PCI_DRV_INTR_LSC,
 	.probe = eth_hns3vf_pci_probe,
 	.remove = eth_hns3vf_pci_remove,
 };
@@ -2923,3 +3112,7 @@ static struct rte_pci_driver rte_hns3vf_pmd = {
 RTE_PMD_REGISTER_PCI(net_hns3_vf, rte_hns3vf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_hns3_vf, pci_id_hns3vf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_hns3_vf, "* igb_uio | vfio-pci");
+RTE_PMD_REGISTER_PARAM_STRING(net_hns3_vf,
+		HNS3_DEVARG_RX_FUNC_HINT "=vec|sve|simple|common "
+		HNS3_DEVARG_TX_FUNC_HINT "=vec|sve|simple|common "
+		HNS3_DEVARG_DEV_CAPS_MASK "=<1-65535> ");

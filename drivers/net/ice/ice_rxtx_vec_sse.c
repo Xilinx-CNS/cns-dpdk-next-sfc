@@ -119,32 +119,32 @@ ice_rx_desc_to_olflags_v(struct ice_rx_queue *rxq, __m128i descs[4],
 	const __m128i cksum_mask = _mm_set_epi32(PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
 						 PKT_RX_OUTER_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
+						 PKT_RX_OUTER_IP_CKSUM_BAD,
 						 PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
 						 PKT_RX_OUTER_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
+						 PKT_RX_OUTER_IP_CKSUM_BAD,
 						 PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
 						 PKT_RX_OUTER_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD,
+						 PKT_RX_OUTER_IP_CKSUM_BAD,
 						 PKT_RX_IP_CKSUM_MASK |
 						 PKT_RX_L4_CKSUM_MASK |
 						 PKT_RX_OUTER_L4_CKSUM_MASK |
-						 PKT_RX_EIP_CKSUM_BAD);
+						 PKT_RX_OUTER_IP_CKSUM_BAD);
 
 	/* map the checksum, rss and vlan fields to the checksum, rss
 	 * and vlan flag
 	 */
 	const __m128i cksum_flags =
 		_mm_set_epi8((PKT_RX_OUTER_L4_CKSUM_BAD >> 20 |
-		 PKT_RX_EIP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
+		 PKT_RX_OUTER_IP_CKSUM_BAD | PKT_RX_L4_CKSUM_BAD |
 		  PKT_RX_IP_CKSUM_BAD) >> 1,
-		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_GOOD) >> 1,
-		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD) >> 1,
-		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_GOOD) >> 1,
 		(PKT_RX_OUTER_L4_CKSUM_BAD >> 20 | PKT_RX_L4_CKSUM_BAD |
 		 PKT_RX_IP_CKSUM_BAD) >> 1,
@@ -159,13 +159,13 @@ ice_rx_desc_to_olflags_v(struct ice_rx_queue *rxq, __m128i descs[4],
 		 * outer checksum status
 		 * shift right 1 bit to make sure it not exceed 255
 		 */
-		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD) >> 1,
-		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_GOOD) >> 1,
-		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_BAD) >> 1,
-		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_EIP_CKSUM_BAD |
+		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_OUTER_IP_CKSUM_BAD |
 		 PKT_RX_L4_CKSUM_GOOD | PKT_RX_IP_CKSUM_GOOD) >> 1,
 		(PKT_RX_OUTER_L4_CKSUM_GOOD >> 20 | PKT_RX_L4_CKSUM_BAD |
 		 PKT_RX_IP_CKSUM_BAD) >> 1,
@@ -478,7 +478,7 @@ _ice_recv_raw_pkts_vec(struct ice_rx_queue *rxq, struct rte_mbuf **rx_pkts,
 		 * needs to load 2nd 16B of each desc for RSS hash parsing,
 		 * will cause performance drop to get into this context.
 		 */
-		if (rxq->vsi->adapter->eth_dev->data->dev_conf.rxmode.offloads &
+		if (rxq->vsi->adapter->pf.dev_data->dev_conf.rxmode.offloads &
 				DEV_RX_OFFLOAD_RSS_HASH) {
 			/* load bottom half of every 32B desc */
 			const __m128i raw_desc_bh3 =
@@ -702,7 +702,7 @@ ice_xmit_fixed_burst_vec(void *tx_queue, struct rte_mbuf **tx_pkts,
 	nb_pkts = RTE_MIN(nb_pkts, txq->tx_rs_thresh);
 
 	if (txq->nb_tx_free < txq->tx_free_thresh)
-		ice_tx_free_bufs(txq);
+		ice_tx_free_bufs_vec(txq);
 
 	nb_pkts = (uint16_t)RTE_MIN(txq->nb_tx_free, nb_pkts);
 	nb_commit = nb_pkts;

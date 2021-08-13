@@ -32,9 +32,12 @@ The mailing list for DPDK development is `dev@dpdk.org <https://mails.dpdk.org/a
 Contributors will need to `register for the mailing list <https://mails.dpdk.org/listinfo/dev>`_ in order to submit patches.
 It is also worth registering for the DPDK `Patchwork <https://patches.dpdk.org/project/dpdk/list/>`_
 
-If you are using the GitHub service, you can link your repository to
-the ``travis-ci.org`` build service.  When you push patches to your GitHub
-repository, the travis service will automatically build your changes.
+If you are using the GitHub service, pushing to a branch will trigger GitHub
+Actions to automatically build your changes and run unit tests and ABI checks.
+
+Additionally, a Travis configuration is available in DPDK but Travis free usage
+is limited to a few builds.
+You can link your repository to the ``travis-ci.com`` build service.
 
 The development process requires some familiarity with the ``git`` version control system.
 Refer to the `Pro Git Book <http://www.git-scm.com/book/>`_ for further information.
@@ -427,13 +430,16 @@ updating the Linux kernel sources.
 
 The path to the original Linux script must be set in the environment variable ``DPDK_CHECKPATCH_PATH``.
 
-Spell checking of commonly misspelled words
-can be enabled by downloading the codespell dictionary::
-
-   https://raw.githubusercontent.com/codespell-project/codespell/master/codespell_lib/data/dictionary.txt
-
-The path to the downloaded ``dictionary.txt`` must be set
+Spell checking of commonly misspelled words is enabled
+by default if installed in ``/usr/share/codespell/dictionary.txt``.
+A different dictionary path can be specified
 in the environment variable ``DPDK_CHECKPATCH_CODESPELL``.
+
+There is a DPDK script to build an adjusted dictionary
+from the multiple codespell dictionaries::
+
+   git clone https://github.com/codespell-project/codespell.git
+   devtools/build-dict.sh codespell/ > codespell-dpdk.txt
 
 Environment variables required by the development tools,
 are loaded from the following files, in order of preference::

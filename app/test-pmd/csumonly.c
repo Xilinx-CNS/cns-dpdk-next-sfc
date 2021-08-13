@@ -480,17 +480,18 @@ process_inner_cksums(void *l3_hdr, const struct testpmd_offload_info *info,
 
 	if (info->ethertype == _htons(RTE_ETHER_TYPE_IPV4)) {
 		ipv4_hdr = l3_hdr;
-		ipv4_hdr->hdr_checksum = 0;
 
 		ol_flags |= PKT_TX_IPV4;
 		if (info->l4_proto == IPPROTO_TCP && tso_segsz) {
 			ol_flags |= PKT_TX_IP_CKSUM;
 		} else {
-			if (tx_offloads & DEV_TX_OFFLOAD_IPV4_CKSUM)
+			if (tx_offloads & DEV_TX_OFFLOAD_IPV4_CKSUM) {
 				ol_flags |= PKT_TX_IP_CKSUM;
-			else
+			} else {
+				ipv4_hdr->hdr_checksum = 0;
 				ipv4_hdr->hdr_checksum =
 					rte_ipv4_cksum(ipv4_hdr);
+			}
 		}
 	} else if (info->ethertype == _htons(RTE_ETHER_TYPE_IPV6))
 		ol_flags |= PKT_TX_IPV6;
@@ -501,10 +502,10 @@ process_inner_cksums(void *l3_hdr, const struct testpmd_offload_info *info,
 		udp_hdr = (struct rte_udp_hdr *)((char *)l3_hdr + info->l3_len);
 		/* do not recalculate udp cksum if it was 0 */
 		if (udp_hdr->dgram_cksum != 0) {
-			udp_hdr->dgram_cksum = 0;
-			if (tx_offloads & DEV_TX_OFFLOAD_UDP_CKSUM)
+			if (tx_offloads & DEV_TX_OFFLOAD_UDP_CKSUM) {
 				ol_flags |= PKT_TX_UDP_CKSUM;
-			else {
+			} else {
+				udp_hdr->dgram_cksum = 0;
 				udp_hdr->dgram_cksum =
 					get_udptcp_checksum(l3_hdr, udp_hdr,
 						info->ethertype);
@@ -514,12 +515,12 @@ process_inner_cksums(void *l3_hdr, const struct testpmd_offload_info *info,
 			ol_flags |= PKT_TX_UDP_SEG;
 	} else if (info->l4_proto == IPPROTO_TCP) {
 		tcp_hdr = (struct rte_tcp_hdr *)((char *)l3_hdr + info->l3_len);
-		tcp_hdr->cksum = 0;
 		if (tso_segsz)
 			ol_flags |= PKT_TX_TCP_SEG;
-		else if (tx_offloads & DEV_TX_OFFLOAD_TCP_CKSUM)
+		else if (tx_offloads & DEV_TX_OFFLOAD_TCP_CKSUM) {
 			ol_flags |= PKT_TX_TCP_CKSUM;
-		else {
+		} else {
+			tcp_hdr->cksum = 0;
 			tcp_hdr->cksum =
 				get_udptcp_checksum(l3_hdr, tcp_hdr,
 					info->ethertype);
@@ -529,13 +530,13 @@ process_inner_cksums(void *l3_hdr, const struct testpmd_offload_info *info,
 	} else if (info->l4_proto == IPPROTO_SCTP) {
 		sctp_hdr = (struct rte_sctp_hdr *)
 			((char *)l3_hdr + info->l3_len);
-		sctp_hdr->cksum = 0;
 		/* sctp payload must be a multiple of 4 to be
 		 * offloaded */
 		if ((tx_offloads & DEV_TX_OFFLOAD_SCTP_CKSUM) &&
 			((ipv4_hdr->total_length & 0x3) == 0)) {
 			ol_flags |= PKT_TX_SCTP_CKSUM;
 		} else {
+			sctp_hdr->cksum = 0;
 			/* XXX implement CRC32c, example available in
 			 * RFC3309 */
 		}
@@ -696,7 +697,7 @@ pkt_copy_split(const struct rte_mbuf *pkt)
 	mp = current_fwd_lcore()->mbp;
 
 	if (tx_pkt_split == TX_PKT_SPLIT_RND)
-		nb_seg = random() % tx_pkt_nb_segs + 1;
+		nb_seg = rte_rand() % tx_pkt_nb_segs + 1;
 	else
 		nb_seg = tx_pkt_nb_segs;
 
@@ -814,6 +815,7 @@ pkt_burst_checksum_forward(struct fwd_stream *fs)
 	uint32_t rx_bad_ip_csum;
 	uint32_t rx_bad_l4_csum;
 	uint32_t rx_bad_outer_l4_csum;
+	uint32_t rx_bad_outer_ip_csum;
 	struct testpmd_offload_info info;
 	uint16_t nb_segments = 0;
 	int ret;
@@ -833,6 +835,7 @@ pkt_burst_checksum_forward(struct fwd_stream *fs)
 	rx_bad_ip_csum = 0;
 	rx_bad_l4_csum = 0;
 	rx_bad_outer_l4_csum = 0;
+	rx_bad_outer_ip_csum = 0;
 	gro_enable = gro_ports[fs->rx_port].enable;
 
 	txp = &ports[fs->tx_port];
@@ -862,6 +865,8 @@ pkt_burst_checksum_forward(struct fwd_stream *fs)
 			rx_bad_l4_csum += 1;
 		if (rx_ol_flags & PKT_RX_OUTER_L4_CKSUM_BAD)
 			rx_bad_outer_l4_csum += 1;
+		if (rx_ol_flags & PKT_RX_OUTER_IP_CKSUM_BAD)
+			rx_bad_outer_ip_csum += 1;
 
 		/* step 1: dissect packet, parsing optional vlan, ip4/ip6, vxlan
 		 * and inner headers */
@@ -1103,8 +1108,9 @@ tunnel_update:
 	nb_prep = rte_eth_tx_prepare(fs->tx_port, fs->tx_queue,
 			tx_pkts_burst, nb_rx);
 	if (nb_prep != nb_rx)
-		printf("Preparing packet burst to transmit failed: %s\n",
-				rte_strerror(rte_errno));
+		fprintf(stderr,
+			"Preparing packet burst to transmit failed: %s\n",
+			rte_strerror(rte_errno));
 
 	nb_tx = rte_eth_tx_burst(fs->tx_port, fs->tx_queue, tx_pkts_burst,
 			nb_prep);
@@ -1124,6 +1130,7 @@ tunnel_update:
 	fs->rx_bad_ip_csum += rx_bad_ip_csum;
 	fs->rx_bad_l4_csum += rx_bad_l4_csum;
 	fs->rx_bad_outer_l4_csum += rx_bad_outer_l4_csum;
+	fs->rx_bad_outer_ip_csum += rx_bad_outer_ip_csum;
 
 	inc_tx_burst_stats(fs, nb_tx);
 	if (unlikely(nb_tx < nb_rx)) {

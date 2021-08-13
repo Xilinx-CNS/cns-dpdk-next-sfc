@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2019-2020 Broadcom
+ * Copyright(c) 2019-2021 Broadcom
  * All rights reserved.
  */
 
@@ -59,7 +59,7 @@
  * tf_session_info.
  */
 struct tf_session {
-	/** TrueFlow Version. Used to control the structure layout
+	/** TruFlow Version. Used to control the structure layout
 	 * when sharing sessions. No guarantee that a secondary
 	 * process would come from the same version of an executable.
 	 */
@@ -69,6 +69,23 @@ struct tf_session {
 	 * Session ID, allocated by FW on tf_open_session()
 	 */
 	union tf_session_id session_id;
+
+	/**
+	 * Boolean controlling the use and availability of shared session.
+	 * Shared session will allow the application to share resources
+	 * on the firmware side without having to allocate them on firmware.
+	 * Additional private session core_data will be allocated if this
+	 * boolean is set to 'true', default 'false'.
+	 *
+	 */
+	bool shared_session;
+
+	/**
+	 * This flag indicates the shared session on firmware side is created
+	 * by this session. Some privileges may be assigned to this session.
+	 *
+	 */
+	bool shared_session_creator;
 
 	/**
 	 * Boolean controlling the use and availability of shadow
@@ -112,6 +129,43 @@ struct tf_session {
 	 * Linked list of clients registered for this session
 	 */
 	struct ll client_ll;
+
+	/**
+	 * em ext db reference for the session
+	 */
+	void *em_ext_db_handle;
+
+	/**
+	 * tcam db reference for the session
+	 */
+	void *tcam_db_handle;
+
+	/**
+	 * table db reference for the session
+	 */
+	void *tbl_db_handle;
+
+	/**
+	 * identifier db reference for the session
+	 */
+	void *id_db_handle;
+
+	/**
+	 * em db reference for the session
+	 */
+	void *em_db_handle;
+
+	/**
+	 * EM allocator for session
+	 */
+	void *em_pool[TF_DIR_MAX];
+
+#ifdef TF_TCAM_SHARED
+	/**
+	 * tcam db reference for the session
+	 */
+	void *tcam_shared_db_handle;
+#endif /* TF_TCAM_SHARED */
 };
 
 /**
@@ -208,6 +262,22 @@ struct tf_session_close_session_parms {
  * @ref tf_session_get_fw_session_id
  *
  * @ref tf_session_get_session_id
+ *
+ * @ref tf_session_is_shared_session_creator
+ *
+ * @ref tf_session_get_db
+ *
+ * @ref tf_session_set_db
+ *
+ * @ref tf_session_get_bp
+ *
+ * @ref tf_session_is_shared_session
+ *
+ * #define TF_SHARED
+ * @ref tf_session_get_tcam_shared_db
+ *
+ * @ref tf_session_set_tcam_shared_db
+ * #endif
  */
 
 /**
@@ -409,5 +479,139 @@ int tf_session_get_fw_session_id(struct tf *tfp,
  */
 int tf_session_get_session_id(struct tf *tfp,
 			      union tf_session_id *session_id);
+
+/**
+ * API to get the em_ext_db from tf_session.
+ *
+ * [in] tfp
+ *   Pointer to TF handle
+ *
+ * [out] em_ext_db_handle, pointer to eem handle
+ *
+ * Returns:
+ *   - (0) if successful.
+ *   - (-EINVAL) on failure.
+ */
+int
+tf_session_get_em_ext_db(struct tf *tfp,
+			void **em_ext_db_handle);
+
+/**
+ * API to set the em_ext_db in tf_session.
+ *
+ * [in] tfp
+ *   Pointer to TF handle
+ *
+ * [in] em_ext_db_handle, pointer to eem handle
+ *
+ * Returns:
+ *   - (0) if successful.
+ *   - (-EINVAL) on failure.
+ */
+int
+tf_session_set_em_ext_db(struct tf *tfp,
+			void *em_ext_db_handle);
+
+/**
+ * API to get the db from tf_session.
+ *
+ * [in] tfp
+ *   Pointer to TF handle
+ *
+ * [out] db_handle, pointer to db handle
+ *
+ * Returns:
+ *   - (0) if successful.
+ *   - (-EINVAL) on failure.
+ */
+int
+tf_session_get_db(struct tf *tfp,
+		   enum tf_module_type type,
+		  void **db_handle);
+
+/**
+ * API to set the db in tf_session.
+ *
+ * [in] tfp
+ *   Pointer to TF handle
+ *
+ * [in] db_handle, pointer to db handle
+ *
+ * Returns:
+ *   - (0) if successful.
+ *   - (-EINVAL) on failure.
+ */
+int
+tf_session_set_db(struct tf *tfp,
+		   enum tf_module_type type,
+		  void *db_handle);
+
+/**
+ * Check if the session is shared session.
+ *
+ * [in] session, pointer to the session
+ *
+ * Returns:
+ *   - true if it is shared session
+ *   - false if it is not shared session
+ */
+static inline bool
+tf_session_is_shared_session(struct tf_session *tfs)
+{
+	return tfs->shared_session;
+}
+
+/**
+ * Check if the session is the shared session creator
+ *
+ * [in] session, pointer to the session
+ *
+ * Returns:
+ *   - true if it is the shared session creator
+ *   - false if it is not the shared session creator
+ */
+static inline bool
+tf_session_is_shared_session_creator(struct tf_session *tfs)
+{
+	return tfs->shared_session_creator;
+}
+
+/**
+ * Get the pointer to the parent bnxt struct
+ *
+ * [in] session, pointer to the session
+ *
+ * Returns:
+ *   - the pointer to the parent bnxt struct
+ */
+static inline struct bnxt*
+tf_session_get_bp(struct tf *tfp)
+{
+	return tfp->bp;
+}
+
+/**
+ * Set the pointer to the tcam shared database
+ *
+ * [in] session, pointer to the session
+ *
+ * Returns:
+ *   - the pointer to the parent bnxt struct
+ */
+int
+tf_session_set_tcam_shared_db(struct tf *tfp,
+			      void *tcam_shared_db_handle);
+
+/**
+ * Get the pointer to the tcam shared database
+ *
+ * [in] session, pointer to the session
+ *
+ * Returns:
+ *   - the pointer to the parent bnxt struct
+ */
+int
+tf_session_get_tcam_shared_db(struct tf *tfp,
+			      void **tcam_shared_db_handle);
 
 #endif /* _TF_SESSION_H_ */

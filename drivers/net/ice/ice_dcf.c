@@ -17,8 +17,8 @@
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_memzone.h>
 #include <rte_dev.h>
@@ -234,7 +234,9 @@ ice_dcf_get_vf_resource(struct ice_dcf_hw *hw)
 
 	caps = VIRTCHNL_VF_OFFLOAD_WB_ON_ITR | VIRTCHNL_VF_OFFLOAD_RX_POLLING |
 	       VIRTCHNL_VF_CAP_ADV_LINK_SPEED | VIRTCHNL_VF_CAP_DCF |
-	       VF_BASE_MODE_OFFLOADS | VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC;
+	       VIRTCHNL_VF_OFFLOAD_VLAN_V2 |
+	       VF_BASE_MODE_OFFLOADS | VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC |
+	       VIRTCHNL_VF_OFFLOAD_QOS;
 
 	err = ice_dcf_send_cmd_req_no_irq(hw, VIRTCHNL_OP_GET_VF_RESOURCES,
 					  (uint8_t *)&caps, sizeof(caps));
@@ -575,7 +577,7 @@ int
 ice_dcf_init_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw)
 {
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
-	int ret;
+	int ret, size;
 
 	hw->avf.hw_addr = pci_dev->mem_resource[0].addr;
 	hw->avf.back = hw;
@@ -667,6 +669,16 @@ ice_dcf_init_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw)
 		}
 	}
 
+	if (hw->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_QOS) {
+		ice_dcf_tm_conf_init(eth_dev);
+		size = sizeof(struct virtchnl_dcf_bw_cfg_list *) * hw->num_vfs;
+		hw->qos_bw_cfg = rte_zmalloc("qos_bw_cfg", size, 0);
+		if (!hw->qos_bw_cfg) {
+			PMD_INIT_LOG(ERR, "no memory for qos_bw_cfg");
+			goto err_rss;
+		}
+	}
+
 	hw->eth_dev = eth_dev;
 	rte_intr_callback_register(&pci_dev->intr_handle,
 				   ice_dcf_dev_interrupt_handler, hw);
@@ -694,6 +706,12 @@ ice_dcf_uninit_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw)
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
 	struct rte_intr_handle *intr_handle = &pci_dev->intr_handle;
 
+	if (hw->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_QOS)
+		if (hw->tm_conf.committed) {
+			ice_dcf_clear_bw(hw);
+			ice_dcf_tm_conf_uninit(eth_dev);
+		}
+
 	ice_dcf_disable_irq0(hw);
 	rte_intr_disable(intr_handle);
 	rte_intr_callback_unregister(intr_handle,
@@ -707,6 +725,7 @@ ice_dcf_uninit_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw)
 	rte_free(hw->vf_res);
 	rte_free(hw->rss_lut);
 	rte_free(hw->rss_key);
+	rte_free(hw->qos_bw_cfg);
 }
 
 static int

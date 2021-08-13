@@ -5,7 +5,7 @@
 #include <sys/ioctl.h>
 #include <sys/epoll.h>
 #include <rte_kvargs.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_vdev.h>
 #include <rte_bus_vdev.h>
 #include <rte_ether.h>
 #include <dpaa_of.h>
@@ -581,11 +581,6 @@ pfe_eth_link_update(struct rte_eth_dev *dev, int wait_to_complete __rte_unused)
 	struct pfe_eth_priv_s *priv = dev->data->dev_private;
 	struct rte_eth_link link, old;
 	unsigned int lstatus = 1;
-
-	if (dev == NULL) {
-		PFE_PMD_ERR("Invalid device in link_update.\n");
-		return 0;
-	}
 
 	memset(&old, 0, sizeof(old));
 	memset(&link, 0, sizeof(struct rte_eth_link));
@@ -1177,4 +1172,4 @@ struct rte_vdev_driver pmd_pfe_drv = {
 
 RTE_PMD_REGISTER_VDEV(PFE_NAME_PMD, pmd_pfe_drv);
 RTE_PMD_REGISTER_PARAM_STRING(PFE_NAME_PMD, PFE_VDEV_GEM_ID_ARG "=<int> ");
-RTE_LOG_REGISTER(pfe_logtype_pmd, pmd.net.pfe, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(pfe_logtype_pmd, NOTICE);

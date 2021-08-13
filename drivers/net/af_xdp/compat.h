@@ -4,6 +4,7 @@
 
 #include <bpf/xsk.h>
 #include <linux/version.h>
+#include <poll.h>
 
 #if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE && \
 	defined(RTE_LIBRTE_AF_XDP_PMD_SHARED_UMEM)
@@ -37,5 +38,19 @@ create_shared_socket(struct xsk_socket **xsk_ptr __rte_unused,
 			  const struct xsk_socket_config *config __rte_unused)
 {
 	return -1;
+}
+#endif
+
+#ifdef XDP_USE_NEED_WAKEUP
+static int
+tx_syscall_needed(struct xsk_ring_prod *q)
+{
+	return xsk_ring_prod__needs_wakeup(q);
+}
+#else
+static int
+tx_syscall_needed(struct xsk_ring_prod *q __rte_unused)
+{
+	return 1;
 }
 #endif

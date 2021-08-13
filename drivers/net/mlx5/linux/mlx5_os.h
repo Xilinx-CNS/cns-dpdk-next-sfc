@@ -10,13 +10,15 @@
 
 /* verb enumerations translations to local enums. */
 enum {
-	DEV_SYSFS_NAME_MAX = IBV_SYSFS_NAME_MAX + 1,
-	DEV_SYSFS_PATH_MAX = IBV_SYSFS_PATH_MAX + 1
+	MLX5_FS_NAME_MAX = IBV_SYSFS_NAME_MAX + 1,
+	MLX5_FS_PATH_MAX = IBV_SYSFS_PATH_MAX + 1
 };
+
+/* Maximal data of sendmsg message(in bytes). */
+#define MLX5_SENDMSG_MAX 64
 
 #define MLX5_NAMESIZE IF_NAMESIZE
 
-#define PCI_DRV_FLAGS  (RTE_PCI_DRV_INTR_LSC | \
-			RTE_PCI_DRV_INTR_RMV | \
-			RTE_PCI_DRV_PROBE_AGAIN)
+int mlx5_auxiliary_get_ifindex(const char *sf_name);
+
 #endif /* RTE_PMD_MLX5_OS_H_ */

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2016-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
@@ -248,6 +248,7 @@ sfc_ef10_tx_qpush(struct sfc_ef10_txq *txq, unsigned int added,
 	rte_io_wmb();
 
 	*(volatile efsys_uint128_t *)txq->doorbell = oword.eo_u128[0];
+	txq->dp.dpq.tx_dbells++;
 }
 
 static unsigned int

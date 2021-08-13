@@ -4,7 +4,7 @@
 
 #include <inttypes.h>
 
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 #include <rte_io.h>
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
@@ -42,7 +42,8 @@ nix_get_tx_offload_capa(struct otx2_eth_dev *dev)
 
 static const struct otx2_dev_ops otx2_dev_ops = {
 	.link_status_update = otx2_eth_dev_link_status_update,
-	.ptp_info_update = otx2_eth_dev_ptp_info_update
+	.ptp_info_update = otx2_eth_dev_ptp_info_update,
+	.link_status_get = otx2_eth_dev_link_status_get,
 };
 
 static int
@@ -112,15 +113,26 @@ nix_lf_switch_header_type_enable(struct otx2_eth_dev *dev, bool enable)
 	if (dev->npc_flow.switch_header_type == 0)
 		return 0;
 
-	if (dev->npc_flow.switch_header_type == OTX2_PRIV_FLAGS_LEN_90B &&
-	    !otx2_dev_is_sdp(dev)) {
-		otx2_err("chlen90b is not supported on non-SDP device");
-		return -EINVAL;
-	}
-
 	/* Notify AF about higig2 config */
 	req = otx2_mbox_alloc_msg_npc_set_pkind(mbox);
 	req->mode = dev->npc_flow.switch_header_type;
+	if (dev->npc_flow.switch_header_type == OTX2_PRIV_FLAGS_CH_LEN_90B) {
+		req->mode = OTX2_PRIV_FLAGS_CUSTOM;
+		req->pkind = NPC_RX_CHLEN90B_PKIND;
+	} else if (dev->npc_flow.switch_header_type ==
+		   OTX2_PRIV_FLAGS_CH_LEN_24B) {
+		req->mode = OTX2_PRIV_FLAGS_CUSTOM;
+		req->pkind = NPC_RX_CHLEN24B_PKIND;
+	} else if (dev->npc_flow.switch_header_type ==
+		   OTX2_PRIV_FLAGS_EXDSA) {
+		req->mode = OTX2_PRIV_FLAGS_CUSTOM;
+		req->pkind = NPC_RX_EXDSA_PKIND;
+	} else if (dev->npc_flow.switch_header_type ==
+		   OTX2_PRIV_FLAGS_VLAN_EXDSA) {
+		req->mode = OTX2_PRIV_FLAGS_CUSTOM;
+		req->pkind = NPC_RX_VLAN_EXDSA_PKIND;
+	}
+
 	if (enable == 0)
 		req->mode = OTX2_PRIV_FLAGS_DEFAULT;
 	req->dir = PKIND_RX;
@@ -129,6 +141,10 @@ nix_lf_switch_header_type_enable(struct otx2_eth_dev *dev, bool enable)
 		return rc;
 	req = otx2_mbox_alloc_msg_npc_set_pkind(mbox);
 	req->mode = dev->npc_flow.switch_header_type;
+	if (dev->npc_flow.switch_header_type == OTX2_PRIV_FLAGS_CH_LEN_90B ||
+	    dev->npc_flow.switch_header_type == OTX2_PRIV_FLAGS_CH_LEN_24B)
+		req->mode = OTX2_PRIV_FLAGS_DEFAULT;
+
 	if (enable == 0)
 		req->mode = OTX2_PRIV_FLAGS_DEFAULT;
 	req->dir = PKIND_TX;
@@ -1311,6 +1327,7 @@ otx2_nix_tx_queue_setup(struct rte_eth_dev *eth_dev, uint16_t sq,
 	txq->qconf.nb_desc = nb_desc;
 	memcpy(&txq->qconf.conf.tx, tx_conf, sizeof(struct rte_eth_txconf));
 
+	txq->lso_tun_fmt = dev->lso_tun_fmt;
 	otx2_nix_form_default_desc(txq);
 
 	otx2_nix_dbg("sq=%d fc=%p offload=0x%" PRIx64 " sqb=0x%" PRIx64 ""
@@ -1661,7 +1678,7 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	struct otx2_mbox *mbox = dev->mbox;
 	struct nix_lso_format_cfg_rsp *rsp;
 	struct nix_lso_format_cfg *req;
-	uint8_t base;
+	uint8_t *fmt;
 	int rc;
 
 	/* Skip if TSO was not requested */
@@ -1676,11 +1693,9 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	base = rsp->lso_format_idx;
-	if (base != NIX_LSO_FORMAT_IDX_TSOV4)
+	if (rsp->lso_format_idx != NIX_LSO_FORMAT_IDX_TSOV4)
 		return -EFAULT;
-	dev->lso_base_idx = base;
-	otx2_nix_dbg("tcpv4 lso fmt=%u", base);
+	otx2_nix_dbg("tcpv4 lso fmt=%u", rsp->lso_format_idx);
 
 
 	/*
@@ -1692,9 +1707,9 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 1)
+	if (rsp->lso_format_idx != NIX_LSO_FORMAT_IDX_TSOV6)
 		return -EFAULT;
-	otx2_nix_dbg("tcpv6 lso fmt=%u\n", base + 1);
+	otx2_nix_dbg("tcpv6 lso fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv4/UDP/TUN HDR/IPv4/TCP LSO
@@ -1705,9 +1720,8 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 2)
-		return -EFAULT;
-	otx2_nix_dbg("udp tun v4v4 fmt=%u\n", base + 2);
+	dev->lso_udp_tun_idx[NIX_LSO_TUN_V4V4] = rsp->lso_format_idx;
+	otx2_nix_dbg("udp tun v4v4 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv4/UDP/TUN HDR/IPv6/TCP LSO
@@ -1718,9 +1732,8 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 3)
-		return -EFAULT;
-	otx2_nix_dbg("udp tun v4v6 fmt=%u\n", base + 3);
+	dev->lso_udp_tun_idx[NIX_LSO_TUN_V4V6] = rsp->lso_format_idx;
+	otx2_nix_dbg("udp tun v4v6 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv6/UDP/TUN HDR/IPv4/TCP LSO
@@ -1731,9 +1744,8 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 4)
-		return -EFAULT;
-	otx2_nix_dbg("udp tun v6v4 fmt=%u\n", base + 4);
+	dev->lso_udp_tun_idx[NIX_LSO_TUN_V6V4] = rsp->lso_format_idx;
+	otx2_nix_dbg("udp tun v6v4 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv6/UDP/TUN HDR/IPv6/TCP LSO
@@ -1743,9 +1755,9 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	rc = otx2_mbox_process_msg(mbox, (void *)&rsp);
 	if (rc)
 		return rc;
-	if (rsp->lso_format_idx != base + 5)
-		return -EFAULT;
-	otx2_nix_dbg("udp tun v6v6 fmt=%u\n", base + 5);
+
+	dev->lso_udp_tun_idx[NIX_LSO_TUN_V6V6] = rsp->lso_format_idx;
+	otx2_nix_dbg("udp tun v6v6 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv4/TUN HDR/IPv4/TCP LSO
@@ -1756,9 +1768,8 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 6)
-		return -EFAULT;
-	otx2_nix_dbg("tun v4v4 fmt=%u\n", base + 6);
+	dev->lso_tun_idx[NIX_LSO_TUN_V4V4] = rsp->lso_format_idx;
+	otx2_nix_dbg("tun v4v4 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv4/TUN HDR/IPv6/TCP LSO
@@ -1769,9 +1780,8 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 7)
-		return -EFAULT;
-	otx2_nix_dbg("tun v4v6 fmt=%u\n", base + 7);
+	dev->lso_tun_idx[NIX_LSO_TUN_V4V6] = rsp->lso_format_idx;
+	otx2_nix_dbg("tun v4v6 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv6/TUN HDR/IPv4/TCP LSO
@@ -1782,9 +1792,8 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	if (rc)
 		return rc;
 
-	if (rsp->lso_format_idx != base + 8)
-		return -EFAULT;
-	otx2_nix_dbg("tun v6v4 fmt=%u\n", base + 8);
+	dev->lso_tun_idx[NIX_LSO_TUN_V6V4] = rsp->lso_format_idx;
+	otx2_nix_dbg("tun v6v4 fmt=%u\n", rsp->lso_format_idx);
 
 	/*
 	 * IPv6/TUN HDR/IPv6/TCP LSO
@@ -1794,9 +1803,26 @@ nix_setup_lso_formats(struct otx2_eth_dev *dev)
 	rc = otx2_mbox_process_msg(mbox, (void *)&rsp);
 	if (rc)
 		return rc;
-	if (rsp->lso_format_idx != base + 9)
-		return -EFAULT;
-	otx2_nix_dbg("tun v6v6 fmt=%u\n", base + 9);
+
+	dev->lso_tun_idx[NIX_LSO_TUN_V6V6] = rsp->lso_format_idx;
+	otx2_nix_dbg("tun v6v6 fmt=%u\n", rsp->lso_format_idx);
+
+	/* Save all tun formats into u64 for fast path.
+	 * Lower 32bit has non-udp tunnel formats.
+	 * Upper 32bit has udp tunnel formats.
+	 */
+	fmt = dev->lso_tun_idx;
+	dev->lso_tun_fmt = ((uint64_t)fmt[NIX_LSO_TUN_V4V4] |
+			    (uint64_t)fmt[NIX_LSO_TUN_V4V6] << 8 |
+			    (uint64_t)fmt[NIX_LSO_TUN_V6V4] << 16 |
+			    (uint64_t)fmt[NIX_LSO_TUN_V6V6] << 24);
+
+	fmt = dev->lso_udp_tun_idx;
+	dev->lso_tun_fmt |= ((uint64_t)fmt[NIX_LSO_TUN_V4V4] << 32 |
+			     (uint64_t)fmt[NIX_LSO_TUN_V4V6] << 40 |
+			     (uint64_t)fmt[NIX_LSO_TUN_V6V4] << 48 |
+			     (uint64_t)fmt[NIX_LSO_TUN_V6V6] << 56);
+
 	return 0;
 }
 
@@ -2145,6 +2171,7 @@ otx2_nix_dev_stop(struct rte_eth_dev *eth_dev)
 	struct otx2_eth_dev *dev = otx2_eth_pmd_priv(eth_dev);
 	struct rte_mbuf *rx_pkts[32];
 	struct otx2_eth_rxq *rxq;
+	struct rte_eth_link link;
 	int count, i, j, rc;
 
 	nix_lf_switch_header_type_enable(dev, false);
@@ -2169,6 +2196,10 @@ otx2_nix_dev_stop(struct rte_eth_dev *eth_dev)
 	/* Stop tx queues  */
 	for (i = 0; i < eth_dev->data->nb_tx_queues; i++)
 		otx2_nix_tx_queue_stop(eth_dev, i);
+
+	/* Bring down link status internally */
+	memset(&link, 0, sizeof(link));
+	rte_eth_linkstatus_set(eth_dev, &link);
 
 	return 0;
 }
@@ -2315,7 +2346,7 @@ static const struct eth_dev_ops otx2_eth_dev_ops = {
 	.tx_done_cleanup          = otx2_nix_tx_done_cleanup,
 	.set_queue_rate_limit     = otx2_nix_tm_set_queue_rate_limit,
 	.pool_ops_supported       = otx2_nix_pool_ops_supported,
-	.filter_ctrl              = otx2_nix_dev_filter_ctrl,
+	.flow_ops_get             = otx2_nix_dev_flow_ops_get,
 	.get_module_info          = otx2_nix_get_module_info,
 	.get_module_eeprom        = otx2_nix_get_module_eeprom,
 	.fw_version_get           = otx2_nix_fw_version_get,
@@ -2610,6 +2641,11 @@ otx2_eth_dev_uninit(struct rte_eth_dev *eth_dev, bool mbox_close)
 
 	nix_cgx_stop_link_event(dev);
 
+	/* Unregister the dev ops, this is required to stop VFs from
+	 * receiving link status updates on exit path.
+	 */
+	dev->ops = NULL;
+
 	/* Free up SQs */
 	for (i = 0; i < eth_dev->data->nb_tx_queues; i++) {
 		otx2_nix_tx_queue_release(eth_dev->data->tx_queues[i]);
@@ -2787,6 +2823,6 @@ static struct rte_pci_driver pci_nix = {
 	.remove = nix_remove,
 };
 
-RTE_PMD_REGISTER_PCI(net_octeontx2, pci_nix);
-RTE_PMD_REGISTER_PCI_TABLE(net_octeontx2, pci_nix_map);
-RTE_PMD_REGISTER_KMOD_DEP(net_octeontx2, "vfio-pci");
+RTE_PMD_REGISTER_PCI(OCTEONTX2_PMD, pci_nix);
+RTE_PMD_REGISTER_PCI_TABLE(OCTEONTX2_PMD, pci_nix_map);
+RTE_PMD_REGISTER_KMOD_DEP(OCTEONTX2_PMD, "vfio-pci");

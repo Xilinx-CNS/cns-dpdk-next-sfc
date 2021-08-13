@@ -24,7 +24,7 @@
 #include <rte_memory.h>
 #include <rte_pci.h>
 #include <rte_bus_vdev.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_cryptodev.h>
 #include <rte_event_eth_rx_adapter.h>
 #include <rte_event_eth_tx_adapter.h>
@@ -1206,4 +1206,4 @@ static struct rte_vdev_driver vdev_eventdev_dpaa2_pmd = {
 };
 
 RTE_PMD_REGISTER_VDEV(EVENTDEV_NAME_DPAA2_PMD, vdev_eventdev_dpaa2_pmd);
-RTE_LOG_REGISTER(dpaa2_logtype_event, pmd.event.dpaa2, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(dpaa2_logtype_event, NOTICE);

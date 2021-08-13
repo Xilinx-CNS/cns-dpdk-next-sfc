@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2016-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
@@ -20,9 +20,11 @@
 #include "sfc_log.h"
 #include "sfc_ev.h"
 #include "sfc_rx.h"
+#include "sfc_mae_counter.h"
 #include "sfc_tx.h"
 #include "sfc_kvargs.h"
 #include "sfc_tweak.h"
+#include "sfc_sw_stats.h"
 
 
 int
@@ -174,6 +176,7 @@ static int
 sfc_estimate_resource_limits(struct sfc_adapter *sa)
 {
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
 	efx_drv_limits_t limits;
 	int rc;
 	uint32_t evq_allocated;
@@ -235,17 +238,53 @@ sfc_estimate_resource_limits(struct sfc_adapter *sa)
 	rxq_allocated = MIN(rxq_allocated, limits.edl_max_rxq_count);
 	txq_allocated = MIN(txq_allocated, limits.edl_max_txq_count);
 
-	/* Subtract management EVQ not used for traffic */
-	SFC_ASSERT(evq_allocated > 0);
+	/*
+	 * Subtract management EVQ not used for traffic
+	 * The resource allocation strategy is as follows:
+	 * - one EVQ for management
+	 * - one EVQ for each ethdev RXQ
+	 * - one EVQ for each ethdev TXQ
+	 * - one EVQ and one RXQ for optional MAE counters.
+	 */
+	if (evq_allocated == 0) {
+		sfc_err(sa, "count of allocated EvQ is 0");
+		rc = ENOMEM;
+		goto fail_allocate_evq;
+	}
 	evq_allocated--;
 
-	/* Right now we use separate EVQ for Rx and Tx */
-	sa->rxq_max = MIN(rxq_allocated, evq_allocated / 2);
-	sa->txq_max = MIN(txq_allocated, evq_allocated - sa->rxq_max);
+	/*
+	 * Reserve absolutely required minimum.
+	 * Right now we use separate EVQ for Rx and Tx.
+	 */
+	if (rxq_allocated > 0 && evq_allocated > 0) {
+		sa->rxq_max = 1;
+		rxq_allocated--;
+		evq_allocated--;
+	}
+	if (txq_allocated > 0 && evq_allocated > 0) {
+		sa->txq_max = 1;
+		txq_allocated--;
+		evq_allocated--;
+	}
+
+	if (sfc_mae_counter_rxq_required(sa) &&
+	    rxq_allocated > 0 && evq_allocated > 0) {
+		rxq_allocated--;
+		evq_allocated--;
+		sas->counters_rxq_allocated = true;
+	} else {
+		sas->counters_rxq_allocated = false;
+	}
+
+	/* Add remaining allocated queues */
+	sa->rxq_max += MIN(rxq_allocated, evq_allocated / 2);
+	sa->txq_max += MIN(txq_allocated, evq_allocated - sa->rxq_max);
 
 	/* Keep NIC initialized */
 	return 0;
 
+fail_allocate_evq:
 fail_get_vi_pool:
 	efx_nic_fini(sa->nic);
 fail_nic_init:
@@ -256,14 +295,20 @@ static int
 sfc_set_drv_limits(struct sfc_adapter *sa)
 {
 	const struct rte_eth_dev_data *data = sa->eth_dev->data;
+	uint32_t rxq_reserved = sfc_nb_reserved_rxq(sfc_sa2shared(sa));
 	efx_drv_limits_t lim;
 
 	memset(&lim, 0, sizeof(lim));
 
-	/* Limits are strict since take into account initial estimation */
+	/*
+	 * Limits are strict since take into account initial estimation.
+	 * Resource allocation stategy is described in
+	 * sfc_estimate_resource_limits().
+	 */
 	lim.edl_min_evq_count = lim.edl_max_evq_count =
-		1 + data->nb_rx_queues + data->nb_tx_queues;
-	lim.edl_min_rxq_count = lim.edl_max_rxq_count = data->nb_rx_queues;
+		1 + data->nb_rx_queues + data->nb_tx_queues + rxq_reserved;
+	lim.edl_min_rxq_count = lim.edl_max_rxq_count =
+		data->nb_rx_queues + rxq_reserved;
 	lim.edl_min_txq_count = lim.edl_max_txq_count = data->nb_tx_queues;
 
 	return efx_nic_set_drv_limits(sa->nic, &lim);
@@ -592,9 +637,16 @@ sfc_configure(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_tx_configure;
 
+	rc = sfc_sw_xstats_configure(sa);
+	if (rc != 0)
+		goto fail_sw_xstats_configure;
+
 	sa->state = SFC_ADAPTER_CONFIGURED;
 	sfc_log_init(sa, "done");
 	return 0;
+
+fail_sw_xstats_configure:
+	sfc_tx_close(sa);
 
 fail_tx_configure:
 	sfc_rx_close(sa);
@@ -622,6 +674,7 @@ sfc_close(struct sfc_adapter *sa)
 	SFC_ASSERT(sa->state == SFC_ADAPTER_CONFIGURED);
 	sa->state = SFC_ADAPTER_CLOSING;
 
+	sfc_sw_xstats_close(sa);
 	sfc_tx_close(sa);
 	sfc_rx_close(sa);
 	sfc_port_close(sa);
@@ -629,29 +682,6 @@ sfc_close(struct sfc_adapter *sa)
 
 	sa->state = SFC_ADAPTER_INITIALIZED;
 	sfc_log_init(sa, "done");
-}
-
-static efx_rc_t
-sfc_find_mem_bar(efsys_pci_config_t *configp, int bar_index,
-		 efsys_bar_t *barp)
-{
-	efsys_bar_t result;
-	struct rte_pci_device *dev;
-
-	memset(&result, 0, sizeof(result));
-
-	if (bar_index < 0 || bar_index >= PCI_MAX_RESOURCE)
-		return EINVAL;
-
-	dev = configp->espc_dev;
-
-	result.esb_rid = bar_index;
-	result.esb_dev = dev;
-	result.esb_base = dev->mem_resource[bar_index].addr;
-
-	*barp = result;
-
-	return 0;
 }
 
 static int
@@ -857,6 +887,10 @@ sfc_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_filter_attach;
 
+	rc = sfc_mae_counter_rxq_attach(sa);
+	if (rc != 0)
+		goto fail_mae_counter_rxq_attach;
+
 	rc = sfc_mae_attach(sa);
 	if (rc != 0)
 		goto fail_mae_attach;
@@ -865,6 +899,10 @@ sfc_attach(struct sfc_adapter *sa)
 	efx_nic_fini(enp);
 
 	sfc_flow_init(sa);
+
+	rc = sfc_sw_xstats_init(sa);
+	if (rc != 0)
+		goto fail_sw_xstats_init;
 
 	/*
 	 * Create vSwitch to be able to use VFs when PF is not started yet
@@ -881,10 +919,16 @@ sfc_attach(struct sfc_adapter *sa)
 	return 0;
 
 fail_sriov_vswitch_create:
+	sfc_sw_xstats_close(sa);
+
+fail_sw_xstats_init:
 	sfc_flow_fini(sa);
 	sfc_mae_detach(sa);
 
 fail_mae_attach:
+	sfc_mae_counter_rxq_detach(sa);
+
+fail_mae_counter_rxq_attach:
 	sfc_filter_detach(sa);
 
 fail_filter_attach:
@@ -926,6 +970,7 @@ sfc_detach(struct sfc_adapter *sa)
 	sfc_flow_fini(sa);
 
 	sfc_mae_detach(sa);
+	sfc_mae_counter_rxq_detach(sa);
 	sfc_filter_detach(sa);
 	sfc_rss_detach(sa);
 	sfc_port_detach(sa);
@@ -1095,43 +1140,12 @@ sfc_nic_probe(struct sfc_adapter *sa)
 	return 0;
 }
 
-static efx_rc_t
-sfc_pci_config_readd(efsys_pci_config_t *configp, uint32_t offset,
-		     efx_dword_t *edp)
-{
-	int rc;
-
-	rc = rte_pci_read_config(configp->espc_dev, edp->ed_u32, sizeof(*edp),
-				 offset);
-
-	return (rc < 0 || rc != sizeof(*edp)) ? EIO : 0;
-}
-
-static int
-sfc_family(struct sfc_adapter *sa, efx_bar_region_t *mem_ebrp)
-{
-	struct rte_eth_dev *eth_dev = sa->eth_dev;
-	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
-	efsys_pci_config_t espcp;
-	static const efx_pci_ops_t ops = {
-		.epo_config_readd = sfc_pci_config_readd,
-		.epo_find_mem_bar = sfc_find_mem_bar,
-	};
-	int rc;
-
-	espcp.espc_dev = pci_dev;
-
-	rc = efx_family_probe_bar(pci_dev->id.vendor_id,
-				  pci_dev->id.device_id,
-				  &espcp, &ops, &sa->family, mem_ebrp);
-
-	return rc;
-}
-
 int
 sfc_probe(struct sfc_adapter *sa)
 {
 	efx_bar_region_t mem_ebrp;
+	struct rte_eth_dev *eth_dev = sa->eth_dev;
+	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
 	efx_nic_t *enp;
 	int rc;
 
@@ -1143,7 +1157,8 @@ sfc_probe(struct sfc_adapter *sa)
 	rte_atomic32_init(&sa->restart_required);
 
 	sfc_log_init(sa, "get family");
-	rc = sfc_family(sa, &mem_ebrp);
+	rc = sfc_efx_family(pci_dev, &mem_ebrp, &sa->family);
+
 	if (rc != 0)
 		goto fail_family;
 	sfc_log_init(sa,

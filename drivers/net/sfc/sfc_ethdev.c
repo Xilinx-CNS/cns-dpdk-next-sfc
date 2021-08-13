@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2016-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
@@ -8,8 +8,8 @@
  */
 
 #include <rte_dev.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
 #include <rte_errno.h>
@@ -28,6 +28,10 @@
 #include "sfc_flow.h"
 #include "sfc_dp.h"
 #include "sfc_dp_rx.h"
+#include "sfc_sw_stats.h"
+
+#define SFC_XSTAT_ID_INVALID_VAL  UINT64_MAX
+#define SFC_XSTAT_ID_INVALID_NAME '\0'
 
 uint32_t sfc_logtype_driver;
 
@@ -463,26 +467,31 @@ sfc_dev_allmulti_disable(struct rte_eth_dev *dev)
 }
 
 static int
-sfc_rx_queue_setup(struct rte_eth_dev *dev, uint16_t rx_queue_id,
+sfc_rx_queue_setup(struct rte_eth_dev *dev, uint16_t ethdev_qid,
 		   uint16_t nb_rx_desc, unsigned int socket_id,
 		   const struct rte_eth_rxconf *rx_conf,
 		   struct rte_mempool *mb_pool)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
+	struct sfc_rxq_info *rxq_info;
+	sfc_sw_index_t sw_index;
 	int rc;
 
 	sfc_log_init(sa, "RxQ=%u nb_rx_desc=%u socket_id=%u",
-		     rx_queue_id, nb_rx_desc, socket_id);
+		     ethdev_qid, nb_rx_desc, socket_id);
 
 	sfc_adapter_lock(sa);
 
-	rc = sfc_rx_qinit(sa, rx_queue_id, nb_rx_desc, socket_id,
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, sfc_ethdev_qid);
+	rc = sfc_rx_qinit(sa, sw_index, nb_rx_desc, socket_id,
 			  rx_conf, mb_pool);
 	if (rc != 0)
 		goto fail_rx_qinit;
 
-	dev->data->rx_queues[rx_queue_id] = sas->rxq_info[rx_queue_id].dp;
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
+	dev->data->rx_queues[ethdev_qid] = rxq_info->dp;
 
 	sfc_adapter_unlock(sa);
 
@@ -500,7 +509,7 @@ sfc_rx_queue_release(void *queue)
 	struct sfc_dp_rxq *dp_rxq = queue;
 	struct sfc_rxq *rxq;
 	struct sfc_adapter *sa;
-	unsigned int sw_index;
+	sfc_sw_index_t sw_index;
 
 	if (dp_rxq == NULL)
 		return;
@@ -519,24 +528,28 @@ sfc_rx_queue_release(void *queue)
 }
 
 static int
-sfc_tx_queue_setup(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+sfc_tx_queue_setup(struct rte_eth_dev *dev, uint16_t ethdev_qid,
 		   uint16_t nb_tx_desc, unsigned int socket_id,
 		   const struct rte_eth_txconf *tx_conf)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_txq_info *txq_info;
+	sfc_sw_index_t sw_index;
 	int rc;
 
 	sfc_log_init(sa, "TxQ = %u, nb_tx_desc = %u, socket_id = %u",
-		     tx_queue_id, nb_tx_desc, socket_id);
+		     ethdev_qid, nb_tx_desc, socket_id);
 
 	sfc_adapter_lock(sa);
 
-	rc = sfc_tx_qinit(sa, tx_queue_id, nb_tx_desc, socket_id, tx_conf);
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_qid);
+	rc = sfc_tx_qinit(sa, sw_index, nb_tx_desc, socket_id, tx_conf);
 	if (rc != 0)
 		goto fail_tx_qinit;
 
-	dev->data->tx_queues[tx_queue_id] = sas->txq_info[tx_queue_id].dp;
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_qid);
+	dev->data->tx_queues[ethdev_qid] = txq_info->dp;
 
 	sfc_adapter_unlock(sa);
 	return 0;
@@ -552,7 +565,7 @@ sfc_tx_queue_release(void *queue)
 {
 	struct sfc_dp_txq *dp_txq = queue;
 	struct sfc_txq *txq;
-	unsigned int sw_index;
+	sfc_sw_index_t sw_index;
 	struct sfc_adapter *sa;
 
 	if (dp_txq == NULL)
@@ -604,9 +617,9 @@ sfc_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	uint64_t *mac_stats;
 	int ret;
 
-	rte_spinlock_lock(&port->mac_stats_lock);
+	sfc_adapter_lock(sa);
 
-	ret = sfc_port_update_mac_stats(sa);
+	ret = sfc_port_update_mac_stats(sa, B_FALSE);
 	if (ret != 0)
 		goto unlock;
 
@@ -677,7 +690,7 @@ sfc_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	}
 
 unlock:
-	rte_spinlock_unlock(&port->mac_stats_lock);
+	sfc_adapter_unlock(sa);
 	SFC_ASSERT(ret >= 0);
 	return -ret;
 }
@@ -689,12 +702,15 @@ sfc_stats_reset(struct rte_eth_dev *dev)
 	struct sfc_port *port = &sa->port;
 	int rc;
 
+	sfc_adapter_lock(sa);
+
 	if (sa->state != SFC_ADAPTER_STARTED) {
 		/*
 		 * The operation cannot be done if port is not started; it
 		 * will be scheduled to be done during the next port start
 		 */
 		port->mac_stats_reset_pending = B_TRUE;
+		sfc_adapter_unlock(sa);
 		return 0;
 	}
 
@@ -702,8 +718,26 @@ sfc_stats_reset(struct rte_eth_dev *dev)
 	if (rc != 0)
 		sfc_err(sa, "failed to reset statistics (rc = %d)", rc);
 
+	sfc_sw_xstats_reset(sa);
+
+	sfc_adapter_unlock(sa);
+
 	SFC_ASSERT(rc >= 0);
 	return -rc;
+}
+
+static unsigned int
+sfc_xstats_get_nb_supported(struct sfc_adapter *sa)
+{
+	struct sfc_port *port = &sa->port;
+	unsigned int nb_supported;
+
+	sfc_adapter_lock(sa);
+	nb_supported = port->mac_stats_nb_supported +
+		       sfc_sw_xstats_get_nb_supported(sa);
+	sfc_adapter_unlock(sa);
+
+	return nb_supported;
 }
 
 static int
@@ -711,37 +745,22 @@ sfc_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 	       unsigned int xstats_count)
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
-	struct sfc_port *port = &sa->port;
-	uint64_t *mac_stats;
+	unsigned int nb_written = 0;
+	unsigned int nb_supported = 0;
 	int rc;
-	unsigned int i;
-	int nstats = 0;
 
-	rte_spinlock_lock(&port->mac_stats_lock);
+	if (unlikely(xstats == NULL))
+		return sfc_xstats_get_nb_supported(sa);
 
-	rc = sfc_port_update_mac_stats(sa);
-	if (rc != 0) {
-		SFC_ASSERT(rc > 0);
-		nstats = -rc;
-		goto unlock;
-	}
+	rc = sfc_port_get_mac_stats(sa, xstats, xstats_count, &nb_written);
+	if (rc < 0)
+		return rc;
 
-	mac_stats = port->mac_stats_buf;
+	nb_supported = rc;
+	sfc_sw_xstats_get_vals(sa, xstats, xstats_count, &nb_written,
+			       &nb_supported);
 
-	for (i = 0; i < EFX_MAC_NSTATS; ++i) {
-		if (EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i)) {
-			if (xstats != NULL && nstats < (int)xstats_count) {
-				xstats[nstats].id = nstats;
-				xstats[nstats].value = mac_stats[i];
-			}
-			nstats++;
-		}
-	}
-
-unlock:
-	rte_spinlock_unlock(&port->mac_stats_lock);
-
-	return nstats;
+	return nb_supported;
 }
 
 static int
@@ -753,15 +772,29 @@ sfc_xstats_get_names(struct rte_eth_dev *dev,
 	struct sfc_port *port = &sa->port;
 	unsigned int i;
 	unsigned int nstats = 0;
+	unsigned int nb_written = 0;
+	int ret;
+
+	if (unlikely(xstats_names == NULL))
+		return sfc_xstats_get_nb_supported(sa);
 
 	for (i = 0; i < EFX_MAC_NSTATS; ++i) {
 		if (EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i)) {
-			if (xstats_names != NULL && nstats < xstats_count)
+			if (nstats < xstats_count) {
 				strlcpy(xstats_names[nstats].name,
 					efx_mac_stat_name(sa->nic, i),
 					sizeof(xstats_names[0].name));
+				nb_written++;
+			}
 			nstats++;
 		}
+	}
+
+	ret = sfc_sw_xstats_get_names(sa, xstats_names, xstats_count,
+				      &nb_written, &nstats);
+	if (ret != 0) {
+		SFC_ASSERT(ret < 0);
+		return ret;
 	}
 
 	return nstats;
@@ -773,44 +806,34 @@ sfc_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct sfc_port *port = &sa->port;
-	uint64_t *mac_stats;
-	unsigned int nb_supported = 0;
-	unsigned int nb_written = 0;
+	unsigned int nb_supported;
 	unsigned int i;
-	int ret;
 	int rc;
 
-	if (unlikely(values == NULL) ||
-	    unlikely((ids == NULL) && (n < port->mac_stats_nb_supported)))
-		return port->mac_stats_nb_supported;
+	if (unlikely(ids == NULL || values == NULL))
+		return -EINVAL;
 
-	rte_spinlock_lock(&port->mac_stats_lock);
+	/*
+	 * Values array could be filled in nonsequential order. Fill values with
+	 * constant indicating invalid ID first.
+	 */
+	for (i = 0; i < n; i++)
+		values[i] = SFC_XSTAT_ID_INVALID_VAL;
 
-	rc = sfc_port_update_mac_stats(sa);
-	if (rc != 0) {
-		SFC_ASSERT(rc > 0);
-		ret = -rc;
-		goto unlock;
+	rc = sfc_port_get_mac_stats_by_id(sa, ids, values, n);
+	if (rc != 0)
+		return rc;
+
+	nb_supported = port->mac_stats_nb_supported;
+	sfc_sw_xstats_get_vals_by_id(sa, ids, values, n, &nb_supported);
+
+	/* Return number of written stats before invalid ID is encountered. */
+	for (i = 0; i < n; i++) {
+		if (values[i] == SFC_XSTAT_ID_INVALID_VAL)
+			return i;
 	}
 
-	mac_stats = port->mac_stats_buf;
-
-	for (i = 0; (i < EFX_MAC_NSTATS) && (nb_written < n); ++i) {
-		if (!EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i))
-			continue;
-
-		if ((ids == NULL) || (ids[nb_written] == nb_supported))
-			values[nb_written++] = mac_stats[i];
-
-		++nb_supported;
-	}
-
-	ret = nb_written;
-
-unlock:
-	rte_spinlock_unlock(&port->mac_stats_lock);
-
-	return ret;
+	return n;
 }
 
 static int
@@ -820,29 +843,56 @@ sfc_xstats_get_names_by_id(struct rte_eth_dev *dev,
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct sfc_port *port = &sa->port;
-	unsigned int nb_supported = 0;
-	unsigned int nb_written = 0;
+	unsigned int nb_supported;
 	unsigned int i;
+	int ret;
 
-	if (unlikely(xstats_names == NULL) ||
-	    unlikely((ids == NULL) && (size < port->mac_stats_nb_supported)))
-		return port->mac_stats_nb_supported;
+	if (unlikely(xstats_names == NULL && ids != NULL) ||
+	    unlikely(xstats_names != NULL && ids == NULL))
+		return -EINVAL;
 
-	for (i = 0; (i < EFX_MAC_NSTATS) && (nb_written < size); ++i) {
-		if (!EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i))
-			continue;
+	if (unlikely(xstats_names == NULL && ids == NULL))
+		return sfc_xstats_get_nb_supported(sa);
 
-		if ((ids == NULL) || (ids[nb_written] == nb_supported)) {
-			char *name = xstats_names[nb_written++].name;
+	/*
+	 * Names array could be filled in nonsequential order. Fill names with
+	 * string indicating invalid ID first.
+	 */
+	for (i = 0; i < size; i++)
+		xstats_names[i].name[0] = SFC_XSTAT_ID_INVALID_NAME;
 
-			strlcpy(name, efx_mac_stat_name(sa->nic, i),
+	sfc_adapter_lock(sa);
+
+	SFC_ASSERT(port->mac_stats_nb_supported <=
+		   RTE_DIM(port->mac_stats_by_id));
+
+	for (i = 0; i < size; i++) {
+		if (ids[i] < port->mac_stats_nb_supported) {
+			strlcpy(xstats_names[i].name,
+				efx_mac_stat_name(sa->nic,
+						 port->mac_stats_by_id[ids[i]]),
 				sizeof(xstats_names[0].name));
 		}
-
-		++nb_supported;
 	}
 
-	return nb_written;
+	nb_supported = port->mac_stats_nb_supported;
+
+	sfc_adapter_unlock(sa);
+
+	ret = sfc_sw_xstats_get_names_by_id(sa, ids, xstats_names, size,
+					    &nb_supported);
+	if (ret != 0) {
+		SFC_ASSERT(ret < 0);
+		return ret;
+	}
+
+	/* Return number of written names before invalid ID is encountered. */
+	for (i = 0; i < size; i++) {
+		if (xstats_names[i].name[0] == SFC_XSTAT_ID_INVALID_NAME)
+			return i;
+	}
+
+	return size;
 }
 
 static int
@@ -1182,15 +1232,14 @@ sfc_set_mc_addr_list(struct rte_eth_dev *dev,
  * use any process-local pointers from the adapter data.
  */
 static void
-sfc_rx_queue_info_get(struct rte_eth_dev *dev, uint16_t rx_queue_id,
+sfc_rx_queue_info_get(struct rte_eth_dev *dev, uint16_t ethdev_qid,
 		      struct rte_eth_rxq_info *qinfo)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 
-	SFC_ASSERT(rx_queue_id < sas->rxq_count);
-
-	rxq_info = &sas->rxq_info[rx_queue_id];
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
 
 	qinfo->mp = rxq_info->refill_mb_pool;
 	qinfo->conf.rx_free_thresh = rxq_info->refill_threshold;
@@ -1209,15 +1258,15 @@ sfc_rx_queue_info_get(struct rte_eth_dev *dev, uint16_t rx_queue_id,
  * use any process-local pointers from the adapter data.
  */
 static void
-sfc_tx_queue_info_get(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+sfc_tx_queue_info_get(struct rte_eth_dev *dev, uint16_t ethdev_qid,
 		      struct rte_eth_txq_info *qinfo)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_txq_info *txq_info;
 
-	SFC_ASSERT(tx_queue_id < sas->txq_count);
+	SFC_ASSERT(ethdev_qid < sas->ethdev_txq_count);
 
-	txq_info = &sas->txq_info[tx_queue_id];
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_qid);
 
 	memset(qinfo, 0, sizeof(*qinfo));
 
@@ -1232,14 +1281,14 @@ sfc_tx_queue_info_get(struct rte_eth_dev *dev, uint16_t tx_queue_id,
  * use any process-local pointers from the adapter data.
  */
 static uint32_t
-sfc_rx_queue_count(struct rte_eth_dev *dev, uint16_t rx_queue_id)
+sfc_rx_queue_count(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	const struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(dev);
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 
-	SFC_ASSERT(rx_queue_id < sas->rxq_count);
-	rxq_info = &sas->rxq_info[rx_queue_id];
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
 
 	if ((rxq_info->state & SFC_RXQ_STARTED) == 0)
 		return 0;
@@ -1293,13 +1342,16 @@ sfc_tx_descriptor_status(void *queue, uint16_t offset)
 }
 
 static int
-sfc_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
+sfc_rx_queue_start(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
+	struct sfc_rxq_info *rxq_info;
+	sfc_sw_index_t sw_index;
 	int rc;
 
-	sfc_log_init(sa, "RxQ=%u", rx_queue_id);
+	sfc_log_init(sa, "RxQ=%u", ethdev_qid);
 
 	sfc_adapter_lock(sa);
 
@@ -1307,14 +1359,16 @@ sfc_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	if (sa->state != SFC_ADAPTER_STARTED)
 		goto fail_not_started;
 
-	if (sas->rxq_info[rx_queue_id].state != SFC_RXQ_INITIALIZED)
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
+	if (rxq_info->state != SFC_RXQ_INITIALIZED)
 		goto fail_not_setup;
 
-	rc = sfc_rx_qstart(sa, rx_queue_id);
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, sfc_ethdev_qid);
+	rc = sfc_rx_qstart(sa, sw_index);
 	if (rc != 0)
 		goto fail_rx_qstart;
 
-	sas->rxq_info[rx_queue_id].deferred_started = B_TRUE;
+	rxq_info->deferred_started = B_TRUE;
 
 	sfc_adapter_unlock(sa);
 
@@ -1329,17 +1383,23 @@ fail_not_started:
 }
 
 static int
-sfc_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
+sfc_rx_queue_stop(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
+	struct sfc_rxq_info *rxq_info;
+	sfc_sw_index_t sw_index;
 
-	sfc_log_init(sa, "RxQ=%u", rx_queue_id);
+	sfc_log_init(sa, "RxQ=%u", ethdev_qid);
 
 	sfc_adapter_lock(sa);
-	sfc_rx_qstop(sa, rx_queue_id);
 
-	sas->rxq_info[rx_queue_id].deferred_started = B_FALSE;
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, sfc_ethdev_qid);
+	sfc_rx_qstop(sa, sw_index);
+
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
+	rxq_info->deferred_started = B_FALSE;
 
 	sfc_adapter_unlock(sa);
 
@@ -1347,13 +1407,15 @@ sfc_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 }
 
 static int
-sfc_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
+sfc_tx_queue_start(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_txq_info *txq_info;
+	sfc_sw_index_t sw_index;
 	int rc;
 
-	sfc_log_init(sa, "TxQ = %u", tx_queue_id);
+	sfc_log_init(sa, "TxQ = %u", ethdev_qid);
 
 	sfc_adapter_lock(sa);
 
@@ -1361,14 +1423,16 @@ sfc_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	if (sa->state != SFC_ADAPTER_STARTED)
 		goto fail_not_started;
 
-	if (sas->txq_info[tx_queue_id].state != SFC_TXQ_INITIALIZED)
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_qid);
+	if (txq_info->state != SFC_TXQ_INITIALIZED)
 		goto fail_not_setup;
 
-	rc = sfc_tx_qstart(sa, tx_queue_id);
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_qid);
+	rc = sfc_tx_qstart(sa, sw_index);
 	if (rc != 0)
 		goto fail_tx_qstart;
 
-	sas->txq_info[tx_queue_id].deferred_started = B_TRUE;
+	txq_info->deferred_started = B_TRUE;
 
 	sfc_adapter_unlock(sa);
 	return 0;
@@ -1383,18 +1447,22 @@ fail_not_started:
 }
 
 static int
-sfc_tx_queue_stop(struct rte_eth_dev *dev, uint16_t tx_queue_id)
+sfc_tx_queue_stop(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct sfc_txq_info *txq_info;
+	sfc_sw_index_t sw_index;
 
-	sfc_log_init(sa, "TxQ = %u", tx_queue_id);
+	sfc_log_init(sa, "TxQ = %u", ethdev_qid);
 
 	sfc_adapter_lock(sa);
 
-	sfc_tx_qstop(sa, tx_queue_id);
+	sw_index = sfc_txq_sw_index_by_ethdev_tx_qid(sas, ethdev_qid);
+	sfc_tx_qstop(sa, sw_index);
 
-	sas->txq_info[tx_queue_id].deferred_started = B_FALSE;
+	txq_info = sfc_txq_info_by_ethdev_qid(sas, ethdev_qid);
+	txq_info->deferred_started = B_FALSE;
 
 	sfc_adapter_unlock(sa);
 	return 0;
@@ -1743,32 +1811,11 @@ bad_reta_entry:
 }
 
 static int
-sfc_dev_filter_ctrl(struct rte_eth_dev *dev, enum rte_filter_type filter_type,
-		    enum rte_filter_op filter_op,
-		    void *arg)
+sfc_dev_flow_ops_get(struct rte_eth_dev *dev __rte_unused,
+		     const struct rte_flow_ops **ops)
 {
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
-	int rc = ENOTSUP;
-
-	sfc_log_init(sa, "entry");
-
-	switch (filter_type) {
-	case RTE_ETH_FILTER_GENERIC:
-		if (filter_op != RTE_ETH_FILTER_GET) {
-			rc = EINVAL;
-		} else {
-			*(const void **)arg = &sfc_flow_ops;
-			rc = 0;
-		}
-		break;
-	default:
-		sfc_err(sa, "Unknown filter type %u", filter_type);
-		break;
-	}
-
-	sfc_log_init(sa, "exit: %d", -rc);
-	SFC_ASSERT(rc >= 0);
-	return -rc;
+	*ops = &sfc_flow_ops;
+	return 0;
 }
 
 static int
@@ -1787,27 +1834,27 @@ sfc_pool_ops_supported(struct rte_eth_dev *dev, const char *pool)
 }
 
 static int
-sfc_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
+sfc_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	const struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(dev);
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 
-	SFC_ASSERT(queue_id < sas->rxq_count);
-	rxq_info = &sas->rxq_info[queue_id];
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
 
 	return sap->dp_rx->intr_enable(rxq_info->dp);
 }
 
 static int
-sfc_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t queue_id)
+sfc_rx_queue_intr_disable(struct rte_eth_dev *dev, uint16_t ethdev_qid)
 {
 	const struct sfc_adapter_priv *sap = sfc_adapter_priv_by_eth_dev(dev);
 	struct sfc_adapter_shared *sas = sfc_adapter_shared_by_eth_dev(dev);
+	sfc_ethdev_qid_t sfc_ethdev_qid = ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 
-	SFC_ASSERT(queue_id < sas->rxq_count);
-	rxq_info = &sas->rxq_info[queue_id];
+	rxq_info = sfc_rxq_info_by_ethdev_qid(sas, sfc_ethdev_qid);
 
 	return sap->dp_rx->intr_disable(rxq_info->dp);
 }
@@ -1851,7 +1898,7 @@ static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.reta_query			= sfc_dev_rss_reta_query,
 	.rss_hash_update		= sfc_dev_rss_hash_update,
 	.rss_hash_conf_get		= sfc_dev_rss_hash_conf_get,
-	.filter_ctrl			= sfc_dev_filter_ctrl,
+	.flow_ops_get			= sfc_dev_flow_ops_get,
 	.set_mc_addr_list		= sfc_set_mc_addr_list,
 	.rxq_info_get			= sfc_rx_queue_info_get,
 	.txq_info_get			= sfc_tx_queue_info_get,
@@ -2152,6 +2199,13 @@ sfc_eth_dev_init(struct rte_eth_dev *dev)
 	const efx_nic_cfg_t *encp;
 	const struct rte_ether_addr *from;
 	int ret;
+
+	if (sfc_efx_dev_class_get(pci_dev->device.devargs) !=
+			SFC_EFX_DEV_CLASS_NET) {
+		SFC_GENERIC_LOG(DEBUG,
+			"Incompatible device class: skip probing, should be probed by other sfc driver.");
+		return 1;
+	}
 
 	sfc_register_dp();
 

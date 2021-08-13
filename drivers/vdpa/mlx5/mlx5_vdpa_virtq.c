@@ -323,6 +323,9 @@ mlx5_vdpa_virtq_setup(struct mlx5_vdpa_priv *priv, int index)
 	attr.tis_id = priv->tiss[(index / 2) % priv->num_lag_ports]->id;
 	attr.queue_index = index;
 	attr.pd = priv->pdn;
+	attr.hw_latency_mode = priv->hw_latency_mode;
+	attr.hw_max_latency_us = priv->hw_max_latency_us;
+	attr.hw_max_pending_comp = priv->hw_max_pending_comp;
 	virtq->virtq = mlx5_devx_cmd_create_virtq(priv->ctx, &attr);
 	virtq->priv = priv;
 	if (!virtq->virtq)
@@ -439,6 +442,13 @@ mlx5_vdpa_virtqs_prepare(struct mlx5_vdpa_priv *priv)
 		DRV_LOG(ERR, "Failed to configure negotiated features.");
 		return -1;
 	}
+	if ((priv->features & (1ULL << VIRTIO_NET_F_CSUM)) == 0 &&
+	    ((priv->features & (1ULL << VIRTIO_NET_F_HOST_TSO4)) > 0 ||
+	     (priv->features & (1ULL << VIRTIO_NET_F_HOST_TSO6)) > 0)) {
+		/* Packet may be corrupted if TSO is enabled without CSUM. */
+		DRV_LOG(INFO, "TSO is enabled without CSUM, force CSUM.");
+		priv->features |= (1ULL << VIRTIO_NET_F_CSUM);
+	}
 	if (nr_vring > priv->caps.max_num_virtio_queues * 2) {
 		DRV_LOG(ERR, "Do not support more than %d virtqs(%d).",
 			(int)priv->caps.max_num_virtio_queues * 2,
@@ -493,7 +503,7 @@ mlx5_vdpa_virtq_is_modified(struct mlx5_vdpa_priv *priv,
 		return -1;
 	if (vq.size != virtq->vq_size || vq.kickfd != virtq->intr_handle.fd)
 		return 1;
-	if (virtq->eqp.cq.cq) {
+	if (virtq->eqp.cq.cq_obj.cq) {
 		if (vq.callfd != virtq->eqp.cq.callfd)
 			return 1;
 	} else if (vq.callfd != -1) {

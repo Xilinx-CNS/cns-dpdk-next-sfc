@@ -266,8 +266,9 @@ dump_pkt_burst(uint16_t port_id, uint16_t queue, struct rte_mbuf *pkts[],
 				vx_vni = rte_be_to_cpu_32(vxlan_hdr->vx_vni);
 				MKDUMPSTR(print_buf, buf_size, cur_len,
 					  " - VXLAN packet: packet type =%d, "
-					  "Destination UDP port =%d, VNI = %d",
-					  packet_type, udp_port, vx_vni >> 8);
+					  "Destination UDP port =%d, VNI = %d, "
+					  "last_rsvd = %d", packet_type,
+					  udp_port, vx_vni >> 8, vx_vni & 0xff);
 			}
 		}
 		MKDUMPSTR(print_buf, buf_size, cur_len,
@@ -432,8 +433,9 @@ eth_dev_info_get_print_err(uint16_t port_id,
 
 	ret = rte_eth_dev_info_get(port_id, dev_info);
 	if (ret != 0)
-		printf("Error during getting device (port %u) info: %s\n",
-				port_id, strerror(-ret));
+		fprintf(stderr,
+			"Error during getting device (port %u) info: %s\n",
+			port_id, strerror(-ret));
 
 	return ret;
 }
@@ -449,7 +451,8 @@ eth_set_promisc_mode(uint16_t port, int enable)
 		ret = rte_eth_promiscuous_disable(port);
 
 	if (ret != 0)
-		printf("Error during %s promiscuous mode for port %u: %s\n",
+		fprintf(stderr,
+			"Error during %s promiscuous mode for port %u: %s\n",
 			enable ? "enabling" : "disabling",
 			port, rte_strerror(-ret));
 }
@@ -465,7 +468,8 @@ eth_set_allmulticast_mode(uint16_t port, int enable)
 		ret = rte_eth_allmulticast_disable(port);
 
 	if (ret != 0)
-		printf("Error during %s all-multicast mode for port %u: %s\n",
+		fprintf(stderr,
+			"Error during %s all-multicast mode for port %u: %s\n",
 			enable ? "enabling" : "disabling",
 			port, rte_strerror(-ret));
 }
@@ -477,7 +481,8 @@ eth_link_get_nowait_print_err(uint16_t port_id, struct rte_eth_link *link)
 
 	ret = rte_eth_link_get_nowait(port_id, link);
 	if (ret < 0)
-		printf("Device (port %u) link get (without wait) failed: %s\n",
+		fprintf(stderr,
+			"Device (port %u) link get (without wait) failed: %s\n",
 			port_id, rte_strerror(-ret));
 
 	return ret;
@@ -490,8 +495,9 @@ eth_macaddr_get_print_err(uint16_t port_id, struct rte_ether_addr *mac_addr)
 
 	ret = rte_eth_macaddr_get(port_id, mac_addr);
 	if (ret != 0)
-		printf("Error getting device (port %u) mac address: %s\n",
-				port_id, rte_strerror(-ret));
+		fprintf(stderr,
+			"Error getting device (port %u) mac address: %s\n",
+			port_id, rte_strerror(-ret));
 
 	return ret;
 }

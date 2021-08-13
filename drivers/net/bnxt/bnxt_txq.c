@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2018 Broadcom
+ * Copyright(c) 2014-2021 Broadcom
  * All rights reserved.
  */
 
@@ -8,6 +8,7 @@
 #include <rte_malloc.h>
 
 #include "bnxt.h"
+#include "bnxt_hwrm.h"
 #include "bnxt_ring.h"
 #include "bnxt_txq.h"
 #include "bnxt_txr.h"
@@ -24,7 +25,7 @@ void bnxt_free_txq_stats(struct bnxt_tx_queue *txq)
 
 static void bnxt_tx_queue_release_mbufs(struct bnxt_tx_queue *txq)
 {
-	struct bnxt_sw_tx_bd *sw_ring;
+	struct rte_mbuf **sw_ring;
 	uint16_t i;
 
 	if (!txq || !txq->tx_ring)
@@ -33,9 +34,9 @@ static void bnxt_tx_queue_release_mbufs(struct bnxt_tx_queue *txq)
 	sw_ring = txq->tx_ring->tx_buf_ring;
 	if (sw_ring) {
 		for (i = 0; i < txq->tx_ring->tx_ring_struct->ring_size; i++) {
-			if (sw_ring[i].mbuf) {
-				rte_pktmbuf_free_seg(sw_ring[i].mbuf);
-				sw_ring[i].mbuf = NULL;
+			if (sw_ring[i]) {
+				rte_pktmbuf_free_seg(sw_ring[i]);
+				sw_ring[i] = NULL;
 			}
 		}
 	}
@@ -61,6 +62,7 @@ void bnxt_tx_queue_release_op(void *tx_queue)
 			return;
 
 		/* Free TX ring hardware descriptors */
+		bnxt_free_hwrm_tx_ring(txq->bp, txq->queue_id);
 		bnxt_tx_queue_release_mbufs(txq);
 		if (txq->tx_ring) {
 			bnxt_free_ring(txq->tx_ring->tx_ring_struct);
@@ -149,8 +151,8 @@ int bnxt_tx_queue_setup_op(struct rte_eth_dev *eth_dev,
 	txq->port_id = eth_dev->data->port_id;
 
 	/* Allocate TX ring hardware descriptors */
-	if (bnxt_alloc_rings(bp, queue_idx, txq, NULL, txq->cp_ring, NULL,
-			     "txr")) {
+	if (bnxt_alloc_rings(bp, socket_id, queue_idx, txq, NULL, txq->cp_ring,
+			     NULL, "txr")) {
 		PMD_DRV_LOG(ERR, "ring_dma_zone_reserve for tx_ring failed!");
 		rc = -ENOMEM;
 		goto err;

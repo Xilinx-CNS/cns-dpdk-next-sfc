@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2018 Broadcom
+ * Copyright(c) 2014-2021 Broadcom
  * All rights reserved.
  */
 
@@ -183,6 +183,16 @@ void bnxt_rx_queue_release_mbufs(struct bnxt_rx_queue *rxq)
 
 	sw_ring = rxq->rx_ring->rx_buf_ring;
 	if (sw_ring) {
+#if defined(RTE_ARCH_X86) || defined(RTE_ARCH_ARM64)
+		/*
+		 * The vector receive burst function does not set used
+		 * mbuf pointers to NULL, do that here to simplify
+		 * cleanup logic.
+		 */
+		for (i = 0; i < rxq->rxrearm_nb; i++)
+			sw_ring[rxq->rxrearm_start + i] = NULL;
+		rxq->rxrearm_nb = 0;
+#endif
 		for (i = 0;
 		     i < rxq->rx_ring->rx_ring_struct->ring_size; i++) {
 			if (sw_ring[i]) {
@@ -238,6 +248,7 @@ void bnxt_rx_queue_release_op(void *rx_queue)
 		if (is_bnxt_in_error(rxq->bp))
 			return;
 
+		bnxt_free_hwrm_rx_ring(rxq->bp, rxq->queue_id);
 		bnxt_rx_queue_release_mbufs(rxq);
 
 		/* Free RX ring hardware descriptors */
@@ -276,7 +287,6 @@ int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 	uint64_t rx_offloads = eth_dev->data->dev_conf.rxmode.offloads;
 	struct bnxt_rx_queue *rxq;
 	int rc = 0;
-	uint8_t queue_state;
 
 	rc = is_bnxt_in_error(bp);
 	if (rc)
@@ -335,8 +345,8 @@ int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 
 	eth_dev->data->rx_queues[queue_idx] = rxq;
 	/* Allocate RX ring hardware descriptors */
-	rc = bnxt_alloc_rings(bp, queue_idx, NULL, rxq, rxq->cp_ring, NULL,
-			     "rxr");
+	rc = bnxt_alloc_rings(bp, socket_id, queue_idx, NULL, rxq, rxq->cp_ring,
+			      NULL, "rxr");
 	if (rc) {
 		PMD_DRV_LOG(ERR,
 			    "ring_dma_zone_reserve for rx_ring failed!\n");
@@ -350,14 +360,8 @@ int bnxt_rx_queue_setup_op(struct rte_eth_dev *eth_dev,
 	else
 		rxq->rx_deferred_start = rx_conf->rx_deferred_start;
 
-	if (rxq->rx_deferred_start) {
-		queue_state = RTE_ETH_QUEUE_STATE_STOPPED;
-		rxq->rx_started = false;
-	} else {
-		queue_state = RTE_ETH_QUEUE_STATE_STARTED;
-		rxq->rx_started = true;
-	}
-	eth_dev->data->rx_queue_state[queue_idx] = queue_state;
+	rxq->rx_started = rxq->rx_deferred_start ? false : true;
+	rxq->vnic = BNXT_GET_DEFAULT_VNIC(bp);
 
 	/* Configure mtu if it is different from what was configured before */
 	if (!queue_idx)
@@ -444,7 +448,7 @@ int bnxt_rx_queue_start(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 	if (rc)
 		return rc;
 
-	if (BNXT_CHIP_THOR(bp)) {
+	if (BNXT_CHIP_P5(bp)) {
 		/* Reconfigure default receive ring and MRU. */
 		bnxt_hwrm_vnic_cfg(bp, rxq->vnic);
 	}
@@ -534,7 +538,7 @@ int bnxt_rx_queue_stop(struct rte_eth_dev *dev, uint16_t rx_queue_id)
 		if (bp->rx_queues[i]->rx_started)
 			active_queue_cnt++;
 
-	if (BNXT_CHIP_THOR(bp)) {
+	if (BNXT_CHIP_P5(bp)) {
 		/*
 		 * For Thor, we need to ensure that the VNIC default receive
 		 * ring corresponds to an active receive queue. When no queue

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
 *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2016-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
@@ -14,7 +14,7 @@
 
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_kvargs.h>
 #include <rte_spinlock.h>
 #include <rte_atomic.h>
@@ -22,12 +22,14 @@
 #include "efx.h"
 
 #include "sfc_efx_mcdi.h"
+#include "sfc_efx.h"
 
 #include "sfc_debug.h"
 #include "sfc_log.h"
 #include "sfc_filter.h"
 #include "sfc_sriov.h"
 #include "sfc_mae.h"
+#include "sfc_dp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,7 +130,6 @@ struct sfc_port {
 	unsigned int			nb_mcast_addrs;
 	uint8_t				*mcast_addrs;
 
-	rte_spinlock_t			mac_stats_lock;
 	uint64_t			*mac_stats_buf;
 	unsigned int			mac_stats_nb_supported;
 	efsys_mem_t			mac_stats_dma_mem;
@@ -139,6 +140,8 @@ struct sfc_port {
 	uint64_t			mac_stats_last_request_timestamp;
 
 	uint32_t		mac_stats_mask[EFX_MAC_STATS_MASK_NPAGES];
+
+	unsigned int			mac_stats_by_id[EFX_MAC_NSTATS];
 
 	uint64_t			ipackets;
 };
@@ -167,9 +170,11 @@ struct sfc_rss {
 struct sfc_adapter_shared {
 	unsigned int			rxq_count;
 	struct sfc_rxq_info		*rxq_info;
+	unsigned int			ethdev_rxq_count;
 
 	unsigned int			txq_count;
 	struct sfc_txq_info		*txq_info;
+	unsigned int			ethdev_txq_count;
 
 	struct sfc_rss			rss;
 
@@ -182,6 +187,8 @@ struct sfc_adapter_shared {
 
 	char				*dp_rx_name;
 	char				*dp_tx_name;
+
+	bool				counters_rxq_allocated;
 };
 
 /* Adapter process private data */
@@ -200,6 +207,23 @@ sfc_adapter_priv_by_eth_dev(struct rte_eth_dev *eth_dev)
 	SFC_ASSERT(sap != NULL);
 	return sap;
 }
+
+/* RxQ dedicated for counters (counter only RxQ) data */
+struct sfc_counter_rxq {
+	unsigned int			state;
+#define SFC_COUNTER_RXQ_ATTACHED		0x1
+#define SFC_COUNTER_RXQ_INITIALIZED		0x2
+	sfc_sw_index_t			sw_index;
+	struct rte_mempool		*mp;
+};
+
+struct sfc_sw_xstats {
+	uint64_t			*reset_vals;
+
+	rte_spinlock_t			queues_bitmap_lock;
+	void				*queues_bitmap_mem;
+	struct rte_bitmap		*queues_bitmap;
+};
 
 /* Adapter private data */
 struct sfc_adapter {
@@ -233,6 +257,7 @@ struct sfc_adapter {
 	struct sfc_sriov		sriov;
 	struct sfc_intr			intr;
 	struct sfc_port			port;
+	struct sfc_sw_xstats		sw_xstats;
 	struct sfc_filter		filter;
 	struct sfc_mae			mae;
 
@@ -278,6 +303,8 @@ struct sfc_adapter {
 	rte_spinlock_t			mgmt_evq_lock;
 	bool				mgmt_evq_running;
 	struct sfc_evq			*mgmt_evq;
+
+	struct sfc_counter_rxq		counter_rxq;
 
 	struct sfc_rxq			*rxq_ctrl;
 	struct sfc_txq			*txq_ctrl;
@@ -353,6 +380,12 @@ sfc_adapter_lock_fini(__rte_unused struct sfc_adapter *sa)
 	/* Just for symmetry of the API */
 }
 
+static inline unsigned int
+sfc_nb_counter_rxq(const struct sfc_adapter_shared *sas)
+{
+	return sas->counters_rxq_allocated ? 1 : 0;
+}
+
 /** Get the number of milliseconds since boot from the default timer */
 static inline uint64_t
 sfc_get_system_msecs(void)
@@ -398,7 +431,11 @@ int sfc_port_start(struct sfc_adapter *sa);
 void sfc_port_stop(struct sfc_adapter *sa);
 void sfc_port_link_mode_to_info(efx_link_mode_t link_mode,
 				struct rte_eth_link *link_info);
-int sfc_port_update_mac_stats(struct sfc_adapter *sa);
+int sfc_port_update_mac_stats(struct sfc_adapter *sa, boolean_t manual_update);
+int sfc_port_get_mac_stats(struct sfc_adapter *sa, struct rte_eth_xstat *xstats,
+			   unsigned int xstats_count, unsigned int *nb_written);
+int sfc_port_get_mac_stats_by_id(struct sfc_adapter *sa, const uint64_t *ids,
+				 uint64_t *values, unsigned int n);
 int sfc_port_reset_mac_stats(struct sfc_adapter *sa);
 int sfc_set_rx_mode(struct sfc_adapter *sa);
 int sfc_set_rx_mode_unchecked(struct sfc_adapter *sa);

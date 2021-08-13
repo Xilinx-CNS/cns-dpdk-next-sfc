@@ -565,7 +565,7 @@ rxq_cq_process_v(struct mlx5_rxq_data *rxq, volatile struct mlx5_cqe *cq,
 	const __m128i flow_mark_adj = _mm_set_epi32(rxq->mark * (-1), 0, 0, 0);
 	/*
 	 * A. load first Qword (8bytes) in one loop.
-	 * B. copy 4 mbuf pointers from elts ring to returing pkts.
+	 * B. copy 4 mbuf pointers from elts ring to returning pkts.
 	 * C. load remained CQE data and extract necessary fields.
 	 *    Final 16bytes cqes[] extracted from original 64bytes CQE has the
 	 *    following structure:
@@ -771,13 +771,17 @@ rxq_cq_process_v(struct mlx5_rxq_data *rxq, volatile struct mlx5_cqe *cq,
 			uint32_t mask = rxq->flow_meta_port_mask;
 
 			*RTE_MBUF_DYNFIELD(pkts[pos], offs, uint32_t *) =
-				cq[pos].flow_table_metadata & mask;
+				rte_be_to_cpu_32
+				(cq[pos].flow_table_metadata) &	mask;
 			*RTE_MBUF_DYNFIELD(pkts[pos + 1], offs, uint32_t *) =
-				cq[pos + p1].flow_table_metadata  & mask;
+				rte_be_to_cpu_32
+				(cq[pos + p1].flow_table_metadata) & mask;
 			*RTE_MBUF_DYNFIELD(pkts[pos + 2], offs, uint32_t *) =
-				cq[pos + p2].flow_table_metadata & mask;
+				rte_be_to_cpu_32
+				(cq[pos + p2].flow_table_metadata) & mask;
 			*RTE_MBUF_DYNFIELD(pkts[pos + 3], offs, uint32_t *) =
-				cq[pos + p3].flow_table_metadata & mask;
+				rte_be_to_cpu_32
+				(cq[pos + p3].flow_table_metadata) & mask;
 			if (*RTE_MBUF_DYNFIELD(pkts[pos], offs, uint32_t *))
 				pkts[pos]->ol_flags |= rxq->flow_meta_mask;
 			if (*RTE_MBUF_DYNFIELD(pkts[pos + 1], offs, uint32_t *))

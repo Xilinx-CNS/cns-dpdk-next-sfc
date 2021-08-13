@@ -7,8 +7,8 @@
 #include <rte_byteorder.h>
 #include <rte_common.h>
 #include <rte_mbuf.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_driver.h>
+#include <ethdev_vdev.h>
 #include <rte_malloc.h>
 #include <rte_bus_vdev.h>
 #include <rte_kvargs.h>
@@ -69,6 +69,17 @@
 #define TAP_MP_KEY "tap_mp_sync_queues"
 
 #define TAP_IOV_DEFAULT_MAX 1024
+
+#define TAP_RX_OFFLOAD (DEV_RX_OFFLOAD_SCATTER |	\
+			DEV_RX_OFFLOAD_IPV4_CKSUM |	\
+			DEV_RX_OFFLOAD_UDP_CKSUM |	\
+			DEV_RX_OFFLOAD_TCP_CKSUM)
+
+#define TAP_TX_OFFLOAD (DEV_TX_OFFLOAD_MULTI_SEGS |	\
+			DEV_TX_OFFLOAD_IPV4_CKSUM |	\
+			DEV_TX_OFFLOAD_UDP_CKSUM |	\
+			DEV_TX_OFFLOAD_TCP_CKSUM |	\
+			DEV_TX_OFFLOAD_TCP_TSO)
 
 static int tap_devices_count;
 
@@ -342,15 +353,21 @@ tap_verify_csum(struct rte_mbuf *mbuf)
 				rte_pktmbuf_data_len(mbuf))
 			return;
 	} else {
-		/* IPv6 extensions are not supported */
+		/* - RTE_PTYPE_L3_IPV4_EXT_UNKNOWN cannot happen because
+		 *   mbuf->packet_type is filled by rte_net_get_ptype() which
+		 *   never returns this value.
+		 * - IPv6 extensions are not supported.
+		 */
 		return;
 	}
 	if (l4 == RTE_PTYPE_L4_UDP || l4 == RTE_PTYPE_L4_TCP) {
+		int cksum_ok;
+
 		l4_hdr = rte_pktmbuf_mtod_offset(mbuf, void *, l2_len + l3_len);
 		/* Don't verify checksum for multi-segment packets. */
 		if (mbuf->nb_segs > 1)
 			return;
-		if (l3 == RTE_PTYPE_L3_IPV4) {
+		if (l3 == RTE_PTYPE_L3_IPV4 || l3 == RTE_PTYPE_L3_IPV4_EXT) {
 			if (l4 == RTE_PTYPE_L4_UDP) {
 				udp_hdr = (struct rte_udp_hdr *)l4_hdr;
 				if (udp_hdr->dgram_cksum == 0) {
@@ -363,32 +380,15 @@ tap_verify_csum(struct rte_mbuf *mbuf)
 					return;
 				}
 			}
-			cksum = ~rte_ipv4_udptcp_cksum(l3_hdr, l4_hdr);
-		} else if (l3 == RTE_PTYPE_L3_IPV6) {
-			cksum = ~rte_ipv6_udptcp_cksum(l3_hdr, l4_hdr);
+			cksum_ok = !rte_ipv4_udptcp_cksum_verify(l3_hdr,
+								 l4_hdr);
+		} else { /* l3 == RTE_PTYPE_L3_IPV6, checked above */
+			cksum_ok = !rte_ipv6_udptcp_cksum_verify(l3_hdr,
+								 l4_hdr);
 		}
-		mbuf->ol_flags |= cksum ?
-			PKT_RX_L4_CKSUM_BAD :
-			PKT_RX_L4_CKSUM_GOOD;
+		mbuf->ol_flags |= cksum_ok ?
+			PKT_RX_L4_CKSUM_GOOD : PKT_RX_L4_CKSUM_BAD;
 	}
-}
-
-static uint64_t
-tap_rx_offload_get_port_capa(void)
-{
-	/*
-	 * No specific port Rx offload capabilities.
-	 */
-	return 0;
-}
-
-static uint64_t
-tap_rx_offload_get_queue_capa(void)
-{
-	return DEV_RX_OFFLOAD_SCATTER |
-	       DEV_RX_OFFLOAD_IPV4_CKSUM |
-	       DEV_RX_OFFLOAD_UDP_CKSUM |
-	       DEV_RX_OFFLOAD_TCP_CKSUM;
 }
 
 static void
@@ -504,25 +504,6 @@ end:
 		rxq->trigger_seen = trigger;
 
 	return num_rx;
-}
-
-static uint64_t
-tap_tx_offload_get_port_capa(void)
-{
-	/*
-	 * No specific port Tx offload capabilities.
-	 */
-	return 0;
-}
-
-static uint64_t
-tap_tx_offload_get_queue_capa(void)
-{
-	return DEV_TX_OFFLOAD_MULTI_SEGS |
-	       DEV_TX_OFFLOAD_IPV4_CKSUM |
-	       DEV_TX_OFFLOAD_UDP_CKSUM |
-	       DEV_TX_OFFLOAD_TCP_CKSUM |
-	       DEV_TX_OFFLOAD_TCP_TSO;
 }
 
 /* Finalize l4 checksum calculation */
@@ -1015,12 +996,10 @@ tap_dev_info(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 	dev_info->max_tx_queues = RTE_PMD_TAP_MAX_QUEUES;
 	dev_info->min_rx_bufsize = 0;
 	dev_info->speed_capa = tap_dev_speed_capa();
-	dev_info->rx_queue_offload_capa = tap_rx_offload_get_queue_capa();
-	dev_info->rx_offload_capa = tap_rx_offload_get_port_capa() |
-				    dev_info->rx_queue_offload_capa;
-	dev_info->tx_queue_offload_capa = tap_tx_offload_get_queue_capa();
-	dev_info->tx_offload_capa = tap_tx_offload_get_port_capa() |
-				    dev_info->tx_queue_offload_capa;
+	dev_info->rx_queue_offload_capa = TAP_RX_OFFLOAD;
+	dev_info->rx_offload_capa = dev_info->rx_queue_offload_capa;
+	dev_info->tx_queue_offload_capa = TAP_TX_OFFLOAD;
+	dev_info->tx_offload_capa = dev_info->tx_queue_offload_capa;
 	dev_info->hash_key_size = TAP_RSS_HASH_KEY_SIZE;
 	/*
 	 * limitation: TAP supports all of IP, UDP and TCP hash
@@ -1893,7 +1872,7 @@ static const struct eth_dev_ops ops = {
 	.stats_reset            = tap_stats_reset,
 	.dev_supported_ptypes_get = tap_dev_supported_ptypes_get,
 	.rss_hash_update        = tap_rss_hash_update,
-	.filter_ctrl            = tap_dev_filter_ctrl,
+	.flow_ops_get           = tap_dev_flow_ops_get,
 };
 
 static int
@@ -2571,4 +2550,4 @@ RTE_PMD_REGISTER_PARAM_STRING(net_tap,
 			      ETH_TAP_IFACE_ARG "=<string> "
 			      ETH_TAP_MAC_ARG "=" ETH_TAP_MAC_ARG_FMT " "
 			      ETH_TAP_REMOTE_ARG "=<string>");
-RTE_LOG_REGISTER(tap_logtype, pmd.net.tap, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(tap_logtype, NOTICE);

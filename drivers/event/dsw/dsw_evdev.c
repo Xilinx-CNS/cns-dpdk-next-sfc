@@ -5,8 +5,8 @@
 #include <stdbool.h>
 
 #include <rte_cycles.h>
-#include <rte_eventdev_pmd.h>
-#include <rte_eventdev_pmd_vdev.h>
+#include <eventdev_pmd.h>
+#include <eventdev_pmd_vdev.h>
 #include <rte_random.h>
 #include <rte_ring_elem.h>
 
@@ -60,9 +60,6 @@ dsw_port_setup(struct rte_eventdev *dev, uint8_t port_id,
 
 	port->in_ring = in_ring;
 	port->ctl_in_ring = ctl_in_ring;
-
-	rte_atomic16_init(&port->load);
-	rte_atomic32_init(&port->immigration_load);
 
 	port->load_update_interval =
 		(DSW_LOAD_UPDATE_INTERVAL * rte_get_timer_hz()) / US_PER_S;
@@ -275,7 +272,7 @@ dsw_start(struct rte_eventdev *dev)
 	uint16_t i;
 	uint64_t now;
 
-	rte_atomic32_init(&dsw->credits_on_loan);
+	dsw->credits_on_loan = 0;
 
 	initial_flow_to_port_assignment(dsw);
 
@@ -373,6 +370,34 @@ dsw_close(struct rte_eventdev *dev)
 	return 0;
 }
 
+static int
+dsw_eth_rx_adapter_caps_get(const struct rte_eventdev *dev __rte_unused,
+			    const struct rte_eth_dev *eth_dev __rte_unused,
+			    uint32_t *caps)
+{
+	*caps = RTE_EVENT_ETH_RX_ADAPTER_SW_CAP;
+	return 0;
+}
+
+static int
+dsw_timer_adapter_caps_get(const struct rte_eventdev *dev __rte_unused,
+			   uint64_t flags  __rte_unused, uint32_t *caps,
+			   const struct rte_event_timer_adapter_ops **ops)
+{
+	*caps = 0;
+	*ops = NULL;
+	return 0;
+}
+
+static int
+dsw_crypto_adapter_caps_get(const struct rte_eventdev *dev  __rte_unused,
+			    const struct rte_cryptodev *cdev  __rte_unused,
+			    uint32_t *caps)
+{
+	*caps = RTE_EVENT_CRYPTO_ADAPTER_SW_CAP;
+	return 0;
+}
+
 static struct rte_eventdev_ops dsw_evdev_ops = {
 	.port_setup = dsw_port_setup,
 	.port_def_conf = dsw_port_def_conf,
@@ -387,6 +412,9 @@ static struct rte_eventdev_ops dsw_evdev_ops = {
 	.dev_start = dsw_start,
 	.dev_stop = dsw_stop,
 	.dev_close = dsw_close,
+	.eth_rx_adapter_caps_get = dsw_eth_rx_adapter_caps_get,
+	.timer_adapter_caps_get = dsw_timer_adapter_caps_get,
+	.crypto_adapter_caps_get = dsw_crypto_adapter_caps_get,
 	.xstats_get = dsw_xstats_get,
 	.xstats_get_names = dsw_xstats_get_names,
 	.xstats_get_by_name = dsw_xstats_get_by_name

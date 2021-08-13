@@ -8,8 +8,8 @@
 
 #include <rte_string_fns.h>
 #include <rte_mbuf.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_driver.h>
+#include <ethdev_vdev.h>
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
 #include <rte_bus_vdev.h>
@@ -97,7 +97,7 @@ static struct rte_eth_link pmd_link = {
 	.link_autoneg = ETH_LINK_FIXED,
 };
 
-RTE_LOG_REGISTER(af_packet_logtype, pmd.net.packet, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(af_packet_logtype, NOTICE);
 
 #define PMD_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, af_packet_logtype, \
@@ -748,18 +748,18 @@ rte_pmd_init_internals(struct rte_vdev_device *dev,
 			goto error;
 		}
 
+		if (qdisc_bypass) {
 #if defined(PACKET_QDISC_BYPASS)
-		rc = setsockopt(qsockfd, SOL_PACKET, PACKET_QDISC_BYPASS,
-				&qdisc_bypass, sizeof(qdisc_bypass));
-		if (rc == -1) {
-			PMD_LOG_ERRNO(ERR,
-				"%s: could not set PACKET_QDISC_BYPASS on AF_PACKET socket for %s",
-				name, pair->value);
-			goto error;
-		}
-#else
-		RTE_SET_USED(qdisc_bypass);
+			rc = setsockopt(qsockfd, SOL_PACKET, PACKET_QDISC_BYPASS,
+					&qdisc_bypass, sizeof(qdisc_bypass));
+			if (rc == -1) {
+				PMD_LOG_ERRNO(ERR,
+					"%s: could not set PACKET_QDISC_BYPASS on AF_PACKET socket for %s",
+					name, pair->value);
+				goto error;
+			}
 #endif
+		}
 
 		rc = setsockopt(qsockfd, SOL_PACKET, PACKET_RX_RING, req, sizeof(*req));
 		if (rc == -1) {

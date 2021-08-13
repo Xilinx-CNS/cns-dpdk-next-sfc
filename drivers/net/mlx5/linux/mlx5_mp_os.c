@@ -7,7 +7,7 @@
 #include <time.h>
 
 #include <rte_eal.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_string_fns.h>
 
 #include <mlx5_common_mp.h>
@@ -16,6 +16,8 @@
 
 #include "mlx5.h"
 #include "mlx5_rxtx.h"
+#include "mlx5_rx.h"
+#include "mlx5_tx.h"
 #include "mlx5_utils.h"
 
 int

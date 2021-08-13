@@ -12,7 +12,8 @@
 
 #include <rte_mbuf.h>
 #include <rte_malloc.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
+#include <rte_bus_pci.h>
 #include <rte_common.h>
 #include <rte_eal_paging.h>
 
@@ -23,6 +24,7 @@
 #include "mlx5_defs.h"
 #include "mlx5_utils.h"
 #include "mlx5.h"
+#include "mlx5_tx.h"
 #include "mlx5_rxtx.h"
 #include "mlx5_autoconf.h"
 
@@ -123,6 +125,8 @@ mlx5_get_tx_port_offloads(struct rte_eth_dev *dev)
 				     DEV_TX_OFFLOAD_GRE_TNL_TSO |
 				     DEV_TX_OFFLOAD_GENEVE_TNL_TSO);
 	}
+	if (!config->mprq.enabled)
+		offloads |= DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 	return offloads;
 }
 
@@ -805,10 +809,14 @@ txq_set_params(struct mlx5_txq_ctrl *txq_ctrl)
 	bool vlan_inline;
 	unsigned int temp;
 
+	txq_ctrl->txq.fast_free =
+		!!((txq_ctrl->txq.offloads & DEV_TX_OFFLOAD_MBUF_FAST_FREE) &&
+		   !(txq_ctrl->txq.offloads & DEV_TX_OFFLOAD_MULTI_SEGS) &&
+		   !config->mprq.enabled);
 	if (config->txqs_inline == MLX5_ARG_UNSET)
 		txqs_inline =
 #if defined(RTE_ARCH_ARM64)
-		(priv->pci_dev->id.device_id ==
+		(priv->pci_dev && priv->pci_dev->id.device_id ==
 			PCI_DEVICE_ID_MELLANOX_CONNECTX5BF) ?
 			MLX5_INLINE_MAX_TXQS_BLUEFIELD :
 #endif
@@ -1238,7 +1246,7 @@ mlx5_txq_release(struct rte_eth_dev *dev, uint16_t idx)
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_txq_ctrl *txq_ctrl;
 
-	if (!(*priv->txqs)[idx])
+	if (priv->txqs == NULL || (*priv->txqs)[idx] == NULL)
 		return 0;
 	txq_ctrl = container_of((*priv->txqs)[idx], struct mlx5_txq_ctrl, txq);
 	if (__atomic_sub_fetch(&txq_ctrl->refcnt, 1, __ATOMIC_RELAXED) > 1)

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2001-2020 Intel Corporation
+ * Copyright(c) 2001-2021 Intel Corporation
  */
 
 #ifndef _IAVF_TYPE_H_
@@ -140,6 +140,8 @@ enum iavf_debug_mask {
 #define IAVF_PHY_LED_PROV_REG_1			0xC430
 #define IAVF_PHY_LED_MODE_MASK			0xFFFF
 #define IAVF_PHY_LED_MODE_ORIG			0x80000000
+
+#define IAVF_MAX_TRAFFIC_CLASS	8
 
 /* Memory types */
 enum iavf_memset_type {

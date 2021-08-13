@@ -153,7 +153,7 @@ Host2VM communication example
     .. code-block:: console
 
         modprobe uio
-        echo 512 > /sys/devices/system/node/node0/hugepages/hugepages-2048kB/nr_hugepages
+        dpdk-hugepages.py --setup 1G
         modprobe uio_pci_generic
         ./usertools/dpdk-devbind.py -b uio_pci_generic 00:03.0
 
@@ -267,7 +267,7 @@ There is no vector callbacks for packed virtqueue for now.
 Example of using the vector version of the virtio poll mode driver in
 ``testpmd``::
 
-   testpmd -l 0-2 -n 4 -- -i --rxq=1 --txq=1 --nb-cores=1
+   dpdk-testpmd -l 0-2 -n 4 -- -i --rxq=1 --txq=1 --nb-cores=1
 
 In-order callbacks only work on simulated virtio user vdev.
 
@@ -484,11 +484,11 @@ according to below configuration:
 #. Packed virtqueue in-order non-mergeable path: If in-order feature is negotiated and
    Rx mergeable is not negotiated, this path will be selected.
 #. Packed virtqueue vectorized Rx path: If building and running environment support
-   AVX512 && in-order feature is negotiated && Rx mergeable is not negotiated &&
-   TCP_LRO Rx offloading is disabled && vectorized option enabled,
+   (AVX512 || NEON) && in-order feature is negotiated && Rx mergeable
+   is not negotiated && TCP_LRO Rx offloading is disabled && vectorized option enabled,
    this path will be selected.
 #. Packed virtqueue vectorized Tx path: If building and running environment support
-   AVX512 && in-order feature is negotiated && vectorized option enabled,
+   (AVX512 || NEON)  && in-order feature is negotiated && vectorized option enabled,
    this path will be selected.
 
 Rx/Tx callbacks of each Virtio path
@@ -509,7 +509,7 @@ are shown in below table:
    Split virtqueue in-order non-mergeable path  virtio_recv_pkts_inorder          virtio_xmit_pkts_inorder
    Split virtqueue vectorized Rx path           virtio_recv_pkts_vec              virtio_xmit_pkts
    Packed virtqueue mergeable path              virtio_recv_mergeable_pkts_packed virtio_xmit_pkts_packed
-   Packed virtqueue non-meregable path          virtio_recv_pkts_packed           virtio_xmit_pkts_packed
+   Packed virtqueue non-mergeable path          virtio_recv_pkts_packed           virtio_xmit_pkts_packed
    Packed virtqueue in-order mergeable path     virtio_recv_mergeable_pkts_packed virtio_xmit_pkts_packed
    Packed virtqueue in-order non-mergeable path virtio_recv_pkts_packed           virtio_xmit_pkts_packed
    Packed virtqueue vectorized Rx path          virtio_recv_pkts_packed_vec       virtio_xmit_pkts_packed

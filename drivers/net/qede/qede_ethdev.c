@@ -2433,7 +2433,7 @@ static const struct eth_dev_ops qede_eth_dev_ops = {
 	.reta_update  = qede_rss_reta_update,
 	.reta_query  = qede_rss_reta_query,
 	.mtu_set = qede_set_mtu,
-	.filter_ctrl = qede_dev_filter_ctrl,
+	.flow_ops_get = qede_dev_flow_ops_get,
 	.udp_tunnel_port_add = qede_udp_dst_port_add,
 	.udp_tunnel_port_del = qede_udp_dst_port_del,
 	.fw_version_get = qede_fw_version_get,
@@ -2892,5 +2892,5 @@ RTE_PMD_REGISTER_KMOD_DEP(net_qede, "* igb_uio | uio_pci_generic | vfio-pci");
 RTE_PMD_REGISTER_PCI(net_qede_vf, rte_qedevf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_qede_vf, pci_id_qedevf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_qede_vf, "* igb_uio | vfio-pci");
-RTE_LOG_REGISTER(qede_logtype_init, pmd.net.qede.init, NOTICE);
-RTE_LOG_REGISTER(qede_logtype_driver, pmd.net.qede.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(qede_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(qede_logtype_driver, driver, NOTICE);

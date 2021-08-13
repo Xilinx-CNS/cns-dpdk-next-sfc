@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2018 Broadcom
+ * Copyright(c) 2014-2021 Broadcom
  * All rights reserved.
  */
 
@@ -129,8 +129,8 @@ int bnxt_alloc_vnic_attributes(struct bnxt *bp)
 	entry_length = HW_HASH_KEY_SIZE +
 		       BNXT_MAX_MC_ADDRS * RTE_ETHER_ADDR_LEN;
 
-	if (BNXT_CHIP_THOR(bp))
-		rss_table_size = BNXT_RSS_TBL_SIZE_THOR *
+	if (BNXT_CHIP_P5(bp))
+		rss_table_size = BNXT_RSS_TBL_SIZE_P5 *
 				 2 * sizeof(*vnic->rss_table);
 	else
 		rss_table_size = HW_HASH_INDEX_SIZE * sizeof(*vnic->rss_table);
@@ -145,7 +145,8 @@ int bnxt_alloc_vnic_attributes(struct bnxt *bp)
 	mz = rte_memzone_lookup(mz_name);
 	if (!mz) {
 		mz = rte_memzone_reserve(mz_name,
-				entry_length * max_vnics, SOCKET_ID_ANY,
+				entry_length * max_vnics,
+				bp->eth_dev->device->numa_node,
 				RTE_MEMZONE_2MB |
 				RTE_MEMZONE_SIZE_HINT_ONLY |
 				RTE_MEMZONE_IOVA_CONTIG);

@@ -33,8 +33,8 @@
 #include <rte_common.h>
 #include <rte_dev.h>
 #include <rte_errno.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_ether.h>
 #include <rte_flow.h>
 #include <rte_interrupts.h>
@@ -438,7 +438,7 @@ static const struct eth_dev_ops mlx4_dev_ops = {
 	.flow_ctrl_get = mlx4_flow_ctrl_get,
 	.flow_ctrl_set = mlx4_flow_ctrl_set,
 	.mtu_set = mlx4_mtu_set,
-	.filter_ctrl = mlx4_filter_ctrl,
+	.flow_ops_get = mlx4_flow_ops_get,
 	.rx_queue_intr_enable = mlx4_rx_intr_enable,
 	.rx_queue_intr_disable = mlx4_rx_intr_disable,
 	.is_removed = mlx4_is_removed,
@@ -1320,7 +1320,7 @@ glue_error:
 #endif
 
 /* Initialize driver log type. */
-RTE_LOG_REGISTER(mlx4_logtype, pmd.net.mlx4, NOTICE)
+RTE_LOG_REGISTER_DEFAULT(mlx4_logtype, NOTICE)
 
 /**
  * Driver initialization routine.

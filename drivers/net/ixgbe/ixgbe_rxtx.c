@@ -33,7 +33,7 @@
 #include <rte_malloc.h>
 #include <rte_mbuf.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
+#include <ethdev_driver.h>
 #include <rte_security_driver.h>
 #include <rte_prefetch.h>
 #include <rte_udp.h>
@@ -583,11 +583,11 @@ ixgbe_xmit_cleanup(struct ixgbe_tx_queue *txq)
 	desc_to_clean_to = sw_ring[desc_to_clean_to].last_id;
 	status = txr[desc_to_clean_to].wb.status;
 	if (!(status & rte_cpu_to_le_32(IXGBE_TXD_STAT_DD))) {
-		PMD_TX_FREE_LOG(DEBUG,
-				"TX descriptor %4u is not done"
-				"(port=%d queue=%d)",
-				desc_to_clean_to,
-				txq->port_id, txq->queue_id);
+		PMD_TX_LOG(DEBUG,
+			   "TX descriptor %4u is not done"
+			   "(port=%d queue=%d)",
+			   desc_to_clean_to,
+			   txq->port_id, txq->queue_id);
 		/* Failed to clean any descriptors, better luck next time */
 		return -(1);
 	}
@@ -600,11 +600,11 @@ ixgbe_xmit_cleanup(struct ixgbe_tx_queue *txq)
 		nb_tx_to_clean = (uint16_t)(desc_to_clean_to -
 						last_desc_cleaned);
 
-	PMD_TX_FREE_LOG(DEBUG,
-			"Cleaning %4u TX descriptors: %4u to %4u "
-			"(port=%d queue=%d)",
-			nb_tx_to_clean, last_desc_cleaned, desc_to_clean_to,
-			txq->port_id, txq->queue_id);
+	PMD_TX_LOG(DEBUG,
+		   "Cleaning %4u TX descriptors: %4u to %4u "
+		   "(port=%d queue=%d)",
+		   nb_tx_to_clean, last_desc_cleaned, desc_to_clean_to,
+		   txq->port_id, txq->queue_id);
 
 	/*
 	 * The last descriptor to clean is done, so that means all the
@@ -750,12 +750,12 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 		 * nb_used better be less than or equal to txq->tx_rs_thresh
 		 */
 		if (nb_used > txq->nb_tx_free) {
-			PMD_TX_FREE_LOG(DEBUG,
-					"Not enough free TX descriptors "
-					"nb_used=%4u nb_free=%4u "
-					"(port=%d queue=%d)",
-					nb_used, txq->nb_tx_free,
-					txq->port_id, txq->queue_id);
+			PMD_TX_LOG(DEBUG,
+				   "Not enough free TX descriptors "
+				   "nb_used=%4u nb_free=%4u "
+				   "(port=%d queue=%d)",
+				   nb_used, txq->nb_tx_free,
+				   txq->port_id, txq->queue_id);
 
 			if (ixgbe_xmit_cleanup(txq) != 0) {
 				/* Could not clean any descriptors */
@@ -766,17 +766,17 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 			/* nb_used better be <= txq->tx_rs_thresh */
 			if (unlikely(nb_used > txq->tx_rs_thresh)) {
-				PMD_TX_FREE_LOG(DEBUG,
-					"The number of descriptors needed to "
-					"transmit the packet exceeds the "
-					"RS bit threshold. This will impact "
-					"performance."
-					"nb_used=%4u nb_free=%4u "
-					"tx_rs_thresh=%4u. "
-					"(port=%d queue=%d)",
-					nb_used, txq->nb_tx_free,
-					txq->tx_rs_thresh,
-					txq->port_id, txq->queue_id);
+				PMD_TX_LOG(DEBUG,
+					   "The number of descriptors needed to "
+					   "transmit the packet exceeds the "
+					   "RS bit threshold. This will impact "
+					   "performance."
+					   "nb_used=%4u nb_free=%4u "
+					   "tx_rs_thresh=%4u. "
+					   "(port=%d queue=%d)",
+					   nb_used, txq->nb_tx_free,
+					   txq->tx_rs_thresh,
+					   txq->port_id, txq->queue_id);
 				/*
 				 * Loop here until there are enough TX
 				 * descriptors or until the ring cannot be
@@ -920,10 +920,10 @@ ixgbe_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
 
 		/* Set RS bit only on threshold packets' last descriptor */
 		if (txq->nb_tx_used >= txq->tx_rs_thresh) {
-			PMD_TX_FREE_LOG(DEBUG,
-					"Setting RS bit on TXD id="
-					"%4u (port=%d queue=%d)",
-					tx_last, txq->port_id, txq->queue_id);
+			PMD_TX_LOG(DEBUG,
+				   "Setting RS bit on TXD id="
+				   "%4u (port=%d queue=%d)",
+				   tx_last, txq->port_id, txq->queue_id);
 
 			cmd_type_len |= IXGBE_TXD_CMD_RS;
 
@@ -995,7 +995,7 @@ ixgbe_prep_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 			return i;
 		}
 
-#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+#ifdef RTE_ETHDEV_DEBUG_TX
 		ret = rte_validate_tx_offload(m);
 		if (ret != 0) {
 			rte_errno = -ret;
@@ -1369,6 +1369,39 @@ const uint32_t
 		RTE_PTYPE_INNER_L3_IPV4_EXT | RTE_PTYPE_INNER_L4_UDP,
 };
 
+static int
+ixgbe_monitor_callback(const uint64_t value,
+		const uint64_t arg[RTE_POWER_MONITOR_OPAQUE_SZ] __rte_unused)
+{
+	const uint64_t m = rte_cpu_to_le_32(IXGBE_RXDADV_STAT_DD);
+	/*
+	 * we expect the DD bit to be set to 1 if this descriptor was already
+	 * written to.
+	 */
+	return (value & m) == m ? -1 : 0;
+}
+
+int
+ixgbe_get_monitor_addr(void *rx_queue, struct rte_power_monitor_cond *pmc)
+{
+	volatile union ixgbe_adv_rx_desc *rxdp;
+	struct ixgbe_rx_queue *rxq = rx_queue;
+	uint16_t desc;
+
+	desc = rxq->rx_tail;
+	rxdp = &rxq->rx_ring[desc];
+	/* watch for changes in status bit */
+	pmc->addr = &rxdp->wb.upper.status_error;
+
+	/* comparison callback */
+	pmc->fn = ixgbe_monitor_callback;
+
+	/* the registers are 32-bit */
+	pmc->size = sizeof(uint32_t);
+
+	return 0;
+}
+
 /* @note: fix ixgbe_dev_supported_ptypes_get() if any change here. */
 static inline uint32_t
 ixgbe_rxd_pkt_info_to_pkt_type(uint32_t pkt_info, uint16_t ptype_mask)
@@ -1470,7 +1503,7 @@ rx_desc_error_to_pkt_flags(uint32_t rx_status, uint16_t pkt_info,
 
 	if ((rx_status & IXGBE_RXD_STAT_OUTERIPCS) &&
 	    (rx_status & IXGBE_RXDADV_ERR_OUTERIPER)) {
-		pkt_flags |= PKT_RX_EIP_CKSUM_BAD;
+		pkt_flags |= PKT_RX_OUTER_IP_CKSUM_BAD;
 	}
 
 #ifdef RTE_LIB_SECURITY
