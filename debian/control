@@ -393,6 +393,18 @@ Description: Data Plane Development Kit (librte-bpf runtime library)
  execute Enhanced Berkeley Packet Filter (eBPF) bytecode within user-space
  dpdk application.
 
+Package: librte-bus-auxiliary21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Description: Data Plane Development Kit (librte-bus-auxiliary runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-bus-auxiliary.
+
 Package: librte-bus-dpaa21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -494,6 +506,19 @@ Description: Data Plane Development Kit (librte-cmdline runtime library)
  in user-space and communicate directly with dedicated network interfaces.
  .
  This package contains the runtime libraries for librte-cmdline.
+
+Package: librte-common-cnxk21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-common-cnxk runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-common-cnxk.
 
 Package: librte-common-cpt21
 Architecture: amd64 arm64 armhf i386 ppc64el
@@ -636,6 +661,20 @@ Description: Data Plane Development Kit (librte-compress-isal runtime library)
  implements the deflate algorithm for both Deflate(compression) and
  Inflate(decompression).
 
+Package: librte-compress-mlx5-21
+Architecture: amd64 i386
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/compressdevs/mlx5.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-compress-mlx5 runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-compress-mlx5.
+
 Package: librte-compress-octeontx21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -733,6 +772,20 @@ Description: Data Plane Development Kit (librte-crypto-ccp runtime library)
  .
  This package contains the runtime libraries for librte-crypto-ccp.
 
+Package: librte-crypto-cnxk21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/cryptodevs/cnxk.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-crypto-cnxk runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-crypto-cnxk.
+
 Package: librte-cryptodev21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -787,6 +840,19 @@ Description: Data Plane Development Kit (librte-crypto-kasumi runtime library)
  in user-space and communicate directly with dedicated network interfaces.
  .
  This package contains the runtime libraries for librte-crypto-kasumi.
+
+Package: librte-crypto-mlx5-21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/cryptodevs/mlx5.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Description: Data Plane Development Kit (librte-crypto-mlx5 runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-crypto-mlx5.
 
 Package: librte-crypto-nitrox21
 Architecture: amd64 arm64 armhf i386 ppc64el
@@ -981,6 +1047,20 @@ Description: Data Plane Development Kit (librte-eventdev runtime library)
  in user-space and communicate directly with dedicated network interfaces.
  .
  This package contains the runtime libraries for librte-eventdev.
+
+Package: librte-event-cnxk21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/eventdevs/cnxk.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-event-cnxk runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-event-cnxk.
 
 Package: librte-event-dlb21
 Architecture: amd64 arm64 armhf i386 ppc64el
@@ -1354,6 +1434,20 @@ Description: Data Plane Development Kit (librte-mempool-bucket runtime library)
  .
  This package contains the runtime libraries for librte-mempool-bucket.
 
+Package: librte-mempool-cnxk21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://dpdk.org/doc/guides/nics/cnxk.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-mempool-cnxk runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-mempool-cnxk.
+
 Package: librte-mempool-dpaa21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -1613,6 +1707,20 @@ Description: Data Plane Development Kit (librte-net-bond runtime library)
  .
  This package contains the runtime libraries for librte-net-bond.
 
+Package: librte-net-cnxk21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://dpdk.org/doc/guides/nics/cnxk.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-net-cnxk runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-net-cnxk.
+
 Package: librte-net-cxgbe21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -1824,6 +1932,19 @@ Description: Data Plane Development Kit (librte-net-igc runtime library)
  .
  This package contains the runtime libraries for librte-net-igc.
 
+Package: librte-net-ionic21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/nics/ionic.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Description: Data Plane Development Kit (librte-net-ionic runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-net-ionic.
+
 Package: librte-net-ipn3ke21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -1940,6 +2061,19 @@ Description: Data Plane Development Kit (librte-net-netvsc runtime library)
  .
  This package contains the runtime libraries for librte-net-netvsc.
 
+Package: librte-net-ngbe21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/nics/ngbe.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Description: Data Plane Development Kit (librte-net-ngbe runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-net-ngbe.
+
 Package: librte-net-nfp21
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
@@ -1994,6 +2128,20 @@ Description: Data Plane Development Kit (librte-net-octeontx2 runtime library)
  in user-space and communicate directly with dedicated network interfaces.
  .
  This package contains the runtime libraries for librte-net-octeontx2.
+
+Package: librte-net-octeontx-ep21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://doc.dpdk.org/guides/nics/octeontx_ep.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-net-octeontx-ep runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-net-octeontx-ep.
 
 Package: librte-net-pcap21
 Architecture: amd64 arm64 armhf i386 ppc64el
@@ -2284,6 +2432,20 @@ Description: Data Plane Development Kit (librte-rawdev runtime library)
  in user-space and communicate directly with dedicated network interfaces.
  .
  This package contains the runtime libraries for librte-rawdev.
+
+Package: librte-raw-cnxk-bphy21
+Architecture: amd64 arm64 armhf i386 ppc64el
+Multi-Arch: same
+Homepage: https://dpdk.org/doc/guides/nics/cnxk.html
+Pre-Depends: ${misc:Pre-Depends},
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Conflicts: libdpdk0,
+Description: Data Plane Development Kit (librte-raw-cnxk-bphy runtime library)
+ DPDK is a set of libraries for fast packet processing. Applications run
+ in user-space and communicate directly with dedicated network interfaces.
+ .
+ This package contains the runtime libraries for librte-raw-cnxk-bphy.
 
 Package: librte-raw-dpaa2-cmdif21
 Architecture: amd64 arm64 armhf i386 ppc64el
