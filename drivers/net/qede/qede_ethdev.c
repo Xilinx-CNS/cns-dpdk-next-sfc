@@ -237,9 +237,6 @@ qede_fw_version_get(struct rte_eth_dev *dev, char *fw_ver, size_t fw_size)
 	static char ver_str[QEDE_PMD_DRV_VER_STR_SIZE];
 	size_t size;
 
-	if (fw_ver == NULL)
-		return 0;
-
 	if (IS_PF(edev))
 		snprintf(ver_str, QEDE_PMD_DRV_VER_STR_SIZE, "%s",
 			 QEDE_PMD_FW_VERSION);
@@ -1885,6 +1882,8 @@ static int qede_allmulticast_enable(struct rte_eth_dev *eth_dev)
 	    QED_FILTER_RX_MODE_TYPE_MULTI_PROMISC;
 	enum _ecore_status_t ecore_status;
 
+	if (rte_eth_promiscuous_get(eth_dev->data->port_id) == 1)
+		type = QED_FILTER_RX_MODE_TYPE_PROMISC;
 	ecore_status = qed_configure_filter_rx_mode(eth_dev, type);
 
 	return ecore_status >= ECORE_SUCCESS ? 0 : -EAGAIN;
@@ -2137,8 +2136,10 @@ int qede_rss_hash_update(struct rte_eth_dev *eth_dev,
 		/* RSS hash key */
 		if (key) {
 			if (len > (ECORE_RSS_KEY_SIZE * sizeof(uint32_t))) {
-				DP_ERR(edev, "RSS key length exceeds limit\n");
-				return -EINVAL;
+				len = ECORE_RSS_KEY_SIZE * sizeof(uint32_t);
+				DP_NOTICE(edev, false,
+					  "RSS key length too big, trimmed to %d\n",
+					  len);
 			}
 			DP_INFO(edev, "Applying user supplied hash key\n");
 			rss_params.update_rss_key = 1;
@@ -2367,7 +2368,7 @@ static int qede_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 			fp->rxq->rx_buf_size = rc;
 		}
 	}
-	if (max_rx_pkt_len > RTE_ETHER_MAX_LEN)
+	if (frame_size > QEDE_ETH_MAX_LEN)
 		dev->data->dev_conf.rxmode.offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
 		dev->data->dev_conf.rxmode.offloads &= ~DEV_RX_OFFLOAD_JUMBO_FRAME;
@@ -2432,7 +2433,7 @@ static const struct eth_dev_ops qede_eth_dev_ops = {
 	.reta_update  = qede_rss_reta_update,
 	.reta_query  = qede_rss_reta_query,
 	.mtu_set = qede_set_mtu,
-	.filter_ctrl = qede_dev_filter_ctrl,
+	.flow_ops_get = qede_dev_flow_ops_get,
 	.udp_tunnel_port_add = qede_udp_dst_port_add,
 	.udp_tunnel_port_del = qede_udp_dst_port_del,
 	.fw_version_get = qede_fw_version_get,
@@ -2891,5 +2892,5 @@ RTE_PMD_REGISTER_KMOD_DEP(net_qede, "* igb_uio | uio_pci_generic | vfio-pci");
 RTE_PMD_REGISTER_PCI(net_qede_vf, rte_qedevf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_qede_vf, pci_id_qedevf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_qede_vf, "* igb_uio | vfio-pci");
-RTE_LOG_REGISTER(qede_logtype_init, pmd.net.qede.init, NOTICE);
-RTE_LOG_REGISTER(qede_logtype_driver, pmd.net.qede.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(qede_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(qede_logtype_driver, driver, NOTICE);

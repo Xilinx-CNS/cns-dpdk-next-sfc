@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2016-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
@@ -16,6 +16,7 @@
 #include "sfc_log.h"
 #include "sfc_ev.h"
 #include "sfc_rx.h"
+#include "sfc_mae_counter.h"
 #include "sfc_kvargs.h"
 #include "sfc_tweak.h"
 
@@ -50,6 +51,15 @@ sfc_rx_qflush_failed(struct sfc_rxq_info *rxq_info)
 {
 	rxq_info->state |= SFC_RXQ_FLUSH_FAILED;
 	rxq_info->state &= ~SFC_RXQ_FLUSHING;
+}
+
+/* This returns the running counter, which is not bounded by ring size */
+unsigned int
+sfc_rx_get_pushed(struct sfc_adapter *sa, struct sfc_dp_rxq *dp_rxq)
+{
+	SFC_ASSERT(sa->priv.dp_rx->get_pushed != NULL);
+
+	return sa->priv.dp_rx->get_pushed(dp_rxq);
 }
 
 static int
@@ -128,6 +138,7 @@ sfc_efx_rx_qrefill(struct sfc_efx_rxq *rxq)
 	SFC_ASSERT(added != rxq->added);
 	rxq->added = added;
 	efx_rx_qpush(rxq->common, added, &rxq->pushed);
+	rxq->dp.dpq.rx_dbells++;
 }
 
 static uint64_t
@@ -654,14 +665,17 @@ struct sfc_dp_rx sfc_efx_rx = {
 };
 
 static void
-sfc_rx_qflush(struct sfc_adapter *sa, unsigned int sw_index)
+sfc_rx_qflush(struct sfc_adapter *sa, sfc_sw_index_t sw_index)
 {
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	sfc_ethdev_qid_t ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 	struct sfc_rxq *rxq;
 	unsigned int retry_count;
 	unsigned int wait_count;
 	int rc;
 
+	ethdev_qid = sfc_ethdev_rx_qid_by_rxq_sw_index(sas, sw_index);
 	rxq_info = &sfc_sa2shared(sa)->rxq_info[sw_index];
 	SFC_ASSERT(rxq_info->state & SFC_RXQ_STARTED);
 
@@ -698,13 +712,16 @@ sfc_rx_qflush(struct sfc_adapter *sa, unsigned int sw_index)
 			 (wait_count++ < SFC_RX_QFLUSH_POLL_ATTEMPTS));
 
 		if (rxq_info->state & SFC_RXQ_FLUSHING)
-			sfc_err(sa, "RxQ %u flush timed out", sw_index);
+			sfc_err(sa, "RxQ %d (internal %u) flush timed out",
+				ethdev_qid, sw_index);
 
 		if (rxq_info->state & SFC_RXQ_FLUSH_FAILED)
-			sfc_err(sa, "RxQ %u flush failed", sw_index);
+			sfc_err(sa, "RxQ %d (internal %u) flush failed",
+				ethdev_qid, sw_index);
 
 		if (rxq_info->state & SFC_RXQ_FLUSHED)
-			sfc_notice(sa, "RxQ %u flushed", sw_index);
+			sfc_notice(sa, "RxQ %d (internal %u) flushed",
+				   ethdev_qid, sw_index);
 	}
 
 	sa->priv.dp_rx->qpurge(rxq_info->dp);
@@ -764,17 +781,20 @@ retry:
 }
 
 int
-sfc_rx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
+sfc_rx_qstart(struct sfc_adapter *sa, sfc_sw_index_t sw_index)
 {
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	sfc_ethdev_qid_t ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 	struct sfc_rxq *rxq;
 	struct sfc_evq *evq;
 	efx_rx_prefix_layout_t pinfo;
 	int rc;
 
-	sfc_log_init(sa, "sw_index=%u", sw_index);
-
 	SFC_ASSERT(sw_index < sfc_sa2shared(sa)->rxq_count);
+	ethdev_qid = sfc_ethdev_rx_qid_by_rxq_sw_index(sas, sw_index);
+
+	sfc_log_init(sa, "RxQ %d (internal %u)", ethdev_qid, sw_index);
 
 	rxq_info = &sfc_sa2shared(sa)->rxq_info[sw_index];
 	SFC_ASSERT(rxq_info->state == SFC_RXQ_INITIALIZED);
@@ -782,7 +802,7 @@ sfc_rx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 	rxq = &sa->rxq_ctrl[sw_index];
 	evq = rxq->evq;
 
-	rc = sfc_ev_qstart(evq, sfc_evq_index_by_rxq_sw_index(sa, sw_index));
+	rc = sfc_ev_qstart(evq, sfc_evq_sw_index_by_rxq_sw_index(sa, sw_index));
 	if (rc != 0)
 		goto fail_ev_qstart;
 
@@ -833,15 +853,16 @@ sfc_rx_qstart(struct sfc_adapter *sa, unsigned int sw_index)
 
 	rxq_info->state |= SFC_RXQ_STARTED;
 
-	if (sw_index == 0 && !sfc_sa2shared(sa)->isolated) {
+	if (ethdev_qid == 0 && !sfc_sa2shared(sa)->isolated) {
 		rc = sfc_rx_default_rxq_set_filter(sa, rxq);
 		if (rc != 0)
 			goto fail_mac_filter_default_rxq_set;
 	}
 
 	/* It seems to be used by DPDK for debug purposes only ('rte_ether') */
-	sa->eth_dev->data->rx_queue_state[sw_index] =
-		RTE_ETH_QUEUE_STATE_STARTED;
+	if (ethdev_qid != SFC_ETHDEV_QID_INVALID)
+		sa->eth_dev->data->rx_queue_state[ethdev_qid] =
+			RTE_ETH_QUEUE_STATE_STARTED;
 
 	return 0;
 
@@ -864,14 +885,17 @@ fail_ev_qstart:
 }
 
 void
-sfc_rx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
+sfc_rx_qstop(struct sfc_adapter *sa, sfc_sw_index_t sw_index)
 {
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	sfc_ethdev_qid_t ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 	struct sfc_rxq *rxq;
 
-	sfc_log_init(sa, "sw_index=%u", sw_index);
-
 	SFC_ASSERT(sw_index < sfc_sa2shared(sa)->rxq_count);
+	ethdev_qid = sfc_ethdev_rx_qid_by_rxq_sw_index(sas, sw_index);
+
+	sfc_log_init(sa, "RxQ %d (internal %u)", ethdev_qid, sw_index);
 
 	rxq_info = &sfc_sa2shared(sa)->rxq_info[sw_index];
 
@@ -880,13 +904,14 @@ sfc_rx_qstop(struct sfc_adapter *sa, unsigned int sw_index)
 	SFC_ASSERT(rxq_info->state & SFC_RXQ_STARTED);
 
 	/* It seems to be used by DPDK for debug purposes only ('rte_ether') */
-	sa->eth_dev->data->rx_queue_state[sw_index] =
-		RTE_ETH_QUEUE_STATE_STOPPED;
+	if (ethdev_qid != SFC_ETHDEV_QID_INVALID)
+		sa->eth_dev->data->rx_queue_state[ethdev_qid] =
+			RTE_ETH_QUEUE_STATE_STOPPED;
 
 	rxq = &sa->rxq_ctrl[sw_index];
 	sa->priv.dp_rx->qstop(rxq_info->dp, &rxq->evq->read_ptr);
 
-	if (sw_index == 0)
+	if (ethdev_qid == 0)
 		efx_mac_filter_default_rxq_clear(sa->nic);
 
 	sfc_rx_qflush(sa, sw_index);
@@ -1056,11 +1081,13 @@ sfc_rx_mb_pool_buf_size(struct sfc_adapter *sa, struct rte_mempool *mb_pool)
 }
 
 int
-sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
+sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	     uint16_t nb_rx_desc, unsigned int socket_id,
 	     const struct rte_eth_rxconf *rx_conf,
 	     struct rte_mempool *mb_pool)
 {
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	sfc_ethdev_qid_t ethdev_qid;
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	struct sfc_rss *rss = &sfc_sa2shared(sa)->rss;
 	int rc;
@@ -1092,16 +1119,22 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	SFC_ASSERT(rxq_entries <= sa->rxq_max_entries);
 	SFC_ASSERT(rxq_max_fill_level <= nb_rx_desc);
 
-	offloads = rx_conf->offloads |
-		sa->eth_dev->data->dev_conf.rxmode.offloads;
+	ethdev_qid = sfc_ethdev_rx_qid_by_rxq_sw_index(sas, sw_index);
+
+	offloads = rx_conf->offloads;
+	/* Add device level Rx offloads if the queue is an ethdev Rx queue */
+	if (ethdev_qid != SFC_ETHDEV_QID_INVALID)
+		offloads |= sa->eth_dev->data->dev_conf.rxmode.offloads;
+
 	rc = sfc_rx_qcheck_conf(sa, rxq_max_fill_level, rx_conf, offloads);
 	if (rc != 0)
 		goto fail_bad_conf;
 
 	buf_size = sfc_rx_mb_pool_buf_size(sa, mb_pool);
 	if (buf_size == 0) {
-		sfc_err(sa, "RxQ %u mbuf pool object size is too small",
-			sw_index);
+		sfc_err(sa,
+			"RxQ %d (internal %u) mbuf pool object size is too small",
+			ethdev_qid, sw_index);
 		rc = EINVAL;
 		goto fail_bad_conf;
 	}
@@ -1111,11 +1144,13 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 				  (offloads & DEV_RX_OFFLOAD_SCATTER),
 				  encp->enc_rx_scatter_max,
 				  &error)) {
-		sfc_err(sa, "RxQ %u MTU check failed: %s", sw_index, error);
-		sfc_err(sa, "RxQ %u calculated Rx buffer size is %u vs "
+		sfc_err(sa, "RxQ %d (internal %u) MTU check failed: %s",
+			ethdev_qid, sw_index, error);
+		sfc_err(sa,
+			"RxQ %d (internal %u) calculated Rx buffer size is %u vs "
 			"PDU size %u plus Rx prefix %u bytes",
-			sw_index, buf_size, (unsigned int)sa->port.pdu,
-			encp->enc_rx_prefix_size);
+			ethdev_qid, sw_index, buf_size,
+			(unsigned int)sa->port.pdu, encp->enc_rx_prefix_size);
 		rc = EINVAL;
 		goto fail_bad_conf;
 	}
@@ -1131,7 +1166,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	else
 		rxq_info->type = EFX_RXQ_TYPE_DEFAULT;
 
-	rxq_info->type_flags =
+	rxq_info->type_flags |=
 		(offloads & DEV_RX_OFFLOAD_SCATTER) ?
 		EFX_RXQ_FLAG_SCATTER : EFX_RXQ_FLAG_NONE;
 
@@ -1193,7 +1228,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, unsigned int sw_index,
 	info.flags = rxq_info->rxq_flags;
 	info.rxq_entries = rxq_info->entries;
 	info.rxq_hw_ring = rxq->mem.esm_base;
-	info.evq_hw_index = sfc_evq_index_by_rxq_sw_index(sa, sw_index);
+	info.evq_hw_index = sfc_evq_sw_index_by_rxq_sw_index(sa, sw_index);
 	info.evq_entries = evq_entries;
 	info.evq_hw_ring = evq->mem.esm_base;
 	info.hw_index = rxq->hw_index;
@@ -1231,13 +1266,18 @@ fail_size_up_rings:
 }
 
 void
-sfc_rx_qfini(struct sfc_adapter *sa, unsigned int sw_index)
+sfc_rx_qfini(struct sfc_adapter *sa, sfc_sw_index_t sw_index)
 {
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	sfc_ethdev_qid_t ethdev_qid;
 	struct sfc_rxq_info *rxq_info;
 	struct sfc_rxq *rxq;
 
 	SFC_ASSERT(sw_index < sfc_sa2shared(sa)->rxq_count);
-	sa->eth_dev->data->rx_queues[sw_index] = NULL;
+	ethdev_qid = sfc_ethdev_rx_qid_by_rxq_sw_index(sas, sw_index);
+
+	if (ethdev_qid != SFC_ETHDEV_QID_INVALID)
+		sa->eth_dev->data->rx_queues[ethdev_qid] = NULL;
 
 	rxq_info = &sfc_sa2shared(sa)->rxq_info[sw_index];
 
@@ -1479,14 +1519,41 @@ finish:
 	return rc;
 }
 
+struct sfc_rxq_info *
+sfc_rxq_info_by_ethdev_qid(struct sfc_adapter_shared *sas,
+			   sfc_ethdev_qid_t ethdev_qid)
+{
+	sfc_sw_index_t sw_index;
+
+	SFC_ASSERT((unsigned int)ethdev_qid < sas->ethdev_rxq_count);
+	SFC_ASSERT(ethdev_qid != SFC_ETHDEV_QID_INVALID);
+
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, ethdev_qid);
+	return &sas->rxq_info[sw_index];
+}
+
+struct sfc_rxq *
+sfc_rxq_ctrl_by_ethdev_qid(struct sfc_adapter *sa, sfc_ethdev_qid_t ethdev_qid)
+{
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
+	sfc_sw_index_t sw_index;
+
+	SFC_ASSERT((unsigned int)ethdev_qid < sas->ethdev_rxq_count);
+	SFC_ASSERT(ethdev_qid != SFC_ETHDEV_QID_INVALID);
+
+	sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas, ethdev_qid);
+	return &sa->rxq_ctrl[sw_index];
+}
+
 int
 sfc_rx_start(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
-	unsigned int sw_index;
+	sfc_sw_index_t sw_index;
 	int rc;
 
-	sfc_log_init(sa, "rxq_count=%u", sas->rxq_count);
+	sfc_log_init(sa, "rxq_count=%u (internal %u)", sas->ethdev_rxq_count,
+		     sas->rxq_count);
 
 	rc = efx_rx_init(sa->nic);
 	if (rc != 0)
@@ -1524,9 +1591,10 @@ void
 sfc_rx_stop(struct sfc_adapter *sa)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
-	unsigned int sw_index;
+	sfc_sw_index_t sw_index;
 
-	sfc_log_init(sa, "rxq_count=%u", sas->rxq_count);
+	sfc_log_init(sa, "rxq_count=%u (internal %u)", sas->ethdev_rxq_count,
+		     sas->rxq_count);
 
 	sw_index = sas->rxq_count;
 	while (sw_index-- > 0) {
@@ -1537,8 +1605,9 @@ sfc_rx_stop(struct sfc_adapter *sa)
 	efx_rx_fini(sa->nic);
 }
 
-static int
-sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int sw_index)
+int
+sfc_rx_qinit_info(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
+		  unsigned int extra_efx_type_flags)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
 	struct sfc_rxq_info *rxq_info = &sas->rxq_info[sw_index];
@@ -1549,6 +1618,7 @@ sfc_rx_qinit_info(struct sfc_adapter *sa, unsigned int sw_index)
 	SFC_ASSERT(rte_is_power_of_2(max_entries));
 
 	rxq_info->max_entries = max_entries;
+	rxq_info->type_flags = extra_efx_type_flags;
 
 	return 0;
 }
@@ -1606,17 +1676,29 @@ static void
 sfc_rx_fini_queues(struct sfc_adapter *sa, unsigned int nb_rx_queues)
 {
 	struct sfc_adapter_shared * const sas = sfc_sa2shared(sa);
-	int sw_index;
+	sfc_sw_index_t sw_index;
+	sfc_ethdev_qid_t ethdev_qid;
 
-	SFC_ASSERT(nb_rx_queues <= sas->rxq_count);
+	SFC_ASSERT(nb_rx_queues <= sas->ethdev_rxq_count);
 
-	sw_index = sas->rxq_count;
-	while (--sw_index >= (int)nb_rx_queues) {
-		if (sas->rxq_info[sw_index].state & SFC_RXQ_INITIALIZED)
+	/*
+	 * Finalize only ethdev queues since other ones are finalized only
+	 * on device close and they may require additional deinitializaton.
+	 */
+	ethdev_qid = sas->ethdev_rxq_count;
+	while (--ethdev_qid >= (int)nb_rx_queues) {
+		struct sfc_rxq_info *rxq_info;
+
+		rxq_info = sfc_rxq_info_by_ethdev_qid(sas, ethdev_qid);
+		if (rxq_info->state & SFC_RXQ_INITIALIZED) {
+			sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas,
+								ethdev_qid);
 			sfc_rx_qfini(sa, sw_index);
+		}
+
 	}
 
-	sas->rxq_count = nb_rx_queues;
+	sas->ethdev_rxq_count = nb_rx_queues;
 }
 
 /**
@@ -1634,21 +1716,27 @@ sfc_rx_configure(struct sfc_adapter *sa)
 	struct sfc_rss *rss = &sas->rss;
 	struct rte_eth_conf *dev_conf = &sa->eth_dev->data->dev_conf;
 	const unsigned int nb_rx_queues = sa->eth_dev->data->nb_rx_queues;
+	const unsigned int nb_rsrv_rx_queues = sfc_nb_reserved_rxq(sas);
+	const unsigned int nb_rxq_total = nb_rx_queues + nb_rsrv_rx_queues;
+	bool reconfigure;
 	int rc;
 
 	sfc_log_init(sa, "nb_rx_queues=%u (old %u)",
-		     nb_rx_queues, sas->rxq_count);
+		     nb_rx_queues, sas->ethdev_rxq_count);
 
 	rc = sfc_rx_check_mode(sa, &dev_conf->rxmode);
 	if (rc != 0)
 		goto fail_check_mode;
 
-	if (nb_rx_queues == sas->rxq_count)
+	if (nb_rxq_total == sas->rxq_count) {
+		reconfigure = true;
 		goto configure_rss;
+	}
 
 	if (sas->rxq_info == NULL) {
+		reconfigure = false;
 		rc = ENOMEM;
-		sas->rxq_info = rte_calloc_socket("sfc-rxqs", nb_rx_queues,
+		sas->rxq_info = rte_calloc_socket("sfc-rxqs", nb_rxq_total,
 						  sizeof(sas->rxq_info[0]), 0,
 						  sa->socket_id);
 		if (sas->rxq_info == NULL)
@@ -1659,56 +1747,73 @@ sfc_rx_configure(struct sfc_adapter *sa)
 		 * since it should not be shared.
 		 */
 		rc = ENOMEM;
-		sa->rxq_ctrl = calloc(nb_rx_queues, sizeof(sa->rxq_ctrl[0]));
+		sa->rxq_ctrl = calloc(nb_rxq_total, sizeof(sa->rxq_ctrl[0]));
 		if (sa->rxq_ctrl == NULL)
 			goto fail_rxqs_ctrl_alloc;
 	} else {
 		struct sfc_rxq_info *new_rxq_info;
 		struct sfc_rxq *new_rxq_ctrl;
 
-		if (nb_rx_queues < sas->rxq_count)
+		reconfigure = true;
+
+		/* Do not ununitialize reserved queues */
+		if (nb_rx_queues < sas->ethdev_rxq_count)
 			sfc_rx_fini_queues(sa, nb_rx_queues);
 
 		rc = ENOMEM;
 		new_rxq_info =
 			rte_realloc(sas->rxq_info,
-				    nb_rx_queues * sizeof(sas->rxq_info[0]), 0);
-		if (new_rxq_info == NULL && nb_rx_queues > 0)
+				    nb_rxq_total * sizeof(sas->rxq_info[0]), 0);
+		if (new_rxq_info == NULL && nb_rxq_total > 0)
 			goto fail_rxqs_realloc;
 
 		rc = ENOMEM;
 		new_rxq_ctrl = realloc(sa->rxq_ctrl,
-				       nb_rx_queues * sizeof(sa->rxq_ctrl[0]));
-		if (new_rxq_ctrl == NULL && nb_rx_queues > 0)
+				       nb_rxq_total * sizeof(sa->rxq_ctrl[0]));
+		if (new_rxq_ctrl == NULL && nb_rxq_total > 0)
 			goto fail_rxqs_ctrl_realloc;
 
 		sas->rxq_info = new_rxq_info;
 		sa->rxq_ctrl = new_rxq_ctrl;
-		if (nb_rx_queues > sas->rxq_count) {
-			memset(&sas->rxq_info[sas->rxq_count], 0,
-			       (nb_rx_queues - sas->rxq_count) *
+		if (nb_rxq_total > sas->rxq_count) {
+			unsigned int rxq_count = sas->rxq_count;
+
+			memset(&sas->rxq_info[rxq_count], 0,
+			       (nb_rxq_total - rxq_count) *
 			       sizeof(sas->rxq_info[0]));
-			memset(&sa->rxq_ctrl[sas->rxq_count], 0,
-			       (nb_rx_queues - sas->rxq_count) *
+			memset(&sa->rxq_ctrl[rxq_count], 0,
+			       (nb_rxq_total - rxq_count) *
 			       sizeof(sa->rxq_ctrl[0]));
 		}
 	}
 
-	while (sas->rxq_count < nb_rx_queues) {
-		rc = sfc_rx_qinit_info(sa, sas->rxq_count);
+	while (sas->ethdev_rxq_count < nb_rx_queues) {
+		sfc_sw_index_t sw_index;
+
+		sw_index = sfc_rxq_sw_index_by_ethdev_rx_qid(sas,
+							sas->ethdev_rxq_count);
+		rc = sfc_rx_qinit_info(sa, sw_index, 0);
 		if (rc != 0)
 			goto fail_rx_qinit_info;
 
-		sas->rxq_count++;
+		sas->ethdev_rxq_count++;
+	}
+
+	sas->rxq_count = sas->ethdev_rxq_count + nb_rsrv_rx_queues;
+
+	if (!reconfigure) {
+		rc = sfc_mae_counter_rxq_init(sa);
+		if (rc != 0)
+			goto fail_count_rxq_init;
 	}
 
 configure_rss:
 	rss->channels = (dev_conf->rxmode.mq_mode == ETH_MQ_RX_RSS) ?
-			 MIN(sas->rxq_count, EFX_MAXRSS) : 0;
+			 MIN(sas->ethdev_rxq_count, EFX_MAXRSS) : 0;
 
 	if (rss->channels > 0) {
 		struct rte_eth_rss_conf *adv_conf_rss;
-		unsigned int sw_index;
+		sfc_sw_index_t sw_index;
 
 		for (sw_index = 0; sw_index < EFX_RSS_TBL_SIZE; ++sw_index)
 			rss->tbl[sw_index] = sw_index % rss->channels;
@@ -1722,6 +1827,10 @@ configure_rss:
 	return 0;
 
 fail_rx_process_adv_conf_rss:
+	if (!reconfigure)
+		sfc_mae_counter_rxq_fini(sa);
+
+fail_count_rxq_init:
 fail_rx_qinit_info:
 fail_rxqs_ctrl_realloc:
 fail_rxqs_realloc:
@@ -1745,6 +1854,7 @@ sfc_rx_close(struct sfc_adapter *sa)
 	struct sfc_rss *rss = &sfc_sa2shared(sa)->rss;
 
 	sfc_rx_fini_queues(sa, 0);
+	sfc_mae_counter_rxq_fini(sa);
 
 	rss->channels = 0;
 

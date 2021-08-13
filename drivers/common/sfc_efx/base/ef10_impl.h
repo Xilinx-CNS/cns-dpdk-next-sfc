@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2015-2019 Solarflare Communications Inc.
  */
 
@@ -111,6 +111,7 @@ ef10_ev_qcreate(
 	__in		uint32_t id,
 	__in		uint32_t us,
 	__in		uint32_t flags,
+	__in		uint32_t irq,
 	__in		efx_evq_t *eep);
 
 LIBEFX_INTERNAL

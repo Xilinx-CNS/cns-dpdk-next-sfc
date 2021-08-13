@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (c) 2015-2016 Freescale Semiconductor, Inc. All rights reserved.
- *   Copyright 2016-2020 NXP
+ *   Copyright 2016-2021 NXP
  *
  */
 
@@ -12,12 +12,14 @@
 #include <rte_pmd_dpaa2.h>
 
 #include <dpaa2_hw_pvt.h>
+#include "dpaa2_tm.h"
 
 #include <mc/fsl_dpni.h>
 #include <mc/fsl_mc_sys.h>
 
 #define DPAA2_MIN_RX_BUF_SIZE 512
 #define DPAA2_MAX_RX_PKT_LEN  10240 /*WRIOP support*/
+#define NET_DPAA2_PMD_DRIVER_NAME net_dpaa2
 
 #define MAX_TCS			DPNI_MAX_TC
 #define MAX_RX_QUEUES		128
@@ -25,6 +27,10 @@
 #define MAX_DPNI		8
 
 #define DPAA2_RX_DEFAULT_NBDESC 512
+
+#define DPAA2_ETH_MAX_LEN (RTE_ETHER_MTU + \
+			   RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + \
+			   VLAN_TAG_SIZE)
 
 /*default tc to be used for ,congestion, distribution etc configuration. */
 #define DPAA2_DEF_TC		0
@@ -55,13 +61,16 @@
 
 /* Disable RX tail drop, default is enable */
 #define DPAA2_RX_TAILDROP_OFF	0x04
+/* Tx confirmation enabled */
+#define DPAA2_TX_CONF_ENABLE	0x08
 
 #define DPAA2_RSS_OFFLOAD_ALL ( \
 	ETH_RSS_L2_PAYLOAD | \
 	ETH_RSS_IP | \
 	ETH_RSS_UDP | \
 	ETH_RSS_TCP | \
-	ETH_RSS_SCTP)
+	ETH_RSS_SCTP | \
+	ETH_RSS_MPLS)
 
 /* LX2 FRC Parsed values (Little Endian) */
 #define DPAA2_PKT_TYPE_ETHER		0x0060
@@ -105,7 +114,10 @@ extern int dpaa2_timestamp_dynfield_offset;
 
 /*Externaly defined*/
 extern const struct rte_flow_ops dpaa2_flow_ops;
-extern enum rte_filter_type dpaa2_filter_type;
+
+extern const struct rte_tm_ops dpaa2_tm_ops;
+
+extern bool dpaa2_enable_err_queue;
 
 #define IP_ADDRESS_OFFSET_INVALID (-1)
 
@@ -144,14 +156,14 @@ struct dpaa2_dev_priv {
 	void *tx_vq[MAX_TX_QUEUES];
 	struct dpaa2_bp_list *bp_list; /**<Attached buffer pool list */
 	void *tx_conf_vq[MAX_TX_QUEUES];
-	uint8_t tx_conf_en;
+	void *rx_err_vq;
+	uint8_t flags; /*dpaa2 config flags */
 	uint8_t max_mac_filters;
 	uint8_t max_vlan_filters;
 	uint8_t num_rx_tc;
 	uint16_t qos_entries;
 	uint16_t fs_entries;
 	uint8_t dist_queues;
-	uint8_t flags; /*dpaa2 config flags */
 	uint8_t en_ordered;
 	uint8_t en_loose_ordered;
 	uint8_t max_cgs;
@@ -174,6 +186,8 @@ struct dpaa2_dev_priv {
 	struct rte_eth_dev *eth_dev; /**< Pointer back to holding ethdev */
 
 	LIST_HEAD(, rte_flow) flows; /**< Configured flow rule handles. */
+	LIST_HEAD(nodes, dpaa2_tm_node) nodes;
+	LIST_HEAD(shaper_profiles, dpaa2_tm_shaper_profile) shaper_profiles;
 };
 
 int dpaa2_distset_to_dpkg_profile_cfg(uint64_t req_dist_set,

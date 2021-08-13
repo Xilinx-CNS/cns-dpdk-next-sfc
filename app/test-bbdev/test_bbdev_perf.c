@@ -372,14 +372,14 @@ check_dev_cap(const struct rte_bbdev_info *dev_info)
 			if (nb_harq_inputs > cap->num_buffers_hard_out) {
 				printf(
 					"Too many HARQ inputs defined: %u, max: %u\n",
-					nb_hard_outputs,
+					nb_harq_inputs,
 					cap->num_buffers_hard_out);
 				return TEST_FAILED;
 			}
 			if (nb_harq_outputs > cap->num_buffers_hard_out) {
 				printf(
 					"Too many HARQ outputs defined: %u, max: %u\n",
-					nb_hard_outputs,
+					nb_harq_outputs,
 					cap->num_buffers_hard_out);
 				return TEST_FAILED;
 			}
@@ -957,6 +957,9 @@ init_op_data_objs(struct rte_bbdev_op_data *bufs,
 			if ((op_type == DATA_INPUT) && large_input) {
 				/* Allocate a fake overused mbuf */
 				data = rte_malloc(NULL, seg->length, 0);
+				TEST_ASSERT_NOT_NULL(data,
+					"rte malloc failed with %u bytes",
+					seg->length);
 				memcpy(data, seg->addr, seg->length);
 				m_head->buf_addr = data;
 				m_head->buf_iova = rte_malloc_virt2iova(data);
@@ -1258,7 +1261,7 @@ copy_reference_dec_op(struct rte_bbdev_dec_op **ops, unsigned int n,
 	struct rte_bbdev_op_turbo_dec *turbo_dec = &ref_op->turbo_dec;
 
 	for (i = 0; i < n; ++i) {
-		if (turbo_dec->code_block_mode == 0) {
+		if (turbo_dec->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 			ops[i]->turbo_dec.tb_params.ea =
 					turbo_dec->tb_params.ea;
 			ops[i]->turbo_dec.tb_params.eb =
@@ -1306,7 +1309,7 @@ copy_reference_enc_op(struct rte_bbdev_enc_op **ops, unsigned int n,
 	unsigned int i;
 	struct rte_bbdev_op_turbo_enc *turbo_enc = &ref_op->turbo_enc;
 	for (i = 0; i < n; ++i) {
-		if (turbo_enc->code_block_mode == 0) {
+		if (turbo_enc->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 			ops[i]->turbo_enc.tb_params.ea =
 					turbo_enc->tb_params.ea;
 			ops[i]->turbo_enc.tb_params.eb =
@@ -1661,7 +1664,7 @@ copy_reference_ldpc_dec_op(struct rte_bbdev_dec_op **ops, unsigned int n,
 	struct rte_bbdev_op_ldpc_dec *ldpc_dec = &ref_op->ldpc_dec;
 
 	for (i = 0; i < n; ++i) {
-		if (ldpc_dec->code_block_mode == 0) {
+		if (ldpc_dec->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 			ops[i]->ldpc_dec.tb_params.ea =
 					ldpc_dec->tb_params.ea;
 			ops[i]->ldpc_dec.tb_params.eb =
@@ -1715,7 +1718,7 @@ copy_reference_ldpc_enc_op(struct rte_bbdev_enc_op **ops, unsigned int n,
 	unsigned int i;
 	struct rte_bbdev_op_ldpc_enc *ldpc_enc = &ref_op->ldpc_enc;
 	for (i = 0; i < n; ++i) {
-		if (ldpc_enc->code_block_mode == 0) {
+		if (ldpc_enc->code_block_mode == RTE_BBDEV_TRANSPORT_BLOCK) {
 			ops[i]->ldpc_enc.tb_params.ea = ldpc_enc->tb_params.ea;
 			ops[i]->ldpc_enc.tb_params.eb = ldpc_enc->tb_params.eb;
 			ops[i]->ldpc_enc.tb_params.cab =
@@ -2239,7 +2242,7 @@ calc_dec_TB_size(struct rte_bbdev_dec_op *op)
 	uint8_t i;
 	uint32_t c, r, tb_size = 0;
 
-	if (op->turbo_dec.code_block_mode) {
+	if (op->turbo_dec.code_block_mode == RTE_BBDEV_CODE_BLOCK) {
 		tb_size = op->turbo_dec.tb_params.k_neg;
 	} else {
 		c = op->turbo_dec.tb_params.c;
@@ -2259,7 +2262,7 @@ calc_ldpc_dec_TB_size(struct rte_bbdev_dec_op *op)
 	uint32_t c, r, tb_size = 0;
 	uint16_t sys_cols = (op->ldpc_dec.basegraph == 1) ? 22 : 10;
 
-	if (op->ldpc_dec.code_block_mode) {
+	if (op->ldpc_dec.code_block_mode == RTE_BBDEV_CODE_BLOCK) {
 		tb_size = sys_cols * op->ldpc_dec.z_c - op->ldpc_dec.n_filler;
 	} else {
 		c = op->ldpc_dec.tb_params.c;
@@ -2277,7 +2280,7 @@ calc_enc_TB_size(struct rte_bbdev_enc_op *op)
 	uint8_t i;
 	uint32_t c, r, tb_size = 0;
 
-	if (op->turbo_enc.code_block_mode) {
+	if (op->turbo_enc.code_block_mode == RTE_BBDEV_CODE_BLOCK) {
 		tb_size = op->turbo_enc.tb_params.k_neg;
 	} else {
 		c = op->turbo_enc.tb_params.c;
@@ -2297,7 +2300,7 @@ calc_ldpc_enc_TB_size(struct rte_bbdev_enc_op *op)
 	uint32_t c, r, tb_size = 0;
 	uint16_t sys_cols = (op->ldpc_enc.basegraph == 1) ? 22 : 10;
 
-	if (op->turbo_enc.code_block_mode) {
+	if (op->ldpc_enc.code_block_mode == RTE_BBDEV_CODE_BLOCK) {
 		tb_size = sys_cols * op->ldpc_enc.z_c - op->ldpc_enc.n_filler;
 	} else {
 		c = op->turbo_enc.tb_params.c;

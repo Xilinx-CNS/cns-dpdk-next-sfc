@@ -30,12 +30,11 @@ otx2_ipsec_fp_out_rlen_get(struct otx2_sec_session_ipsec_ip *sess,
 }
 
 static __rte_always_inline void
-otx2_ssogws_head_wait(struct otx2_ssogws *ws);
+otx2_ssogws_head_wait(uint64_t base);
 
 static __rte_always_inline int
-otx2_sec_event_tx(struct otx2_ssogws *ws, struct rte_event *ev,
-		  struct rte_mbuf *m, const struct otx2_eth_txq *txq,
-		  const uint32_t offload_flags)
+otx2_sec_event_tx(uint64_t base, struct rte_event *ev, struct rte_mbuf *m,
+		  const struct otx2_eth_txq *txq, const uint32_t offload_flags)
 {
 	uint32_t dlen, rlen, desc_headroom, extend_head, extend_tail;
 	struct otx2_sec_session_ipsec_ip *sess;
@@ -60,8 +59,7 @@ otx2_sec_event_tx(struct otx2_ssogws *ws, struct rte_event *ev,
 	sa = &sess->out_sa;
 
 	RTE_ASSERT(sess->cpt_lmtline != NULL);
-	RTE_ASSERT(!(offload_flags & (NIX_TX_OFFLOAD_MBUF_NOFF_F |
-				      NIX_TX_OFFLOAD_VLAN_QINQ_F)));
+	RTE_ASSERT(!(offload_flags & NIX_TX_OFFLOAD_VLAN_QINQ_F));
 
 	dlen = rte_pktmbuf_pkt_len(m) + sizeof(*hdr) - RTE_ETHER_HDR_LEN;
 	rlen = otx2_ipsec_fp_out_rlen_get(sess, dlen - sizeof(*hdr));
@@ -136,6 +134,8 @@ otx2_sec_event_tx(struct otx2_ssogws *ws, struct rte_event *ev,
 	sd->nix_hdr.w0.sizem1 = 1;
 	sd->nix_hdr.w0.total = rte_pktmbuf_data_len(m);
 	sd->nix_hdr.w0.aura = npa_lf_aura_handle_to_aura(m->pool->pool_id);
+	if (offload_flags & NIX_TX_OFFLOAD_MBUF_NOFF_F)
+		sd->nix_hdr.w0.df = otx2_nix_prefree_seg(m);
 
 	sd->nix_sg.u = 0;
 	sd->nix_sg.subdc = NIX_SUBDC_SG;
@@ -149,7 +149,7 @@ otx2_sec_event_tx(struct otx2_ssogws *ws, struct rte_event *ev,
 	__mempool_check_cookies(m->pool, (void **)&m, 1, 0);
 
 	if (!ev->sched_type)
-		otx2_ssogws_head_wait(ws);
+		otx2_ssogws_head_wait(base + SSOW_LF_GWS_TAG);
 
 	inst.param1 = sess->esn_hi >> 16;
 	inst.param2 = sess->esn_hi & 0xffff;

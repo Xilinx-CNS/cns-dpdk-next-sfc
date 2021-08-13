@@ -4,8 +4,8 @@
  */
 
 #include <rte_mbuf.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_driver.h>
+#include <ethdev_vdev.h>
 #include <rte_malloc.h>
 #include <rte_memcpy.h>
 #include <rte_bus_vdev.h>
@@ -73,7 +73,7 @@ static struct rte_eth_link pmd_link = {
 	.link_autoneg = ETH_LINK_FIXED,
 };
 
-RTE_LOG_REGISTER(eth_null_logtype, pmd.net.null, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(eth_null_logtype, NOTICE);
 
 #define PMD_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, eth_null_logtype, \

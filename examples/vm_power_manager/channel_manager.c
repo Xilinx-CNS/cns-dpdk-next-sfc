@@ -27,7 +27,6 @@
 #include <libvirt/libvirt.h>
 
 #include "channel_manager.h"
-#include "channel_commands.h"
 #include "channel_monitor.h"
 #include "power_manager.h"
 
@@ -512,7 +511,6 @@ add_channels(const char *vm_name, unsigned *channel_list,
 	}
 
 	for (i = 0; i < len_channel_list; i++) {
-
 		if (channel_list[i] >= RTE_MAX_LCORE) {
 			RTE_LOG(INFO, CHANNEL_MANAGER, "Channel(%u) is out of range "
 							"0...%d\n", channel_list[i],
@@ -574,6 +572,9 @@ add_host_channels(void)
 	}
 
 	for (i = 0; i < ci->core_count; i++) {
+		if (rte_lcore_index(i) == -1)
+			continue;
+
 		if (ci->cd[i].global_enabled_cpus == 0)
 			continue;
 

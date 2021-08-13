@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019 Xilinx, Inc. All rights reserved.
- * All rights reserved.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  */
 
 #include "efx.h"
@@ -47,23 +46,29 @@ efx_mae_get_capabilities(
 
 	maep->em_encap_types_supported = 0;
 
-	if (MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_ENCAP_TYPE_VXLAN) == 1) {
+	if (MCDI_OUT_DWORD_FIELD(req, MAE_GET_CAPS_OUT_ENCAP_TYPES_SUPPORTED,
+	    MAE_GET_CAPS_OUT_ENCAP_TYPE_VXLAN) != 0) {
 		maep->em_encap_types_supported |=
 		    (1U << EFX_TUNNEL_PROTOCOL_VXLAN);
 	}
 
-	if (MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_ENCAP_TYPE_GENEVE) == 1) {
+	if (MCDI_OUT_DWORD_FIELD(req, MAE_GET_CAPS_OUT_ENCAP_TYPES_SUPPORTED,
+	    MAE_GET_CAPS_OUT_ENCAP_TYPE_GENEVE) != 0) {
 		maep->em_encap_types_supported |=
 		    (1U << EFX_TUNNEL_PROTOCOL_GENEVE);
 	}
 
-	if (MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_ENCAP_TYPE_NVGRE) == 1) {
+	if (MCDI_OUT_DWORD_FIELD(req, MAE_GET_CAPS_OUT_ENCAP_TYPES_SUPPORTED,
+	    MAE_GET_CAPS_OUT_ENCAP_TYPE_NVGRE) != 0) {
 		maep->em_encap_types_supported |=
 		    (1U << EFX_TUNNEL_PROTOCOL_NVGRE);
 	}
 
 	maep->em_max_nfields =
 	    MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_MATCH_FIELD_COUNT);
+
+	maep->em_max_ncounters =
+	    MCDI_OUT_DWORD(req, MAE_GET_CAPS_OUT_COUNTERS);
 
 	return (0);
 
@@ -107,17 +112,22 @@ efx_mae_get_outer_rule_caps(
 		goto fail2;
 	}
 
+	if (req.emr_out_length_used < MC_CMD_MAE_GET_OR_CAPS_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
 	mcdi_field_ncaps = MCDI_OUT_DWORD(req, MAE_GET_OR_CAPS_OUT_COUNT);
 
 	if (req.emr_out_length_used <
 	    MC_CMD_MAE_GET_OR_CAPS_OUT_LEN(mcdi_field_ncaps)) {
 		rc = EMSGSIZE;
-		goto fail3;
+		goto fail4;
 	}
 
 	if (mcdi_field_ncaps > field_ncaps) {
 		rc = EMSGSIZE;
-		goto fail4;
+		goto fail5;
 	}
 
 	for (i = 0; i < mcdi_field_ncaps; ++i) {
@@ -145,6 +155,8 @@ efx_mae_get_outer_rule_caps(
 
 	return (0);
 
+fail5:
+	EFSYS_PROBE(fail5);
 fail4:
 	EFSYS_PROBE(fail4);
 fail3:
@@ -189,17 +201,22 @@ efx_mae_get_action_rule_caps(
 		goto fail2;
 	}
 
-	mcdi_field_ncaps = MCDI_OUT_DWORD(req, MAE_GET_OR_CAPS_OUT_COUNT);
-
-	if (req.emr_out_length_used <
-	    MC_CMD_MAE_GET_AR_CAPS_OUT_LEN(mcdi_field_ncaps)) {
+	if (req.emr_out_length_used < MC_CMD_MAE_GET_AR_CAPS_OUT_LENMIN) {
 		rc = EMSGSIZE;
 		goto fail3;
 	}
 
-	if (mcdi_field_ncaps > field_ncaps) {
+	mcdi_field_ncaps = MCDI_OUT_DWORD(req, MAE_GET_AR_CAPS_OUT_COUNT);
+
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_GET_AR_CAPS_OUT_LEN(mcdi_field_ncaps)) {
 		rc = EMSGSIZE;
 		goto fail4;
+	}
+
+	if (mcdi_field_ncaps > field_ncaps) {
+		rc = EMSGSIZE;
+		goto fail5;
 	}
 
 	for (i = 0; i < mcdi_field_ncaps; ++i) {
@@ -227,6 +244,8 @@ efx_mae_get_action_rule_caps(
 
 	return (0);
 
+fail5:
+	EFSYS_PROBE(fail5);
 fail4:
 	EFSYS_PROBE(fail4);
 fail3:
@@ -353,6 +372,9 @@ efx_mae_get_limits(
 	emlp->eml_max_n_outer_prios = maep->em_max_n_outer_prios;
 	emlp->eml_max_n_action_prios = maep->em_max_n_action_prios;
 	emlp->eml_encap_types_supported = maep->em_encap_types_supported;
+	emlp->eml_encap_header_size_limit =
+	    MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN_HDR_DATA_MAXNUM_MCDI2;
+	emlp->eml_max_n_counters = maep->em_max_ncounters;
 
 	return (0);
 
@@ -447,6 +469,10 @@ typedef enum efx_mae_field_cap_id_e {
 	EFX_MAE_FIELD_ID_ENC_L4_DPORT_BE = MAE_FIELD_ENC_L4_DPORT,
 	EFX_MAE_FIELD_ID_ENC_VNET_ID_BE = MAE_FIELD_ENC_VNET_ID,
 	EFX_MAE_FIELD_ID_OUTER_RULE_ID = MAE_FIELD_OUTER_RULE_ID,
+	EFX_MAE_FIELD_ID_HAS_OVLAN = MAE_FIELD_HAS_OVLAN,
+	EFX_MAE_FIELD_ID_HAS_IVLAN = MAE_FIELD_HAS_IVLAN,
+	EFX_MAE_FIELD_ID_ENC_HAS_OVLAN = MAE_FIELD_ENC_HAS_OVLAN,
+	EFX_MAE_FIELD_ID_ENC_HAS_IVLAN = MAE_FIELD_ENC_HAS_IVLAN,
 
 	EFX_MAE_FIELD_CAP_NIDS
 } efx_mae_field_cap_id_t;
@@ -463,6 +489,10 @@ typedef enum efx_mae_field_endianness_e {
  * The information in it is meant to be used internally by
  * APIs for addressing a given field in a mask-value pairs
  * structure and for validation purposes.
+ *
+ * A field may have an alternative one. This structure
+ * has additional members to reference the alternative
+ * field's mask. See efx_mae_match_spec_is_valid().
  */
 typedef struct efx_mae_mv_desc_s {
 	efx_mae_field_cap_id_t		emmd_field_cap_id;
@@ -472,6 +502,14 @@ typedef struct efx_mae_mv_desc_s {
 	size_t				emmd_mask_size;
 	size_t				emmd_mask_offset;
 
+	/*
+	 * Having the alternative field's mask size set to 0
+	 * means that there's no alternative field specified.
+	 */
+	size_t				emmd_alt_mask_size;
+	size_t				emmd_alt_mask_offset;
+
+	/* Primary field and the alternative one are of the same endianness. */
 	efx_mae_field_endianness_t	emmd_endianness;
 } efx_mae_mv_desc_t;
 
@@ -485,6 +523,7 @@ static const efx_mae_mv_desc_t __efx_mae_action_rule_mv_desc_set[] = {
 		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_OFST,		\
 		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_MASK_LEN,		\
 		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_MASK_OFST,		\
+		0, 0 /* no alternative field */,			\
 		_endianness						\
 	}
 
@@ -522,6 +561,21 @@ static const efx_mae_mv_desc_t __efx_mae_outer_rule_mv_desc_set[] = {
 		MAE_ENC_FIELD_PAIRS_##_name##_OFST,			\
 		MAE_ENC_FIELD_PAIRS_##_name##_MASK_LEN,			\
 		MAE_ENC_FIELD_PAIRS_##_name##_MASK_OFST,		\
+		0, 0 /* no alternative field */,			\
+		_endianness						\
+	}
+
+/* Same as EFX_MAE_MV_DESC(), but also indicates an alternative field. */
+#define	EFX_MAE_MV_DESC_ALT(_name, _alt_name, _endianness)		\
+	[EFX_MAE_FIELD_##_name] =					\
+	{								\
+		EFX_MAE_FIELD_ID_##_name,				\
+		MAE_ENC_FIELD_PAIRS_##_name##_LEN,			\
+		MAE_ENC_FIELD_PAIRS_##_name##_OFST,			\
+		MAE_ENC_FIELD_PAIRS_##_name##_MASK_LEN,			\
+		MAE_ENC_FIELD_PAIRS_##_name##_MASK_OFST,		\
+		MAE_ENC_FIELD_PAIRS_##_alt_name##_MASK_LEN,		\
+		MAE_ENC_FIELD_PAIRS_##_alt_name##_MASK_OFST,		\
 		_endianness						\
 	}
 
@@ -533,17 +587,77 @@ static const efx_mae_mv_desc_t __efx_mae_outer_rule_mv_desc_set[] = {
 	EFX_MAE_MV_DESC(ENC_VLAN0_PROTO_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_VLAN1_TCI_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_VLAN1_PROTO_BE, EFX_MAE_FIELD_BE),
-	EFX_MAE_MV_DESC(ENC_SRC_IP4_BE, EFX_MAE_FIELD_BE),
-	EFX_MAE_MV_DESC(ENC_DST_IP4_BE, EFX_MAE_FIELD_BE),
+	EFX_MAE_MV_DESC_ALT(ENC_SRC_IP4_BE, ENC_SRC_IP6_BE, EFX_MAE_FIELD_BE),
+	EFX_MAE_MV_DESC_ALT(ENC_DST_IP4_BE, ENC_DST_IP6_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_IP_PROTO, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_IP_TOS, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_IP_TTL, EFX_MAE_FIELD_BE),
-	EFX_MAE_MV_DESC(ENC_SRC_IP6_BE, EFX_MAE_FIELD_BE),
-	EFX_MAE_MV_DESC(ENC_DST_IP6_BE, EFX_MAE_FIELD_BE),
+	EFX_MAE_MV_DESC_ALT(ENC_SRC_IP6_BE, ENC_SRC_IP4_BE, EFX_MAE_FIELD_BE),
+	EFX_MAE_MV_DESC_ALT(ENC_DST_IP6_BE, ENC_DST_IP4_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_L4_SPORT_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_L4_DPORT_BE, EFX_MAE_FIELD_BE),
 
+#undef EFX_MAE_MV_DESC_ALT
 #undef EFX_MAE_MV_DESC
+};
+
+/*
+ * The following structure is a means to describe an MAE bit.
+ * The information in it is meant to be used internally by
+ * APIs for addressing a given flag in a mask-value pairs
+ * structure and for validation purposes.
+ */
+typedef struct efx_mae_mv_bit_desc_s {
+	/*
+	 * Arrays using this struct are indexed by field IDs.
+	 * Fields which aren't meant to be referenced by these
+	 * arrays comprise gaps (invalid entries). Below field
+	 * helps to identify such entries.
+	 */
+	boolean_t			emmbd_entry_is_valid;
+	efx_mae_field_cap_id_t		emmbd_bit_cap_id;
+	size_t				emmbd_value_ofst;
+	unsigned int			emmbd_value_lbn;
+	size_t				emmbd_mask_ofst;
+	unsigned int			emmbd_mask_lbn;
+} efx_mae_mv_bit_desc_t;
+
+static const efx_mae_mv_bit_desc_t __efx_mae_outer_rule_mv_bit_desc_set[] = {
+#define	EFX_MAE_MV_BIT_DESC(_name)					\
+	[EFX_MAE_FIELD_##_name] =					\
+	{								\
+		B_TRUE,							\
+		EFX_MAE_FIELD_ID_##_name,				\
+		MAE_ENC_FIELD_PAIRS_##_name##_OFST,			\
+		MAE_ENC_FIELD_PAIRS_##_name##_LBN,			\
+		MAE_ENC_FIELD_PAIRS_##_name##_MASK_OFST,		\
+		MAE_ENC_FIELD_PAIRS_##_name##_MASK_LBN,			\
+	}
+
+	EFX_MAE_MV_BIT_DESC(ENC_HAS_OVLAN),
+	EFX_MAE_MV_BIT_DESC(ENC_HAS_IVLAN),
+
+#undef EFX_MAE_MV_BIT_DESC
+};
+
+static const efx_mae_mv_bit_desc_t __efx_mae_action_rule_mv_bit_desc_set[] = {
+#define	EFX_MAE_MV_BIT_DESC(_name)					\
+	[EFX_MAE_FIELD_##_name] =					\
+	{								\
+		B_TRUE,							\
+		EFX_MAE_FIELD_ID_##_name,				\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_FLAGS_OFST,		\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_##_name##_LBN,		\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_FLAGS_MASK_OFST,		\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_##_name##_LBN,		\
+	}
+
+	EFX_MAE_MV_BIT_DESC(HAS_OVLAN),
+	EFX_MAE_MV_BIT_DESC(HAS_IVLAN),
+	EFX_MAE_MV_BIT_DESC(ENC_HAS_OVLAN),
+	EFX_MAE_MV_BIT_DESC(ENC_HAS_IVLAN),
+
+#undef EFX_MAE_MV_BIT_DESC
 };
 
 	__checkReturn			efx_rc_t
@@ -564,7 +678,13 @@ efx_mae_mport_by_phy_port(
 	    MAE_MPORT_SELECTOR_PPORT_ID, phy_port);
 
 	memset(mportp, 0, sizeof (*mportp));
-	mportp->sel = dword.ed_u32[0];
+	/*
+	 * The constructed DWORD is little-endian,
+	 * but the resulting value is meant to be
+	 * passed to MCDIs, where it will undergo
+	 * host-order to little endian conversion.
+	 */
+	mportp->sel = EFX_DWORD_FIELD(dword, EFX_DWORD_0);
 
 	return (0);
 
@@ -601,7 +721,13 @@ efx_mae_mport_by_pcie_function(
 	    MAE_MPORT_SELECTOR_FUNC_VF_ID, vf);
 
 	memset(mportp, 0, sizeof (*mportp));
-	mportp->sel = dword.ed_u32[0];
+	/*
+	 * The constructed DWORD is little-endian,
+	 * but the resulting value is meant to be
+	 * passed to MCDIs, where it will undergo
+	 * host-order to little endian conversion.
+	 */
+	mportp->sel = EFX_DWORD_FIELD(dword, EFX_DWORD_0);
 
 	return (0);
 
@@ -644,28 +770,54 @@ efx_mae_match_spec_field_set(
 		goto fail1;
 	}
 
-	if (field_id >= desc_set_nentries) {
+	if ((unsigned int)field_id >= desc_set_nentries) {
 		rc = EINVAL;
 		goto fail2;
 	}
 
-	if (value_size != descp->emmd_value_size) {
+	if (descp->emmd_mask_size == 0) {
+		/* The ID points to a gap in the array of field descriptors. */
 		rc = EINVAL;
 		goto fail3;
 	}
 
-	if (mask_size != descp->emmd_mask_size) {
+	if (value_size != descp->emmd_value_size) {
 		rc = EINVAL;
 		goto fail4;
 	}
 
+	if (mask_size != descp->emmd_mask_size) {
+		rc = EINVAL;
+		goto fail5;
+	}
+
 	if (descp->emmd_endianness == EFX_MAE_FIELD_BE) {
+		unsigned int i;
+
 		/*
 		 * The mask/value are in network (big endian) order.
 		 * The MCDI request field is also big endian.
 		 */
-		memcpy(mvp + descp->emmd_value_offset, value, value_size);
-		memcpy(mvp + descp->emmd_mask_offset, mask, mask_size);
+
+		EFSYS_ASSERT3U(value_size, ==, mask_size);
+
+		for (i = 0; i < value_size; ++i) {
+			uint8_t *v_bytep = mvp + descp->emmd_value_offset + i;
+			uint8_t *m_bytep = mvp + descp->emmd_mask_offset + i;
+
+			/*
+			 * Apply the mask (which may be all-zeros) to the value.
+			 *
+			 * If this API is provided with some value to set for a
+			 * given field in one specification and with some other
+			 * value to set for this field in another specification,
+			 * then, if the two masks are all-zeros, the field will
+			 * avoid being counted as a mismatch when comparing the
+			 * specifications using efx_mae_match_specs_equal() API.
+			 */
+			*v_bytep = value[i] & mask[i];
+			*m_bytep = mask[i];
+		}
 	} else {
 		efx_dword_t dword;
 
@@ -700,8 +852,74 @@ efx_mae_match_spec_field_set(
 
 	return (0);
 
+fail5:
+	EFSYS_PROBE(fail5);
 fail4:
 	EFSYS_PROBE(fail4);
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_match_spec_bit_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				efx_mae_field_id_t field_id,
+	__in				boolean_t value)
+{
+	const efx_mae_mv_bit_desc_t *bit_descp;
+	unsigned int bit_desc_set_nentries;
+	unsigned int byte_idx;
+	unsigned int bit_idx;
+	uint8_t *mvp;
+	efx_rc_t rc;
+
+	switch (spec->emms_type) {
+	case EFX_MAE_RULE_OUTER:
+		bit_desc_set_nentries =
+		    EFX_ARRAY_SIZE(__efx_mae_outer_rule_mv_bit_desc_set);
+		bit_descp = &__efx_mae_outer_rule_mv_bit_desc_set[field_id];
+		mvp = spec->emms_mask_value_pairs.outer;
+		break;
+	case EFX_MAE_RULE_ACTION:
+		bit_desc_set_nentries =
+		    EFX_ARRAY_SIZE(__efx_mae_action_rule_mv_bit_desc_set);
+		bit_descp = &__efx_mae_action_rule_mv_bit_desc_set[field_id];
+		mvp = spec->emms_mask_value_pairs.action;
+		break;
+	default:
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	if ((unsigned int)field_id >= bit_desc_set_nentries) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	if (bit_descp->emmbd_entry_is_valid == B_FALSE) {
+		rc = EINVAL;
+		goto fail3;
+	}
+
+	byte_idx = bit_descp->emmbd_value_ofst + bit_descp->emmbd_value_lbn / 8;
+	bit_idx = bit_descp->emmbd_value_lbn % 8;
+
+	if (value != B_FALSE)
+		mvp[byte_idx] |= (1U << bit_idx);
+	else
+		mvp[byte_idx] &= ~(1U << bit_idx);
+
+	byte_idx = bit_descp->emmbd_mask_ofst + bit_descp->emmbd_mask_lbn / 8;
+	bit_idx = bit_descp->emmbd_mask_lbn % 8;
+	mvp[byte_idx] |= (1U << bit_idx);
+
+	return (0);
+
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
@@ -760,7 +978,7 @@ efx_mae_match_specs_equal(
 	    ((_mask)[(_bit) / (_mask_page_nbits)] &			\
 		    (1ULL << ((_bit) & ((_mask_page_nbits) - 1))))
 
-static inline				boolean_t
+static					boolean_t
 efx_mask_is_prefix(
 	__in				size_t mask_nbytes,
 	__in_bcount(mask_nbytes)	const uint8_t *maskp)
@@ -780,7 +998,7 @@ efx_mask_is_prefix(
 	return B_TRUE;
 }
 
-static inline				boolean_t
+static					boolean_t
 efx_mask_is_all_ones(
 	__in				size_t mask_nbytes,
 	__in_bcount(mask_nbytes)	const uint8_t *maskp)
@@ -794,7 +1012,7 @@ efx_mask_is_all_ones(
 	return (t == (uint8_t)(~0));
 }
 
-static inline				boolean_t
+static					boolean_t
 efx_mask_is_all_zeros(
 	__in				size_t mask_nbytes,
 	__in_bcount(mask_nbytes)	const uint8_t *maskp)
@@ -818,6 +1036,8 @@ efx_mae_match_spec_is_valid(
 	const efx_mae_field_cap_t *field_caps;
 	const efx_mae_mv_desc_t *desc_setp;
 	unsigned int desc_set_nentries;
+	const efx_mae_mv_bit_desc_t *bit_desc_setp;
+	unsigned int bit_desc_set_nentries;
 	boolean_t is_valid = B_TRUE;
 	efx_mae_field_id_t field_id;
 	const uint8_t *mvp;
@@ -828,6 +1048,9 @@ efx_mae_match_spec_is_valid(
 		desc_setp = __efx_mae_outer_rule_mv_desc_set;
 		desc_set_nentries =
 		    EFX_ARRAY_SIZE(__efx_mae_outer_rule_mv_desc_set);
+		bit_desc_setp = __efx_mae_outer_rule_mv_bit_desc_set;
+		bit_desc_set_nentries =
+		    EFX_ARRAY_SIZE(__efx_mae_outer_rule_mv_bit_desc_set);
 		mvp = spec->emms_mask_value_pairs.outer;
 		break;
 	case EFX_MAE_RULE_ACTION:
@@ -835,6 +1058,9 @@ efx_mae_match_spec_is_valid(
 		desc_setp = __efx_mae_action_rule_mv_desc_set;
 		desc_set_nentries =
 		    EFX_ARRAY_SIZE(__efx_mae_action_rule_mv_desc_set);
+		bit_desc_setp = __efx_mae_action_rule_mv_bit_desc_set;
+		bit_desc_set_nentries =
+		    EFX_ARRAY_SIZE(__efx_mae_action_rule_mv_bit_desc_set);
 		mvp = spec->emms_mask_value_pairs.action;
 		break;
 	default:
@@ -844,17 +1070,29 @@ efx_mae_match_spec_is_valid(
 	if (field_caps == NULL)
 		return (B_FALSE);
 
-	for (field_id = 0; field_id < desc_set_nentries; ++field_id) {
+	for (field_id = 0; (unsigned int)field_id < desc_set_nentries;
+	     ++field_id) {
 		const efx_mae_mv_desc_t *descp = &desc_setp[field_id];
 		efx_mae_field_cap_id_t field_cap_id = descp->emmd_field_cap_id;
+		const uint8_t *alt_m_buf = mvp + descp->emmd_alt_mask_offset;
 		const uint8_t *m_buf = mvp + descp->emmd_mask_offset;
+		size_t alt_m_size = descp->emmd_alt_mask_size;
 		size_t m_size = descp->emmd_mask_size;
 
 		if (m_size == 0)
 			continue; /* Skip array gap */
 
-		if (field_cap_id >= field_ncaps)
-			break;
+		if ((unsigned int)field_cap_id >= field_ncaps) {
+			/*
+			 * The FW has not reported capability status for
+			 * this field. Make sure that its mask is zeroed.
+			 */
+			is_valid = efx_mask_is_all_zeros(m_size, m_buf);
+			if (is_valid != B_FALSE)
+				continue;
+			else
+				break;
+		}
 
 		switch (field_caps[field_cap_id].emfc_support) {
 		case MAE_FIELD_SUPPORTED_MATCH_MASK:
@@ -869,11 +1107,66 @@ efx_mae_match_spec_is_valid(
 			break;
 		case MAE_FIELD_SUPPORTED_MATCH_ALWAYS:
 			is_valid = efx_mask_is_all_ones(m_size, m_buf);
+
+			if ((is_valid == B_FALSE) && (alt_m_size != 0)) {
+				/*
+				 * This field has an alternative one. The FW
+				 * reports ALWAYS for both implying that one
+				 * of them is required to have all-ones mask.
+				 *
+				 * The primary field's mask is incorrect; go
+				 * on to check that of the alternative field.
+				 */
+				is_valid = efx_mask_is_all_ones(alt_m_size,
+								alt_m_buf);
+			}
 			break;
 		case MAE_FIELD_SUPPORTED_MATCH_NEVER:
 		case MAE_FIELD_UNSUPPORTED:
 		default:
 			is_valid = efx_mask_is_all_zeros(m_size, m_buf);
+			break;
+		}
+
+		if (is_valid == B_FALSE)
+			return (B_FALSE);
+	}
+
+	for (field_id = 0; (unsigned int)field_id < bit_desc_set_nentries;
+	     ++field_id) {
+		const efx_mae_mv_bit_desc_t *bit_descp =
+		    &bit_desc_setp[field_id];
+		unsigned int byte_idx =
+		    bit_descp->emmbd_mask_ofst +
+		    bit_descp->emmbd_mask_lbn / 8;
+		unsigned int bit_idx =
+		    bit_descp->emmbd_mask_lbn % 8;
+		efx_mae_field_cap_id_t bit_cap_id =
+		    bit_descp->emmbd_bit_cap_id;
+
+		if (bit_descp->emmbd_entry_is_valid == B_FALSE)
+			continue; /* Skip array gap */
+
+		if ((unsigned int)bit_cap_id >= field_ncaps) {
+			/* No capability for this bit = unsupported. */
+			is_valid = ((mvp[byte_idx] & (1U << bit_idx)) == 0);
+			if (is_valid == B_FALSE)
+				break;
+			else
+				continue;
+		}
+
+		switch (field_caps[bit_cap_id].emfc_support) {
+		case MAE_FIELD_SUPPORTED_MATCH_OPTIONAL:
+			is_valid = B_TRUE;
+			break;
+		case MAE_FIELD_SUPPORTED_MATCH_ALWAYS:
+			is_valid = ((mvp[byte_idx] & (1U << bit_idx)) != 0);
+			break;
+		case MAE_FIELD_SUPPORTED_MATCH_NEVER:
+		case MAE_FIELD_UNSUPPORTED:
+		default:
+			is_valid = ((mvp[byte_idx] & (1U << bit_idx)) == 0);
 			break;
 		}
 
@@ -898,6 +1191,9 @@ efx_mae_action_set_spec_init(
 		goto fail1;
 	}
 
+	spec->ema_rsrc.emar_eh_id.id = EFX_MAE_RSRC_ID_INVALID;
+	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+
 	*specp = spec;
 
 	return (0);
@@ -913,6 +1209,37 @@ efx_mae_action_set_spec_fini(
 	__in				efx_mae_actions_t *spec)
 {
 	EFSYS_KMEM_FREE(enp->en_esip, sizeof (*spec), spec);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_decap(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	_NOTE(ARGUNUSED(spec))
+
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	/* This action does not have any arguments, so do nothing here. */
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
 }
 
 static	__checkReturn			efx_rc_t
@@ -982,6 +1309,94 @@ efx_mae_action_set_add_vlan_push(
 
 fail3:
 	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_encap(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	/*
+	 * Adding this specific action to an action set spec and setting encap.
+	 * header ID in the spec are two individual steps. This design allows
+	 * the client driver to avoid encap. header allocation when it simply
+	 * needs to check the order of actions submitted by user ("validate"),
+	 * without actually allocating an action set and inserting a rule.
+	 *
+	 * For now, mark encap. header ID as invalid; the caller will invoke
+	 * efx_mae_action_set_fill_in_eh_id() to override the field prior
+	 * to action set allocation; otherwise, the allocation will fail.
+	 */
+	spec->ema_rsrc.emar_eh_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	/*
+	 * As explained above, there are no arguments to handle here.
+	 * efx_mae_action_set_fill_in_eh_id() will take care of them.
+	 */
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_action_set_add_count(
+	__in				efx_mae_actions_t *spec,
+	__in				size_t arg_size,
+	__in_bcount(arg_size)		const uint8_t *arg)
+{
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_MAE_RSRC_ID_INVALID ==
+			  MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_NULL);
+
+	/*
+	 * Preparing an action set spec to update a counter requires
+	 * two steps: first add this action to the action spec, and then
+	 * add the counter ID to the spec. This allows validity checking
+	 * and resource allocation to be done separately.
+	 * Mark the counter ID as invalid in the spec to ensure that the
+	 * caller must also invoke efx_mae_action_set_fill_in_counter_id()
+	 * before action set allocation.
+	 */
+	spec->ema_rsrc.emar_counter_id.id = EFX_MAE_RSRC_ID_INVALID;
+
+	/* Nothing else is supposed to take place over here. */
+	if (arg_size != 0) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (arg != NULL) {
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	++(spec->ema_n_count_actions);
+
+	return (0);
+
 fail2:
 	EFSYS_PROBE(fail2);
 fail1:
@@ -1085,11 +1500,20 @@ typedef struct efx_mae_action_desc_s {
 } efx_mae_action_desc_t;
 
 static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
+	[EFX_MAE_ACTION_DECAP] = {
+		.emad_add = efx_mae_action_set_add_decap
+	},
 	[EFX_MAE_ACTION_VLAN_POP] = {
 		.emad_add = efx_mae_action_set_add_vlan_pop
 	},
 	[EFX_MAE_ACTION_VLAN_PUSH] = {
 		.emad_add = efx_mae_action_set_add_vlan_push
+	},
+	[EFX_MAE_ACTION_ENCAP] = {
+		.emad_add = efx_mae_action_set_add_encap
+	},
+	[EFX_MAE_ACTION_COUNT] = {
+		.emad_add = efx_mae_action_set_add_count
 	},
 	[EFX_MAE_ACTION_FLAG] = {
 		.emad_add = efx_mae_action_set_add_flag
@@ -1103,8 +1527,16 @@ static const efx_mae_action_desc_t efx_mae_actions[EFX_MAE_NACTIONS] = {
 };
 
 static const uint32_t efx_mae_action_ordered_map =
+	(1U << EFX_MAE_ACTION_DECAP) |
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
 	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
+	/*
+	 * HW will conduct action COUNT after
+	 * the matching packet has been modified by
+	 * length-affecting actions except for ENCAP.
+	 */
+	(1U << EFX_MAE_ACTION_COUNT) |
+	(1U << EFX_MAE_ACTION_ENCAP) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK) |
 	(1U << EFX_MAE_ACTION_DELIVER);
@@ -1115,12 +1547,14 @@ static const uint32_t efx_mae_action_ordered_map =
  * strictly ordered actions.
  */
 static const uint32_t efx_mae_action_nonstrict_map =
+	(1U << EFX_MAE_ACTION_COUNT) |
 	(1U << EFX_MAE_ACTION_FLAG) |
 	(1U << EFX_MAE_ACTION_MARK);
 
 static const uint32_t efx_mae_action_repeat_map =
 	(1U << EFX_MAE_ACTION_VLAN_POP) |
-	(1U << EFX_MAE_ACTION_VLAN_PUSH);
+	(1U << EFX_MAE_ACTION_VLAN_PUSH) |
+	(1U << EFX_MAE_ACTION_COUNT);
 
 /*
  * Add an action to an action set.
@@ -1198,6 +1632,14 @@ fail1:
 }
 
 	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_decap(
+	__in				efx_mae_actions_t *spec)
+{
+	return (efx_mae_action_set_spec_populate(spec,
+	    EFX_MAE_ACTION_DECAP, 0, NULL));
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_action_set_populate_vlan_pop(
 	__in				efx_mae_actions_t *spec)
 {
@@ -1219,6 +1661,34 @@ efx_mae_action_set_populate_vlan_push(
 
 	return (efx_mae_action_set_spec_populate(spec,
 	    EFX_MAE_ACTION_VLAN_PUSH, sizeof (action), arg));
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_encap(
+	__in				efx_mae_actions_t *spec)
+{
+	/*
+	 * There is no argument to pass encap. header ID, thus, one does not
+	 * need to allocate an encap. header while parsing application input.
+	 * This is useful since building an action set may be done simply to
+	 * validate a rule, whilst resource allocation usually consumes time.
+	 */
+	return (efx_mae_action_set_spec_populate(spec,
+	    EFX_MAE_ACTION_ENCAP, 0, NULL));
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_populate_count(
+	__in				efx_mae_actions_t *spec)
+{
+	/*
+	 * There is no argument to pass counter ID, thus, one does not
+	 * need to allocate a counter while parsing application input.
+	 * This is useful since building an action set may be done simply to
+	 * validate a rule, whilst resource allocation usually consumes time.
+	 */
+	return (efx_mae_action_set_spec_populate(spec,
+	    EFX_MAE_ACTION_COUNT, 0, NULL));
 }
 
 	__checkReturn			efx_rc_t
@@ -1274,7 +1744,13 @@ efx_mae_action_set_populate_drop(
 	EFX_POPULATE_DWORD_1(dword,
 	    MAE_MPORT_SELECTOR_FLAT, MAE_MPORT_SELECTOR_NULL);
 
-	mport.sel = dword.ed_u32[0];
+	/*
+	 * The constructed DWORD is little-endian,
+	 * but the resulting value is meant to be
+	 * passed to MCDIs, where it will undergo
+	 * host-order to little endian conversion.
+	 */
+	mport.sel = EFX_DWORD_FIELD(dword, EFX_DWORD_0);
 
 	arg = (const uint8_t *)&mport.sel;
 
@@ -1287,7 +1763,22 @@ efx_mae_action_set_specs_equal(
 	__in				const efx_mae_actions_t *left,
 	__in				const efx_mae_actions_t *right)
 {
-	return ((memcmp(left, right, sizeof (*left)) == 0) ? B_TRUE : B_FALSE);
+	size_t cmp_size = EFX_FIELD_OFFSET(efx_mae_actions_t, ema_rsrc);
+
+	/*
+	 * An action set specification consists of two parts. The first part
+	 * indicates what actions are included in the action set, as well as
+	 * extra quantitative values (in example, the number of VLAN tags to
+	 * push). The second part comprises resource IDs used by the actions.
+	 *
+	 * A resource, in example, a counter, is allocated from the hardware
+	 * by the client, and it's the client who is responsible for keeping
+	 * track of allocated resources and comparing resource IDs if needed.
+	 *
+	 * In this API, don't compare resource IDs in the two specifications.
+	 */
+
+	return ((memcmp(left, right, cmp_size) == 0) ? B_TRUE : B_FALSE);
 }
 
 	__checkReturn			efx_rc_t
@@ -1302,6 +1793,8 @@ efx_mae_match_specs_class_cmp(
 	const efx_mae_field_cap_t *field_caps;
 	const efx_mae_mv_desc_t *desc_setp;
 	unsigned int desc_set_nentries;
+	const efx_mae_mv_bit_desc_t *bit_desc_setp;
+	unsigned int bit_desc_set_nentries;
 	boolean_t have_same_class = B_TRUE;
 	efx_mae_field_id_t field_id;
 	const uint8_t *mvpl;
@@ -1314,6 +1807,9 @@ efx_mae_match_specs_class_cmp(
 		desc_setp = __efx_mae_outer_rule_mv_desc_set;
 		desc_set_nentries =
 		    EFX_ARRAY_SIZE(__efx_mae_outer_rule_mv_desc_set);
+		bit_desc_setp = __efx_mae_outer_rule_mv_bit_desc_set;
+		bit_desc_set_nentries =
+		    EFX_ARRAY_SIZE(__efx_mae_outer_rule_mv_bit_desc_set);
 		mvpl = left->emms_mask_value_pairs.outer;
 		mvpr = right->emms_mask_value_pairs.outer;
 		break;
@@ -1322,6 +1818,9 @@ efx_mae_match_specs_class_cmp(
 		desc_setp = __efx_mae_action_rule_mv_desc_set;
 		desc_set_nentries =
 		    EFX_ARRAY_SIZE(__efx_mae_action_rule_mv_desc_set);
+		bit_desc_setp = __efx_mae_action_rule_mv_bit_desc_set;
+		bit_desc_set_nentries =
+		    EFX_ARRAY_SIZE(__efx_mae_action_rule_mv_bit_desc_set);
 		mvpl = left->emms_mask_value_pairs.action;
 		mvpr = right->emms_mask_value_pairs.action;
 		break;
@@ -1350,21 +1849,36 @@ efx_mae_match_specs_class_cmp(
 		return (0);
 	}
 
-	for (field_id = 0; field_id < desc_set_nentries; ++field_id) {
+	for (field_id = 0; (unsigned int)field_id < desc_set_nentries;
+	     ++field_id) {
 		const efx_mae_mv_desc_t *descp = &desc_setp[field_id];
 		efx_mae_field_cap_id_t field_cap_id = descp->emmd_field_cap_id;
+		const uint8_t *lmaskp = mvpl + descp->emmd_mask_offset;
+		const uint8_t *rmaskp = mvpr + descp->emmd_mask_offset;
+		size_t mask_size = descp->emmd_mask_size;
+		const uint8_t *lvalp = mvpl + descp->emmd_value_offset;
+		const uint8_t *rvalp = mvpr + descp->emmd_value_offset;
+		size_t value_size = descp->emmd_value_size;
 
-		if (descp->emmd_mask_size == 0)
+		if (mask_size == 0)
 			continue; /* Skip array gap */
 
-		if (field_cap_id >= field_ncaps)
-			break;
+		if ((unsigned int)field_cap_id >= field_ncaps) {
+			/*
+			 * The FW has not reported capability status for this
+			 * field. It's unknown whether any difference between
+			 * the two masks / values affects the class. The only
+			 * case when the class must be the same is when these
+			 * mask-value pairs match. Otherwise, report mismatch.
+			 */
+			if ((memcmp(lmaskp, rmaskp, mask_size) == 0) &&
+			    (memcmp(lvalp, rvalp, value_size) == 0))
+				continue;
+			else
+				break;
+		}
 
 		if (field_caps[field_cap_id].emfc_mask_affects_class) {
-			const uint8_t *lmaskp = mvpl + descp->emmd_mask_offset;
-			const uint8_t *rmaskp = mvpr + descp->emmd_mask_offset;
-			size_t mask_size = descp->emmd_mask_size;
-
 			if (memcmp(lmaskp, rmaskp, mask_size) != 0) {
 				have_same_class = B_FALSE;
 				break;
@@ -1372,10 +1886,6 @@ efx_mae_match_specs_class_cmp(
 		}
 
 		if (field_caps[field_cap_id].emfc_match_affects_class) {
-			const uint8_t *lvalp = mvpl + descp->emmd_value_offset;
-			const uint8_t *rvalp = mvpr + descp->emmd_value_offset;
-			size_t value_size = descp->emmd_value_size;
-
 			if (memcmp(lvalp, rvalp, value_size) != 0) {
 				have_same_class = B_FALSE;
 				break;
@@ -1383,6 +1893,52 @@ efx_mae_match_specs_class_cmp(
 		}
 	}
 
+	if (have_same_class == B_FALSE)
+		goto done;
+
+	for (field_id = 0; (unsigned int)field_id < bit_desc_set_nentries;
+	     ++field_id) {
+		const efx_mae_mv_bit_desc_t *bit_descp =
+		    &bit_desc_setp[field_id];
+		efx_mae_field_cap_id_t bit_cap_id =
+		    bit_descp->emmbd_bit_cap_id;
+		unsigned int byte_idx;
+		unsigned int bit_idx;
+
+		if (bit_descp->emmbd_entry_is_valid == B_FALSE)
+			continue; /* Skip array gap */
+
+		if ((unsigned int)bit_cap_id >= field_ncaps)
+			break;
+
+		byte_idx =
+		    bit_descp->emmbd_mask_ofst +
+		    bit_descp->emmbd_mask_lbn / 8;
+		bit_idx =
+		    bit_descp->emmbd_mask_lbn % 8;
+
+		if (field_caps[bit_cap_id].emfc_mask_affects_class &&
+		    (mvpl[byte_idx] & (1U << bit_idx)) !=
+		    (mvpr[byte_idx] & (1U << bit_idx))) {
+			have_same_class = B_FALSE;
+			break;
+		}
+
+		byte_idx =
+		    bit_descp->emmbd_value_ofst +
+		    bit_descp->emmbd_value_lbn / 8;
+		bit_idx =
+		    bit_descp->emmbd_value_lbn % 8;
+
+		if (field_caps[bit_cap_id].emfc_match_affects_class &&
+		    (mvpl[byte_idx] & (1U << bit_idx)) !=
+		    (mvpr[byte_idx] & (1U << bit_idx))) {
+			have_same_class = B_FALSE;
+			break;
+		}
+	}
+
+done:
 	*have_same_classp = have_same_class;
 
 	return (0);
@@ -1536,15 +2092,22 @@ efx_mae_outer_rule_remove(
 		goto fail2;
 	}
 
+	if (req.emr_out_length_used < MC_CMD_MAE_OUTER_RULE_REMOVE_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
 	if (MCDI_OUT_DWORD(req, MAE_OUTER_RULE_REMOVE_OUT_REMOVED_OR_ID) !=
 	    or_idp->id) {
 		/* Firmware failed to remove the outer rule. */
 		rc = EAGAIN;
-		goto fail3;
+		goto fail4;
 	}
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
@@ -1589,6 +2152,199 @@ fail1:
 	return (rc);
 }
 
+	 __checkReturn			efx_rc_t
+efx_mae_encap_header_alloc(
+	__in				efx_nic_t *enp,
+	__in				efx_tunnel_protocol_t encap_type,
+	__in_bcount(header_size)	uint8_t *header_data,
+	__in				size_t header_size,
+	__out				efx_mae_eh_id_t *eh_idp)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN_LENMAX_MCDI2,
+	    MC_CMD_MAE_ENCAP_HEADER_ALLOC_OUT_LEN);
+	uint32_t encap_type_mcdi;
+	efx_mae_eh_id_t eh_id;
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(sizeof (eh_idp->id) ==
+	    MC_CMD_MAE_ENCAP_HEADER_ALLOC_OUT_ENCAP_HEADER_ID_LEN);
+
+	EFX_STATIC_ASSERT(EFX_MAE_RSRC_ID_INVALID ==
+	    MC_CMD_MAE_ENCAP_HEADER_ALLOC_OUT_ENCAP_HEADER_ID_NULL);
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	switch (encap_type) {
+	case EFX_TUNNEL_PROTOCOL_NONE:
+		encap_type_mcdi = MAE_MCDI_ENCAP_TYPE_NONE;
+		break;
+	case EFX_TUNNEL_PROTOCOL_VXLAN:
+		encap_type_mcdi = MAE_MCDI_ENCAP_TYPE_VXLAN;
+		break;
+	case EFX_TUNNEL_PROTOCOL_GENEVE:
+		encap_type_mcdi = MAE_MCDI_ENCAP_TYPE_GENEVE;
+		break;
+	case EFX_TUNNEL_PROTOCOL_NVGRE:
+		encap_type_mcdi = MAE_MCDI_ENCAP_TYPE_NVGRE;
+		break;
+	default:
+		rc = ENOTSUP;
+		goto fail2;
+	}
+
+	if (header_size >
+	    MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN_HDR_DATA_MAXNUM_MCDI2) {
+		rc = EINVAL;
+		goto fail3;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_ENCAP_HEADER_ALLOC;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN_LEN(header_size);
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_ENCAP_HEADER_ALLOC_OUT_LEN;
+
+	MCDI_IN_SET_DWORD(req,
+	    MAE_ENCAP_HEADER_ALLOC_IN_ENCAP_TYPE, encap_type_mcdi);
+
+	memcpy(payload + MC_CMD_MAE_ENCAP_HEADER_ALLOC_IN_HDR_DATA_OFST,
+	    header_data, header_size);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail4;
+	}
+
+	if (req.emr_out_length_used < MC_CMD_MAE_ENCAP_HEADER_ALLOC_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail5;
+	}
+
+	eh_id.id = MCDI_OUT_DWORD(req,
+	    MAE_ENCAP_HEADER_ALLOC_OUT_ENCAP_HEADER_ID);
+
+	if (eh_id.id == EFX_MAE_RSRC_ID_INVALID) {
+		rc = ENOENT;
+		goto fail6;
+	}
+
+	eh_idp->id = eh_id.id;
+
+	return (0);
+
+fail6:
+	EFSYS_PROBE(fail6);
+fail5:
+	EFSYS_PROBE(fail5);
+fail4:
+	EFSYS_PROBE(fail4);
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_encap_header_free(
+	__in				efx_nic_t *enp,
+	__in				const efx_mae_eh_id_t *eh_idp)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_ENCAP_HEADER_FREE_IN_LEN(1),
+	    MC_CMD_MAE_ENCAP_HEADER_FREE_OUT_LEN(1));
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_ENCAP_HEADER_FREE;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_ENCAP_HEADER_FREE_IN_LEN(1);
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_ENCAP_HEADER_FREE_OUT_LEN(1);
+
+	MCDI_IN_SET_DWORD(req, MAE_ENCAP_HEADER_FREE_IN_EH_ID, eh_idp->id);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	if (MCDI_OUT_DWORD(req, MAE_ENCAP_HEADER_FREE_OUT_FREED_EH_ID) !=
+	    eh_idp->id) {
+		/* Firmware failed to remove the encap. header. */
+		rc = EAGAIN;
+		goto fail3;
+	}
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_fill_in_eh_id(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_mae_eh_id_t *eh_idp)
+{
+	efx_rc_t rc;
+
+	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_ENCAP)) == 0) {
+		/*
+		 * The caller has not intended to have action ENCAP originally,
+		 * hence, this attempt to indicate encap. header ID is invalid.
+		 */
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (spec->ema_rsrc.emar_eh_id.id != EFX_MAE_RSRC_ID_INVALID) {
+		/* The caller attempts to indicate encap. header ID twice. */
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	if (eh_idp->id == EFX_MAE_RSRC_ID_INVALID) {
+		rc = EINVAL;
+		goto fail3;
+	}
+
+	spec->ema_rsrc.emar_eh_id.id = eh_idp->id;
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
 	__checkReturn			efx_rc_t
 efx_mae_action_set_alloc(
 	__in				efx_nic_t *enp,
@@ -1621,10 +2377,11 @@ efx_mae_action_set_alloc(
 	 */
 	MCDI_IN_SET_DWORD(req,
 	    MAE_ACTION_SET_ALLOC_IN_COUNTER_LIST_ID, EFX_MAE_RSRC_ID_INVALID);
-	MCDI_IN_SET_DWORD(req,
-	    MAE_ACTION_SET_ALLOC_IN_COUNTER_ID, EFX_MAE_RSRC_ID_INVALID);
-	MCDI_IN_SET_DWORD(req,
-	    MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID, EFX_MAE_RSRC_ID_INVALID);
+
+	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_DECAP)) != 0) {
+		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
+		    MAE_ACTION_SET_ALLOC_IN_DECAP, 1);
+	}
 
 	MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
 	    MAE_ACTION_SET_ALLOC_IN_VLAN_POP, spec->ema_n_vlan_tags_to_pop);
@@ -1653,6 +2410,11 @@ efx_mae_action_set_alloc(
 		MCDI_IN_SET_WORD(req, MAE_ACTION_SET_ALLOC_IN_VLAN0_TCI_BE,
 		    spec->ema_vlan_push_descs[outer_tag_idx].emavp_tci_be);
 	}
+
+	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_ENCAP_HEADER_ID,
+	    spec->ema_rsrc.emar_eh_id.id);
+	MCDI_IN_SET_DWORD(req, MAE_ACTION_SET_ALLOC_IN_COUNTER_ID,
+	    spec->ema_rsrc.emar_counter_id.id);
 
 	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_FLAG)) != 0) {
 		MCDI_IN_SET_DWORD_FIELD(req, MAE_ACTION_SET_ALLOC_IN_FLAGS,
@@ -1708,6 +2470,357 @@ fail1:
 	return (rc);
 }
 
+	__checkReturn			unsigned int
+efx_mae_action_set_get_nb_count(
+	__in				const efx_mae_actions_t *spec)
+{
+	return (spec->ema_n_count_actions);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_action_set_fill_in_counter_id(
+	__in				efx_mae_actions_t *spec,
+	__in				const efx_counter_t *counter_idp)
+{
+	efx_rc_t rc;
+
+	if ((spec->ema_actions & (1U << EFX_MAE_ACTION_COUNT)) == 0) {
+		/*
+		 * Invalid to add counter ID if spec does not have COUNT action.
+		 */
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	if (spec->ema_n_count_actions != 1) {
+		/*
+		 * Having multiple COUNT actions in the spec requires a counter
+		 * list to be used. This API must only be used for a single
+		 * counter per spec. Turn down the request as inappropriate.
+		 */
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	if (spec->ema_rsrc.emar_counter_id.id != EFX_MAE_RSRC_ID_INVALID) {
+		/* The caller attempts to indicate counter ID twice. */
+		rc = EALREADY;
+		goto fail3;
+	}
+
+	if (counter_idp->id == EFX_MAE_RSRC_ID_INVALID) {
+		rc = EINVAL;
+		goto fail4;
+	}
+
+	spec->ema_rsrc.emar_counter_id.id = counter_idp->id;
+
+	return (0);
+
+fail4:
+	EFSYS_PROBE(fail4);
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_alloc(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__out				uint32_t *n_allocatedp,
+	__out_ecount(n_counters)	efx_counter_t *countersp,
+	__out_opt			uint32_t *gen_countp)
+{
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_COUNTER_ALLOC_IN_LEN,
+	    MC_CMD_MAE_COUNTER_ALLOC_OUT_LENMAX_MCDI2);
+	efx_mae_t *maep = enp->en_maep;
+	uint32_t n_allocated;
+	efx_mcdi_req_t req;
+	unsigned int i;
+	efx_rc_t rc;
+
+	if (n_counters > maep->em_max_ncounters ||
+	    n_counters < MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_MINNUM ||
+	    n_counters > MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_MAXNUM_MCDI2) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_COUNTER_ALLOC;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTER_ALLOC_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTER_ALLOC_OUT_LEN(n_counters);
+
+	MCDI_IN_SET_DWORD(req, MAE_COUNTER_ALLOC_IN_REQUESTED_COUNT,
+	    n_counters);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	if (req.emr_out_length_used < MC_CMD_MAE_COUNTER_ALLOC_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
+	n_allocated = MCDI_OUT_DWORD(req,
+	    MAE_COUNTER_ALLOC_OUT_COUNTER_ID_COUNT);
+	if (n_allocated < MC_CMD_MAE_COUNTER_ALLOC_OUT_COUNTER_ID_MINNUM) {
+		rc = EFAULT;
+		goto fail4;
+	}
+
+	for (i = 0; i < n_allocated; i++) {
+		countersp[i].id = MCDI_OUT_INDEXED_DWORD(req,
+		    MAE_COUNTER_ALLOC_OUT_COUNTER_ID, i);
+	}
+
+	if (gen_countp != NULL) {
+		*gen_countp = MCDI_OUT_DWORD(req,
+				    MAE_COUNTER_ALLOC_OUT_GENERATION_COUNT);
+	}
+
+	*n_allocatedp = n_allocated;
+
+	return (0);
+
+fail4:
+	EFSYS_PROBE(fail4);
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_free(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_counters,
+	__out				uint32_t *n_freedp,
+	__in_ecount(n_counters)		const efx_counter_t *countersp,
+	__out_opt			uint32_t *gen_countp)
+{
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_COUNTER_FREE_IN_LENMAX_MCDI2,
+	    MC_CMD_MAE_COUNTER_FREE_OUT_LENMAX_MCDI2);
+	efx_mae_t *maep = enp->en_maep;
+	efx_mcdi_req_t req;
+	uint32_t n_freed;
+	unsigned int i;
+	efx_rc_t rc;
+
+	if (n_counters > maep->em_max_ncounters ||
+	    n_counters < MC_CMD_MAE_COUNTER_FREE_IN_FREE_COUNTER_ID_MINNUM ||
+	    n_counters >
+	    MC_CMD_MAE_COUNTER_FREE_IN_FREE_COUNTER_ID_MAXNUM_MCDI2) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_COUNTER_FREE;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTER_FREE_IN_LEN(n_counters);
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTER_FREE_OUT_LEN(n_counters);
+
+	for (i = 0; i < n_counters; i++) {
+		MCDI_IN_SET_INDEXED_DWORD(req,
+		    MAE_COUNTER_FREE_IN_FREE_COUNTER_ID, i, countersp[i].id);
+	}
+	MCDI_IN_SET_DWORD(req, MAE_COUNTER_FREE_IN_COUNTER_ID_COUNT,
+			  n_counters);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	if (req.emr_out_length_used < MC_CMD_MAE_COUNTER_FREE_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
+	n_freed = MCDI_OUT_DWORD(req, MAE_COUNTER_FREE_OUT_COUNTER_ID_COUNT);
+
+	if (n_freed < MC_CMD_MAE_COUNTER_FREE_OUT_FREED_COUNTER_ID_MINNUM) {
+		rc = EFAULT;
+		goto fail4;
+	}
+
+	if (gen_countp != NULL) {
+		*gen_countp = MCDI_OUT_DWORD(req,
+				    MAE_COUNTER_FREE_OUT_GENERATION_COUNT);
+	}
+
+	*n_freedp = n_freed;
+
+	return (0);
+
+fail4:
+	EFSYS_PROBE(fail4);
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_stream_start(
+	__in				efx_nic_t *enp,
+	__in				uint16_t rxq_id,
+	__in				uint16_t packet_size,
+	__in				uint32_t flags_in,
+	__out				uint32_t *flags_out)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_MAE_COUNTERS_STREAM_START_IN_LEN,
+			     MC_CMD_MAE_COUNTERS_STREAM_START_OUT_LEN);
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_MAE_COUNTERS_STREAM_IN_ZERO_SQUASH_DISABLE ==
+	    1U << MC_CMD_MAE_COUNTERS_STREAM_START_IN_ZERO_SQUASH_DISABLE_LBN);
+
+	EFX_STATIC_ASSERT(EFX_MAE_COUNTERS_STREAM_OUT_USES_CREDITS ==
+	    1U << MC_CMD_MAE_COUNTERS_STREAM_START_OUT_USES_CREDITS_LBN);
+
+	req.emr_cmd = MC_CMD_MAE_COUNTERS_STREAM_START;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTERS_STREAM_START_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTERS_STREAM_START_OUT_LEN;
+
+	MCDI_IN_SET_WORD(req, MAE_COUNTERS_STREAM_START_IN_QID, rxq_id);
+	MCDI_IN_SET_WORD(req, MAE_COUNTERS_STREAM_START_IN_PACKET_SIZE,
+			 packet_size);
+	MCDI_IN_SET_DWORD(req, MAE_COUNTERS_STREAM_START_IN_FLAGS, flags_in);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_COUNTERS_STREAM_START_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
+	*flags_out = MCDI_OUT_DWORD(req, MAE_COUNTERS_STREAM_START_OUT_FLAGS);
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_stream_stop(
+	__in				efx_nic_t *enp,
+	__in				uint16_t rxq_id,
+	__out_opt			uint32_t *gen_countp)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload, MC_CMD_MAE_COUNTERS_STREAM_STOP_IN_LEN,
+			     MC_CMD_MAE_COUNTERS_STREAM_STOP_OUT_LEN);
+	efx_rc_t rc;
+
+	req.emr_cmd = MC_CMD_MAE_COUNTERS_STREAM_STOP;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTERS_STREAM_STOP_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTERS_STREAM_STOP_OUT_LEN;
+
+	MCDI_IN_SET_WORD(req, MAE_COUNTERS_STREAM_STOP_IN_QID, rxq_id);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_COUNTERS_STREAM_STOP_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
+	if (gen_countp != NULL) {
+		*gen_countp = MCDI_OUT_DWORD(req,
+			    MAE_COUNTERS_STREAM_STOP_OUT_GENERATION_COUNT);
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_counters_stream_give_credits(
+	__in				efx_nic_t *enp,
+	__in				uint32_t n_credits)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+			     MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_IN_LEN,
+			     MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_OUT_LEN);
+	efx_rc_t rc;
+
+	req.emr_cmd = MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_COUNTERS_STREAM_GIVE_CREDITS_OUT_LEN;
+
+	MCDI_IN_SET_DWORD(req, MAE_COUNTERS_STREAM_GIVE_CREDITS_IN_NUM_CREDITS,
+			 n_credits);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+
+	return (rc);
+}
+
 	__checkReturn			efx_rc_t
 efx_mae_action_set_free(
 	__in				efx_nic_t *enp,
@@ -1740,15 +2853,22 @@ efx_mae_action_set_free(
 		goto fail2;
 	}
 
+	if (req.emr_out_length_used < MC_CMD_MAE_ACTION_SET_FREE_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
 	if (MCDI_OUT_DWORD(req, MAE_ACTION_SET_FREE_OUT_FREED_AS_ID) !=
 	    aset_idp->id) {
 		/* Firmware failed to free the action set. */
 		rc = EAGAIN;
-		goto fail3;
+		goto fail4;
 	}
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:
@@ -1818,10 +2938,10 @@ efx_mae_action_rule_insert(
 	 * MCDI request and are thus safe to be copied directly to the buffer.
 	 */
 	EFX_STATIC_ASSERT(sizeof (spec->emms_mask_value_pairs.action) >=
-	    MAE_FIELD_MASK_VALUE_PAIRS_LEN);
+	    MAE_FIELD_MASK_VALUE_PAIRS_V2_LEN);
 	offset = MC_CMD_MAE_ACTION_RULE_INSERT_IN_MATCH_CRITERIA_OFST;
 	memcpy(payload + offset, spec->emms_mask_value_pairs.action,
-	    MAE_FIELD_MASK_VALUE_PAIRS_LEN);
+	    MAE_FIELD_MASK_VALUE_PAIRS_V2_LEN);
 
 	efx_mcdi_execute(enp, &req);
 
@@ -1890,15 +3010,23 @@ efx_mae_action_rule_remove(
 		goto fail2;
 	}
 
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_ACTION_RULE_DELETE_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
 	if (MCDI_OUT_DWORD(req, MAE_ACTION_RULE_DELETE_OUT_DELETED_AR_ID) !=
 	    ar_idp->id) {
 		/* Firmware failed to delete the action rule. */
 		rc = EAGAIN;
-		goto fail3;
+		goto fail4;
 	}
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:

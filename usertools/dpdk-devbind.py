@@ -7,6 +7,7 @@ import sys
 import os
 import subprocess
 import argparse
+import platform
 
 from glob import glob
 from os.path import exists, basename
@@ -44,7 +45,13 @@ octeontx2_dma = {'Class': '08', 'Vendor': '177d', 'Device': 'a081',
                  'SVendor': None, 'SDevice': None}
 octeontx2_ree = {'Class': '08', 'Vendor': '177d', 'Device': 'a0f4',
                  'SVendor': None, 'SDevice': None}
+cnxk_bphy = {'Class': '08', 'Vendor': '177d', 'Device': 'a089',
+             'SVendor': None, 'SDevice': None}
+cnxk_bphy_cgx = {'Class': '08', 'Vendor': '177d', 'Device': 'a059,a060',
+                 'SVendor': None, 'SDevice': None}
 
+intel_dlb = {'Class': '0b', 'Vendor': '8086', 'Device': '270b,2710,2714',
+             'SVendor': None, 'SDevice': None}
 intel_ioat_bdw = {'Class': '08', 'Vendor': '8086',
                   'Device': '6f20,6f21,6f22,6f23,6f24,6f25,6f26,6f27,6f2e,6f2f',
                   'SVendor': None, 'SDevice': None}
@@ -62,11 +69,11 @@ intel_ntb_icx = {'Class': '06', 'Vendor': '8086', 'Device': '347e',
 network_devices = [network_class, cavium_pkx, avp_vnic, ifpga_class]
 baseband_devices = [acceleration_class]
 crypto_devices = [encryption_class, intel_processor_class]
-eventdev_devices = [cavium_sso, cavium_tim, octeontx2_sso]
+eventdev_devices = [cavium_sso, cavium_tim, intel_dlb, octeontx2_sso]
 mempool_devices = [cavium_fpa, octeontx2_npa]
 compress_devices = [cavium_zip]
 regex_devices = [octeontx2_ree]
-misc_devices = [intel_ioat_bdw, intel_ioat_skx, intel_ioat_icx, intel_idxd_spr,
+misc_devices = [cnxk_bphy, cnxk_bphy_cgx, intel_ioat_bdw, intel_ioat_skx, intel_ioat_icx, intel_idxd_spr,
                 intel_ntb_skx, intel_ntb_icx,
                 octeontx2_dma]
 
@@ -107,7 +114,17 @@ def module_is_loaded(module):
 
     loaded_modules = sysfs_mods
 
-    return module in sysfs_mods
+    # add built-in modules as loaded
+    release = platform.uname().release
+    filename = os.path.join("/lib/modules/", release, "modules.builtin")
+    if os.path.exists(filename):
+        try:
+            with open(filename) as f:
+                loaded_modules += [os.path.splitext(os.path.basename(mod))[0] for mod in f]
+        except IOError:
+            print("Warning: cannot read list of built-in kernel modules")
+
+    return module in loaded_modules
 
 
 def check_modules():

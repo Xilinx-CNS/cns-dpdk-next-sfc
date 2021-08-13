@@ -805,6 +805,45 @@ err_exit:
 	return -rte_errno;
 }
 
+static int
+otx2_flow_dev_dump(struct rte_eth_dev *dev,
+		  struct rte_flow *flow, FILE *file,
+		  struct rte_flow_error *error)
+{
+	struct otx2_eth_dev *hw = dev->data->dev_private;
+	struct otx2_flow_list *list;
+	struct rte_flow *flow_iter;
+	uint32_t max_prio, i;
+
+	if (file == NULL) {
+		rte_flow_error_set(error, EINVAL,
+				   RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
+				   NULL,
+				   "Invalid file");
+		return -EINVAL;
+	}
+	if (flow != NULL) {
+		rte_flow_error_set(error, EINVAL,
+				   RTE_FLOW_ERROR_TYPE_HANDLE,
+				   NULL,
+				   "Invalid argument");
+		return -EINVAL;
+	}
+
+	max_prio = hw->npc_flow.flow_max_priority;
+
+	for (i = 0; i < max_prio; i++) {
+		list = &hw->npc_flow.flow_list[i];
+
+		/* List in ascending order of mcam entries */
+		TAILQ_FOREACH(flow_iter, list, next) {
+			otx2_flow_dump(file, hw, flow_iter);
+		}
+	}
+
+	return 0;
+}
+
 const struct rte_flow_ops otx2_flow_ops = {
 	.validate = otx2_flow_validate,
 	.create = otx2_flow_create,
@@ -812,6 +851,7 @@ const struct rte_flow_ops otx2_flow_ops = {
 	.flush = otx2_flow_flush,
 	.query = otx2_flow_query,
 	.isolate = otx2_flow_isolate,
+	.dev_dump = otx2_flow_dev_dump,
 };
 
 static int
@@ -963,12 +1003,23 @@ done:
 	return rc;
 }
 
+#define OTX2_MCAM_TOT_ENTRIES_96XX (4096)
+#define OTX2_MCAM_TOT_ENTRIES_98XX (16384)
+
+static int otx2_mcam_tot_entries(struct otx2_eth_dev *dev)
+{
+	if (otx2_dev_is_98xx(dev))
+		return OTX2_MCAM_TOT_ENTRIES_98XX;
+	else
+		return OTX2_MCAM_TOT_ENTRIES_96XX;
+}
+
 int
 otx2_flow_init(struct otx2_eth_dev *hw)
 {
 	uint8_t *mem = NULL, *nix_mem = NULL, *npc_mem = NULL;
 	struct otx2_npc_flow_info *npc = &hw->npc_flow;
-	uint32_t bmap_sz;
+	uint32_t bmap_sz, tot_mcam_entries = 0;
 	int rc = 0, idx;
 
 	rc = flow_fetch_kex_cfg(hw);
@@ -980,7 +1031,8 @@ otx2_flow_init(struct otx2_eth_dev *hw)
 	rte_atomic32_init(&npc->mark_actions);
 	npc->vtag_actions = 0;
 
-	npc->mcam_entries = NPC_MCAM_TOT_ENTRIES >> npc->keyw[NPC_MCAM_RX];
+	tot_mcam_entries = otx2_mcam_tot_entries(hw);
+	npc->mcam_entries = tot_mcam_entries >> npc->keyw[NPC_MCAM_RX];
 	/* Free, free_rev, live and live_rev entries */
 	bmap_sz = rte_bitmap_get_memory_footprint(npc->mcam_entries);
 	mem = rte_zmalloc(NULL, 4 * bmap_sz * npc->flow_max_priority,

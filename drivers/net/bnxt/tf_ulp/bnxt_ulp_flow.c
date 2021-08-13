@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2014-2020 Broadcom
+ * Copyright(c) 2014-2021 Broadcom
  * All rights reserved.
  */
 
@@ -11,6 +11,7 @@
 #include "ulp_mapper.h"
 #include "ulp_fc_mgr.h"
 #include "ulp_port_db.h"
+#include "ulp_ha_mgr.h"
 #include <rte_malloc.h>
 
 static int32_t
@@ -70,8 +71,10 @@ bnxt_ulp_set_dir_attributes(struct ulp_rte_parser_params *params,
 		params->dir_attr |= BNXT_ULP_FLOW_ATTR_EGRESS;
 	if (attr->ingress)
 		params->dir_attr |= BNXT_ULP_FLOW_ATTR_INGRESS;
+#if RTE_VERSION_NUM(17, 11, 10, 16) < RTE_VERSION
 	if (attr->transfer)
 		params->dir_attr |= BNXT_ULP_FLOW_ATTR_TRANSFER;
+#endif
 }
 
 void
@@ -79,20 +82,49 @@ bnxt_ulp_init_mapper_params(struct bnxt_ulp_mapper_create_parms *mapper_cparms,
 			    struct ulp_rte_parser_params *params,
 			    enum bnxt_ulp_fdb_type flow_type)
 {
-	mapper_cparms->flow_type	= flow_type;
-	mapper_cparms->app_priority	= params->priority;
-	mapper_cparms->dir_attr		= params->dir_attr;
-	mapper_cparms->class_tid	= params->class_id;
-	mapper_cparms->act_tid		= params->act_tmpl;
-	mapper_cparms->func_id		= params->func_id;
-	mapper_cparms->hdr_bitmap	= &params->hdr_bitmap;
-	mapper_cparms->hdr_field	= params->hdr_field;
-	mapper_cparms->comp_fld		= params->comp_fld;
-	mapper_cparms->act		= &params->act_bitmap;
-	mapper_cparms->act_prop		= &params->act_prop;
-	mapper_cparms->flow_id		= params->fid;
-	mapper_cparms->parent_flow	= params->parent_flow;
-	mapper_cparms->parent_fid	= params->parent_fid;
+	uint32_t ulp_flags = 0;
+
+	memset(mapper_cparms, 0, sizeof(*mapper_cparms));
+	mapper_cparms->flow_type = flow_type;
+	mapper_cparms->app_priority = params->priority;
+	mapper_cparms->dir_attr = params->dir_attr;
+	mapper_cparms->class_tid = params->class_id;
+	mapper_cparms->act_tid = params->act_tmpl;
+	mapper_cparms->func_id = params->func_id;
+	mapper_cparms->hdr_bitmap = &params->hdr_bitmap;
+	mapper_cparms->hdr_field = params->hdr_field;
+	mapper_cparms->comp_fld = params->comp_fld;
+	mapper_cparms->act = &params->act_bitmap;
+	mapper_cparms->act_prop = &params->act_prop;
+	mapper_cparms->flow_id = params->fid;
+	mapper_cparms->parent_flow = params->parent_flow;
+	mapper_cparms->parent_fid = params->parent_fid;
+	mapper_cparms->fld_bitmap = &params->fld_bitmap;
+	mapper_cparms->flow_pattern_id = params->flow_pattern_id;
+	mapper_cparms->act_pattern_id = params->act_pattern_id;
+	mapper_cparms->app_id = params->app_id;
+	mapper_cparms->port_id = params->port_id;
+
+	/* update the signature fields into the computed field list */
+	ULP_COMP_FLD_IDX_WR(params, BNXT_ULP_CF_IDX_HDR_SIG_ID,
+			    params->hdr_sig_id);
+	ULP_COMP_FLD_IDX_WR(params, BNXT_ULP_CF_IDX_FLOW_SIG_ID,
+			    params->flow_sig_id);
+
+	/* update the WC Priority flag */
+	if (!bnxt_ulp_cntxt_ptr2_ulp_flags_get(params->ulp_ctx, &ulp_flags) &&
+	    ULP_HIGH_AVAIL_IS_ENABLED(ulp_flags)) {
+		enum ulp_ha_mgr_region region = ULP_HA_REGION_LOW;
+		int32_t rc;
+
+		rc = ulp_ha_mgr_region_get(params->ulp_ctx, &region);
+		if (rc)
+			BNXT_TF_DBG(ERR, "Unable to get WC region\n");
+		if (region == ULP_HA_REGION_HI)
+			ULP_COMP_FLD_IDX_WR(params,
+					    BNXT_ULP_CF_IDX_WC_IS_HA_HIGH_REG,
+					    1);
+	}
 }
 
 /* Function to create the rte flow. */
@@ -128,11 +160,18 @@ bnxt_ulp_flow_create(struct rte_eth_dev *dev,
 	memset(&params, 0, sizeof(struct ulp_rte_parser_params));
 	params.ulp_ctx = ulp_ctx;
 
+	if (bnxt_ulp_cntxt_app_id_get(params.ulp_ctx, &params.app_id)) {
+		BNXT_TF_DBG(ERR, "failed to get the app id\n");
+		goto flow_error;
+	}
+
 	/* Set the flow attributes */
 	bnxt_ulp_set_dir_attributes(&params, attr);
 
 	/* copy the device port id and direction for further processing */
 	ULP_COMP_FLD_IDX_WR(&params, BNXT_ULP_CF_IDX_INCOMING_IF,
+			    dev->data->port_id);
+	ULP_COMP_FLD_IDX_WR(&params, BNXT_ULP_CF_IDX_DEV_PORT_ID,
 			    dev->data->port_id);
 	ULP_COMP_FLD_IDX_WR(&params, BNXT_ULP_CF_IDX_SVIF_FLAG,
 			    BNXT_ULP_INVALID_SVIF_VAL);
@@ -175,7 +214,7 @@ bnxt_ulp_flow_create(struct rte_eth_dev *dev,
 	params.fid = fid;
 	params.func_id = func_id;
 	params.priority = attr->priority;
-	params.port_id = bnxt_get_phy_port_id(dev->data->port_id);
+	params.port_id = dev->data->port_id;
 	/* Perform the rte flow post process */
 	ret = bnxt_ulp_rte_parser_post_process(&params);
 	if (ret == BNXT_TF_RC_ERROR)
@@ -243,6 +282,11 @@ bnxt_ulp_flow_validate(struct rte_eth_dev *dev,
 	/* Initialize the parser params */
 	memset(&params, 0, sizeof(struct ulp_rte_parser_params));
 	params.ulp_ctx = ulp_ctx;
+
+	if (bnxt_ulp_cntxt_app_id_get(params.ulp_ctx, &params.app_id)) {
+		BNXT_TF_DBG(ERR, "failed to get the app id\n");
+		goto parse_error;
+	}
 
 	/* Set the flow attributes */
 	bnxt_ulp_set_dir_attributes(&params, attr);

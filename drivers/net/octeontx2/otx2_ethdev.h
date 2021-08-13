@@ -14,6 +14,7 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_security_driver.h>
+#include <rte_spinlock.h>
 #include <rte_string_fns.h>
 #include <rte_time.h>
 
@@ -51,6 +52,8 @@
 /* ETH_HLEN+ETH_FCS+2*VLAN_HLEN */
 #define NIX_L2_OVERHEAD \
 	(RTE_ETHER_HDR_LEN + RTE_ETHER_CRC_LEN + 8)
+#define NIX_L2_MAX_LEN \
+	(RTE_ETHER_MTU + NIX_L2_OVERHEAD)
 
 /* HW config of frame size doesn't include FCS */
 #define NIX_MAX_HW_FRS			9212
@@ -162,6 +165,11 @@
 /* Additional timesync values. */
 #define OTX2_CYCLECOUNTER_MASK   0xffffffffffffffffULL
 
+#define OCTEONTX2_PMD			net_octeontx2
+
+#define otx2_ethdev_is_same_driver(dev) \
+	(strcmp((dev)->device->driver->name, RTE_STR(OCTEONTX2_PMD)) == 0)
+
 enum nix_q_size_e {
 	nix_q_size_16,	/* 16 entries */
 	nix_q_size_64,	/* 64 entries */
@@ -173,6 +181,14 @@ enum nix_q_size_e {
 	nix_q_size_256K,
 	nix_q_size_1M,	/* Million entries */
 	nix_q_size_max
+};
+
+enum nix_lso_tun_type {
+	NIX_LSO_TUN_V4V4,
+	NIX_LSO_TUN_V4V6,
+	NIX_LSO_TUN_V6V4,
+	NIX_LSO_TUN_V6V6,
+	NIX_LSO_TUN_MAX,
 };
 
 struct otx2_qint {
@@ -269,7 +285,9 @@ struct otx2_eth_dev {
 	uint8_t tx_chan_cnt;
 	uint8_t lso_tsov4_idx;
 	uint8_t lso_tsov6_idx;
-	uint8_t lso_base_idx;
+	uint8_t lso_udp_tun_idx[NIX_LSO_TUN_MAX];
+	uint8_t lso_tun_idx[NIX_LSO_TUN_MAX];
+	uint64_t lso_tun_fmt;
 	uint8_t mac_addr[RTE_ETHER_ADDR_LEN];
 	uint8_t mkex_pfl_name[MKEX_NAME_LEN];
 	uint8_t max_mac_entries;
@@ -339,6 +357,7 @@ struct otx2_eth_dev {
 	bool sdp_link; /* SDP flag */
 	/* Inline IPsec params */
 	uint16_t ipsec_in_max_spi;
+	rte_spinlock_t ipsec_tbl_lock;
 	uint8_t duplex;
 	uint32_t speed;
 } __rte_cache_aligned;
@@ -352,6 +371,7 @@ struct otx2_eth_txq {
 	rte_iova_t fc_iova;
 	uint16_t sqes_per_sqb_log2;
 	int16_t nb_sqb_bufs_adj;
+	uint64_t lso_tun_fmt;
 	RTE_MARKER slow_path_start;
 	uint16_t nb_sqb_bufs;
 	uint16_t sq;
@@ -394,9 +414,8 @@ otx2_eth_pmd_priv(struct rte_eth_dev *eth_dev)
 /* Ops */
 int otx2_nix_info_get(struct rte_eth_dev *eth_dev,
 		      struct rte_eth_dev_info *dev_info);
-int otx2_nix_dev_filter_ctrl(struct rte_eth_dev *eth_dev,
-			     enum rte_filter_type filter_type,
-			     enum rte_filter_op filter_op, void *arg);
+int otx2_nix_dev_flow_ops_get(struct rte_eth_dev *eth_dev,
+			      const struct rte_flow_ops **ops);
 int otx2_nix_fw_version_get(struct rte_eth_dev *eth_dev, char *fw_version,
 			    size_t fw_size);
 int otx2_nix_get_module_info(struct rte_eth_dev *eth_dev,
@@ -447,6 +466,8 @@ void otx2_nix_toggle_flag_link_cfg(struct otx2_eth_dev *dev, bool set);
 int otx2_nix_link_update(struct rte_eth_dev *eth_dev, int wait_to_complete);
 void otx2_eth_dev_link_status_update(struct otx2_dev *dev,
 				     struct cgx_link_user_info *link);
+void otx2_eth_dev_link_status_get(struct otx2_dev *dev,
+				  struct cgx_link_user_info *link);
 int otx2_nix_dev_set_link_up(struct rte_eth_dev *eth_dev);
 int otx2_nix_dev_set_link_down(struct rte_eth_dev *eth_dev);
 int otx2_apply_link_speed(struct rte_eth_dev *eth_dev);

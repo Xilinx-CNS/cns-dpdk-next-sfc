@@ -57,6 +57,7 @@ int hw_timestamping;
 #define TICKS_PER_CYCLE_SHIFT 16
 static uint64_t ticks_per_cycle_mult;
 
+/* Callback added to the RX port and applied to packets. 8< */
 static uint16_t
 add_timestamps(uint16_t port __rte_unused, uint16_t qidx __rte_unused,
 		struct rte_mbuf **pkts, uint16_t nb_pkts,
@@ -69,7 +70,9 @@ add_timestamps(uint16_t port __rte_unused, uint16_t qidx __rte_unused,
 		*tsc_field(pkts[i]) = now;
 	return nb_pkts;
 }
+/* >8 End of callback addition and application. */
 
+/* Callback is added to the TX port. 8< */
 static uint16_t
 calc_latency(uint16_t port, uint16_t qidx __rte_unused,
 		struct rte_mbuf **pkts, uint16_t nb_pkts, void *_ __rte_unused)
@@ -110,11 +113,14 @@ calc_latency(uint16_t port, uint16_t qidx __rte_unused,
 	}
 	return nb_pkts;
 }
+/* >8 End of callback addition. */
 
 /*
  * Initialises a given port using global settings and with the rx buffers
  * coming from the mbuf_pool passed as parameter
  */
+
+ /* Port initialization. 8< */
 static inline int
 port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 {
@@ -229,11 +235,14 @@ port_init(uint16_t port, struct rte_mempool *mbuf_pool)
 	if (retval != 0)
 		return retval;
 
+	/* RX and TX callbacks are added to the ports. 8< */
 	rte_eth_add_rx_callback(port, 0, add_timestamps, NULL);
 	rte_eth_add_tx_callback(port, 0, calc_latency, NULL);
+	/* >8 End of RX and TX callbacks. */
 
 	return 0;
 }
+/* >8 End of port initialization. */
 
 /*
  * Main thread that does the work, reading from INPUT_PORT
@@ -329,7 +338,7 @@ main(int argc, char *argv[])
 	/* initialize all ports */
 	RTE_ETH_FOREACH_DEV(portid)
 		if (port_init(portid, mbuf_pool) != 0)
-			rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu8"\n",
+			rte_exit(EXIT_FAILURE, "Cannot init port %"PRIu16"\n",
 					portid);
 
 	if (rte_lcore_count() > 1)
@@ -338,5 +347,9 @@ main(int argc, char *argv[])
 
 	/* call lcore_main on main core only */
 	lcore_main();
+
+	/* clean up the EAL */
+	rte_eal_cleanup();
+
 	return 0;
 }

@@ -23,8 +23,8 @@
 #include <rte_dev.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_interrupts.h>
 #include <rte_log.h>
 #include <rte_memory.h>
@@ -51,9 +51,9 @@ static void nicvf_vf_stop(struct rte_eth_dev *dev, struct nicvf *nic,
 static int nicvf_vlan_offload_config(struct rte_eth_dev *dev, int mask);
 static int nicvf_vlan_offload_set(struct rte_eth_dev *dev, int mask);
 
-RTE_LOG_REGISTER(nicvf_logtype_mbox, pmd.net.thunderx.mbox, NOTICE);
-RTE_LOG_REGISTER(nicvf_logtype_init, pmd.net.thunderx.init, NOTICE);
-RTE_LOG_REGISTER(nicvf_logtype_driver, pmd.net.thunderx.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(nicvf_logtype_mbox, mbox, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(nicvf_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(nicvf_logtype_driver, driver, NOTICE);
 
 static void
 nicvf_link_status_update(struct nicvf *nic,
@@ -176,7 +176,7 @@ nicvf_dev_set_mtu(struct rte_eth_dev *dev, uint16_t mtu)
 		(frame_size + 2 * VLAN_TAG_SIZE > buffsz * NIC_HW_MAX_SEGS))
 		return -EINVAL;
 
-	if (frame_size > RTE_ETHER_MAX_LEN)
+	if (frame_size > NIC_HW_L2_MAX_LEN)
 		rxmode->offloads |= DEV_RX_OFFLOAD_JUMBO_FRAME;
 	else
 		rxmode->offloads &= ~DEV_RX_OFFLOAD_JUMBO_FRAME;

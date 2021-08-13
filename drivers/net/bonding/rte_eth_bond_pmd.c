@@ -7,8 +7,8 @@
 
 #include <rte_mbuf.h>
 #include <rte_malloc.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_driver.h>
+#include <ethdev_vdev.h>
 #include <rte_tcp.h>
 #include <rte_udp.h>
 #include <rte_ip.h>
@@ -1728,6 +1728,17 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 		slave_eth_dev->data->dev_conf.rxmode.offloads &=
 				~DEV_RX_OFFLOAD_VLAN_FILTER;
 
+	slave_eth_dev->data->dev_conf.rxmode.max_rx_pkt_len =
+			bonded_eth_dev->data->dev_conf.rxmode.max_rx_pkt_len;
+
+	if (bonded_eth_dev->data->dev_conf.rxmode.offloads &
+			DEV_RX_OFFLOAD_JUMBO_FRAME)
+		slave_eth_dev->data->dev_conf.rxmode.offloads |=
+				DEV_RX_OFFLOAD_JUMBO_FRAME;
+	else
+		slave_eth_dev->data->dev_conf.rxmode.offloads &=
+				~DEV_RX_OFFLOAD_JUMBO_FRAME;
+
 	nb_rx_queues = bonded_eth_dev->data->nb_rx_queues;
 	nb_tx_queues = bonded_eth_dev->data->nb_tx_queues;
 
@@ -1794,12 +1805,13 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 				!= 0)
 			return errval;
 
-		if (bond_ethdev_8023ad_flow_verify(bonded_eth_dev,
-				slave_eth_dev->data->port_id) != 0) {
+		errval = bond_ethdev_8023ad_flow_verify(bonded_eth_dev,
+				slave_eth_dev->data->port_id);
+		if (errval != 0) {
 			RTE_BOND_LOG(ERR,
-				"rte_eth_tx_queue_setup: port=%d queue_id %d, err (%d)",
-				slave_eth_dev->data->port_id, q_id, errval);
-			return -1;
+				"bond_ethdev_8023ad_flow_verify: port=%d, err (%d)",
+				slave_eth_dev->data->port_id, errval);
+			return errval;
 		}
 
 		if (internals->mode4.dedicated_queues.flow[slave_eth_dev->data->port_id] != NULL)
@@ -1807,8 +1819,14 @@ slave_configure(struct rte_eth_dev *bonded_eth_dev,
 					internals->mode4.dedicated_queues.flow[slave_eth_dev->data->port_id],
 					&flow_error);
 
-		bond_ethdev_8023ad_flow_set(bonded_eth_dev,
+		errval = bond_ethdev_8023ad_flow_set(bonded_eth_dev,
 				slave_eth_dev->data->port_id);
+		if (errval != 0) {
+			RTE_BOND_LOG(ERR,
+				"bond_ethdev_8023ad_flow_set: port=%d, err (%d)",
+				slave_eth_dev->data->port_id, errval);
+			return errval;
+		}
 	}
 
 	/* Start device */
@@ -3097,14 +3115,11 @@ bond_ethdev_mac_address_set(struct rte_eth_dev *dev,
 }
 
 static int
-bond_filter_ctrl(struct rte_eth_dev *dev __rte_unused,
-		 enum rte_filter_type type, enum rte_filter_op op, void *arg)
+bond_flow_ops_get(struct rte_eth_dev *dev __rte_unused,
+		  const struct rte_flow_ops **ops)
 {
-	if (type == RTE_ETH_FILTER_GENERIC && op == RTE_ETH_FILTER_GET) {
-		*(const void **)arg = &bond_flow_ops;
-		return 0;
-	}
-	return -ENOTSUP;
+	*ops = &bond_flow_ops;
+	return 0;
 }
 
 static int
@@ -3196,7 +3211,7 @@ const struct eth_dev_ops default_dev_ops = {
 	.mac_addr_set         = bond_ethdev_mac_address_set,
 	.mac_addr_add         = bond_ethdev_mac_addr_add,
 	.mac_addr_remove      = bond_ethdev_mac_addr_remove,
-	.filter_ctrl          = bond_filter_ctrl
+	.flow_ops_get         = bond_flow_ops_get
 };
 
 static int
@@ -3325,8 +3340,9 @@ bond_probe(struct rte_vdev_device *dev)
 	const char *name;
 	struct bond_dev_private *internals;
 	struct rte_kvargs *kvlist;
-	uint8_t bonding_mode, socket_id/*, agg_mode*/;
-	int  arg_count, port_id;
+	uint8_t bonding_mode;
+	int arg_count, port_id;
+	int socket_id;
 	uint8_t agg_mode;
 	struct rte_eth_dev *eth_dev;
 
@@ -3459,6 +3475,8 @@ bond_remove(struct rte_vdev_device *dev)
 		ret = bond_ethdev_stop(eth_dev);
 		bond_ethdev_close(eth_dev);
 	}
+	if (internals->kvlist != NULL)
+		rte_kvargs_free(internals->kvlist);
 	rte_eth_dev_release_port(eth_dev);
 
 	return ret;
@@ -3767,4 +3785,7 @@ RTE_PMD_REGISTER_PARAM_STRING(net_bonding,
 	"up_delay=<int> "
 	"down_delay=<int>");
 
-RTE_LOG_REGISTER(bond_logtype, pmd.net.bond, NOTICE);
+/* We can't use RTE_LOG_REGISTER_DEFAULT because of the forced name for
+ * this library, see meson.build.
+ */
+RTE_LOG_REGISTER(bond_logtype, pmd.net.bonding, NOTICE);

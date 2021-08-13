@@ -16,6 +16,7 @@
 #include <rte_bus.h>
 #include <rte_pci.h>
 #include <rte_bus_pci.h>
+#include <rte_lcore.h>
 #include <rte_per_lcore.h>
 #include <rte_memory.h>
 #include <rte_eal.h>
@@ -133,18 +134,18 @@ rte_pci_match(const struct rte_pci_driver *pci_drv,
 	     id_table++) {
 		/* check if device's identifiers match the driver's ones */
 		if (id_table->vendor_id != pci_dev->id.vendor_id &&
-				id_table->vendor_id != PCI_ANY_ID)
+				id_table->vendor_id != RTE_PCI_ANY_ID)
 			continue;
 		if (id_table->device_id != pci_dev->id.device_id &&
-				id_table->device_id != PCI_ANY_ID)
+				id_table->device_id != RTE_PCI_ANY_ID)
 			continue;
 		if (id_table->subsystem_vendor_id !=
 		    pci_dev->id.subsystem_vendor_id &&
-		    id_table->subsystem_vendor_id != PCI_ANY_ID)
+		    id_table->subsystem_vendor_id != RTE_PCI_ANY_ID)
 			continue;
 		if (id_table->subsystem_device_id !=
 		    pci_dev->id.subsystem_device_id &&
-		    id_table->subsystem_device_id != PCI_ANY_ID)
+		    id_table->subsystem_device_id != RTE_PCI_ANY_ID)
 			continue;
 		if (id_table->class_id != pci_dev->id.class_id &&
 				id_table->class_id != RTE_CLASS_ANY_ID)
@@ -190,7 +191,9 @@ rte_pci_probe_one_driver(struct rte_pci_driver *dr,
 	}
 
 	if (dev->device.numa_node < 0) {
-		RTE_LOG(WARNING, EAL, "  Invalid NUMA socket, default to 0\n");
+		if (rte_socket_count() > 1)
+			RTE_LOG(INFO, EAL, "Device %s is not NUMA-aware, defaulting socket to 0\n",
+					dev->name);
 		dev->device.numa_node = 0;
 	}
 
@@ -741,6 +744,34 @@ rte_pci_find_ext_capability(struct rte_pci_device *dev, uint32_t cap)
 		}
 
 		ttl--;
+	}
+
+	return 0;
+}
+
+int
+rte_pci_set_bus_master(struct rte_pci_device *dev, bool enable)
+{
+	uint16_t old_cmd, cmd;
+
+	if (rte_pci_read_config(dev, &old_cmd, sizeof(old_cmd),
+				RTE_PCI_COMMAND) < 0) {
+		RTE_LOG(ERR, EAL, "error in reading PCI command register\n");
+		return -1;
+	}
+
+	if (enable)
+		cmd = old_cmd | RTE_PCI_COMMAND_MASTER;
+	else
+		cmd = old_cmd & ~RTE_PCI_COMMAND_MASTER;
+
+	if (cmd == old_cmd)
+		return 0;
+
+	if (rte_pci_write_config(dev, &cmd, sizeof(cmd),
+				 RTE_PCI_COMMAND) < 0) {
+		RTE_LOG(ERR, EAL, "error in writing PCI command register\n");
+		return -1;
 	}
 
 	return 0;

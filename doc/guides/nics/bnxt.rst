@@ -6,7 +6,7 @@ BNXT Poll Mode Driver
 
 The Broadcom BNXT PMD (**librte_net_bnxt**) implements support for adapters
 based on Ethernet controllers and SoCs belonging to the Broadcom
-BCM574XX/BCM575XX NetXtreme-E® Family of Ethernet Network Controllers,
+BCM5741X/BCM575XX NetXtreme-E® Family of Ethernet Network Controllers,
 the Broadcom BCM588XX Stingray Family of Smart NIC Adapters, and the Broadcom
 StrataGX® BCM5873X Series of Communications Processors.
 
@@ -361,7 +361,7 @@ The application enables multiple TX and RX queues when it is started.
 
 .. code-block:: console
 
-    testpmd -l 1,3,5 --main-lcore 1 --txq=2 –rxq=2 --nb-cores=2
+    dpdk-testpmd -l 1,3,5 --main-lcore 1 --txq=2 –rxq=2 --nb-cores=2
 
 **TSS**
 
@@ -658,8 +658,7 @@ which currently supports basic packet classification in the receive path.
 The feature uses a newly implemented control-plane firmware interface which
 optimizes flow insertions and deletions.
 
-This is a tech preview feature, and is disabled by default. It can be enabled
-using bnxt devargs. For ex: "-a 0000:0d:00.0,host-based-truflow=1”.
+This is a tech preview feature.
 
 This feature is currently supported on Whitney+ and Stingray devices.
 
@@ -753,7 +752,7 @@ The sample command line with the new ``devargs`` looks like this::
 
 .. code-block:: console
 
-	testpmd -l1-4 -n2 -a 0008:01:00.0,host-based-truflow=1,\
+	dpdk-testpmd -l1-4 -n2 -a 0008:01:00.0,host-based-truflow=1,\
 	representor=[0], rep-based-pf=8,rep-is-pf=0,rep-q-r2f=1,rep-fc-r2f=1,\
 	rep-q-f2r=0,rep-fc-f2r=1 --log-level="pmd.*",8 -- -i --rxq=3 --txq=3
 
@@ -847,29 +846,42 @@ DPDK implements a light-weight library to allow PMDs to be bonded together and p
 
 .. code-block:: console
 
-    testpmd -l 0-3 -n4 --vdev 'net_bonding0,mode=0,slave=<PCI B:D.F device 1>,slave=<PCI B:D.F device 2>,mac=XX:XX:XX:XX:XX:XX’ – --socket_num=1 – -i --port-topology=chained
-    (ex) testpmd -l 1,3,5,7,9 -n4 --vdev 'net_bonding0,mode=0,slave=0000:82:00.0,slave=0000:82:00.1,mac=00:1e:67:1d:fd:1d' – --socket-num=1 – -i --port-topology=chained
+    dpdk-testpmd -l 0-3 -n4 --vdev 'net_bonding0,mode=0,slave=<PCI B:D.F device 1>,slave=<PCI B:D.F device 2>,mac=XX:XX:XX:XX:XX:XX’ – --socket_num=1 – -i --port-topology=chained
+    (ex) dpdk-testpmd -l 1,3,5,7,9 -n4 --vdev 'net_bonding0,mode=0,slave=0000:82:00.0,slave=0000:82:00.1,mac=00:1e:67:1d:fd:1d' – --socket-num=1 – -i --port-topology=chained
 
 Vector Processing
 -----------------
 
+The BNXT PMD provides vectorized burst transmit/receive function implementations
+on x86-based platforms using SSE (Streaming SIMD Extensions) and AVX2 (Advanced
+Vector Extensions 2) instructions, and on Arm-based platforms using Arm Neon
+Advanced SIMD instructions. Vector processing support is currently implemented
+only for Intel/AMD and Arm CPU architectures.
+
 Vector processing provides significantly improved performance over scalar
-processing (see Vector Processor, here).
+processing. This improved performance is derived from a number of optimizations:
 
-The BNXT PMD supports the vector processing using SSE (Streaming SIMD
-Extensions) instructions on x86 platforms. It also supports NEON intrinsics for
-vector processing on ARM CPUs. The BNXT vPMD (vector mode PMD) is available for
-Intel/AMD and ARM CPU architectures.
-
-This improved performance comes from several optimizations:
-
+* Using SIMD instructions to operate on multiple packets in parallel.
+* Using SIMD instructions to do more work per instruction than is possible
+  with scalar instructions, for example by leveraging 128-bit and 256-bi
+  load/store instructions or by using SIMD shuffle and permute operations.
 * Batching
-    * TX: processing completions in bulk
-    * RX: allocating mbufs in bulk
-* Chained mbufs are *not* supported, i.e. a packet should fit a single mbuf
-* Some stateless offloads are *not* supported with vector processing
-    * TX: no offloads will be supported
-    * RX: reduced RX offloads (listed below) will be supported::
+
+    * TX: transmit completions are processed in bulk.
+    * RX: bulk allocation of mbufs is used when allocating rxq buffers.
+
+* Simplifications enabled by not supporting chained mbufs in vector mode.
+* Simplifications enabled by not supporting some stateless offloads in vector
+  mode:
+
+    * TX: only the following reduced set of transmit offloads is supported in
+      vector mode::
+
+       DEV_TX_OFFLOAD_MBUF_FAST_FREE
+
+    * RX: only the following reduced set of receive offloads is supported in
+      vector mode (note that jumbo MTU is allowed only when the MTU setting
+      does not require `DEV_RX_OFFLOAD_SCATTER` to be enabled)::
 
        DEV_RX_OFFLOAD_VLAN_STRIP
        DEV_RX_OFFLOAD_KEEP_CRC
@@ -878,22 +890,20 @@ This improved performance comes from several optimizations:
        DEV_RX_OFFLOAD_UDP_CKSUM
        DEV_RX_OFFLOAD_TCP_CKSUM
        DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM
+       DEV_RX_OFFLOAD_OUTER_UDP_CKSUM
        DEV_RX_OFFLOAD_RSS_HASH
        DEV_RX_OFFLOAD_VLAN_FILTER
 
-The BNXT Vector PMD is enabled in DPDK builds by default.
-
-However, a decision to enable vector mode will be made when the port transitions
-from stopped to started. Any TX offloads or some RX offloads (other than listed
-above) will disable the vector mode.
-Offload configuration changes that impact vector mode must be made when the port
-is stopped.
+The BNXT Vector PMD is enabled in DPDK builds by default. The decision to enable
+vector processing is made at run-time when the port is started; if no transmit
+offloads outside the set supported for vector mode are enabled then vector mode
+transmit will be enabled, and if no receive offloads outside the set supported
+for vector mode are enabled then vector mode receive will be enabled.  Offload
+configuration changes that impact the decision to enable vector mode are allowed
+only when the port is stopped.
 
 Note that TX (or RX) vector mode can be enabled independently from RX (or TX)
 vector mode.
-
-Also vector mode is allowed when jumbo is enabled
-as long as the MTU setting does not require scattered Rx.
 
 Appendix
 --------

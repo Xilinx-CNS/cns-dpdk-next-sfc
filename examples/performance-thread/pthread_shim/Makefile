@@ -9,12 +9,22 @@ SRCS-y := main.c pthread_shim.c
 
 include ../common/common.mk
 
+ifeq ($(MAKECMDGOALS),static)
+# check for broken pkg-config
+ifeq ($(shell echo $(LDFLAGS_STATIC) | grep 'whole-archive.*l:lib.*no-whole-archive'),)
+$(warning "pkg-config output list does not contain drivers between 'whole-archive'/'no-whole-archive' flags.")
+$(error "Cannot generate statically-linked binaries with this version of pkg-config")
+endif
+endif
+
 CFLAGS += -DALLOW_EXPERIMENTAL_API
 CFLAGS += -D_GNU_SOURCE
 LDFLAGS += "-Wl,--copy-dt-needed-entries"
 
+PKGCONF ?= pkg-config
+
 # Build using pkg-config variables if possible
-ifneq ($(shell pkg-config --exists libdpdk && echo 0),0)
+ifneq ($(shell $(PKGCONF) --exists libdpdk && echo 0),0)
 $(error "no installation of DPDK found")
 endif
 
@@ -26,8 +36,6 @@ static: build/$(APP)-static
 	ln -sf $(APP)-static build/$(APP)
 
 LDFLAGS += -lpthread
-
-PKGCONF ?= pkg-config
 
 PC_FILE := $(shell $(PKGCONF) --path libdpdk 2>/dev/null)
 CFLAGS += -O3 $(shell $(PKGCONF) --cflags libdpdk)

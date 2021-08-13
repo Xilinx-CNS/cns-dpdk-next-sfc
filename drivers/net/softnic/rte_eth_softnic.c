@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_driver.h>
+#include <ethdev_vdev.h>
 #include <rte_malloc.h>
 #include <rte_bus_vdev.h>
 #include <rte_kvargs.h>
@@ -80,7 +80,7 @@ static const struct softnic_conn_params conn_params_default = {
 	.msg_handle_arg = NULL,
 };
 
-RTE_LOG_REGISTER(pmd_softnic_logtype, pmd.net.softnic, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(pmd_softnic_logtype, NOTICE);
 
 #define PMD_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, pmd_softnic_logtype, \
@@ -248,18 +248,11 @@ pmd_link_update(struct rte_eth_dev *dev __rte_unused,
 }
 
 static int
-pmd_filter_ctrl(struct rte_eth_dev *dev __rte_unused,
-		enum rte_filter_type filter_type,
-		enum rte_filter_op filter_op,
-		void *arg)
+pmd_flow_ops_get(struct rte_eth_dev *dev __rte_unused,
+		 const struct rte_flow_ops **ops)
 {
-	if (filter_type == RTE_ETH_FILTER_GENERIC &&
-			filter_op == RTE_ETH_FILTER_GET) {
-		*(const void **)arg = &pmd_flow_ops;
-		return 0;
-	}
-
-	return -ENOTSUP;
+	*ops = &pmd_flow_ops;
+	return 0;
 }
 
 static int
@@ -287,7 +280,7 @@ static const struct eth_dev_ops pmd_ops = {
 	.dev_infos_get = pmd_dev_infos_get,
 	.rx_queue_setup = pmd_rx_queue_setup,
 	.tx_queue_setup = pmd_tx_queue_setup,
-	.filter_ctrl = pmd_filter_ctrl,
+	.flow_ops_get = pmd_flow_ops_get,
 	.tm_ops_get = pmd_tm_ops_get,
 	.mtr_ops_get = pmd_mtr_ops_get,
 };
@@ -447,6 +440,7 @@ pmd_parse_args(struct pmd_params *p, const char *params)
 {
 	struct rte_kvargs *kvlist;
 	int ret = 0;
+	char *firmware = NULL;
 
 	kvlist = rte_kvargs_parse(params, pmd_valid_args);
 	if (kvlist == NULL)
@@ -454,7 +448,14 @@ pmd_parse_args(struct pmd_params *p, const char *params)
 
 	/* Set default values */
 	memset(p, 0, sizeof(*p));
-	p->firmware = SOFTNIC_FIRMWARE;
+	if (rte_strscpy(p->firmware, SOFTNIC_FIRMWARE,
+			sizeof(p->firmware)) < 0) {
+		PMD_LOG(WARNING,
+			"\"%s\": firmware path should be shorter than %zu",
+			SOFTNIC_FIRMWARE, sizeof(p->firmware));
+		ret = -EINVAL;
+		goto out_free;
+	}
 	p->cpu_id = SOFTNIC_CPU_ID;
 	p->sc = SOFTNIC_SC;
 	p->tm.n_queues = SOFTNIC_TM_N_QUEUES;
@@ -475,11 +476,22 @@ pmd_parse_args(struct pmd_params *p, const char *params)
 	/* Firmware script (optional) */
 	if (rte_kvargs_count(kvlist, PMD_PARAM_FIRMWARE) == 1) {
 		ret = rte_kvargs_process(kvlist, PMD_PARAM_FIRMWARE,
-			&get_string, &p->firmware);
+			&get_string, &firmware);
 		if (ret < 0)
 			goto out_free;
-	}
 
+		if (rte_strscpy(p->firmware, firmware,
+				sizeof(p->firmware)) < 0) {
+			PMD_LOG(WARNING,
+				"\"%s\": "
+				"firmware path should be shorter than %zu",
+				firmware, sizeof(p->firmware));
+			free(firmware);
+			ret = -EINVAL;
+			goto out_free;
+		}
+		free(firmware);
+	}
 	/* Connection listening port (optional) */
 	if (rte_kvargs_count(kvlist, PMD_PARAM_CONN_PORT) == 1) {
 		ret = rte_kvargs_process(kvlist, PMD_PARAM_CONN_PORT,
@@ -628,7 +640,12 @@ pmd_probe(struct rte_vdev_device *vdev)
 	if (status)
 		return status;
 
-	p.name = name;
+	if (rte_strscpy(p.name, name, sizeof(p.name)) < 0) {
+		PMD_LOG(WARNING,
+			"\"%s\": device name should be shorter than %zu",
+			name, sizeof(p.name));
+		return -EINVAL;
+	}
 
 	/* Allocate and initialize soft ethdev private data */
 	dev_private = pmd_init(&p);

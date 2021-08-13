@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2008-2019 Solarflare Communications Inc.
  */
 
@@ -515,6 +515,9 @@ efx_mcdi_finish_response(
 	/* Copy payload out into caller supplied buffer */
 	bytes = MIN(emrp->emr_out_length_used, emrp->emr_out_length);
 	efx_mcdi_read_response(enp, emrp->emr_out_buf, resp_off, bytes);
+
+	/* Report bytes copied to caller (response message may be larger) */
+	emrp->emr_out_length_used = bytes;
 
 #if EFSYS_OPT_MCDI_LOGGING
 	if (emtp->emt_logger != NULL) {
@@ -2291,6 +2294,11 @@ efx_mcdi_get_workarounds(
 		goto fail1;
 	}
 
+	if (req.emr_out_length_used < MC_CMD_GET_WORKAROUNDS_OUT_LEN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
 	if (implementedp != NULL) {
 		*implementedp =
 		    MCDI_OUT_DWORD(req, GET_WORKAROUNDS_OUT_IMPLEMENTED);
@@ -2302,6 +2310,8 @@ efx_mcdi_get_workarounds(
 
 	return (0);
 
+fail2:
+	EFSYS_PROBE(fail2);
 fail1:
 	EFSYS_PROBE1(fail1, efx_rc_t, rc);
 
@@ -2558,6 +2568,7 @@ efx_mcdi_init_evq(
 	__in		efsys_mem_t *esmp,
 	__in		size_t nevs,
 	__in		uint32_t irq,
+	__in		uint32_t target_evq,
 	__in		uint32_t us,
 	__in		uint32_t flags,
 	__in		boolean_t low_latency)
@@ -2592,10 +2603,14 @@ efx_mcdi_init_evq(
 
 	MCDI_IN_SET_DWORD(req, INIT_EVQ_V2_IN_SIZE, nevs);
 	MCDI_IN_SET_DWORD(req, INIT_EVQ_V2_IN_INSTANCE, instance);
-	MCDI_IN_SET_DWORD(req, INIT_EVQ_V2_IN_IRQ_NUM, irq);
 
 	interrupting = ((flags & EFX_EVQ_FLAGS_NOTIFY_MASK) ==
 	    EFX_EVQ_FLAGS_NOTIFY_INTERRUPT);
+
+	if (interrupting)
+		MCDI_IN_SET_DWORD(req, INIT_EVQ_V2_IN_IRQ_NUM, irq);
+	else
+		MCDI_IN_SET_DWORD(req, INIT_EVQ_V2_IN_TARGET_EVQ, target_evq);
 
 	if (encp->enc_init_evq_v2_supported) {
 		/*

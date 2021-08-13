@@ -16,8 +16,8 @@
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_dev.h>
 
 #include "iavf.h"
@@ -174,6 +174,7 @@ iavf_execute_vf_cmd(struct iavf_adapter *adapter, struct iavf_cmd_info *args)
 	case VIRTCHNL_OP_VERSION:
 	case VIRTCHNL_OP_GET_VF_RESOURCES:
 	case VIRTCHNL_OP_GET_SUPPORTED_RXDIDS:
+	case VIRTCHNL_OP_GET_OFFLOAD_VLAN_V2_CAPS:
 		/* for init virtchnl ops, need to poll the response */
 		do {
 			result = iavf_read_msg_from_pf(adapter, args->out_size,
@@ -227,13 +228,19 @@ iavf_execute_vf_cmd(struct iavf_adapter *adapter, struct iavf_cmd_info *args)
 			rte_delay_ms(ASQ_DELAY_MS);
 			/* If don't read msg or read sys event, continue */
 		} while (i++ < MAX_TRY_TIMES);
-		/* If there's no response is received, clear command */
-		if (i >= MAX_TRY_TIMES  ||
-		    vf->cmd_retval != VIRTCHNL_STATUS_SUCCESS) {
-			err = -1;
-			PMD_DRV_LOG(ERR, "No response or return failure (%d)"
-				    " for cmd %d", vf->cmd_retval, args->ops);
+
+		if (i >= MAX_TRY_TIMES) {
+			PMD_DRV_LOG(ERR, "No response for cmd %d", args->ops);
 			_clear_cmd(vf);
+			err = -EIO;
+		} else if (vf->cmd_retval ==
+			   VIRTCHNL_STATUS_ERR_NOT_SUPPORTED) {
+			PMD_DRV_LOG(ERR, "Cmd %d not supported", args->ops);
+			err = -ENOTSUP;
+		} else if (vf->cmd_retval != VIRTCHNL_STATUS_SUCCESS) {
+			PMD_DRV_LOG(ERR, "Return failure %d for cmd %d",
+				    vf->cmd_retval, args->ops);
+			err = -EINVAL;
 		}
 		break;
 	}
@@ -458,7 +465,10 @@ iavf_get_vf_resource(struct iavf_adapter *adapter)
 		VIRTCHNL_VF_OFFLOAD_FDIR_PF |
 		VIRTCHNL_VF_OFFLOAD_ADV_RSS_PF |
 		VIRTCHNL_VF_OFFLOAD_REQ_QUEUES |
-		VIRTCHNL_VF_LARGE_NUM_QPAIRS;
+		VIRTCHNL_VF_OFFLOAD_CRC |
+		VIRTCHNL_VF_OFFLOAD_VLAN_V2 |
+		VIRTCHNL_VF_LARGE_NUM_QPAIRS |
+		VIRTCHNL_VF_OFFLOAD_QOS;
 
 	args.in_args = (uint8_t *)&caps;
 	args.in_args_size = sizeof(caps);
@@ -517,6 +527,153 @@ iavf_get_supported_rxdid(struct iavf_adapter *adapter)
 
 	vf->supported_rxdid =
 		((struct virtchnl_supported_rxdids *)args.out_buffer)->supported_rxdids;
+
+	return 0;
+}
+
+int
+iavf_config_vlan_strip_v2(struct iavf_adapter *adapter, bool enable)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct virtchnl_vlan_supported_caps *stripping_caps;
+	struct virtchnl_vlan_setting vlan_strip;
+	struct iavf_cmd_info args;
+	uint32_t *ethertype;
+	int ret;
+
+	stripping_caps = &vf->vlan_v2_caps.offloads.stripping_support;
+
+	if ((stripping_caps->outer & VIRTCHNL_VLAN_ETHERTYPE_8100) &&
+	    (stripping_caps->outer & VIRTCHNL_VLAN_TOGGLE))
+		ethertype = &vlan_strip.outer_ethertype_setting;
+	else if ((stripping_caps->inner & VIRTCHNL_VLAN_ETHERTYPE_8100) &&
+		 (stripping_caps->inner & VIRTCHNL_VLAN_TOGGLE))
+		ethertype = &vlan_strip.inner_ethertype_setting;
+	else
+		return -ENOTSUP;
+
+	memset(&vlan_strip, 0, sizeof(vlan_strip));
+	vlan_strip.vport_id = vf->vsi_res->vsi_id;
+	*ethertype = VIRTCHNL_VLAN_ETHERTYPE_8100;
+
+	args.ops = enable ? VIRTCHNL_OP_ENABLE_VLAN_STRIPPING_V2 :
+			    VIRTCHNL_OP_DISABLE_VLAN_STRIPPING_V2;
+	args.in_args = (uint8_t *)&vlan_strip;
+	args.in_args_size = sizeof(vlan_strip);
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+	ret = iavf_execute_vf_cmd(adapter, &args);
+	if (ret)
+		PMD_DRV_LOG(ERR, "fail to execute command %s",
+			    enable ? "VIRTCHNL_OP_ENABLE_VLAN_STRIPPING_V2" :
+				     "VIRTCHNL_OP_DISABLE_VLAN_STRIPPING_V2");
+
+	return ret;
+}
+
+int
+iavf_config_vlan_insert_v2(struct iavf_adapter *adapter, bool enable)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct virtchnl_vlan_supported_caps *insertion_caps;
+	struct virtchnl_vlan_setting vlan_insert;
+	struct iavf_cmd_info args;
+	uint32_t *ethertype;
+	int ret;
+
+	insertion_caps = &vf->vlan_v2_caps.offloads.insertion_support;
+
+	if ((insertion_caps->outer & VIRTCHNL_VLAN_ETHERTYPE_8100) &&
+	    (insertion_caps->outer & VIRTCHNL_VLAN_TOGGLE))
+		ethertype = &vlan_insert.outer_ethertype_setting;
+	else if ((insertion_caps->inner & VIRTCHNL_VLAN_ETHERTYPE_8100) &&
+		 (insertion_caps->inner & VIRTCHNL_VLAN_TOGGLE))
+		ethertype = &vlan_insert.inner_ethertype_setting;
+	else
+		return -ENOTSUP;
+
+	memset(&vlan_insert, 0, sizeof(vlan_insert));
+	vlan_insert.vport_id = vf->vsi_res->vsi_id;
+	*ethertype = VIRTCHNL_VLAN_ETHERTYPE_8100;
+
+	args.ops = enable ? VIRTCHNL_OP_ENABLE_VLAN_INSERTION_V2 :
+			    VIRTCHNL_OP_DISABLE_VLAN_INSERTION_V2;
+	args.in_args = (uint8_t *)&vlan_insert;
+	args.in_args_size = sizeof(vlan_insert);
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+	ret = iavf_execute_vf_cmd(adapter, &args);
+	if (ret)
+		PMD_DRV_LOG(ERR, "fail to execute command %s",
+			    enable ? "VIRTCHNL_OP_ENABLE_VLAN_INSERTION_V2" :
+				     "VIRTCHNL_OP_DISABLE_VLAN_INSERTION_V2");
+
+	return ret;
+}
+
+int
+iavf_add_del_vlan_v2(struct iavf_adapter *adapter, uint16_t vlanid, bool add)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct virtchnl_vlan_supported_caps *supported_caps;
+	struct virtchnl_vlan_filter_list_v2 vlan_filter;
+	struct virtchnl_vlan *vlan_setting;
+	struct iavf_cmd_info args;
+	uint32_t filtering_caps;
+	int err;
+
+	supported_caps = &vf->vlan_v2_caps.filtering.filtering_support;
+	if (supported_caps->outer) {
+		filtering_caps = supported_caps->outer;
+		vlan_setting = &vlan_filter.filters[0].outer;
+	} else {
+		filtering_caps = supported_caps->inner;
+		vlan_setting = &vlan_filter.filters[0].inner;
+	}
+
+	if (!(filtering_caps & VIRTCHNL_VLAN_ETHERTYPE_8100))
+		return -ENOTSUP;
+
+	memset(&vlan_filter, 0, sizeof(vlan_filter));
+	vlan_filter.vport_id = vf->vsi_res->vsi_id;
+	vlan_filter.num_elements = 1;
+	vlan_setting->tpid = RTE_ETHER_TYPE_VLAN;
+	vlan_setting->tci = vlanid;
+
+	args.ops = add ? VIRTCHNL_OP_ADD_VLAN_V2 : VIRTCHNL_OP_DEL_VLAN_V2;
+	args.in_args = (uint8_t *)&vlan_filter;
+	args.in_args_size = sizeof(vlan_filter);
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+	err = iavf_execute_vf_cmd(adapter, &args);
+	if (err)
+		PMD_DRV_LOG(ERR, "fail to execute command %s",
+			    add ? "OP_ADD_VLAN_V2" :  "OP_DEL_VLAN_V2");
+
+	return err;
+}
+
+int
+iavf_get_vlan_offload_caps_v2(struct iavf_adapter *adapter)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct iavf_cmd_info args;
+	int ret;
+
+	args.ops = VIRTCHNL_OP_GET_OFFLOAD_VLAN_V2_CAPS;
+	args.in_args = NULL;
+	args.in_args_size = 0;
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+
+	ret = iavf_execute_vf_cmd(adapter, &args);
+	if (ret) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to execute command of VIRTCHNL_OP_GET_OFFLOAD_VLAN_V2_CAPS");
+		return ret;
+	}
+
+	rte_memcpy(&vf->vlan_v2_caps, vf->aq_resp, sizeof(vf->vlan_v2_caps));
 
 	return 0;
 }
@@ -644,12 +801,12 @@ iavf_enable_queues_lv(struct iavf_adapter *adapter)
 	args.out_buffer = vf->aq_resp;
 	args.out_size = IAVF_AQ_BUF_SZ;
 	err = iavf_execute_vf_cmd(adapter, &args);
-	if (err) {
+	if (err)
 		PMD_DRV_LOG(ERR,
 			    "Failed to execute command of OP_ENABLE_QUEUES_V2");
-		return err;
-	}
-	return 0;
+
+	rte_free(queue_select);
+	return err;
 }
 
 int
@@ -688,12 +845,12 @@ iavf_disable_queues_lv(struct iavf_adapter *adapter)
 	args.out_buffer = vf->aq_resp;
 	args.out_size = IAVF_AQ_BUF_SZ;
 	err = iavf_execute_vf_cmd(adapter, &args);
-	if (err) {
+	if (err)
 		PMD_DRV_LOG(ERR,
 			    "Failed to execute command of OP_DISABLE_QUEUES_V2");
-		return err;
-	}
-	return 0;
+
+	rte_free(queue_select);
+	return err;
 }
 
 int
@@ -737,6 +894,8 @@ iavf_switch_queue_lv(struct iavf_adapter *adapter, uint16_t qid,
 	if (err)
 		PMD_DRV_LOG(ERR, "Failed to execute command of %s",
 			    on ? "OP_ENABLE_QUEUES_V2" : "OP_DISABLE_QUEUES_V2");
+
+	rte_free(queue_select);
 	return err;
 }
 
@@ -851,7 +1010,7 @@ iavf_configure_queues(struct iavf_adapter *adapter,
 		vc_qp->rxq.ring_len = rxq[i]->nb_rx_desc;
 		vc_qp->rxq.dma_ring_addr = rxq[i]->rx_ring_phys_addr;
 		vc_qp->rxq.databuffer_size = rxq[i]->rx_buf_len;
-
+		vc_qp->rxq.crc_disable = rxq[i]->crc_len != 0 ? 1 : 0;
 #ifndef RTE_LIBRTE_IAVF_16BYTE_RX_DESC
 		if (vf->vf_res->vf_cap_flags &
 		    VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC &&
@@ -1014,6 +1173,9 @@ iavf_add_del_all_mac_addr(struct iavf_adapter *adapter, bool add)
 				continue;
 			rte_memcpy(list->list[j].addr, addr->addr_bytes,
 				   sizeof(addr->addr_bytes));
+			list->list[j].type = (j == 0 ?
+					      VIRTCHNL_ETHER_ADDR_PRIMARY :
+					      VIRTCHNL_ETHER_ADDR_EXTRA);
 			PMD_DRV_LOG(DEBUG, "add/rm mac:%x:%x:%x:%x:%x:%x",
 				    addr->addr_bytes[0], addr->addr_bytes[1],
 				    addr->addr_bytes[2], addr->addr_bytes[3],
@@ -1096,8 +1258,8 @@ iavf_config_promisc(struct iavf_adapter *adapter,
 		PMD_DRV_LOG(ERR,
 			    "fail to execute command CONFIG_PROMISCUOUS_MODE");
 
-		if (err == IAVF_NOT_SUPPORTED)
-			return -ENOTSUP;
+		if (err == -ENOTSUP)
+			return err;
 
 		return -EAGAIN;
 	}
@@ -1109,7 +1271,7 @@ iavf_config_promisc(struct iavf_adapter *adapter,
 
 int
 iavf_add_del_eth_addr(struct iavf_adapter *adapter, struct rte_ether_addr *addr,
-		     bool add)
+		     bool add, uint8_t type)
 {
 	struct virtchnl_ether_addr_list *list;
 	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
@@ -1121,6 +1283,7 @@ iavf_add_del_eth_addr(struct iavf_adapter *adapter, struct rte_ether_addr *addr,
 	list = (struct virtchnl_ether_addr_list *)cmd_buffer;
 	list->vsi_id = vf->vsi_res->vsi_id;
 	list->num_elements = 1;
+	list->list[0].type = type;
 	rte_memcpy(list->list[0].addr, addr->addr_bytes,
 		   sizeof(addr->addr_bytes));
 
@@ -1342,6 +1505,106 @@ iavf_add_del_rss_cfg(struct iavf_adapter *adapter,
 }
 
 int
+iavf_get_hena_caps(struct iavf_adapter *adapter, uint64_t *caps)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct iavf_cmd_info args;
+	int err;
+
+	args.ops = VIRTCHNL_OP_GET_RSS_HENA_CAPS;
+	args.in_args = NULL;
+	args.in_args_size = 0;
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+
+	err = iavf_execute_vf_cmd(adapter, &args);
+	if (err) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to execute command of OP_GET_RSS_HENA_CAPS");
+		return err;
+	}
+
+	*caps = ((struct virtchnl_rss_hena *)args.out_buffer)->hena;
+	return 0;
+}
+
+int
+iavf_set_hena(struct iavf_adapter *adapter, uint64_t hena)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct virtchnl_rss_hena vrh;
+	struct iavf_cmd_info args;
+	int err;
+
+	vrh.hena = hena;
+	args.ops = VIRTCHNL_OP_SET_RSS_HENA;
+	args.in_args = (u8 *)&vrh;
+	args.in_args_size = sizeof(vrh);
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+
+	err = iavf_execute_vf_cmd(adapter, &args);
+	if (err)
+		PMD_DRV_LOG(ERR,
+			    "Failed to execute command of OP_SET_RSS_HENA");
+
+	return err;
+}
+
+int
+iavf_get_qos_cap(struct iavf_adapter *adapter)
+{
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
+	struct iavf_cmd_info args;
+	uint32_t len;
+	int err;
+
+	args.ops = VIRTCHNL_OP_GET_QOS_CAPS;
+	args.in_args = NULL;
+	args.in_args_size = 0;
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+	err = iavf_execute_vf_cmd(adapter, &args);
+
+	if (err) {
+		PMD_DRV_LOG(ERR,
+			    "Failed to execute command of OP_GET_VF_RESOURCE");
+		return -1;
+	}
+
+	len =  sizeof(struct virtchnl_qos_cap_list) +
+		IAVF_MAX_TRAFFIC_CLASS * sizeof(struct virtchnl_qos_cap_elem);
+
+	rte_memcpy(vf->qos_cap, args.out_buffer,
+		   RTE_MIN(args.out_size, len));
+
+	return 0;
+}
+
+int iavf_set_q_tc_map(struct rte_eth_dev *dev,
+		struct virtchnl_queue_tc_mapping *q_tc_mapping, uint16_t size)
+{
+	struct iavf_adapter *adapter =
+			IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+	struct iavf_cmd_info args;
+	int err;
+
+	memset(&args, 0, sizeof(args));
+	args.ops = VIRTCHNL_OP_CONFIG_QUEUE_TC_MAP;
+	args.in_args = (uint8_t *)q_tc_mapping;
+	args.in_args_size = size;
+	args.out_buffer = vf->aq_resp;
+	args.out_size = IAVF_AQ_BUF_SZ;
+
+	err = iavf_execute_vf_cmd(adapter, &args);
+	if (err)
+		PMD_DRV_LOG(ERR, "Failed to execute command of"
+			    " VIRTCHNL_OP_CONFIG_TC_MAP");
+	return err;
+}
+
+int
 iavf_add_del_mc_addr_list(struct iavf_adapter *adapter,
 			struct rte_ether_addr *mc_addrs,
 			uint32_t mc_addrs_num, bool add)
@@ -1375,6 +1638,7 @@ iavf_add_del_mc_addr_list(struct iavf_adapter *adapter,
 
 		memcpy(list->list[i].addr, mc_addrs[i].addr_bytes,
 			sizeof(list->list[i].addr));
+		list->list[i].type = VIRTCHNL_ETHER_ADDR_EXTRA;
 	}
 
 	args.ops = add ? VIRTCHNL_OP_ADD_ETH_ADDR : VIRTCHNL_OP_DEL_ETH_ADDR;

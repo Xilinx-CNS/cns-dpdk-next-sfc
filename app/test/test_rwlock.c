@@ -13,7 +13,6 @@
 #include <rte_memory.h>
 #include <rte_per_lcore.h>
 #include <rte_launch.h>
-#include <rte_atomic.h>
 #include <rte_rwlock.h>
 #include <rte_eal.h>
 #include <rte_lcore.h>
@@ -36,7 +35,7 @@
 
 static rte_rwlock_t sl;
 static rte_rwlock_t sl_tab[RTE_MAX_LCORE];
-static rte_atomic32_t synchro;
+static uint32_t synchro;
 
 enum {
 	LC_TYPE_RDLOCK,
@@ -46,6 +45,7 @@ enum {
 static struct {
 	rte_rwlock_t lock;
 	uint64_t tick;
+
 	volatile union {
 		uint8_t u8[RTE_CACHE_LINE_SIZE];
 		uint64_t u64[RTE_CACHE_LINE_SIZE / sizeof(uint64_t)];
@@ -101,8 +101,7 @@ load_loop_fn(__rte_unused void *arg)
 
 	/* wait synchro for workers */
 	if (lcore != rte_get_main_lcore())
-		while (rte_atomic32_read(&synchro) == 0)
-			;
+		rte_wait_until_equal_32(&synchro, 1, __ATOMIC_RELAXED);
 
 	begin = rte_rdtsc_precise();
 	while (lcount < MAX_LOOP) {
@@ -135,12 +134,12 @@ test_rwlock_perf(void)
 	printf("\nRwlock Perf Test on %u cores...\n", rte_lcore_count());
 
 	/* clear synchro and start workers */
-	rte_atomic32_set(&synchro, 0);
+	__atomic_store_n(&synchro, 0, __ATOMIC_RELAXED);
 	if (rte_eal_mp_remote_launch(load_loop_fn, NULL, SKIP_MAIN) < 0)
 		return -1;
 
 	/* start synchro and launch test on main */
-	rte_atomic32_set(&synchro, 1);
+	__atomic_store_n(&synchro, 1, __ATOMIC_RELAXED);
 	load_loop_fn(NULL);
 
 	rte_eal_mp_wait_lcore();
@@ -182,7 +181,7 @@ rwlock_test1(void)
 	int i;
 
 	rte_rwlock_init(&sl);
-	for (i=0; i<RTE_MAX_LCORE; i++)
+	for (i = 0; i < RTE_MAX_LCORE; i++)
 		rte_rwlock_init(&sl_tab[i]);
 
 	rte_rwlock_write_lock(&sl);
@@ -252,7 +251,7 @@ try_write(uint32_t lc)
 	if (rc != 0)
 		return rc;
 
-	/* update by bytes in reverese order */
+	/* update by bytes in reverse order */
 	for (i = RTE_DIM(try_rwlock_data.data.u8); i-- != 0; ) {
 
 		/* race condition occurred, lock doesn't work properly */
@@ -269,7 +268,7 @@ try_write(uint32_t lc)
 		try_rwlock_data.data.u8[i] = v;
 	}
 
-	/* restore by bytes in reverese order */
+	/* restore by bytes in reverse order */
 	for (i = RTE_DIM(try_rwlock_data.data.u8); i-- != 0; ) {
 
 		/* race condition occurred, lock doesn't work properly */
@@ -461,7 +460,7 @@ try_rwlock_test_rda(void)
 {
 	try_test_reset();
 
-	/* start read test on all avaialble lcores */
+	/* start read test on all available lcores */
 	rte_eal_mp_remote_launch(try_read_lcore, NULL, CALL_MAIN);
 	rte_eal_mp_wait_lcore();
 

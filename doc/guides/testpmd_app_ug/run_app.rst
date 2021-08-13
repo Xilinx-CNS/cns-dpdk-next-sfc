@@ -112,7 +112,7 @@ The command line options are:
     Set the data size of the mbufs used to N bytes, where N < 65536.
     The default value is 2048. If multiple mbuf-size values are specified the
     extra memory pools will be created for allocating mbufs to receive packets
-    with buffer splittling features.
+    with buffer splitting features.
 
 *   ``--total-num-mbufs=N``
 
@@ -299,6 +299,13 @@ The command line options are:
     If set to 0, driver default is used if defined. Else, if driver
     default is not defined, default of 32 is used.
 
+*   ``--flowgen-clones=N``
+
+    Set the number of each packet clones to be sent in `flowgen` mode.
+    Sending clones reduces host CPU load on creating packets and may help
+    in testing extreme speeds or maxing out Tx packet performance.
+    N should be not zero, but less than 'burst' parameter.
+
 *   ``--mbcache=N``
 
     Set the cache of mbuf memory pools to N, where 0 <= N <= 512.
@@ -349,14 +356,6 @@ The command line options are:
     Set the transmit RS bit threshold of TX rings to N, where 0 <= N <= value of ``--txd``.
     The default value is 0.
 
-*   ``--rx-queue-stats-mapping=(port,queue,mapping)[,(port,queue,mapping)]``
-
-    Set the RX queues statistics counters mapping 0 <= mapping <= 15.
-
-*   ``--tx-queue-stats-mapping=(port,queue,mapping)[,(port,queue,mapping)]``
-
-    Set the TX queues statistics counters mapping 0 <= mapping <= 15.
-
 *   ``--no-flush-rx``
 
     Don't flush the RX streams before starting forwarding. Used mainly with the PCAP PMD.
@@ -384,6 +383,21 @@ The command line options are:
 *   ``--txonly-multi-flow``
 
     Generate multiple flows in txonly mode.
+
+*   ``--eth-link-speed``
+
+    Set a forced link speed to the ethernet port::
+
+       10 - 10Mbps (not supported)
+       100 - 100Mbps (not supported)
+       1000 - 1Gbps
+       10000 - 10Gbps
+       25000 - 25Gbps
+       40000 - 40Gbps
+       50000 - 50Gbps
+       100000 - 100Gbps
+       200000 - 200Gbps
+       ...
 
 *   ``--disable-link-check``
 
@@ -524,8 +538,10 @@ The command line options are:
 
 *   ``--hairpin-mode=0xXX``
 
-    Set the hairpin port mode with bitmask, only valid when hairpin queues number is set.
-    bit 4 - explicit Tx flow rule
-    bit 1 - two hairpin ports paired
-    bit 0 - two hairpin ports loop
+    Set the hairpin port mode with bitmask, only valid when hairpin queues number is set::
+
+	bit 4 - explicit Tx flow rule
+	bit 1 - two hairpin ports paired
+	bit 0 - two hairpin ports loop
+
     The default value is 0. Hairpin will use single port mode and implicit Tx flow mode.

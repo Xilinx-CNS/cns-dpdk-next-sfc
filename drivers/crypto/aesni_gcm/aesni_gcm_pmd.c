@@ -842,8 +842,14 @@ aesni_gcm_create(const char *name,
 		init_mb_mgr_avx2(mb_mgr);
 		break;
 	case RTE_AESNI_GCM_AVX512:
-		dev->feature_flags |= RTE_CRYPTODEV_FF_CPU_AVX512;
-		init_mb_mgr_avx512(mb_mgr);
+		if (rte_cpu_get_flag_enabled(RTE_CPUFLAG_VAES)) {
+			dev->feature_flags |= RTE_CRYPTODEV_FF_CPU_AVX512;
+			init_mb_mgr_avx512(mb_mgr);
+		} else {
+			dev->feature_flags |= RTE_CRYPTODEV_FF_CPU_AVX2;
+			init_mb_mgr_avx2(mb_mgr);
+			vector_mode = RTE_AESNI_GCM_AVX2;
+		}
 		break;
 	default:
 		AESNI_GCM_LOG(ERR, "Unsupported vector mode %u\n", vector_mode);
@@ -975,4 +981,4 @@ RTE_PMD_REGISTER_PARAM_STRING(CRYPTODEV_NAME_AESNI_GCM_PMD,
 	"socket_id=<int>");
 RTE_PMD_REGISTER_CRYPTO_DRIVER(aesni_gcm_crypto_drv, aesni_gcm_pmd_drv.driver,
 		cryptodev_driver_id);
-RTE_LOG_REGISTER(aesni_gcm_logtype_driver, pmd.crypto.aesni_gcm, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(aesni_gcm_logtype_driver, NOTICE);

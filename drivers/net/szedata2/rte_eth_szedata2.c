@@ -15,8 +15,8 @@
 #include <libsze2.h>
 
 #include <rte_mbuf.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_malloc.h>
 #include <rte_memcpy.h>
 #include <rte_kvargs.h>
@@ -1949,5 +1949,5 @@ RTE_PMD_REGISTER_PCI(RTE_SZEDATA2_DRIVER_NAME, szedata2_eth_driver);
 RTE_PMD_REGISTER_PCI_TABLE(RTE_SZEDATA2_DRIVER_NAME, rte_szedata2_pci_id_table);
 RTE_PMD_REGISTER_KMOD_DEP(RTE_SZEDATA2_DRIVER_NAME,
 	"* combo6core & combov3 & szedata2 & ( szedata2_cv3 | szedata2_cv3_fdt )");
-RTE_LOG_REGISTER(szedata2_logtype_init, pmd.net.szedata2.init, NOTICE);
-RTE_LOG_REGISTER(szedata2_logtype_driver, pmd.net.szedata2.driver, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(szedata2_logtype_init, init, NOTICE);
+RTE_LOG_REGISTER_SUFFIX(szedata2_logtype_driver, driver, NOTICE);

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <inttypes.h>
@@ -93,6 +94,9 @@ static char *mempool_name;
 /**< Enable iter mempool. */
 static uint32_t enable_iter_mempool;
 static char *mempool_iter_name;
+/**< Enable dump regs. */
+static uint32_t enable_dump_regs;
+static char *dump_regs_file_prefix;
 
 /**< display usage */
 static void
@@ -118,7 +122,8 @@ proc_info_usage(const char *prgname)
 		"  --show-crypto: to display crypto information\n"
 		"  --show-ring[=name]: to display ring information\n"
 		"  --show-mempool[=name]: to display mempool information\n"
-		"  --iter-mempool=name: iterate mempool elements to display content\n",
+		"  --iter-mempool=name: iterate mempool elements to display content\n"
+		"  --dump-regs=file-prefix: dump registers to file with the file-prefix\n",
 		prgname);
 }
 
@@ -225,6 +230,7 @@ proc_info_parse_args(int argc, char **argv)
 		{"show-ring", optional_argument, NULL, 0},
 		{"show-mempool", optional_argument, NULL, 0},
 		{"iter-mempool", required_argument, NULL, 0},
+		{"dump-regs", required_argument, NULL, 0},
 		{NULL, 0, 0, 0}
 	};
 
@@ -287,6 +293,10 @@ proc_info_parse_args(int argc, char **argv)
 					"iter-mempool", MAX_LONG_OPT_SZ)) {
 				enable_iter_mempool = 1;
 				mempool_iter_name = optarg;
+			} else if (!strncmp(long_option[option_index].name,
+					"dump-regs", MAX_LONG_OPT_SZ)) {
+				enable_dump_regs = 1;
+				dump_regs_file_prefix = optarg;
 			}
 			break;
 		case 1:
@@ -301,14 +311,13 @@ proc_info_parse_args(int argc, char **argv)
 			} else if (!strncmp(long_option[option_index].name,
 					"xstats-ids",
 					MAX_LONG_OPT_SZ))	{
-				nb_xstats_ids = parse_xstats_ids(optarg,
+				int ret = parse_xstats_ids(optarg,
 						xstats_ids, MAX_NB_XSTATS_IDS);
-
-				if (nb_xstats_ids <= 0) {
+				if (ret <= 0) {
 					printf("xstats-id list parse error.\n");
 					return -1;
 				}
-
+				nb_xstats_ids = ret;
 			}
 			break;
 		default:
@@ -420,11 +429,9 @@ static void collectd_resolve_cnt_type(char *cnt_type, size_t cnt_type_len,
 	} else if ((type_end != NULL) &&
 		   (strncmp(cnt_name, "flow_", strlen("flow_"))) == 0) {
 		if (strncmp(type_end, "_filters", strlen("_filters")) == 0)
-			strlcpy(cnt_type, "operations", cnt_type_len);
+			strlcpy(cnt_type, "filter_result", cnt_type_len);
 		else if (strncmp(type_end, "_errors", strlen("_errors")) == 0)
 			strlcpy(cnt_type, "errors", cnt_type_len);
-		else if (strncmp(type_end, "_filters", strlen("_filters")) == 0)
-			strlcpy(cnt_type, "filter_result", cnt_type_len);
 	} else if ((type_end != NULL) &&
 		   (strncmp(cnt_name, "mac_", strlen("mac_"))) == 0) {
 		if (strncmp(type_end, "_errors", strlen("_errors")) == 0)
@@ -648,10 +655,15 @@ metrics_display(int port_id)
 }
 
 static void
-show_security_context(uint16_t portid)
+show_security_context(uint16_t portid, bool inline_offload)
 {
-	void *p_ctx = rte_eth_dev_get_sec_ctx(portid);
+	void *p_ctx;
 	const struct rte_security_capability *s_cap;
+
+	if (inline_offload)
+		p_ctx = rte_eth_dev_get_sec_ctx(portid);
+	else
+		p_ctx = rte_cryptodev_get_sec_ctx(portid);
 
 	if (p_ctx == NULL)
 		return;
@@ -859,7 +871,7 @@ show_port(void)
 		}
 
 #ifdef RTE_LIB_SECURITY
-		show_security_context(i);
+		show_security_context(i, true);
 #endif
 	}
 }
@@ -1210,7 +1222,6 @@ show_crypto(void)
 
 		display_crypto_feature_info(dev_info.feature_flags);
 
-		memset(&stats, 0, sizeof(0));
 		if (rte_cryptodev_stats_get(i, &stats) == 0) {
 			printf("\t  -- stats\n");
 			printf("\t\t  + enqueue count (%"PRIu64")"
@@ -1224,7 +1235,7 @@ show_crypto(void)
 		}
 
 #ifdef RTE_LIB_SECURITY
-		show_security_context(i);
+		show_security_context(i, false);
 #endif
 	}
 }
@@ -1268,8 +1279,6 @@ show_ring(char *name)
 static void
 show_mempool(char *name)
 {
-	uint64_t flags = 0;
-
 	snprintf(bdr_str, MAX_STRING_LEN, " show - MEMPOOL ");
 	STATS_BDR_STR(10, bdr_str);
 
@@ -1277,8 +1286,8 @@ show_mempool(char *name)
 		struct rte_mempool *ptr = rte_mempool_lookup(name);
 		if (ptr != NULL) {
 			struct rte_mempool_ops *ops;
+			uint64_t flags = ptr->flags;
 
-			flags = ptr->flags;
 			ops = rte_mempool_get_ops(ptr->ops_index);
 			printf("  - Name: %s on socket %d\n"
 				"  - flags:\n"
@@ -1346,6 +1355,85 @@ iter_mempool(char *name)
 			printf("\n  - iterated %u objects\n", ret);
 			return;
 		}
+	}
+}
+
+static void
+dump_regs(char *file_prefix)
+{
+#define MAX_FILE_NAME_SZ (MAX_LONG_OPT_SZ + 10)
+	char file_name[MAX_FILE_NAME_SZ];
+	struct rte_dev_reg_info reg_info;
+	struct rte_eth_dev_info dev_info;
+	unsigned char *buf_data;
+	size_t buf_size;
+	FILE *fp_regs;
+	uint16_t i;
+	int ret;
+
+	snprintf(bdr_str, MAX_STRING_LEN, " dump - Port REG");
+	STATS_BDR_STR(10, bdr_str);
+
+	RTE_ETH_FOREACH_DEV(i) {
+		/* Skip if port is not in mask */
+		if ((enabled_port_mask & (1ul << i)) == 0)
+			continue;
+
+		snprintf(bdr_str, MAX_STRING_LEN, " Port (%u)", i);
+		STATS_BDR_STR(5, bdr_str);
+
+		ret = rte_eth_dev_info_get(i, &dev_info);
+		if (ret) {
+			printf("Error getting device info: %d\n", ret);
+			continue;
+		}
+
+		memset(&reg_info, 0, sizeof(reg_info));
+		ret = rte_eth_dev_get_reg_info(i, &reg_info);
+		if (ret) {
+			printf("Error getting device reg info: %d\n", ret);
+			continue;
+		}
+
+		buf_size = reg_info.length * reg_info.width;
+		buf_data = malloc(buf_size);
+		if (buf_data == NULL) {
+			printf("Error allocating %zu bytes buffer\n", buf_size);
+			continue;
+		}
+
+		reg_info.data = buf_data;
+		reg_info.length = 0;
+		ret = rte_eth_dev_get_reg_info(i, &reg_info);
+		if (ret) {
+			printf("Error getting regs from device: %d\n", ret);
+			free(buf_data);
+			continue;
+		}
+
+		snprintf(file_name, MAX_FILE_NAME_SZ, "%s-port%u",
+				file_prefix, i);
+		fp_regs = fopen(file_name, "wb");
+		if (fp_regs == NULL) {
+			printf("Error during opening '%s' for writing: %s\n",
+					file_name, strerror(errno));
+		} else {
+			size_t nr_written;
+
+			nr_written = fwrite(buf_data, 1, buf_size, fp_regs);
+			if (nr_written != buf_size)
+				printf("Error during writing %s: %s\n",
+						file_prefix, strerror(errno));
+			else
+				printf("Device (%s) regs dumped successfully, "
+					"driver:%s version:0X%08X\n",
+					dev_info.device->name,
+					dev_info.driver_name, reg_info.version);
+
+			fclose(fp_regs);
+		}
+
+		free(buf_data);
 	}
 }
 
@@ -1454,6 +1542,8 @@ main(int argc, char **argv)
 		show_mempool(mempool_name);
 	if (enable_iter_mempool)
 		iter_mempool(mempool_iter_name);
+	if (enable_dump_regs)
+		dump_regs(dump_regs_file_prefix);
 
 	RTE_ETH_FOREACH_DEV(i)
 		rte_eth_dev_close(i);

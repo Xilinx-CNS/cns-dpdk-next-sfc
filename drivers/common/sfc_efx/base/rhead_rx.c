@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2018-2019 Solarflare Communications Inc.
  */
 
@@ -628,6 +628,12 @@ rhead_rx_qcreate(
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_RSS_HASH;
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_RSS_HASH_VALID;
 	}
+
+	if (flags & EFX_RXQ_FLAG_INGRESS_MPORT)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_INGRESS_MPORT;
+
+	if (flags & EFX_RXQ_FLAG_USER_MARK)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_USER_MARK;
 
 	/*
 	 * LENGTH is required in EF100 host interface, as receive events

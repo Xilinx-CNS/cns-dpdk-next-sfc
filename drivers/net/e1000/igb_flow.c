@@ -15,8 +15,8 @@
 #include <rte_debug.h>
 #include <rte_pci.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_driver.h>
+#include <ethdev_pci.h>
 #include <rte_memory.h>
 #include <rte_eal.h>
 #include <rte_atomic.h>
@@ -350,7 +350,7 @@ cons_parse_ntuple_filter(const struct rte_flow_attr *attr,
 		memset(filter, 0, sizeof(struct rte_eth_ntuple_filter));
 		rte_flow_error_set(error, EINVAL,
 			RTE_FLOW_ERROR_TYPE_ACTION,
-			item, "Not supported action.");
+			act, "Not supported action.");
 		return -rte_errno;
 	}
 	filter->queue =

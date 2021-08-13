@@ -17,8 +17,8 @@
 #include <rte_version.h>
 #include <rte_mbuf.h>
 #include <rte_ether.h>
-#include <rte_ethdev_driver.h>
-#include <rte_ethdev_vdev.h>
+#include <ethdev_driver.h>
+#include <ethdev_vdev.h>
 #include <rte_malloc.h>
 #include <rte_kvargs.h>
 #include <rte_bus_vdev.h>
@@ -383,9 +383,10 @@ next_slot:
 			if (mbuf != mbuf_head)
 				rte_pktmbuf_pkt_len(mbuf_head) += cp_len;
 
-			memcpy(rte_pktmbuf_mtod_offset(mbuf, void *, dst_off),
-			       (uint8_t *)memif_get_buffer(proc_private, d0) + src_off,
-			       cp_len);
+			rte_memcpy(rte_pktmbuf_mtod_offset(mbuf, void *,
+							   dst_off),
+				(uint8_t *)memif_get_buffer(proc_private, d0) +
+				src_off, cp_len);
 
 			src_off += cp_len;
 			dst_off += cp_len;
@@ -644,9 +645,10 @@ next_in_chain:
 			}
 			cp_len = RTE_MIN(dst_len, src_len);
 
-			memcpy((uint8_t *)memif_get_buffer(proc_private, d0) + dst_off,
-			       rte_pktmbuf_mtod_offset(mbuf, void *, src_off),
-			       cp_len);
+			rte_memcpy((uint8_t *)memif_get_buffer(proc_private,
+							       d0) + dst_off,
+				rte_pktmbuf_mtod_offset(mbuf, void *, src_off),
+				cp_len);
 
 			mq->n_bytes += cp_len;
 			src_off += cp_len;
@@ -706,6 +708,7 @@ next_in_chain:
 	/* populate descriptor */
 	d0 = &ring->desc[slot & mask];
 	d0->length = rte_pktmbuf_data_len(mbuf);
+	mq->n_bytes += rte_pktmbuf_data_len(mbuf);
 	/* FIXME: get region index */
 	d0->region = 1;
 	d0->offset = rte_pktmbuf_mtod(mbuf, uint8_t *) -
@@ -1878,4 +1881,4 @@ RTE_PMD_REGISTER_PARAM_STRING(net_memif,
 			      ETH_MEMIF_ZC_ARG "=yes|no"
 			      ETH_MEMIF_SECRET_ARG "=<string>");
 
-RTE_LOG_REGISTER(memif_logtype, pmd.net.memif, NOTICE);
+RTE_LOG_REGISTER_DEFAULT(memif_logtype, NOTICE);

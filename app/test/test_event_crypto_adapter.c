@@ -64,6 +64,7 @@ struct event_crypto_adapter_test_params {
 	struct rte_mempool *session_priv_mpool;
 	struct rte_cryptodev_config *config;
 	uint8_t crypto_event_port_id;
+	uint8_t internal_port_op_fwd;
 };
 
 struct rte_event response_info = {
@@ -110,9 +111,12 @@ send_recv_ev(struct rte_event *ev)
 	struct rte_event recv_ev;
 	int ret;
 
-	ret = rte_event_enqueue_burst(evdev, TEST_APP_PORT_ID, ev, NUM);
-	TEST_ASSERT_EQUAL(ret, NUM,
-			  "Failed to send event to crypto adapter\n");
+	if (params.internal_port_op_fwd)
+		ret = rte_event_crypto_adapter_enqueue(evdev, TEST_APP_PORT_ID,
+						       ev, NUM);
+	else
+		ret = rte_event_enqueue_burst(evdev, TEST_APP_PORT_ID, ev, NUM);
+	TEST_ASSERT_EQUAL(ret, NUM, "Failed to send event to crypto adapter\n");
 
 	while (rte_event_dequeue_burst(evdev,
 			TEST_APP_PORT_ID, &recv_ev, NUM, 0) == 0)
@@ -183,6 +187,7 @@ test_op_forward_mode(uint8_t session_less)
 	cipher_xform.type = RTE_CRYPTO_SYM_XFORM_CIPHER;
 	cipher_xform.next = NULL;
 	cipher_xform.cipher.algo = RTE_CRYPTO_CIPHER_NULL;
+	cipher_xform.cipher.op = RTE_CRYPTO_CIPHER_OP_ENCRYPT;
 
 	op = rte_crypto_op_alloc(params.op_mpool,
 			RTE_CRYPTO_OP_TYPE_SYMMETRIC);
@@ -223,8 +228,7 @@ test_op_forward_mode(uint8_t session_less)
 		op->sess_type = RTE_CRYPTO_OP_SESSIONLESS;
 		first_xform = &cipher_xform;
 		sym_op->xform = first_xform;
-		uint32_t len = IV_OFFSET + MAXIMUM_IV_LENGTH +
-				(sizeof(struct rte_crypto_sym_xform) * 2);
+		uint32_t len = IV_OFFSET + MAXIMUM_IV_LENGTH;
 		op->private_data_offset = len;
 		/* Fill in private data information */
 		rte_memcpy(&m_data.response_info, &response_info,
@@ -382,6 +386,7 @@ test_op_new_mode(uint8_t session_less)
 	cipher_xform.type = RTE_CRYPTO_SYM_XFORM_CIPHER;
 	cipher_xform.next = NULL;
 	cipher_xform.cipher.algo = RTE_CRYPTO_CIPHER_NULL;
+	cipher_xform.cipher.op = RTE_CRYPTO_CIPHER_OP_ENCRYPT;
 
 	op = rte_crypto_op_alloc(params.op_mpool,
 			RTE_CRYPTO_OP_TYPE_SYMMETRIC);
@@ -417,8 +422,7 @@ test_op_new_mode(uint8_t session_less)
 		op->sess_type = RTE_CRYPTO_OP_SESSIONLESS;
 		first_xform = &cipher_xform;
 		sym_op->xform = first_xform;
-		uint32_t len = IV_OFFSET + MAXIMUM_IV_LENGTH +
-				(sizeof(struct rte_crypto_sym_xform) * 2);
+		uint32_t len = IV_OFFSET + MAXIMUM_IV_LENGTH;
 		op->private_data_offset = len;
 		/* Fill in private data information */
 		rte_memcpy(&m_data.response_info, &response_info,
@@ -514,7 +518,8 @@ configure_cryptodev(void)
 			NUM_MBUFS, MBUF_CACHE_SIZE,
 			DEFAULT_NUM_XFORMS *
 			sizeof(struct rte_crypto_sym_xform) +
-			MAXIMUM_IV_LENGTH,
+			MAXIMUM_IV_LENGTH +
+			sizeof(union rte_event_crypto_metadata),
 			rte_socket_id());
 	if (params.op_mpool == NULL) {
 		RTE_LOG(ERR, USER1, "Can't create CRYPTO_OP_POOL\n");
@@ -745,9 +750,12 @@ configure_event_crypto_adapter(enum rte_event_crypto_adapter_mode mode)
 	    !(cap & RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_QP_EV_BIND))
 		goto adapter_create;
 
-	if ((mode == RTE_EVENT_CRYPTO_ADAPTER_OP_FORWARD) &&
-	    !(cap & RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_OP_FWD))
-		return -ENOTSUP;
+	if (mode == RTE_EVENT_CRYPTO_ADAPTER_OP_FORWARD) {
+		if (cap & RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_OP_FWD)
+			params.internal_port_op_fwd = 1;
+		else
+			return -ENOTSUP;
+	}
 
 	if ((mode == RTE_EVENT_CRYPTO_ADAPTER_OP_NEW) &&
 	    !(cap & RTE_EVENT_CRYPTO_ADAPTER_CAP_INTERNAL_PORT_OP_NEW))
@@ -769,9 +777,11 @@ adapter_create:
 
 	TEST_ASSERT_SUCCESS(ret, "Failed to add queue pair\n");
 
-	ret = rte_event_crypto_adapter_event_port_get(TEST_ADAPTER_ID,
-				&params.crypto_event_port_id);
-	TEST_ASSERT_SUCCESS(ret, "Failed to get event port\n");
+	if (!params.internal_port_op_fwd) {
+		ret = rte_event_crypto_adapter_event_port_get(TEST_ADAPTER_ID,
+						&params.crypto_event_port_id);
+		TEST_ASSERT_SUCCESS(ret, "Failed to get event port\n");
+	}
 
 	return TEST_SUCCESS;
 }
@@ -807,15 +817,15 @@ test_crypto_adapter_conf(enum rte_event_crypto_adapter_mode mode)
 
 	if (!crypto_adapter_setup_done) {
 		ret = configure_event_crypto_adapter(mode);
-		if (!ret) {
+		if (ret)
+			return ret;
+		if (!params.internal_port_op_fwd) {
 			qid = TEST_CRYPTO_EV_QUEUE_ID;
 			ret = rte_event_port_link(evdev,
 				params.crypto_event_port_id, &qid, NULL, 1);
 			TEST_ASSERT(ret >= 0, "Failed to link queue %d "
 					"port=%u\n", qid,
 					params.crypto_event_port_id);
-		} else {
-			return ret;
 		}
 		crypto_adapter_setup_done = 1;
 	}

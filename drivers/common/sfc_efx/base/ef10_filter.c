@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2007-2019 Solarflare Communications Inc.
  */
 
@@ -1225,20 +1225,25 @@ efx_mcdi_get_parser_disp_info(
 		goto fail1;
 	}
 
+	if (req.emr_out_length_used < MC_CMD_GET_PARSER_DISP_INFO_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail2;
+	}
+
 	matches_count = MCDI_OUT_DWORD(req,
 	    GET_PARSER_DISP_INFO_OUT_NUM_SUPPORTED_MATCHES);
 
 	if (req.emr_out_length_used <
 	    MC_CMD_GET_PARSER_DISP_INFO_OUT_LEN(matches_count)) {
 		rc = EMSGSIZE;
-		goto fail2;
+		goto fail3;
 	}
 
 	*list_lengthp = matches_count;
 
 	if (buffer_length < matches_count) {
 		rc = ENOSPC;
-		goto fail3;
+		goto fail4;
 	}
 
 	/*
@@ -1258,6 +1263,8 @@ efx_mcdi_get_parser_disp_info(
 
 	return (0);
 
+fail4:
+	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
 fail2:

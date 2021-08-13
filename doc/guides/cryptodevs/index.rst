@@ -16,12 +16,14 @@ Crypto Device Drivers
     bcmfs
     caam_jr
     ccp
+    cnxk
     dpaa2_sec
     dpaa_sec
     kasumi
     octeontx
     octeontx2
     openssl
+    mlx5
     mvsam
     nitrox
     null

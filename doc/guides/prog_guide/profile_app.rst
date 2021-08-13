@@ -33,6 +33,20 @@ Refer to the
 for details about application profiling.
 
 
+Profiling with VTune
+~~~~~~~~~~~~~~~~~~~~
+
+To allow VTune attaching to the DPDK application, reconfigure a DPDK build
+folder by passing ``-Dc_args=-DRTE_ETHDEV_PROFILE_WITH_VTUNE`` meson option
+and recompile the DPDK:
+
+.. code-block:: console
+
+   meson build
+   meson configure build -Dc_args=-DRTE_ETHDEV_PROFILE_WITH_VTUNE
+   ninja -C build
+
+
 Profiling on ARM64
 ------------------
 
@@ -80,7 +94,16 @@ an ARMv8 machine.
     make
     sudo insmod pmu_el0_cycle_counter.ko
 
-Please refer to :doc:`../linux_gsg/build_dpdk` for details on compiling DPDK with meson.
+Please refer to :doc:`../linux_gsg/build_dpdk` for generic details on compiling DPDK with meson.
+
+In order to enable ``PMU`` based ``rte_rdtsc()``, user needs to configure the
+build with ``-Dc_args='-DRTE_ARM_EAL_RDTSC_USE_PMU'``.
+
+Example:
+
+.. code-block:: console
+
+   meson --cross config/arm/arm64_armv8_linux_gcc -Dc_args='-DRTE_ARM_EAL_RDTSC_USE_PMU' build
 
 .. warning::
 

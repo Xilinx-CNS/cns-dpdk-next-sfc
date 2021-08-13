@@ -38,6 +38,7 @@
 #include <rte_string_fns.h>
 #include <rte_cycles.h>
 #include <rte_flow.h>
+#include <rte_mtr.h>
 #include <rte_errno.h>
 #ifdef RTE_NET_IXGBE
 #include <rte_pmd_ixgbe.h>
@@ -52,6 +53,7 @@
 #include <rte_hexdump.h>
 
 #include "testpmd.h"
+#include "cmdline_mtr.h"
 
 #define ETHDEV_FWVERS_LEN 32
 
@@ -87,7 +89,7 @@ const struct rss_type_info rss_type_table[] = {
 	{ "all", ETH_RSS_ETH | ETH_RSS_VLAN | ETH_RSS_IP | ETH_RSS_TCP |
 		ETH_RSS_UDP | ETH_RSS_SCTP | ETH_RSS_L2_PAYLOAD |
 		ETH_RSS_L2TPV3 | ETH_RSS_ESP | ETH_RSS_AH | ETH_RSS_PFCP |
-		ETH_RSS_GTPU | ETH_RSS_ECPRI},
+		ETH_RSS_GTPU | ETH_RSS_ECPRI | ETH_RSS_MPLS},
 	{ "none", 0 },
 	{ "eth", ETH_RSS_ETH },
 	{ "l2-src-only", ETH_RSS_L2_SRC_ONLY },
@@ -137,6 +139,7 @@ const struct rss_type_info rss_type_table[] = {
 	{ "pppoe", ETH_RSS_PPPOE },
 	{ "gtpu", ETH_RSS_GTPU },
 	{ "ecpri", ETH_RSS_ECPRI },
+	{ "mpls", ETH_RSS_MPLS },
 	{ NULL, 0 },
 };
 
@@ -183,8 +186,6 @@ nic_stats_display(portid_t port_id)
 								diff_ns;
 	uint64_t mpps_rx, mpps_tx, mbps_rx, mbps_tx;
 	struct rte_eth_stats stats;
-	struct rte_port *port = &ports[port_id];
-	uint8_t i;
 
 	static const char *nic_stats_border = "########################";
 
@@ -196,46 +197,12 @@ nic_stats_display(portid_t port_id)
 	printf("\n  %s NIC statistics for port %-2d %s\n",
 	       nic_stats_border, port_id, nic_stats_border);
 
-	if ((!port->rx_queue_stats_mapping_enabled) && (!port->tx_queue_stats_mapping_enabled)) {
-		printf("  RX-packets: %-10"PRIu64" RX-missed: %-10"PRIu64" RX-bytes:  "
-		       "%-"PRIu64"\n",
-		       stats.ipackets, stats.imissed, stats.ibytes);
-		printf("  RX-errors: %-"PRIu64"\n", stats.ierrors);
-		printf("  RX-nombuf:  %-10"PRIu64"\n",
-		       stats.rx_nombuf);
-		printf("  TX-packets: %-10"PRIu64" TX-errors: %-10"PRIu64" TX-bytes:  "
-		       "%-"PRIu64"\n",
-		       stats.opackets, stats.oerrors, stats.obytes);
-	}
-	else {
-		printf("  RX-packets:              %10"PRIu64"    RX-errors: %10"PRIu64
-		       "    RX-bytes: %10"PRIu64"\n",
-		       stats.ipackets, stats.ierrors, stats.ibytes);
-		printf("  RX-errors:  %10"PRIu64"\n", stats.ierrors);
-		printf("  RX-nombuf:               %10"PRIu64"\n",
-		       stats.rx_nombuf);
-		printf("  TX-packets:              %10"PRIu64"    TX-errors: %10"PRIu64
-		       "    TX-bytes: %10"PRIu64"\n",
-		       stats.opackets, stats.oerrors, stats.obytes);
-	}
-
-	if (port->rx_queue_stats_mapping_enabled) {
-		printf("\n");
-		for (i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++) {
-			printf("  Stats reg %2d RX-packets: %10"PRIu64
-			       "    RX-errors: %10"PRIu64
-			       "    RX-bytes: %10"PRIu64"\n",
-			       i, stats.q_ipackets[i], stats.q_errors[i], stats.q_ibytes[i]);
-		}
-	}
-	if (port->tx_queue_stats_mapping_enabled) {
-		printf("\n");
-		for (i = 0; i < RTE_ETHDEV_QUEUE_STAT_CNTRS; i++) {
-			printf("  Stats reg %2d TX-packets: %10"PRIu64
-			       "                             TX-bytes: %10"PRIu64"\n",
-			       i, stats.q_opackets[i], stats.q_obytes[i]);
-		}
-	}
+	printf("  RX-packets: %-10"PRIu64" RX-missed: %-10"PRIu64" RX-bytes:  "
+	       "%-"PRIu64"\n", stats.ipackets, stats.imissed, stats.ibytes);
+	printf("  RX-errors: %-"PRIu64"\n", stats.ierrors);
+	printf("  RX-nombuf:  %-10"PRIu64"\n", stats.rx_nombuf);
+	printf("  TX-packets: %-10"PRIu64" TX-errors: %-10"PRIu64" TX-bytes:  "
+	       "%-"PRIu64"\n", stats.opackets, stats.oerrors, stats.obytes);
 
 	diff_ns = 0;
 	if (clock_gettime(CLOCK_TYPE_ID, &cur_time) == 0) {
@@ -292,8 +259,9 @@ nic_stats_clear(portid_t port_id)
 
 	ret = rte_eth_stats_reset(port_id);
 	if (ret != 0) {
-		printf("%s: Error: failed to reset stats (port %u): %s",
-		       __func__, port_id, strerror(-ret));
+		fprintf(stderr,
+			"%s: Error: failed to reset stats (port %u): %s",
+			__func__, port_id, strerror(-ret));
 		return;
 	}
 
@@ -301,8 +269,9 @@ nic_stats_clear(portid_t port_id)
 	if (ret != 0) {
 		if (ret < 0)
 			ret = -ret;
-		printf("%s: Error: failed to get stats (port %u): %s",
-		       __func__, port_id, strerror(ret));
+		fprintf(stderr,
+			"%s: Error: failed to get stats (port %u): %s",
+			__func__, port_id, strerror(ret));
 		return;
 	}
 	printf("\n  NIC statistics for port %d cleared\n", port_id);
@@ -321,26 +290,26 @@ nic_xstats_display(portid_t port_id)
 	}
 	printf("###### NIC extended statistics for port %-2d\n", port_id);
 	if (!rte_eth_dev_is_valid_port(port_id)) {
-		printf("Error: Invalid port number %i\n", port_id);
+		fprintf(stderr, "Error: Invalid port number %i\n", port_id);
 		return;
 	}
 
 	/* Get count */
 	cnt_xstats = rte_eth_xstats_get_names(port_id, NULL, 0);
 	if (cnt_xstats  < 0) {
-		printf("Error: Cannot get count of xstats\n");
+		fprintf(stderr, "Error: Cannot get count of xstats\n");
 		return;
 	}
 
 	/* Get id-name lookup table */
 	xstats_names = malloc(sizeof(struct rte_eth_xstat_name) * cnt_xstats);
 	if (xstats_names == NULL) {
-		printf("Cannot allocate memory for xstats lookup\n");
+		fprintf(stderr, "Cannot allocate memory for xstats lookup\n");
 		return;
 	}
 	if (cnt_xstats != rte_eth_xstats_get_names(
 			port_id, xstats_names, cnt_xstats)) {
-		printf("Error: Cannot get xstats lookup\n");
+		fprintf(stderr, "Error: Cannot get xstats lookup\n");
 		free(xstats_names);
 		return;
 	}
@@ -348,12 +317,12 @@ nic_xstats_display(portid_t port_id)
 	/* Get stats themselves */
 	xstats = malloc(sizeof(struct rte_eth_xstat) * cnt_xstats);
 	if (xstats == NULL) {
-		printf("Cannot allocate memory for xstats\n");
+		fprintf(stderr, "Cannot allocate memory for xstats\n");
 		free(xstats_names);
 		return;
 	}
 	if (cnt_xstats != rte_eth_xstats_get(port_id, xstats, cnt_xstats)) {
-		printf("Error: Unable to get xstats\n");
+		fprintf(stderr, "Error: Unable to get xstats\n");
 		free(xstats_names);
 		free(xstats);
 		return;
@@ -383,8 +352,9 @@ nic_xstats_clear(portid_t port_id)
 
 	ret = rte_eth_xstats_reset(port_id);
 	if (ret != 0) {
-		printf("%s: Error: failed to reset xstats (port %u): %s",
-		       __func__, port_id, strerror(-ret));
+		fprintf(stderr,
+			"%s: Error: failed to reset xstats (port %u): %s\n",
+			__func__, port_id, strerror(-ret));
 		return;
 	}
 
@@ -392,58 +362,23 @@ nic_xstats_clear(portid_t port_id)
 	if (ret != 0) {
 		if (ret < 0)
 			ret = -ret;
-		printf("%s: Error: failed to get stats (port %u): %s",
-		       __func__, port_id, strerror(ret));
+		fprintf(stderr, "%s: Error: failed to get stats (port %u): %s",
+			__func__, port_id, strerror(ret));
 		return;
 	}
 }
 
-void
-nic_stats_mapping_display(portid_t port_id)
+static const char *
+get_queue_state_name(uint8_t queue_state)
 {
-	struct rte_port *port = &ports[port_id];
-	uint16_t i;
-
-	static const char *nic_stats_mapping_border = "########################";
-
-	if (port_id_is_invalid(port_id, ENABLED_WARN)) {
-		print_valid_ports();
-		return;
-	}
-
-	if ((!port->rx_queue_stats_mapping_enabled) && (!port->tx_queue_stats_mapping_enabled)) {
-		printf("Port id %d - either does not support queue statistic mapping or"
-		       " no queue statistic mapping set\n", port_id);
-		return;
-	}
-
-	printf("\n  %s NIC statistics mapping for port %-2d %s\n",
-	       nic_stats_mapping_border, port_id, nic_stats_mapping_border);
-
-	if (port->rx_queue_stats_mapping_enabled) {
-		for (i = 0; i < nb_rx_queue_stats_mappings; i++) {
-			if (rx_queue_stats_mappings[i].port_id == port_id) {
-				printf("  RX-queue %2d mapped to Stats Reg %2d\n",
-				       rx_queue_stats_mappings[i].queue_id,
-				       rx_queue_stats_mappings[i].stats_counter_id);
-			}
-		}
-		printf("\n");
-	}
-
-
-	if (port->tx_queue_stats_mapping_enabled) {
-		for (i = 0; i < nb_tx_queue_stats_mappings; i++) {
-			if (tx_queue_stats_mappings[i].port_id == port_id) {
-				printf("  TX-queue %2d mapped to Stats Reg %2d\n",
-				       tx_queue_stats_mappings[i].queue_id,
-				       tx_queue_stats_mappings[i].stats_counter_id);
-			}
-		}
-	}
-
-	printf("  %s####################################%s\n",
-	       nic_stats_mapping_border, nic_stats_mapping_border);
+	if (queue_state == RTE_ETH_QUEUE_STATE_STOPPED)
+		return "stopped";
+	else if (queue_state == RTE_ETH_QUEUE_STATE_STARTED)
+		return "started";
+	else if (queue_state == RTE_ETH_QUEUE_STATE_HAIRPIN)
+		return "hairpin";
+	else
+		return "unknown";
 }
 
 void
@@ -456,8 +391,8 @@ rx_queue_infos_display(portid_t port_id, uint16_t queue_id)
 
 	rc = rte_eth_rx_queue_info_get(port_id, queue_id, &qinfo);
 	if (rc != 0) {
-		printf("Failed to retrieve information for port: %u, "
-			"RX queue: %hu\nerror desc: %s(%d)\n",
+		fprintf(stderr,
+			"Failed to retrieve information for port: %u, RX queue: %hu\nerror desc: %s(%d)\n",
 			port_id, queue_id, strerror(-rc), rc);
 		return;
 	}
@@ -476,6 +411,7 @@ rx_queue_infos_display(portid_t port_id, uint16_t queue_id)
 		(qinfo.conf.rx_deferred_start != 0) ? "on" : "off");
 	printf("\nRX scattered packets: %s",
 		(qinfo.scattered_rx != 0) ? "on" : "off");
+	printf("\nRx queue state: %s", get_queue_state_name(qinfo.queue_state));
 	if (qinfo.rx_buf_size != 0)
 		printf("\nRX buffer size: %hu", qinfo.rx_buf_size);
 	printf("\nNumber of RXDs: %hu", qinfo.nb_desc);
@@ -499,8 +435,8 @@ tx_queue_infos_display(portid_t port_id, uint16_t queue_id)
 
 	rc = rte_eth_tx_queue_info_get(port_id, queue_id, &qinfo);
 	if (rc != 0) {
-		printf("Failed to retrieve information for port: %u, "
-			"TX queue: %hu\nerror desc: %s(%d)\n",
+		fprintf(stderr,
+			"Failed to retrieve information for port: %u, TX queue: %hu\nerror desc: %s(%d)\n",
 			port_id, queue_id, strerror(-rc), rc);
 		return;
 	}
@@ -516,6 +452,7 @@ tx_queue_infos_display(portid_t port_id, uint16_t queue_id)
 	printf("\nTX deferred start: %s",
 		(qinfo.conf.tx_deferred_start != 0) ? "on" : "off");
 	printf("\nNumber of TXDs: %hu", qinfo.nb_desc);
+	printf("\nTx queue state: %s", get_queue_state_name(qinfo.queue_state));
 
 	if (rte_eth_tx_burst_mode_get(port_id, queue_id, &mode) == 0)
 		printf("\nBurst mode: %s%s",
@@ -592,9 +529,7 @@ device_infos_display(const char *identifier)
 		goto skip_parse;
 
 	if (rte_devargs_parsef(&da, "%s", identifier)) {
-		printf("cannot parse identifier\n");
-		if (da.args)
-			free(da.args);
+		fprintf(stderr, "cannot parse identifier\n");
 		return;
 	}
 
@@ -642,6 +577,7 @@ skip_parse:
 			}
 		}
 	};
+	rte_devargs_reset(&da);
 }
 
 void
@@ -702,6 +638,8 @@ port_infos_display(portid_t port_id)
 	printf("Link speed: %s\n", rte_eth_link_speed_to_str(link.link_speed));
 	printf("Link duplex: %s\n", (link.link_duplex == ETH_LINK_FULL_DUPLEX) ?
 	       ("full-duplex") : ("half-duplex"));
+	printf("Autoneg status: %s\n", (link.link_autoneg == ETH_LINK_AUTONEG) ?
+	       ("On") : ("Off"));
 
 	if (!rte_eth_dev_get_mtu(port_id, &mtu))
 		printf("MTU: %u\n", mtu);
@@ -866,16 +804,17 @@ port_eeprom_display(portid_t port_id)
 	if (len_eeprom < 0) {
 		switch (len_eeprom) {
 		case -ENODEV:
-			printf("port index %d invalid\n", port_id);
+			fprintf(stderr, "port index %d invalid\n", port_id);
 			break;
 		case -ENOTSUP:
-			printf("operation not supported by device\n");
+			fprintf(stderr, "operation not supported by device\n");
 			break;
 		case -EIO:
-			printf("device is removed\n");
+			fprintf(stderr, "device is removed\n");
 			break;
 		default:
-			printf("Unable to get EEPROM: %d\n", len_eeprom);
+			fprintf(stderr, "Unable to get EEPROM: %d\n",
+				len_eeprom);
 			break;
 		}
 		return;
@@ -890,16 +829,16 @@ port_eeprom_display(portid_t port_id)
 	if (ret != 0) {
 		switch (ret) {
 		case -ENODEV:
-			printf("port index %d invalid\n", port_id);
+			fprintf(stderr, "port index %d invalid\n", port_id);
 			break;
 		case -ENOTSUP:
-			printf("operation not supported by device\n");
+			fprintf(stderr, "operation not supported by device\n");
 			break;
 		case -EIO:
-			printf("device is removed\n");
+			fprintf(stderr, "device is removed\n");
 			break;
 		default:
-			printf("Unable to get EEPROM: %d\n", ret);
+			fprintf(stderr, "Unable to get EEPROM: %d\n", ret);
 			break;
 		}
 		return;
@@ -925,16 +864,17 @@ port_module_eeprom_display(portid_t port_id)
 	if (ret != 0) {
 		switch (ret) {
 		case -ENODEV:
-			printf("port index %d invalid\n", port_id);
+			fprintf(stderr, "port index %d invalid\n", port_id);
 			break;
 		case -ENOTSUP:
-			printf("operation not supported by device\n");
+			fprintf(stderr, "operation not supported by device\n");
 			break;
 		case -EIO:
-			printf("device is removed\n");
+			fprintf(stderr, "device is removed\n");
 			break;
 		default:
-			printf("Unable to get module EEPROM: %d\n", ret);
+			fprintf(stderr, "Unable to get module EEPROM: %d\n",
+				ret);
 			break;
 		}
 		return;
@@ -949,16 +889,17 @@ port_module_eeprom_display(portid_t port_id)
 	if (ret != 0) {
 		switch (ret) {
 		case -ENODEV:
-			printf("port index %d invalid\n", port_id);
+			fprintf(stderr, "port index %d invalid\n", port_id);
 			break;
 		case -ENOTSUP:
-			printf("operation not supported by device\n");
+			fprintf(stderr, "operation not supported by device\n");
 			break;
 		case -EIO:
-			printf("device is removed\n");
+			fprintf(stderr, "device is removed\n");
 			break;
 		default:
-			printf("Unable to get module EEPROM: %d\n", ret);
+			fprintf(stderr, "Unable to get module EEPROM: %d\n",
+				ret);
 			break;
 		}
 		return;
@@ -966,295 +907,6 @@ port_module_eeprom_display(portid_t port_id)
 
 	rte_hexdump(stdout, "hexdump", einfo.data, einfo.length);
 	printf("Finish -- Port: %d MODULE EEPROM length: %d bytes\n", port_id, einfo.length);
-}
-
-void
-port_offload_cap_display(portid_t port_id)
-{
-	struct rte_eth_dev_info dev_info;
-	static const char *info_border = "************";
-	int ret;
-
-	if (port_id_is_invalid(port_id, ENABLED_WARN))
-		return;
-
-	ret = eth_dev_info_get_print_err(port_id, &dev_info);
-	if (ret != 0)
-		return;
-
-	printf("\n%s Port %d supported offload features: %s\n",
-		info_border, port_id, info_border);
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_VLAN_STRIP) {
-		printf("VLAN stripped:                 ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_VLAN_STRIP)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_QINQ_STRIP) {
-		printf("Double VLANs stripped:         ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_QINQ_STRIP)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_IPV4_CKSUM) {
-		printf("RX IPv4 checksum:              ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_IPV4_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_UDP_CKSUM) {
-		printf("RX UDP checksum:               ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_UDP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_CKSUM) {
-		printf("RX TCP checksum:               ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_TCP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_SCTP_CKSUM) {
-		printf("RX SCTP checksum:              ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_SCTP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM) {
-		printf("RX Outer IPv4 checksum:        ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_OUTER_IPV4_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_OUTER_UDP_CKSUM) {
-		printf("RX Outer UDP checksum:         ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_OUTER_UDP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TCP_LRO) {
-		printf("Large receive offload:         ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_TCP_LRO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TIMESTAMP) {
-		printf("HW timestamp:                  ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_TIMESTAMP)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_KEEP_CRC) {
-		printf("Rx Keep CRC:                   ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_KEEP_CRC)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_SECURITY) {
-		printf("RX offload security:           ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    DEV_RX_OFFLOAD_SECURITY)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.rx_offload_capa & RTE_ETH_RX_OFFLOAD_BUFFER_SPLIT) {
-		printf("RX offload buffer split:       ");
-		if (ports[port_id].dev_conf.rxmode.offloads &
-		    RTE_ETH_RX_OFFLOAD_BUFFER_SPLIT)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT) {
-		printf("VLAN insert:                   ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_VLAN_INSERT)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_QINQ_INSERT) {
-		printf("Double VLANs insert:           ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_QINQ_INSERT)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPV4_CKSUM) {
-		printf("TX IPv4 checksum:              ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_IPV4_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_CKSUM) {
-		printf("TX UDP checksum:               ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_UDP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_CKSUM) {
-		printf("TX TCP checksum:               ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_TCP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_SCTP_CKSUM) {
-		printf("TX SCTP checksum:              ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_SCTP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM) {
-		printf("TX Outer IPv4 checksum:        ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_OUTER_IPV4_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_TCP_TSO) {
-		printf("TX TCP segmentation:           ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_TCP_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_TSO) {
-		printf("TX UDP segmentation:           ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_UDP_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VXLAN_TNL_TSO) {
-		printf("TSO for VXLAN tunnel packet:   ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_VXLAN_TNL_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_GRE_TNL_TSO) {
-		printf("TSO for GRE tunnel packet:     ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_GRE_TNL_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IPIP_TNL_TSO) {
-		printf("TSO for IPIP tunnel packet:    ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_IPIP_TNL_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_GENEVE_TNL_TSO) {
-		printf("TSO for GENEVE tunnel packet:  ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_GENEVE_TNL_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_IP_TNL_TSO) {
-		printf("IP tunnel TSO:  ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_IP_TNL_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_UDP_TNL_TSO) {
-		printf("UDP tunnel TSO:  ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_UDP_TNL_TSO)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_OUTER_UDP_CKSUM) {
-		printf("TX Outer UDP checksum:         ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_OUTER_UDP_CKSUM)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
-	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_SEND_ON_TIMESTAMP) {
-		printf("Tx scheduling on timestamp:    ");
-		if (ports[port_id].dev_conf.txmode.offloads &
-		    DEV_TX_OFFLOAD_SEND_ON_TIMESTAMP)
-			printf("on\n");
-		else
-			printf("off\n");
-	}
-
 }
 
 int
@@ -1270,7 +922,7 @@ port_id_is_invalid(portid_t port_id, enum print_warning warning)
 			return 0;
 
 	if (warning == ENABLED_WARN)
-		printf("Invalid port %d\n", port_id);
+		fprintf(stderr, "Invalid port %d\n", port_id);
 
 	return 1;
 }
@@ -1291,7 +943,7 @@ vlan_id_is_invalid(uint16_t vlan_id)
 {
 	if (vlan_id < 4096)
 		return 0;
-	printf("Invalid vlan_id %d (must be < 4096)\n", vlan_id);
+	fprintf(stderr, "Invalid vlan_id %d (must be < 4096)\n", vlan_id);
 	return 1;
 }
 
@@ -1303,14 +955,14 @@ port_reg_off_is_invalid(portid_t port_id, uint32_t reg_off)
 	uint64_t pci_len;
 
 	if (reg_off & 0x3) {
-		printf("Port register offset 0x%X not aligned on a 4-byte "
-		       "boundary\n",
-		       (unsigned)reg_off);
+		fprintf(stderr,
+			"Port register offset 0x%X not aligned on a 4-byte boundary\n",
+			(unsigned int)reg_off);
 		return 1;
 	}
 
 	if (!ports[port_id].dev_info.device) {
-		printf("Invalid device\n");
+		fprintf(stderr, "Invalid device\n");
 		return 0;
 	}
 
@@ -1318,15 +970,16 @@ port_reg_off_is_invalid(portid_t port_id, uint32_t reg_off)
 	if (bus && !strcmp(bus->name, "pci")) {
 		pci_dev = RTE_DEV_TO_PCI(ports[port_id].dev_info.device);
 	} else {
-		printf("Not a PCI device\n");
+		fprintf(stderr, "Not a PCI device\n");
 		return 1;
 	}
 
 	pci_len = pci_dev->mem_resource[0].len;
 	if (reg_off >= pci_len) {
-		printf("Port %d: register offset %u (0x%X) out of port PCI "
-		       "resource (length=%"PRIu64")\n",
-		       port_id, (unsigned)reg_off, (unsigned)reg_off,  pci_len);
+		fprintf(stderr,
+			"Port %d: register offset %u (0x%X) out of port PCI resource (length=%"PRIu64")\n",
+			port_id, (unsigned int)reg_off, (unsigned int)reg_off,
+			pci_len);
 		return 1;
 	}
 	return 0;
@@ -1337,7 +990,7 @@ reg_bit_pos_is_invalid(uint8_t bit_pos)
 {
 	if (bit_pos <= 31)
 		return 0;
-	printf("Invalid bit position %d (must be <= 31)\n", bit_pos);
+	fprintf(stderr, "Invalid bit position %d (must be <= 31)\n", bit_pos);
 	return 1;
 }
 
@@ -1424,7 +1077,8 @@ port_reg_bit_set(portid_t port_id, uint32_t reg_off, uint8_t bit_pos,
 	if (reg_bit_pos_is_invalid(bit_pos))
 		return;
 	if (bit_v > 1) {
-		printf("Invalid bit value %d (must be 0 or 1)\n", (int) bit_v);
+		fprintf(stderr, "Invalid bit value %d (must be 0 or 1)\n",
+			(int) bit_v);
 		return;
 	}
 	reg_v = port_id_pci_reg_read(port_id, reg_off);
@@ -1464,7 +1118,7 @@ port_reg_bit_field_set(portid_t port_id, uint32_t reg_off,
 		max_v = 0xFFFFFFFF;
 
 	if (value > max_v) {
-		printf("Invalid value %u (0x%x) must be < %u (0x%x)\n",
+		fprintf(stderr, "Invalid value %u (0x%x) must be < %u (0x%x)\n",
 				(unsigned)value, (unsigned)value,
 				(unsigned)max_v, (unsigned)max_v);
 		return;
@@ -1504,13 +1158,14 @@ port_mtu_set(portid_t port_id, uint16_t mtu)
 		return;
 
 	if (mtu > dev_info.max_mtu || mtu < dev_info.min_mtu) {
-		printf("Set MTU failed. MTU:%u is not in valid range, min:%u - max:%u\n",
+		fprintf(stderr,
+			"Set MTU failed. MTU:%u is not in valid range, min:%u - max:%u\n",
 			mtu, dev_info.min_mtu, dev_info.max_mtu);
 		return;
 	}
 	diag = rte_eth_dev_set_mtu(port_id, mtu);
 	if (diag)
-		printf("Set MTU failed. diag=%d\n", diag);
+		fprintf(stderr, "Set MTU failed. diag=%d\n", diag);
 	else if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_JUMBO_FRAME) {
 		/*
 		 * Ether overhead in driver is equal to the difference of
@@ -1518,7 +1173,7 @@ port_mtu_set(portid_t port_id, uint16_t mtu)
 		 * device supports jumbo frame.
 		 */
 		eth_overhead = dev_info.max_rx_pktlen - dev_info.max_mtu;
-		if (mtu > RTE_ETHER_MAX_LEN - eth_overhead) {
+		if (mtu > RTE_ETHER_MTU) {
 			rte_port->dev_conf.rxmode.offloads |=
 						DEV_RX_OFFLOAD_JUMBO_FRAME;
 			rte_port->dev_conf.rxmode.max_rx_pkt_len =
@@ -1618,7 +1273,8 @@ void port_flow_tunnel_create(portid_t port_id, const struct tunnel_ops *ops)
 	if (!strcmp(ops->type, "vxlan"))
 		type = RTE_FLOW_ITEM_TYPE_VXLAN;
 	else {
-		printf("cannot offload \"%s\" tunnel type\n", ops->type);
+		fprintf(stderr, "cannot offload \"%s\" tunnel type\n",
+			ops->type);
 		return;
 	}
 	LIST_FOREACH(flt, &port->flow_tunnel_list, chain) {
@@ -1628,7 +1284,7 @@ void port_flow_tunnel_create(portid_t port_id, const struct tunnel_ops *ops)
 	if (!flt) {
 		flt = calloc(1, sizeof(*flt));
 		if (!flt) {
-			printf("failed to allocate port flt object\n");
+			fprintf(stderr, "failed to allocate port flt object\n");
 			return;
 		}
 		flt->tunnel.type = type;
@@ -1704,12 +1360,12 @@ port_flow_complain(struct rte_flow_error *error)
 		errstr = "unknown type";
 	else
 		errstr = errstrlist[error->type];
-	printf("%s(): Caught PMD error type %d (%s): %s%s: %s\n", __func__,
-	       error->type, errstr,
-	       error->cause ? (snprintf(buf, sizeof(buf), "cause: %p, ",
-					error->cause), buf) : "",
-	       error->message ? error->message : "(no stated reason)",
-	       rte_strerror(err));
+	fprintf(stderr, "%s(): Caught PMD error type %d (%s): %s%s: %s\n",
+		__func__, error->type, errstr,
+		error->cause ? (snprintf(buf, sizeof(buf), "cause: %p, ",
+					 error->cause), buf) : "",
+		error->message ? error->message : "(no stated reason)",
+		rte_strerror(err));
 	return -err;
 }
 
@@ -1719,7 +1375,7 @@ rss_config_display(struct rte_flow_action_rss *rss_conf)
 	uint8_t i;
 
 	if (rss_conf == NULL) {
-		printf("Invalid rule\n");
+		fprintf(stderr, "Invalid rule\n");
 		return;
 	}
 
@@ -1764,38 +1420,39 @@ rss_config_display(struct rte_flow_action_rss *rss_conf)
 	}
 }
 
-static struct port_shared_action *
+static struct port_indirect_action *
 action_get_by_id(portid_t port_id, uint32_t id)
 {
 	struct rte_port *port;
-	struct port_shared_action **ppsa;
-	struct port_shared_action *psa = NULL;
+	struct port_indirect_action **ppia;
+	struct port_indirect_action *pia = NULL;
 
 	if (port_id_is_invalid(port_id, ENABLED_WARN) ||
 	    port_id == (portid_t)RTE_PORT_ALL)
 		return NULL;
 	port = &ports[port_id];
-	ppsa = &port->actions_list;
-	while (*ppsa) {
-		if ((*ppsa)->id == id) {
-			psa = *ppsa;
+	ppia = &port->actions_list;
+	while (*ppia) {
+		if ((*ppia)->id == id) {
+			pia = *ppia;
 			break;
 		}
-		ppsa = &(*ppsa)->next;
+		ppia = &(*ppia)->next;
 	}
-	if (!psa)
-		printf("Failed to find shared action #%u on port %u\n",
-		       id, port_id);
-	return psa;
+	if (!pia)
+		fprintf(stderr,
+			"Failed to find indirect action #%u on port %u\n",
+			id, port_id);
+	return pia;
 }
 
 static int
 action_alloc(portid_t port_id, uint32_t id,
-	     struct port_shared_action **action)
+	     struct port_indirect_action **action)
 {
 	struct rte_port *port;
-	struct port_shared_action **ppsa;
-	struct port_shared_action *psa = NULL;
+	struct port_indirect_action **ppia;
+	struct port_indirect_action *pia = NULL;
 
 	*action = NULL;
 	if (port_id_is_invalid(port_id, ENABLED_WARN) ||
@@ -1806,8 +1463,8 @@ action_alloc(portid_t port_id, uint32_t id,
 		/* taking first available ID */
 		if (port->actions_list) {
 			if (port->actions_list->id == UINT32_MAX - 1) {
-				printf("Highest shared action ID is already"
-				" assigned, delete it first\n");
+				fprintf(stderr,
+					"Highest indirect action ID is already assigned, delete it first\n");
 				return -ENOMEM;
 			}
 			id = port->actions_list->id + 1;
@@ -1815,70 +1472,77 @@ action_alloc(portid_t port_id, uint32_t id,
 			id = 0;
 		}
 	}
-	psa = calloc(1, sizeof(*psa));
-	if (!psa) {
-		printf("Allocation of port %u shared action failed\n",
-		       port_id);
+	pia = calloc(1, sizeof(*pia));
+	if (!pia) {
+		fprintf(stderr,
+			"Allocation of port %u indirect action failed\n",
+			port_id);
 		return -ENOMEM;
 	}
-	ppsa = &port->actions_list;
-	while (*ppsa && (*ppsa)->id > id)
-		ppsa = &(*ppsa)->next;
-	if (*ppsa && (*ppsa)->id == id) {
-		printf("Shared action #%u is already assigned,"
-			" delete it first\n", id);
-		free(psa);
+	ppia = &port->actions_list;
+	while (*ppia && (*ppia)->id > id)
+		ppia = &(*ppia)->next;
+	if (*ppia && (*ppia)->id == id) {
+		fprintf(stderr,
+			"Indirect action #%u is already assigned, delete it first\n",
+			id);
+		free(pia);
 		return -EINVAL;
 	}
-	psa->next = *ppsa;
-	psa->id = id;
-	*ppsa = psa;
-	*action = psa;
+	pia->next = *ppia;
+	pia->id = id;
+	*ppia = pia;
+	*action = pia;
 	return 0;
 }
 
-/** Create shared action */
+/** Create indirect action */
 int
-port_shared_action_create(portid_t port_id, uint32_t id,
-			  const struct rte_flow_shared_action_conf *conf,
+port_action_handle_create(portid_t port_id, uint32_t id,
+			  const struct rte_flow_indir_action_conf *conf,
 			  const struct rte_flow_action *action)
 {
-	struct port_shared_action *psa;
+	struct port_indirect_action *pia;
 	int ret;
 	struct rte_flow_error error;
 
-	ret = action_alloc(port_id, id, &psa);
+	ret = action_alloc(port_id, id, &pia);
 	if (ret)
 		return ret;
 	if (action->type == RTE_FLOW_ACTION_TYPE_AGE) {
 		struct rte_flow_action_age *age =
 			(struct rte_flow_action_age *)(uintptr_t)(action->conf);
 
-		psa->age_type = ACTION_AGE_CONTEXT_TYPE_SHARED_ACTION;
-		age->context = &psa->age_type;
+		pia->age_type = ACTION_AGE_CONTEXT_TYPE_INDIRECT_ACTION;
+		age->context = &pia->age_type;
+	} else if (action->type == RTE_FLOW_ACTION_TYPE_CONNTRACK) {
+		struct rte_flow_action_conntrack *ct =
+		(struct rte_flow_action_conntrack *)(uintptr_t)(action->conf);
+
+		memcpy(ct, &conntrack_context, sizeof(*ct));
 	}
 	/* Poisoning to make sure PMDs update it in case of error. */
 	memset(&error, 0x22, sizeof(error));
-	psa->action = rte_flow_shared_action_create(port_id, conf, action,
+	pia->handle = rte_flow_action_handle_create(port_id, conf, action,
 						    &error);
-	if (!psa->action) {
-		uint32_t destroy_id = psa->id;
-		port_shared_action_destroy(port_id, 1, &destroy_id);
+	if (!pia->handle) {
+		uint32_t destroy_id = pia->id;
+		port_action_handle_destroy(port_id, 1, &destroy_id);
 		return port_flow_complain(&error);
 	}
-	psa->type = action->type;
-	printf("Shared action #%u created\n", psa->id);
+	pia->type = action->type;
+	printf("Indirect action #%u created\n", pia->id);
 	return 0;
 }
 
-/** Destroy shared action */
+/** Destroy indirect action */
 int
-port_shared_action_destroy(portid_t port_id,
+port_action_handle_destroy(portid_t port_id,
 			   uint32_t n,
 			   const uint32_t *actions)
 {
 	struct rte_port *port;
-	struct port_shared_action **tmp;
+	struct port_indirect_action **tmp;
 	uint32_t c = 0;
 	int ret = 0;
 
@@ -1892,9 +1556,9 @@ port_shared_action_destroy(portid_t port_id,
 
 		for (i = 0; i != n; ++i) {
 			struct rte_flow_error error;
-			struct port_shared_action *psa = *tmp;
+			struct port_indirect_action *pia = *tmp;
 
-			if (actions[i] != psa->id)
+			if (actions[i] != pia->id)
 				continue;
 			/*
 			 * Poisoning to make sure PMDs update it in case
@@ -1902,14 +1566,14 @@ port_shared_action_destroy(portid_t port_id,
 			 */
 			memset(&error, 0x33, sizeof(error));
 
-			if (psa->action && rte_flow_shared_action_destroy(
-					port_id, psa->action, &error)) {
+			if (pia->handle && rte_flow_action_handle_destroy(
+					port_id, pia->handle, &error)) {
 				ret = port_flow_complain(&error);
 				continue;
 			}
-			*tmp = psa->next;
-			printf("Shared action #%u destroyed\n", psa->id);
-			free(psa);
+			*tmp = pia->next;
+			printf("Indirect action #%u destroyed\n", pia->id);
+			free(pia);
 			break;
 		}
 		if (i == n)
@@ -1920,72 +1584,150 @@ port_shared_action_destroy(portid_t port_id,
 }
 
 
-/** Get shared action by port + id */
-struct rte_flow_shared_action *
-port_shared_action_get_by_id(portid_t port_id, uint32_t id)
+/** Get indirect action by port + id */
+struct rte_flow_action_handle *
+port_action_handle_get_by_id(portid_t port_id, uint32_t id)
 {
 
-	struct port_shared_action *psa = action_get_by_id(port_id, id);
+	struct port_indirect_action *pia = action_get_by_id(port_id, id);
 
-	return (psa) ? psa->action : NULL;
+	return (pia) ? pia->handle : NULL;
 }
 
-/** Update shared action */
+/** Update indirect action */
 int
-port_shared_action_update(portid_t port_id, uint32_t id,
+port_action_handle_update(portid_t port_id, uint32_t id,
 			  const struct rte_flow_action *action)
 {
 	struct rte_flow_error error;
-	struct rte_flow_shared_action *shared_action;
+	struct rte_flow_action_handle *action_handle;
+	struct port_indirect_action *pia;
+	const void *update;
 
-	shared_action = port_shared_action_get_by_id(port_id, id);
-	if (!shared_action)
+	action_handle = port_action_handle_get_by_id(port_id, id);
+	if (!action_handle)
 		return -EINVAL;
-	if (rte_flow_shared_action_update(port_id, shared_action, action,
+	pia = action_get_by_id(port_id, id);
+	if (!pia)
+		return -EINVAL;
+	switch (pia->type) {
+	case RTE_FLOW_ACTION_TYPE_CONNTRACK:
+		update = action->conf;
+		break;
+	default:
+		update = action;
+		break;
+	}
+	if (rte_flow_action_handle_update(port_id, action_handle, update,
 					  &error)) {
 		return port_flow_complain(&error);
 	}
-	printf("Shared action #%u updated\n", id);
+	printf("Indirect action #%u updated\n", id);
 	return 0;
 }
 
 int
-port_shared_action_query(portid_t port_id, uint32_t id)
+port_action_handle_query(portid_t port_id, uint32_t id)
 {
 	struct rte_flow_error error;
-	struct port_shared_action *psa;
-	uint64_t default_data;
-	void *data = NULL;
-	int ret = 0;
+	struct port_indirect_action *pia;
+	union {
+		struct rte_flow_query_count count;
+		struct rte_flow_query_age age;
+		struct rte_flow_action_conntrack ct;
+	} query;
 
-	psa = action_get_by_id(port_id, id);
-	if (!psa)
+	pia = action_get_by_id(port_id, id);
+	if (!pia)
 		return -EINVAL;
-	switch (psa->type) {
-	case RTE_FLOW_ACTION_TYPE_RSS:
-		data = &default_data;
+	switch (pia->type) {
+	case RTE_FLOW_ACTION_TYPE_AGE:
+	case RTE_FLOW_ACTION_TYPE_COUNT:
 		break;
 	default:
-		printf("Shared action %u (type: %d) on port %u doesn't support"
-		       " query\n", id, psa->type, port_id);
-		return -1;
+		fprintf(stderr,
+			"Indirect action %u (type: %d) on port %u doesn't support query\n",
+			id, pia->type, port_id);
+		return -ENOTSUP;
 	}
-	if (rte_flow_shared_action_query(port_id, psa->action, data, &error))
-		ret = port_flow_complain(&error);
-	switch (psa->type) {
-	case RTE_FLOW_ACTION_TYPE_RSS:
-		if (!ret)
-			printf("Shared RSS action:\n\trefs:%u\n",
-			       *((uint32_t *)data));
-		data = NULL;
+	/* Poisoning to make sure PMDs update it in case of error. */
+	memset(&error, 0x55, sizeof(error));
+	memset(&query, 0, sizeof(query));
+	if (rte_flow_action_handle_query(port_id, pia->handle, &query, &error))
+		return port_flow_complain(&error);
+	switch (pia->type) {
+	case RTE_FLOW_ACTION_TYPE_AGE:
+		printf("Indirect AGE action:\n"
+		       " aged: %u\n"
+		       " sec_since_last_hit_valid: %u\n"
+		       " sec_since_last_hit: %" PRIu32 "\n",
+		       query.age.aged,
+		       query.age.sec_since_last_hit_valid,
+		       query.age.sec_since_last_hit);
+		break;
+	case RTE_FLOW_ACTION_TYPE_COUNT:
+		printf("Indirect COUNT action:\n"
+		       " hits_set: %u\n"
+		       " bytes_set: %u\n"
+		       " hits: %" PRIu64 "\n"
+		       " bytes: %" PRIu64 "\n",
+		       query.count.hits_set,
+		       query.count.bytes_set,
+		       query.count.hits,
+		       query.count.bytes);
+		break;
+	case RTE_FLOW_ACTION_TYPE_CONNTRACK:
+		printf("Conntrack Context:\n"
+		       "  Peer: %u, Flow dir: %s, Enable: %u\n"
+		       "  Live: %u, SACK: %u, CACK: %u\n"
+		       "  Packet dir: %s, Liberal: %u, State: %u\n"
+		       "  Factor: %u, Retrans: %u, TCP flags: %u\n"
+		       "  Last Seq: %u, Last ACK: %u\n"
+		       "  Last Win: %u, Last End: %u\n",
+		       query.ct.peer_port,
+		       query.ct.is_original_dir ? "Original" : "Reply",
+		       query.ct.enable, query.ct.live_connection,
+		       query.ct.selective_ack, query.ct.challenge_ack_passed,
+		       query.ct.last_direction ? "Original" : "Reply",
+		       query.ct.liberal_mode, query.ct.state,
+		       query.ct.max_ack_window, query.ct.retransmission_limit,
+		       query.ct.last_index, query.ct.last_seq,
+		       query.ct.last_ack, query.ct.last_window,
+		       query.ct.last_end);
+		printf("  Original Dir:\n"
+		       "    scale: %u, fin: %u, ack seen: %u\n"
+		       " unacked data: %u\n    Sent end: %u,"
+		       "    Reply end: %u, Max win: %u, Max ACK: %u\n",
+		       query.ct.original_dir.scale,
+		       query.ct.original_dir.close_initiated,
+		       query.ct.original_dir.last_ack_seen,
+		       query.ct.original_dir.data_unacked,
+		       query.ct.original_dir.sent_end,
+		       query.ct.original_dir.reply_end,
+		       query.ct.original_dir.max_win,
+		       query.ct.original_dir.max_ack);
+		printf("  Reply Dir:\n"
+		       "    scale: %u, fin: %u, ack seen: %u\n"
+		       " unacked data: %u\n    Sent end: %u,"
+		       "    Reply end: %u, Max win: %u, Max ACK: %u\n",
+		       query.ct.reply_dir.scale,
+		       query.ct.reply_dir.close_initiated,
+		       query.ct.reply_dir.last_ack_seen,
+		       query.ct.reply_dir.data_unacked,
+		       query.ct.reply_dir.sent_end,
+		       query.ct.reply_dir.reply_end,
+		       query.ct.reply_dir.max_win,
+		       query.ct.reply_dir.max_ack);
 		break;
 	default:
-		printf("Shared action %u (type: %d) on port %u doesn't support"
-		       " query\n", id, psa->type, port_id);
-		ret = -1;
+		fprintf(stderr,
+			"Indirect action %u (type: %d) on port %u doesn't support query\n",
+			id, pia->type, port_id);
+		break;
 	}
-	return ret;
+	return 0;
 }
+
 static struct port_flow_tunnel *
 port_flow_tunnel_offload_cmd_prep(portid_t port_id,
 				  const struct rte_flow_item *pattern,
@@ -2000,7 +1742,7 @@ port_flow_tunnel_offload_cmd_prep(portid_t port_id,
 	port = &ports[port_id];
 	pft = port_flow_locate_tunnel_id(port, tunnel_ops->id);
 	if (!pft) {
-		printf("failed to locate port flow tunnel #%u\n",
+		fprintf(stderr, "failed to locate port flow tunnel #%u\n",
 			tunnel_ops->id);
 		return NULL;
 	}
@@ -2090,6 +1832,36 @@ port_flow_tunnel_offload_cmd_release(portid_t port_id,
 	}
 }
 
+/** Add port meter policy */
+int
+port_meter_policy_add(portid_t port_id, uint32_t policy_id,
+			const struct rte_flow_action *actions)
+{
+	struct rte_mtr_error error;
+	const struct rte_flow_action *act = actions;
+	const struct rte_flow_action *start;
+	struct rte_mtr_meter_policy_params policy;
+	uint32_t i = 0, act_n;
+	int ret;
+
+	for (i = 0; i < RTE_COLORS; i++) {
+		for (act_n = 0, start = act;
+			act->type != RTE_FLOW_ACTION_TYPE_END; act++)
+			act_n++;
+		if (act_n && act->type == RTE_FLOW_ACTION_TYPE_END)
+			policy.actions[i] = start;
+		else
+			policy.actions[i] = NULL;
+		act++;
+	}
+	ret = rte_mtr_meter_policy_add(port_id,
+			policy_id,
+			&policy, &error);
+	if (ret)
+		print_mtr_err_msg(&error);
+	return ret;
+}
+
 /** Validate flow rule. */
 int
 port_flow_validate(portid_t port_id,
@@ -2156,8 +1928,8 @@ port_flow_create(portid_t port_id,
 	port = &ports[port_id];
 	if (port->flow_list) {
 		if (port->flow_list->id == UINT32_MAX) {
-			printf("Highest rule ID is already assigned, delete"
-			       " it first");
+			fprintf(stderr,
+				"Highest rule ID is already assigned, delete it first");
 			return -ENOMEM;
 		}
 		id = port->flow_list->id + 1;
@@ -2183,6 +1955,9 @@ port_flow_create(portid_t port_id,
 	memset(&error, 0x22, sizeof(error));
 	flow = rte_flow_create(port_id, attr, pattern, actions, &error);
 	if (!flow) {
+		if (tunnel_ops->enabled)
+			port_flow_tunnel_offload_cmd_release(port_id,
+							     tunnel_ops, pft);
 		free(pf);
 		return port_flow_complain(&error);
 	}
@@ -2272,26 +2047,58 @@ port_flow_flush(portid_t port_id)
 	return ret;
 }
 
-/** Dump all flow rules. */
+/** Dump flow rules. */
 int
-port_flow_dump(portid_t port_id, const char *file_name)
+port_flow_dump(portid_t port_id, bool dump_all, uint32_t rule_id,
+		const char *file_name)
 {
 	int ret = 0;
 	FILE *file = stdout;
 	struct rte_flow_error error;
+	struct rte_port *port;
+	struct port_flow *pflow;
+	struct rte_flow *tmpFlow = NULL;
+	bool found = false;
+
+	if (port_id_is_invalid(port_id, ENABLED_WARN) ||
+		port_id == (portid_t)RTE_PORT_ALL)
+		return -EINVAL;
+
+	if (!dump_all) {
+		port = &ports[port_id];
+		pflow = port->flow_list;
+		while (pflow) {
+			if (rule_id != pflow->id) {
+				pflow = pflow->next;
+			} else {
+				tmpFlow = pflow->flow;
+				if (tmpFlow)
+					found = true;
+				break;
+			}
+		}
+		if (found == false) {
+			fprintf(stderr, "Failed to dump to flow %d\n", rule_id);
+			return -EINVAL;
+		}
+	}
 
 	if (file_name && strlen(file_name)) {
 		file = fopen(file_name, "w");
 		if (!file) {
-			printf("Failed to create file %s: %s\n", file_name,
-			       strerror(errno));
+			fprintf(stderr, "Failed to create file %s: %s\n",
+				file_name, strerror(errno));
 			return -errno;
 		}
 	}
-	ret = rte_flow_dev_dump(port_id, file, &error);
+
+	if (!dump_all)
+		ret = rte_flow_dev_dump(port_id, tmpFlow, file, &error);
+	else
+		ret = rte_flow_dev_dump(port_id, NULL, file, &error);
 	if (ret) {
 		port_flow_complain(&error);
-		printf("Failed to dump flow: %s\n", strerror(-ret));
+		fprintf(stderr, "Failed to dump flow: %s\n", strerror(-ret));
 	} else
 		printf("Flow dump finished\n");
 	if (file_name && strlen(file_name))
@@ -2323,7 +2130,7 @@ port_flow_query(portid_t port_id, uint32_t rule,
 		if (pf->id == rule)
 			break;
 	if (!pf) {
-		printf("Flow rule #%u not found\n", rule);
+		fprintf(stderr, "Flow rule #%u not found\n", rule);
 		return -ENOENT;
 	}
 	ret = rte_flow_conv(RTE_FLOW_CONV_OP_ACTION_NAME_PTR,
@@ -2337,7 +2144,7 @@ port_flow_query(portid_t port_id, uint32_t rule,
 	case RTE_FLOW_ACTION_TYPE_AGE:
 		break;
 	default:
-		printf("Cannot query action type %d (%s)\n",
+		fprintf(stderr, "Cannot query action type %d (%s)\n",
 			action->type, name);
 		return -ENOTSUP;
 	}
@@ -2373,8 +2180,9 @@ port_flow_query(portid_t port_id, uint32_t rule,
 		       query.age.sec_since_last_hit);
 		break;
 	default:
-		printf("Cannot display result for action type %d (%s)\n",
-		       action->type, name);
+		fprintf(stderr,
+			"Cannot display result for action type %d (%s)\n",
+			action->type, name);
 		break;
 	}
 	return 0;
@@ -2390,7 +2198,7 @@ port_flow_aged(portid_t port_id, uint8_t destroy)
 	enum age_action_context_type *type;
 	union {
 		struct port_flow *pf;
-		struct port_shared_action *psa;
+		struct port_indirect_action *pia;
 	} ctx;
 
 	if (port_id_is_invalid(port_id, ENABLED_WARN) ||
@@ -2406,13 +2214,14 @@ port_flow_aged(portid_t port_id, uint8_t destroy)
 		return;
 	contexts = malloc(sizeof(void *) * total);
 	if (contexts == NULL) {
-		printf("Cannot allocate contexts for aged flow\n");
+		fprintf(stderr, "Cannot allocate contexts for aged flow\n");
 		return;
 	}
 	printf("%-20s\tID\tGroup\tPrio\tAttr\n", "Type");
 	nb_context = rte_flow_get_aged_flows(port_id, contexts, total, &error);
 	if (nb_context != total) {
-		printf("Port:%d get aged flows count(%d) != total(%d)\n",
+		fprintf(stderr,
+			"Port:%d get aged flows count(%d) != total(%d)\n",
 			port_id, nb_context, total);
 		free(contexts);
 		return;
@@ -2420,7 +2229,8 @@ port_flow_aged(portid_t port_id, uint8_t destroy)
 	total = 0;
 	for (idx = 0; idx < nb_context; idx++) {
 		if (!contexts[idx]) {
-			printf("Error: get Null context in port %u\n", port_id);
+			fprintf(stderr, "Error: get Null context in port %u\n",
+				port_id);
 			continue;
 		}
 		type = (enum age_action_context_type *)contexts[idx];
@@ -2440,14 +2250,15 @@ port_flow_aged(portid_t port_id, uint8_t destroy)
 							  &ctx.pf->id))
 				total++;
 			break;
-		case ACTION_AGE_CONTEXT_TYPE_SHARED_ACTION:
-			ctx.psa = container_of(type, struct port_shared_action,
-					       age_type);
-			printf("%-20s\t%" PRIu32 "\n", "Shared action",
-			       ctx.psa->id);
+		case ACTION_AGE_CONTEXT_TYPE_INDIRECT_ACTION:
+			ctx.pia = container_of(type,
+					struct port_indirect_action, age_type);
+			printf("%-20s\t%" PRIu32 "\n", "Indirect action",
+			       ctx.pia->id);
 			break;
 		default:
-			printf("Error: invalid context type %u\n", port_id);
+			fprintf(stderr, "Error: invalid context type %u\n",
+				port_id);
 			break;
 		}
 	}
@@ -2564,7 +2375,8 @@ rx_queue_id_is_invalid(queueid_t rxq_id)
 {
 	if (rxq_id < nb_rxq)
 		return 0;
-	printf("Invalid RX queue %d (must be < nb_rxq=%d)\n", rxq_id, nb_rxq);
+	fprintf(stderr, "Invalid RX queue %d (must be < nb_rxq=%d)\n",
+		rxq_id, nb_rxq);
 	return 1;
 }
 
@@ -2573,7 +2385,8 @@ tx_queue_id_is_invalid(queueid_t txq_id)
 {
 	if (txq_id < nb_txq)
 		return 0;
-	printf("Invalid TX queue %d (must be < nb_rxq=%d)\n", txq_id, nb_txq);
+	fprintf(stderr, "Invalid TX queue %d (must be < nb_txq=%d)\n",
+		txq_id, nb_txq);
 	return 1;
 }
 
@@ -2654,8 +2467,8 @@ rx_desc_id_is_invalid(portid_t port_id, queueid_t rxq_id, uint16_t rxdesc_id)
 	if (rxdesc_id < ring_size)
 		return 0;
 
-	printf("Invalid RX descriptor %u (must be < ring_size=%u)\n",
-	       rxdesc_id, ring_size);
+	fprintf(stderr, "Invalid RX descriptor %u (must be < ring_size=%u)\n",
+		rxdesc_id, ring_size);
 	return 1;
 }
 
@@ -2672,8 +2485,8 @@ tx_desc_id_is_invalid(portid_t port_id, queueid_t txq_id, uint16_t txdesc_id)
 	if (txdesc_id < ring_size)
 		return 0;
 
-	printf("Invalid TX descriptor %u (must be < ring_size=%u)\n",
-	       txdesc_id, ring_size);
+	fprintf(stderr, "Invalid TX descriptor %u (must be < ring_size=%u)\n",
+		txdesc_id, ring_size);
 	return 1;
 }
 
@@ -2687,9 +2500,9 @@ ring_dma_zone_lookup(const char *ring_name, portid_t port_id, uint16_t q_id)
 			port_id, q_id, ring_name);
 	mz = rte_memzone_lookup(mz_name);
 	if (mz == NULL)
-		printf("%s ring memory zoneof (port %d, queue %d) not"
-		       "found (zone name = %s\n",
-		       ring_name, port_id, q_id, mz_name);
+		fprintf(stderr,
+			"%s ring memory zoneof (port %d, queue %d) not found (zone name = %s\n",
+			ring_name, port_id, q_id, mz_name);
 	return mz;
 }
 
@@ -2947,7 +2760,9 @@ port_rss_reta_info(portid_t port_id,
 
 	ret = rte_eth_dev_rss_reta_query(port_id, reta_conf, nb_entries);
 	if (ret != 0) {
-		printf("Failed to get RSS RETA info, return code = %d\n", ret);
+		fprintf(stderr,
+			"Failed to get RSS RETA info, return code = %d\n",
+			ret);
 		return;
 	}
 
@@ -2988,7 +2803,8 @@ port_rss_hash_conf_show(portid_t port_id, int show_rss_key)
 			dev_info.hash_key_size <= sizeof(rss_key))
 		hash_key_size = dev_info.hash_key_size;
 	else {
-		printf("dev_info did not provide a valid hash key size\n");
+		fprintf(stderr,
+			"dev_info did not provide a valid hash key size\n");
 		return;
 	}
 
@@ -2999,13 +2815,13 @@ port_rss_hash_conf_show(portid_t port_id, int show_rss_key)
 	if (diag != 0) {
 		switch (diag) {
 		case -ENODEV:
-			printf("port index %d invalid\n", port_id);
+			fprintf(stderr, "port index %d invalid\n", port_id);
 			break;
 		case -ENOTSUP:
-			printf("operation not supported by device\n");
+			fprintf(stderr, "operation not supported by device\n");
 			break;
 		default:
-			printf("operation failed - diag=%d\n", diag);
+			fprintf(stderr, "operation failed - diag=%d\n", diag);
 			break;
 		}
 		return;
@@ -3031,7 +2847,7 @@ port_rss_hash_conf_show(portid_t port_id, int show_rss_key)
 
 void
 port_rss_hash_key_update(portid_t port_id, char rss_type[], uint8_t *hash_key,
-			 uint hash_key_len)
+			 uint8_t hash_key_len)
 {
 	struct rte_eth_rss_conf rss_conf;
 	int diag;
@@ -3054,13 +2870,13 @@ port_rss_hash_key_update(portid_t port_id, char rss_type[], uint8_t *hash_key,
 
 	switch (diag) {
 	case -ENODEV:
-		printf("port index %d invalid\n", port_id);
+		fprintf(stderr, "port index %d invalid\n", port_id);
 		break;
 	case -ENOTSUP:
-		printf("operation not supported by device\n");
+		fprintf(stderr, "operation not supported by device\n");
 		break;
 	default:
-		printf("operation failed - diag=%d\n", diag);
+		fprintf(stderr, "operation failed - diag=%d\n", diag);
 		break;
 	}
 }
@@ -3122,10 +2938,8 @@ fwd_topology_tx_port_get(portid_t rxp)
 			if (rxp + 1 < cur_fwd_config.nb_fwd_ports)
 				return rxp + 1;
 			if (warning_once) {
-				printf("\nWarning! port-topology=paired"
-				       " and odd forward ports number,"
-				       " the last port will pair with"
-				       " itself.\n\n");
+				fprintf(stderr,
+					"\nWarning! port-topology=paired and odd forward ports number, the last port will pair with itself.\n\n");
 				warning_once = 0;
 			}
 			return rxp;
@@ -3221,6 +3035,21 @@ rss_fwd_config_setup(void)
 	}
 }
 
+static uint16_t
+get_fwd_port_total_tc_num(void)
+{
+	struct rte_eth_dcb_info dcb_info;
+	uint16_t total_tc_num = 0;
+	unsigned int i;
+
+	for (i = 0; i < nb_fwd_ports; i++) {
+		(void)rte_eth_dev_get_dcb_info(fwd_ports_ids[i], &dcb_info);
+		total_tc_num += dcb_info.nb_tcs;
+	}
+
+	return total_tc_num;
+}
+
 /**
  * For the DCB forwarding test, each core is assigned on each traffic class.
  *
@@ -3240,12 +3069,43 @@ dcb_fwd_config_setup(void)
 	lcoreid_t  lc_id;
 	uint16_t nb_rx_queue, nb_tx_queue;
 	uint16_t i, j, k, sm_id = 0;
+	uint16_t total_tc_num;
+	struct rte_port *port;
 	uint8_t tc = 0;
+	portid_t pid;
+	int ret;
+
+	/*
+	 * The fwd_config_setup() is called when the port is RTE_PORT_STARTED
+	 * or RTE_PORT_STOPPED.
+	 *
+	 * Re-configure ports to get updated mapping between tc and queue in
+	 * case the queue number of the port is changed. Skip for started ports
+	 * since modifying queue number and calling dev_configure need to stop
+	 * ports first.
+	 */
+	for (pid = 0; pid < nb_fwd_ports; pid++) {
+		if (port_is_started(pid) == 1)
+			continue;
+
+		port = &ports[pid];
+		ret = rte_eth_dev_configure(pid, nb_rxq, nb_txq,
+					    &port->dev_conf);
+		if (ret < 0) {
+			fprintf(stderr,
+				"Failed to re-configure port %d, ret = %d.\n",
+				pid, ret);
+			return;
+		}
+	}
 
 	cur_fwd_config.nb_fwd_lcores = (lcoreid_t) nb_fwd_lcores;
 	cur_fwd_config.nb_fwd_ports = nb_fwd_ports;
 	cur_fwd_config.nb_fwd_streams =
 		(streamid_t) (nb_rxq * cur_fwd_config.nb_fwd_ports);
+	total_tc_num = get_fwd_port_total_tc_num();
+	if (cur_fwd_config.nb_fwd_lcores > total_tc_num)
+		cur_fwd_config.nb_fwd_lcores = total_tc_num;
 
 	/* reinitialize forwarding streams */
 	init_fwd_streams();
@@ -3367,6 +3227,10 @@ icmp_echo_config_setup(void)
 void
 fwd_config_setup(void)
 {
+	struct rte_port *port;
+	portid_t pt_id;
+	unsigned int i;
+
 	cur_fwd_config.fwd_eng = cur_fwd_eng;
 	if (strcmp(cur_fwd_eng->fwd_mode_name, "icmpecho") == 0) {
 		icmp_echo_config_setup();
@@ -3374,9 +3238,24 @@ fwd_config_setup(void)
 	}
 
 	if ((nb_rxq > 1) && (nb_txq > 1)){
-		if (dcb_config)
+		if (dcb_config) {
+			for (i = 0; i < nb_fwd_ports; i++) {
+				pt_id = fwd_ports_ids[i];
+				port = &ports[pt_id];
+				if (!port->dcb_flag) {
+					fprintf(stderr,
+						"In DCB mode, all forwarding ports must be configured in this mode.\n");
+					return;
+				}
+			}
+			if (nb_fwd_lcores == 1) {
+				fprintf(stderr,
+					"In DCB mode,the nb forwarding cores should be larger than 1.\n");
+				return;
+			}
+
 			dcb_fwd_config_setup();
-		else
+		} else
 			rss_fwd_config_setup();
 	}
 	else
@@ -3447,11 +3326,12 @@ set_fwd_eth_peer(portid_t port_id, char *peer_addr)
 {
 	struct rte_ether_addr new_peer_addr;
 	if (!rte_eth_dev_is_valid_port(port_id)) {
-		printf("Error: Invalid port number %i\n", port_id);
+		fprintf(stderr, "Error: Invalid port number %i\n", port_id);
 		return;
 	}
 	if (rte_ether_unformat_addr(peer_addr, &new_peer_addr) < 0) {
-		printf("Error: Invalid ethernet address: %s\n", peer_addr);
+		fprintf(stderr, "Error: Invalid ethernet address: %s\n",
+			peer_addr);
 		return;
 	}
 	peer_eth_addrs[port_id] = new_peer_addr;
@@ -3469,14 +3349,13 @@ set_fwd_lcores_list(unsigned int *lcorelist, unsigned int nb_lc)
 	for (i = 0; i < nb_lc; i++) {
 		lcore_cpuid = lcorelist[i];
 		if (! rte_lcore_is_enabled(lcore_cpuid)) {
-			printf("lcore %u not enabled\n", lcore_cpuid);
+			fprintf(stderr, "lcore %u not enabled\n", lcore_cpuid);
 			return -1;
 		}
 		if (lcore_cpuid == rte_get_main_lcore()) {
-			printf("lcore %u cannot be masked on for running "
-			       "packet forwarding, which is the main lcore "
-			       "and reserved for command line parsing only\n",
-			       lcore_cpuid);
+			fprintf(stderr,
+				"lcore %u cannot be masked on for running packet forwarding, which is the main lcore and reserved for command line parsing only\n",
+				lcore_cpuid);
 			return -1;
 		}
 		if (record_now)
@@ -3505,7 +3384,7 @@ set_fwd_lcores_mask(uint64_t lcoremask)
 	unsigned int i;
 
 	if (lcoremask == 0) {
-		printf("Invalid NULL mask of cores\n");
+		fprintf(stderr, "Invalid NULL mask of cores\n");
 		return -1;
 	}
 	nb_lc = 0;
@@ -3521,13 +3400,13 @@ void
 set_fwd_lcores_number(uint16_t nb_lc)
 {
 	if (test_done == 0) {
-		printf("Please stop forwarding first\n");
+		fprintf(stderr, "Please stop forwarding first\n");
 		return;
 	}
 	if (nb_lc > nb_cfg_lcores) {
-		printf("nb fwd cores %u > %u (max. number of configured "
-		       "lcores) - ignored\n",
-		       (unsigned int) nb_lc, (unsigned int) nb_cfg_lcores);
+		fprintf(stderr,
+			"nb fwd cores %u > %u (max. number of configured lcores) - ignored\n",
+			(unsigned int) nb_lc, (unsigned int) nb_cfg_lcores);
 		return;
 	}
 	nb_fwd_lcores = (lcoreid_t) nb_lc;
@@ -3678,7 +3557,7 @@ set_fwd_ports_mask(uint64_t portmask)
 	unsigned int i;
 
 	if (portmask == 0) {
-		printf("Invalid NULL mask of ports\n");
+		fprintf(stderr, "Invalid NULL mask of ports\n");
 		return;
 	}
 	nb_pt = 0;
@@ -3694,9 +3573,9 @@ void
 set_fwd_ports_number(uint16_t nb_pt)
 {
 	if (nb_pt > nb_cfg_ports) {
-		printf("nb fwd ports %u > %u (number of configured "
-		       "ports) - ignored\n",
-		       (unsigned int) nb_pt, (unsigned int) nb_cfg_ports);
+		fprintf(stderr,
+			"nb fwd ports %u > %u (number of configured ports) - ignored\n",
+			(unsigned int) nb_pt, (unsigned int) nb_cfg_ports);
 		return;
 	}
 	nb_fwd_ports = (portid_t) nb_pt;
@@ -3724,9 +3603,9 @@ void
 set_nb_pkt_per_burst(uint16_t nb)
 {
 	if (nb > MAX_PKT_BURST) {
-		printf("nb pkt per burst: %u > %u (maximum packet per burst) "
-		       " ignored\n",
-		       (unsigned int) nb, (unsigned int) MAX_PKT_BURST);
+		fprintf(stderr,
+			"nb pkt per burst: %u > %u (maximum packet per burst)  ignored\n",
+			(unsigned int) nb, (unsigned int) MAX_PKT_BURST);
 		return;
 	}
 	nb_pkt_per_burst = nb;
@@ -3757,17 +3636,18 @@ set_tx_pkt_split(const char *name)
 			return;
 		}
 	}
-	printf("unknown value: \"%s\"\n", name);
+	fprintf(stderr, "unknown value: \"%s\"\n", name);
 }
 
 int
-parse_fec_mode(const char *name, uint32_t *mode)
+parse_fec_mode(const char *name, uint32_t *fec_capa)
 {
 	uint8_t i;
 
 	for (i = 0; i < RTE_DIM(fec_mode_name); i++) {
 		if (strcmp(fec_mode_name[i].name, name) == 0) {
-			*mode = RTE_ETH_FEC_MODE_TO_CAPA(fec_mode_name[i].mode);
+			*fec_capa =
+				RTE_ETH_FEC_MODE_TO_CAPA(fec_mode_name[i].mode);
 			return 0;
 		}
 	}
@@ -3785,7 +3665,7 @@ show_fec_capability(unsigned int num, struct rte_eth_fec_capa *speed_fec_capa)
 		printf("%s : ",
 			rte_eth_link_speed_to_str(speed_fec_capa[i].speed));
 
-		for (j = RTE_ETH_FEC_AUTO; j < RTE_DIM(fec_mode_name); j++) {
+		for (j = 0; j < RTE_DIM(fec_mode_name); j++) {
 			if (RTE_ETH_FEC_MODE_TO_CAPA(j) &
 						speed_fec_capa[i].capa)
 				printf("%s ", fec_mode_name[j].name);
@@ -3910,13 +3790,15 @@ nb_segs_is_invalid(unsigned int nb_segs)
 	RTE_ETH_FOREACH_DEV(port_id) {
 		for (queue_id = 0; queue_id < nb_txq; queue_id++) {
 			ret = get_tx_ring_size(port_id, queue_id, &ring_size);
-
-			if (ret)
-				return true;
-
+			if (ret) {
+				/* Port may not be initialized yet, can't say
+				 * the port is invalid in this stage.
+				 */
+				continue;
+			}
 			if (ring_size < nb_segs) {
-				printf("nb segments per TX packets=%u >= "
-				       "TX queue(%u) ring_size=%u - ignored\n",
+				printf("nb segments per TX packets=%u >= TX "
+				       "queue(%u) ring_size=%u - txpkts ignored\n",
 				       nb_segs, queue_id, ring_size);
 				return true;
 			}
@@ -3932,12 +3814,28 @@ set_tx_pkt_segments(unsigned int *seg_lengths, unsigned int nb_segs)
 	uint16_t tx_pkt_len;
 	unsigned int i;
 
-	if (nb_segs_is_invalid(nb_segs))
+	/*
+	 * For single segment settings failed check is ignored.
+	 * It is a very basic capability to send the single segment
+	 * packets, suppose it is always supported.
+	 */
+	if (nb_segs > 1 && nb_segs_is_invalid(nb_segs)) {
+		fprintf(stderr,
+			"Tx segment size(%u) is not supported - txpkts ignored\n",
+			nb_segs);
 		return;
+	}
+
+	if (nb_segs > RTE_MAX_SEGS_PER_PKT) {
+		fprintf(stderr,
+			"Tx segment size(%u) is bigger than max number of segment(%u)\n",
+			nb_segs, RTE_MAX_SEGS_PER_PKT);
+		return;
+	}
 
 	/*
 	 * Check that each segment length is greater or equal than
-	 * the mbuf data sise.
+	 * the mbuf data size.
 	 * Check also that the total packet length is greater or equal than the
 	 * size of an empty UDP/IP packet (sizeof(struct rte_ether_hdr) +
 	 * 20 + 8).
@@ -3945,14 +3843,15 @@ set_tx_pkt_segments(unsigned int *seg_lengths, unsigned int nb_segs)
 	tx_pkt_len = 0;
 	for (i = 0; i < nb_segs; i++) {
 		if (seg_lengths[i] > mbuf_data_size[0]) {
-			printf("length[%u]=%u > mbuf_data_size=%u - give up\n",
-			       i, seg_lengths[i], mbuf_data_size[0]);
+			fprintf(stderr,
+				"length[%u]=%u > mbuf_data_size=%u - give up\n",
+				i, seg_lengths[i], mbuf_data_size[0]);
 			return;
 		}
 		tx_pkt_len = (uint16_t)(tx_pkt_len + seg_lengths[i]);
 	}
 	if (tx_pkt_len < (sizeof(struct rte_ether_hdr) + 20 + 8)) {
-		printf("total packet length=%u < %d - give up\n",
+		fprintf(stderr, "total packet length=%u < %d - give up\n",
 				(unsigned) tx_pkt_len,
 				(int)(sizeof(struct rte_ether_hdr) + 20 + 8));
 		return;
@@ -3983,18 +3882,19 @@ void
 setup_gro(const char *onoff, portid_t port_id)
 {
 	if (!rte_eth_dev_is_valid_port(port_id)) {
-		printf("invalid port id %u\n", port_id);
+		fprintf(stderr, "invalid port id %u\n", port_id);
 		return;
 	}
 	if (test_done == 0) {
-		printf("Before enable/disable GRO,"
-				" please stop forwarding first\n");
+		fprintf(stderr,
+			"Before enable/disable GRO, please stop forwarding first\n");
 		return;
 	}
 	if (strcmp(onoff, "on") == 0) {
 		if (gro_ports[port_id].enable != 0) {
-			printf("Port %u has enabled GRO. Please"
-					" disable GRO first\n", port_id);
+			fprintf(stderr,
+				"Port %u has enabled GRO. Please disable GRO first\n",
+				port_id);
 			return;
 		}
 		if (gro_flush_cycles == GRO_DEFAULT_FLUSH_CYCLES) {
@@ -4007,7 +3907,7 @@ setup_gro(const char *onoff, portid_t port_id)
 		gro_ports[port_id].enable = 1;
 	} else {
 		if (gro_ports[port_id].enable == 0) {
-			printf("Port %u has disabled GRO\n", port_id);
+			fprintf(stderr, "Port %u has disabled GRO\n", port_id);
 			return;
 		}
 		gro_ports[port_id].enable = 0;
@@ -4018,18 +3918,16 @@ void
 setup_gro_flush_cycles(uint8_t cycles)
 {
 	if (test_done == 0) {
-		printf("Before change flush interval for GRO,"
-				" please stop forwarding first.\n");
+		fprintf(stderr,
+			"Before change flush interval for GRO, please stop forwarding first.\n");
 		return;
 	}
 
 	if (cycles > GRO_MAX_FLUSH_CYCLES || cycles <
 			GRO_DEFAULT_FLUSH_CYCLES) {
-		printf("The flushing cycle be in the range"
-				" of 1 to %u. Revert to the default"
-				" value %u.\n",
-				GRO_MAX_FLUSH_CYCLES,
-				GRO_DEFAULT_FLUSH_CYCLES);
+		fprintf(stderr,
+			"The flushing cycle be in the range of 1 to %u. Revert to the default value %u.\n",
+			GRO_MAX_FLUSH_CYCLES, GRO_DEFAULT_FLUSH_CYCLES);
 		cycles = GRO_DEFAULT_FLUSH_CYCLES;
 	}
 
@@ -4045,7 +3943,7 @@ show_gro(portid_t port_id)
 	param = &gro_ports[port_id].param;
 
 	if (!rte_eth_dev_is_valid_port(port_id)) {
-		printf("Invalid port id %u.\n", port_id);
+		fprintf(stderr, "Invalid port id %u.\n", port_id);
 		return;
 	}
 	if (gro_ports[port_id].enable) {
@@ -4066,20 +3964,20 @@ void
 setup_gso(const char *mode, portid_t port_id)
 {
 	if (!rte_eth_dev_is_valid_port(port_id)) {
-		printf("invalid port id %u\n", port_id);
+		fprintf(stderr, "invalid port id %u\n", port_id);
 		return;
 	}
 	if (strcmp(mode, "on") == 0) {
 		if (test_done == 0) {
-			printf("before enabling GSO,"
-					" please stop forwarding first\n");
+			fprintf(stderr,
+				"before enabling GSO, please stop forwarding first\n");
 			return;
 		}
 		gso_ports[port_id].enable = 1;
 	} else if (strcmp(mode, "off") == 0) {
 		if (test_done == 0) {
-			printf("before disabling GSO,"
-					" please stop forwarding first\n");
+			fprintf(stderr,
+				"before disabling GSO, please stop forwarding first\n");
 			return;
 		}
 		gso_ports[port_id].enable = 0;
@@ -4149,7 +4047,7 @@ set_pkt_forwarding_mode(const char *fwd_mode_name)
 		}
 		i++;
 	}
-	printf("Invalid %s packet forwarding mode\n", fwd_mode_name);
+	fprintf(stderr, "Invalid %s packet forwarding mode\n", fwd_mode_name);
 }
 
 void
@@ -4292,8 +4190,9 @@ vlan_extend_set(portid_t port_id, int on)
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
 	if (diag < 0) {
-		printf("rx_vlan_extend_set(port_pi=%d, on=%d) failed "
-	       "diag=%d\n", port_id, on, diag);
+		fprintf(stderr,
+			"rx_vlan_extend_set(port_pi=%d, on=%d) failed diag=%d\n",
+			port_id, on, diag);
 		return;
 	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
@@ -4321,8 +4220,9 @@ rx_vlan_strip_set(portid_t port_id, int on)
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
 	if (diag < 0) {
-		printf("rx_vlan_strip_set(port_pi=%d, on=%d) failed "
-	       "diag=%d\n", port_id, on, diag);
+		fprintf(stderr,
+			"%s(port_pi=%d, on=%d) failed diag=%d\n",
+			__func__, port_id, on, diag);
 		return;
 	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
@@ -4338,8 +4238,9 @@ rx_vlan_strip_set_on_queue(portid_t port_id, uint16_t queue_id, int on)
 
 	diag = rte_eth_dev_set_vlan_strip_on_queue(port_id, queue_id, on);
 	if (diag < 0)
-		printf("rx_vlan_strip_set_on_queue(port_pi=%d, queue_id=%d, on=%d) failed "
-	       "diag=%d\n", port_id, queue_id, on, diag);
+		fprintf(stderr,
+			"%s(port_pi=%d, queue_id=%d, on=%d) failed diag=%d\n",
+			__func__, port_id, queue_id, on, diag);
 }
 
 void
@@ -4364,8 +4265,9 @@ rx_vlan_filter_set(portid_t port_id, int on)
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
 	if (diag < 0) {
-		printf("rx_vlan_filter_set(port_pi=%d, on=%d) failed "
-	       "diag=%d\n", port_id, on, diag);
+		fprintf(stderr,
+			"%s(port_pi=%d, on=%d) failed diag=%d\n",
+			__func__, port_id, on, diag);
 		return;
 	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
@@ -4393,8 +4295,8 @@ rx_vlan_qinq_strip_set(portid_t port_id, int on)
 
 	diag = rte_eth_dev_set_vlan_offload(port_id, vlan_offload);
 	if (diag < 0) {
-		printf("%s(port_pi=%d, on=%d) failed "
-	       "diag=%d\n", __func__, port_id, on, diag);
+		fprintf(stderr, "%s(port_pi=%d, on=%d) failed diag=%d\n",
+			__func__, port_id, on, diag);
 		return;
 	}
 	ports[port_id].dev_conf.rxmode.offloads = port_rx_offloads;
@@ -4412,9 +4314,9 @@ rx_vft_set(portid_t port_id, uint16_t vlan_id, int on)
 	diag = rte_eth_dev_vlan_filter(port_id, vlan_id, on);
 	if (diag == 0)
 		return 0;
-	printf("rte_eth_dev_vlan_filter(port_pi=%d, vlan_id=%d, on=%d) failed "
-	       "diag=%d\n",
-	       port_id, vlan_id, on, diag);
+	fprintf(stderr,
+		"rte_eth_dev_vlan_filter(port_pi=%d, vlan_id=%d, on=%d) failed diag=%d\n",
+		port_id, vlan_id, on, diag);
 	return -1;
 }
 
@@ -4443,9 +4345,9 @@ vlan_tpid_set(portid_t port_id, enum rte_vlan_type vlan_type, uint16_t tp_id)
 	if (diag == 0)
 		return;
 
-	printf("tx_vlan_tpid_set(port_pi=%d, vlan_type=%d, tpid=%d) failed "
-	       "diag=%d\n",
-	       port_id, vlan_type, tp_id, diag);
+	fprintf(stderr,
+		"tx_vlan_tpid_set(port_pi=%d, vlan_type=%d, tpid=%d) failed diag=%d\n",
+		port_id, vlan_type, tp_id, diag);
 }
 
 void
@@ -4459,7 +4361,7 @@ tx_vlan_set(portid_t port_id, uint16_t vlan_id)
 
 	if (ports[port_id].dev_conf.txmode.offloads &
 	    DEV_TX_OFFLOAD_QINQ_INSERT) {
-		printf("Error, as QinQ has been enabled.\n");
+		fprintf(stderr, "Error, as QinQ has been enabled.\n");
 		return;
 	}
 
@@ -4468,7 +4370,8 @@ tx_vlan_set(portid_t port_id, uint16_t vlan_id)
 		return;
 
 	if ((dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT) == 0) {
-		printf("Error: vlan insert is not supported by port %d\n",
+		fprintf(stderr,
+			"Error: vlan insert is not supported by port %d\n",
 			port_id);
 		return;
 	}
@@ -4494,7 +4397,8 @@ tx_qinq_set(portid_t port_id, uint16_t vlan_id, uint16_t vlan_id_outer)
 		return;
 
 	if ((dev_info.tx_offload_capa & DEV_TX_OFFLOAD_QINQ_INSERT) == 0) {
-		printf("Error: qinq insert not supported by port %d\n",
+		fprintf(stderr,
+			"Error: qinq insert not supported by port %d\n",
 			port_id);
 		return;
 	}
@@ -4528,8 +4432,7 @@ tx_vlan_pvid_set(portid_t port_id, uint16_t vlan_id, int on)
 void
 set_qmap(portid_t port_id, uint8_t is_rx, uint16_t queue_id, uint8_t map_value)
 {
-	uint16_t i;
-	uint8_t existing_mapping_found = 0;
+	int ret;
 
 	if (port_id_is_invalid(port_id, ENABLED_WARN))
 		return;
@@ -4538,41 +4441,26 @@ set_qmap(portid_t port_id, uint8_t is_rx, uint16_t queue_id, uint8_t map_value)
 		return;
 
 	if (map_value >= RTE_ETHDEV_QUEUE_STAT_CNTRS) {
-		printf("map_value not in required range 0..%d\n",
-				RTE_ETHDEV_QUEUE_STAT_CNTRS - 1);
+		fprintf(stderr, "map_value not in required range 0..%d\n",
+			RTE_ETHDEV_QUEUE_STAT_CNTRS - 1);
 		return;
 	}
 
-	if (!is_rx) { /*then tx*/
-		for (i = 0; i < nb_tx_queue_stats_mappings; i++) {
-			if ((tx_queue_stats_mappings[i].port_id == port_id) &&
-			    (tx_queue_stats_mappings[i].queue_id == queue_id)) {
-				tx_queue_stats_mappings[i].stats_counter_id = map_value;
-				existing_mapping_found = 1;
-				break;
-			}
+	if (!is_rx) { /* tx */
+		ret = rte_eth_dev_set_tx_queue_stats_mapping(port_id, queue_id,
+							     map_value);
+		if (ret) {
+			fprintf(stderr,
+				"failed to set tx queue stats mapping.\n");
+			return;
 		}
-		if (!existing_mapping_found) { /* A new additional mapping... */
-			tx_queue_stats_mappings[nb_tx_queue_stats_mappings].port_id = port_id;
-			tx_queue_stats_mappings[nb_tx_queue_stats_mappings].queue_id = queue_id;
-			tx_queue_stats_mappings[nb_tx_queue_stats_mappings].stats_counter_id = map_value;
-			nb_tx_queue_stats_mappings++;
-		}
-	}
-	else { /*rx*/
-		for (i = 0; i < nb_rx_queue_stats_mappings; i++) {
-			if ((rx_queue_stats_mappings[i].port_id == port_id) &&
-			    (rx_queue_stats_mappings[i].queue_id == queue_id)) {
-				rx_queue_stats_mappings[i].stats_counter_id = map_value;
-				existing_mapping_found = 1;
-				break;
-			}
-		}
-		if (!existing_mapping_found) { /* A new additional mapping... */
-			rx_queue_stats_mappings[nb_rx_queue_stats_mappings].port_id = port_id;
-			rx_queue_stats_mappings[nb_rx_queue_stats_mappings].queue_id = queue_id;
-			rx_queue_stats_mappings[nb_rx_queue_stats_mappings].stats_counter_id = map_value;
-			nb_rx_queue_stats_mappings++;
+	} else { /* rx */
+		ret = rte_eth_dev_set_rx_queue_stats_mapping(port_id, queue_id,
+							     map_value);
+		if (ret) {
+			fprintf(stderr,
+				"failed to set rx queue stats mapping.\n");
+			return;
 		}
 	}
 }
@@ -4594,6 +4482,47 @@ set_record_burst_stats(uint8_t on_off)
 {
 	record_burst_stats = on_off;
 }
+
+static char*
+flowtype_to_str(uint16_t flow_type)
+{
+	struct flow_type_info {
+		char str[32];
+		uint16_t ftype;
+	};
+
+	uint8_t i;
+	static struct flow_type_info flowtype_str_table[] = {
+		{"raw", RTE_ETH_FLOW_RAW},
+		{"ipv4", RTE_ETH_FLOW_IPV4},
+		{"ipv4-frag", RTE_ETH_FLOW_FRAG_IPV4},
+		{"ipv4-tcp", RTE_ETH_FLOW_NONFRAG_IPV4_TCP},
+		{"ipv4-udp", RTE_ETH_FLOW_NONFRAG_IPV4_UDP},
+		{"ipv4-sctp", RTE_ETH_FLOW_NONFRAG_IPV4_SCTP},
+		{"ipv4-other", RTE_ETH_FLOW_NONFRAG_IPV4_OTHER},
+		{"ipv6", RTE_ETH_FLOW_IPV6},
+		{"ipv6-frag", RTE_ETH_FLOW_FRAG_IPV6},
+		{"ipv6-tcp", RTE_ETH_FLOW_NONFRAG_IPV6_TCP},
+		{"ipv6-udp", RTE_ETH_FLOW_NONFRAG_IPV6_UDP},
+		{"ipv6-sctp", RTE_ETH_FLOW_NONFRAG_IPV6_SCTP},
+		{"ipv6-other", RTE_ETH_FLOW_NONFRAG_IPV6_OTHER},
+		{"l2_payload", RTE_ETH_FLOW_L2_PAYLOAD},
+		{"port", RTE_ETH_FLOW_PORT},
+		{"vxlan", RTE_ETH_FLOW_VXLAN},
+		{"geneve", RTE_ETH_FLOW_GENEVE},
+		{"nvgre", RTE_ETH_FLOW_NVGRE},
+		{"vxlan-gpe", RTE_ETH_FLOW_VXLAN_GPE},
+	};
+
+	for (i = 0; i < RTE_DIM(flowtype_str_table); i++) {
+		if (flowtype_str_table[i].ftype == flow_type)
+			return flowtype_str_table[i].str;
+	}
+
+	return NULL;
+}
+
+#if defined(RTE_NET_I40E) || defined(RTE_NET_IXGBE)
 
 static inline void
 print_fdir_mask(struct rte_eth_fdir_masks *mask)
@@ -4654,47 +4583,6 @@ print_fdir_flex_payload(struct rte_eth_fdir_flex_conf *flex_conf, uint32_t num)
 	printf("\n");
 }
 
-static char *
-flowtype_to_str(uint16_t flow_type)
-{
-	struct flow_type_info {
-		char str[32];
-		uint16_t ftype;
-	};
-
-	uint8_t i;
-	static struct flow_type_info flowtype_str_table[] = {
-		{"raw", RTE_ETH_FLOW_RAW},
-		{"ipv4", RTE_ETH_FLOW_IPV4},
-		{"ipv4-frag", RTE_ETH_FLOW_FRAG_IPV4},
-		{"ipv4-tcp", RTE_ETH_FLOW_NONFRAG_IPV4_TCP},
-		{"ipv4-udp", RTE_ETH_FLOW_NONFRAG_IPV4_UDP},
-		{"ipv4-sctp", RTE_ETH_FLOW_NONFRAG_IPV4_SCTP},
-		{"ipv4-other", RTE_ETH_FLOW_NONFRAG_IPV4_OTHER},
-		{"ipv6", RTE_ETH_FLOW_IPV6},
-		{"ipv6-frag", RTE_ETH_FLOW_FRAG_IPV6},
-		{"ipv6-tcp", RTE_ETH_FLOW_NONFRAG_IPV6_TCP},
-		{"ipv6-udp", RTE_ETH_FLOW_NONFRAG_IPV6_UDP},
-		{"ipv6-sctp", RTE_ETH_FLOW_NONFRAG_IPV6_SCTP},
-		{"ipv6-other", RTE_ETH_FLOW_NONFRAG_IPV6_OTHER},
-		{"l2_payload", RTE_ETH_FLOW_L2_PAYLOAD},
-		{"port", RTE_ETH_FLOW_PORT},
-		{"vxlan", RTE_ETH_FLOW_VXLAN},
-		{"geneve", RTE_ETH_FLOW_GENEVE},
-		{"nvgre", RTE_ETH_FLOW_NVGRE},
-		{"vxlan-gpe", RTE_ETH_FLOW_VXLAN_GPE},
-	};
-
-	for (i = 0; i < RTE_DIM(flowtype_str_table); i++) {
-		if (flowtype_str_table[i].ftype == flow_type)
-			return flowtype_str_table[i].str;
-	}
-
-	return NULL;
-}
-
-#if defined(RTE_NET_I40E) || defined(RTE_NET_IXGBE)
-
 static inline void
 print_fdir_flex_mask(struct rte_eth_fdir_flex_conf *flex_conf, uint32_t num)
 {
@@ -4754,11 +4642,11 @@ get_fdir_info(portid_t port_id, struct rte_eth_fdir_info *fdir_info,
 	case 0:
 		break;
 	case -ENOTSUP:
-		printf("\n FDIR is not supported on port %-2d\n",
+		fprintf(stderr, "\n FDIR is not supported on port %-2d\n",
 			port_id);
 		break;
 	default:
-		printf("programming error: (%s)\n", strerror(-ret));
+		fprintf(stderr, "programming error: (%s)\n", strerror(-ret));
 		break;
 	}
 	return ret;
@@ -4854,8 +4742,9 @@ fdir_set_flex_mask(portid_t port_id, struct rte_eth_fdir_flex_mask *cfg)
 			idx = flex_conf->nb_flexmasks;
 			flex_conf->nb_flexmasks++;
 		} else {
-			printf("The flex mask table is full. Can not set flex"
-				" mask for flow_type(%u).", cfg->flow_type);
+			fprintf(stderr,
+				"The flex mask table is full. Can not set flex mask for flow_type(%u).",
+				cfg->flow_type);
 			return;
 		}
 	}
@@ -4884,8 +4773,9 @@ fdir_set_flex_payload(portid_t port_id, struct rte_eth_flex_payload_cfg *cfg)
 			idx = flex_conf->nb_payloads;
 			flex_conf->nb_payloads++;
 		} else {
-			printf("The flex payload table is full. Can not set"
-				" flex payload for type(%u).", cfg->type);
+			fprintf(stderr,
+				"The flex payload table is full. Can not set flex payload for type(%u).",
+				cfg->type);
 			return;
 		}
 	}
@@ -4908,12 +4798,13 @@ set_vf_traffic(portid_t port_id, uint8_t is_rx, uint16_t vf, uint8_t on)
 
 	if (diag == 0)
 		return;
-	printf("rte_pmd_ixgbe_set_vf_%s for port_id=%d failed diag=%d\n",
-			is_rx ? "rx" : "tx", port_id, diag);
+	fprintf(stderr,
+		"rte_pmd_ixgbe_set_vf_%s for port_id=%d failed diag=%d\n",
+		is_rx ? "rx" : "tx", port_id, diag);
 	return;
 #endif
-	printf("VF %s setting not supported for port %d\n",
-			is_rx ? "Rx" : "Tx", port_id);
+	fprintf(stderr, "VF %s setting not supported for port %d\n",
+		is_rx ? "Rx" : "Tx", port_id);
 	RTE_SET_USED(vf);
 	RTE_SET_USED(on);
 }
@@ -4932,14 +4823,16 @@ set_queue_rate_limit(portid_t port_id, uint16_t queue_idx, uint16_t rate)
 		return 1;
 	if (link.link_speed != ETH_SPEED_NUM_UNKNOWN &&
 	    rate > link.link_speed) {
-		printf("Invalid rate value:%u bigger than link speed: %u\n",
+		fprintf(stderr,
+			"Invalid rate value:%u bigger than link speed: %u\n",
 			rate, link.link_speed);
 		return 1;
 	}
 	diag = rte_eth_set_queue_rate_limit(port_id, queue_idx, rate);
 	if (diag == 0)
 		return diag;
-	printf("rte_eth_set_queue_rate_limit for port_id=%d failed diag=%d\n",
+	fprintf(stderr,
+		"rte_eth_set_queue_rate_limit for port_id=%d failed diag=%d\n",
 		port_id, diag);
 	return diag;
 }
@@ -4965,8 +4858,9 @@ set_vf_rate_limit(portid_t port_id, uint16_t vf, uint16_t rate, uint64_t q_msk)
 	if (diag == 0)
 		return diag;
 
-	printf("set_vf_rate_limit for port_id=%d failed diag=%d\n",
-		port_id, diag);
+	fprintf(stderr,
+		"%s for port_id=%d failed diag=%d\n",
+		__func__, port_id, diag);
 	return diag;
 }
 
@@ -5013,8 +4907,9 @@ mcast_addr_pool_extend(struct rte_port *port)
 	mc_pool = (struct rte_ether_addr *) realloc(port->mc_addr_pool,
 						mc_pool_size);
 	if (mc_pool == NULL) {
-		printf("allocation of pool of %u multicast addresses failed\n",
-		       port->mc_addr_nb + MCAST_POOL_INC);
+		fprintf(stderr,
+			"allocation of pool of %u multicast addresses failed\n",
+			port->mc_addr_nb + MCAST_POOL_INC);
 		return -ENOMEM;
 	}
 
@@ -5060,7 +4955,8 @@ eth_port_multicast_addr_list_set(portid_t port_id)
 	diag = rte_eth_dev_set_mc_addr_list(port_id, port->mc_addr_pool,
 					    port->mc_addr_nb);
 	if (diag < 0)
-		printf("rte_eth_dev_set_mc_addr_list(port=%d, nb=%u) failed. diag=%d\n",
+		fprintf(stderr,
+			"rte_eth_dev_set_mc_addr_list(port=%d, nb=%u) failed. diag=%d\n",
 			port_id, port->mc_addr_nb, diag);
 
 	return diag;
@@ -5083,7 +4979,8 @@ mcast_addr_add(portid_t port_id, struct rte_ether_addr *mc_addr)
 	 */
 	for (i = 0; i < port->mc_addr_nb; i++) {
 		if (rte_is_same_ether_addr(mc_addr, &port->mc_addr_pool[i])) {
-			printf("multicast address already filtered by port\n");
+			fprintf(stderr,
+				"multicast address already filtered by port\n");
 			return;
 		}
 	}
@@ -5113,7 +5010,8 @@ mcast_addr_remove(portid_t port_id, struct rte_ether_addr *mc_addr)
 			break;
 	}
 	if (i == port->mc_addr_nb) {
-		printf("multicast address not filtered by port %d\n", port_id);
+		fprintf(stderr, "multicast address not filtered by port %d\n",
+			port_id);
 		return;
 	}
 
@@ -5136,7 +5034,7 @@ port_dcb_info_display(portid_t port_id)
 
 	ret = rte_eth_dev_get_dcb_info(port_id, &dcb_info);
 	if (ret) {
-		printf("\n Failed to get dcb infos on port %-2d\n",
+		fprintf(stderr, "\n Failed to get dcb infos on port %-2d\n",
 			port_id);
 		return;
 	}
@@ -5179,34 +5077,34 @@ open_file(const char *file_path, uint32_t *size)
 		*size = 0;
 
 	if (fd == -1) {
-		printf("%s: Failed to open %s\n", __func__, file_path);
+		fprintf(stderr, "%s: Failed to open %s\n", __func__, file_path);
 		return buf;
 	}
 
 	if ((fstat(fd, &st_buf) != 0) || (!S_ISREG(st_buf.st_mode))) {
 		close(fd);
-		printf("%s: File operations failed\n", __func__);
+		fprintf(stderr, "%s: File operations failed\n", __func__);
 		return buf;
 	}
 
 	pkg_size = st_buf.st_size;
 	if (pkg_size < 0) {
 		close(fd);
-		printf("%s: File operations failed\n", __func__);
+		fprintf(stderr, "%s: File operations failed\n", __func__);
 		return buf;
 	}
 
 	buf = (uint8_t *)malloc(pkg_size);
 	if (!buf) {
 		close(fd);
-		printf("%s: Failed to malloc memory\n",	__func__);
+		fprintf(stderr, "%s: Failed to malloc memory\n", __func__);
 		return buf;
 	}
 
 	ret = read(fd, buf, pkg_size);
 	if (ret < 0) {
 		close(fd);
-		printf("%s: File read operation failed\n", __func__);
+		fprintf(stderr, "%s: File read operation failed\n", __func__);
 		close_file(buf);
 		return NULL;
 	}
@@ -5225,13 +5123,13 @@ save_file(const char *file_path, uint8_t *buf, uint32_t size)
 	FILE *fh = fopen(file_path, "wb");
 
 	if (fh == NULL) {
-		printf("%s: Failed to open %s\n", __func__, file_path);
+		fprintf(stderr, "%s: Failed to open %s\n", __func__, file_path);
 		return -1;
 	}
 
 	if (fwrite(buf, 1, size, fh) != size) {
 		fclose(fh);
-		printf("%s: File write operation failed\n", __func__);
+		fprintf(stderr, "%s: File write operation failed\n", __func__);
 		return -1;
 	}
 
@@ -5305,7 +5203,8 @@ show_macs(portid_t port_id)
 
 	dev = &rte_eth_devices[port_id];
 
-	rte_eth_dev_info_get(port_id, &dev_info);
+	if (eth_dev_info_get_print_err(port_id, &dev_info))
+		return;
 
 	for (i = 0; i < dev_info.max_mac_addrs; i++) {
 		addr = &dev->data->mac_addrs[i];

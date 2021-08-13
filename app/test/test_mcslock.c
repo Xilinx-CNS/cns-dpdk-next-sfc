@@ -17,7 +17,6 @@
 #include <rte_lcore.h>
 #include <rte_cycles.h>
 #include <rte_mcslock.h>
-#include <rte_atomic.h>
 
 #include "test.h"
 
@@ -37,23 +36,19 @@
  *   lock multiple times.
  */
 
-RTE_DEFINE_PER_LCORE(rte_mcslock_t, _ml_me);
-RTE_DEFINE_PER_LCORE(rte_mcslock_t, _ml_try_me);
-RTE_DEFINE_PER_LCORE(rte_mcslock_t, _ml_perf_me);
-
 rte_mcslock_t *p_ml;
 rte_mcslock_t *p_ml_try;
 rte_mcslock_t *p_ml_perf;
 
 static unsigned int count;
 
-static rte_atomic32_t synchro;
+static uint32_t synchro;
 
 static int
 test_mcslock_per_core(__rte_unused void *arg)
 {
 	/* Per core me node. */
-	rte_mcslock_t ml_me = RTE_PER_LCORE(_ml_me);
+	rte_mcslock_t ml_me;
 
 	rte_mcslock_lock(&p_ml, &ml_me);
 	printf("MCS lock taken on core %u\n", rte_lcore_id());
@@ -77,11 +72,10 @@ load_loop_fn(void *func_param)
 	const unsigned int lcore = rte_lcore_id();
 
 	/**< Per core me node. */
-	rte_mcslock_t ml_perf_me = RTE_PER_LCORE(_ml_perf_me);
+	rte_mcslock_t ml_perf_me;
 
 	/* wait synchro */
-	while (rte_atomic32_read(&synchro) == 0)
-		;
+	rte_wait_until_equal_32(&synchro, 1, __ATOMIC_RELAXED);
 
 	begin = rte_get_timer_cycles();
 	while (lcount < MAX_LOOP) {
@@ -106,15 +100,15 @@ test_mcslock_perf(void)
 	const unsigned int lcore = rte_lcore_id();
 
 	printf("\nTest with no lock on single core...\n");
-	rte_atomic32_set(&synchro, 1);
+	__atomic_store_n(&synchro, 1, __ATOMIC_RELAXED);
 	load_loop_fn(&lock);
 	printf("Core [%u] Cost Time = %"PRIu64" us\n",
 			lcore, time_count[lcore]);
 	memset(time_count, 0, sizeof(time_count));
 
 	printf("\nTest with lock on single core...\n");
+	__atomic_store_n(&synchro, 1, __ATOMIC_RELAXED);
 	lock = 1;
-	rte_atomic32_set(&synchro, 1);
 	load_loop_fn(&lock);
 	printf("Core [%u] Cost Time = %"PRIu64" us\n",
 			lcore, time_count[lcore]);
@@ -122,11 +116,11 @@ test_mcslock_perf(void)
 
 	printf("\nTest with lock on %u cores...\n", (rte_lcore_count()));
 
-	rte_atomic32_set(&synchro, 0);
+	__atomic_store_n(&synchro, 0, __ATOMIC_RELAXED);
 	rte_eal_mp_remote_launch(load_loop_fn, &lock, SKIP_MAIN);
 
 	/* start synchro and launch test on main */
-	rte_atomic32_set(&synchro, 1);
+	__atomic_store_n(&synchro, 1, __ATOMIC_RELAXED);
 	load_loop_fn(&lock);
 
 	rte_eal_mp_wait_lcore();
@@ -151,8 +145,8 @@ static int
 test_mcslock_try(__rte_unused void *arg)
 {
 	/**< Per core me node. */
-	rte_mcslock_t ml_me     = RTE_PER_LCORE(_ml_me);
-	rte_mcslock_t ml_try_me = RTE_PER_LCORE(_ml_try_me);
+	rte_mcslock_t ml_me;
+	rte_mcslock_t ml_try_me;
 
 	/* Locked ml_try in the main lcore, so it should fail
 	 * when trying to lock it in the worker lcore.
@@ -178,8 +172,8 @@ test_mcslock(void)
 	int i;
 
 	/* Define per core me node. */
-	rte_mcslock_t ml_me     = RTE_PER_LCORE(_ml_me);
-	rte_mcslock_t ml_try_me = RTE_PER_LCORE(_ml_try_me);
+	rte_mcslock_t ml_me;
+	rte_mcslock_t ml_try_me;
 
 	/*
 	 * Test mcs lock & unlock on each core

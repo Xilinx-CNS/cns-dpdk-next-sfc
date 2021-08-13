@@ -298,6 +298,7 @@ parse_sa_tokens(char **tokens, uint32_t n_tokens,
 	uint32_t portid_p = 0;
 	uint32_t fallback_p = 0;
 	int16_t status_p = 0;
+	uint16_t udp_encap_p = 0;
 
 	if (strcmp(tokens[0], "in") == 0) {
 		ri = &nb_sa_in;
@@ -752,6 +753,28 @@ parse_sa_tokens(char **tokens, uint32_t n_tokens,
 			default:
 				APP_CHECK(0, status,
 					"flow director not supported for security session type %d",
+					ips->type);
+				return;
+			}
+			continue;
+		}
+		if (strcmp(tokens[ti], "udp-encap") == 0) {
+			switch (ips->type) {
+			case RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL:
+			case RTE_SECURITY_ACTION_TYPE_INLINE_PROTOCOL:
+				APP_CHECK_PRESENCE(udp_encap_p, tokens[ti],
+						   status);
+				if (status->status < 0)
+					return;
+
+				rule->udp_encap = 1;
+				app_sa_prm.udp_encap = 1;
+				udp_encap_p = 1;
+				break;
+			default:
+				APP_CHECK(0, status,
+					"UDP encapsulation not supported for "
+					"security session type %d",
 					ips->type);
 				return;
 			}

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
- *   Copyright 2016-2020 NXP
+ *   Copyright 2016-2021 NXP
  *
  */
 
@@ -1842,7 +1842,7 @@ dpaa2_sec_cipher_init(struct rte_cryptodev *dev,
 	session->ctxt_type = DPAA2_SEC_CIPHER;
 	session->cipher_key.data = rte_zmalloc(NULL, xform->cipher.key.length,
 			RTE_CACHE_LINE_SIZE);
-	if (session->cipher_key.data == NULL) {
+	if (session->cipher_key.data == NULL && xform->cipher.key.length > 0) {
 		DPAA2_SEC_ERR("No Memory for cipher key");
 		rte_free(priv);
 		return -ENOMEM;
@@ -2134,10 +2134,28 @@ dpaa2_sec_auth_init(struct rte_cryptodev *dev,
 					   !session->dir,
 					   session->digest_length);
 		break;
-	case RTE_CRYPTO_AUTH_AES_GMAC:
 	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		authdata.algtype = OP_ALG_ALGSEL_AES;
+		authdata.algmode = OP_ALG_AAI_XCBC_MAC;
+		session->auth_alg = RTE_CRYPTO_AUTH_AES_XCBC_MAC;
+		bufsize = cnstr_shdsc_aes_mac(
+					priv->flc_desc[DESC_INITFINAL].desc,
+					1, 0, SHR_NEVER, &authdata,
+					!session->dir,
+					session->digest_length);
+		break;
 	case RTE_CRYPTO_AUTH_AES_CMAC:
+		authdata.algtype = OP_ALG_ALGSEL_AES;
+		authdata.algmode = OP_ALG_AAI_CMAC;
+		session->auth_alg = RTE_CRYPTO_AUTH_AES_CMAC;
+		bufsize = cnstr_shdsc_aes_mac(
+					   priv->flc_desc[DESC_INITFINAL].desc,
+					   1, 0, SHR_NEVER, &authdata,
+					   !session->dir,
+					   session->digest_length);
+		break;
 	case RTE_CRYPTO_AUTH_AES_CBC_MAC:
+	case RTE_CRYPTO_AUTH_AES_GMAC:
 	case RTE_CRYPTO_AUTH_KASUMI_F9:
 	case RTE_CRYPTO_AUTH_NULL:
 		DPAA2_SEC_ERR("Crypto: Unsupported auth alg %un",
@@ -2406,6 +2424,17 @@ dpaa2_sec_aead_chain_init(struct rte_cryptodev *dev,
 		session->auth_alg = RTE_CRYPTO_AUTH_SHA512_HMAC;
 		break;
 	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		authdata.algtype = OP_ALG_ALGSEL_AES;
+		authdata.algmode = OP_ALG_AAI_XCBC_MAC;
+		session->auth_alg = RTE_CRYPTO_AUTH_AES_XCBC_MAC;
+		break;
+	case RTE_CRYPTO_AUTH_AES_CMAC:
+		authdata.algtype = OP_ALG_ALGSEL_AES;
+		authdata.algmode = OP_ALG_AAI_CMAC;
+		session->auth_alg = RTE_CRYPTO_AUTH_AES_CMAC;
+		break;
+	case RTE_CRYPTO_AUTH_AES_CBC_MAC:
+	case RTE_CRYPTO_AUTH_AES_GMAC:
 	case RTE_CRYPTO_AUTH_SNOW3G_UIA2:
 	case RTE_CRYPTO_AUTH_NULL:
 	case RTE_CRYPTO_AUTH_SHA1:
@@ -2414,10 +2443,7 @@ dpaa2_sec_aead_chain_init(struct rte_cryptodev *dev,
 	case RTE_CRYPTO_AUTH_SHA224:
 	case RTE_CRYPTO_AUTH_SHA384:
 	case RTE_CRYPTO_AUTH_MD5:
-	case RTE_CRYPTO_AUTH_AES_GMAC:
 	case RTE_CRYPTO_AUTH_KASUMI_F9:
-	case RTE_CRYPTO_AUTH_AES_CMAC:
-	case RTE_CRYPTO_AUTH_AES_CBC_MAC:
 	case RTE_CRYPTO_AUTH_ZUC_EIA3:
 		DPAA2_SEC_ERR("Crypto: Unsupported auth alg %u",
 			      auth_xform->algo);
@@ -2750,14 +2776,18 @@ dpaa2_sec_ipsec_proto_init(struct rte_crypto_cipher_xform *cipher_xform,
 		authdata->algtype = OP_PCL_IPSEC_HMAC_SHA2_512_256;
 		authdata->algmode = OP_ALG_AAI_HMAC;
 		break;
+	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		authdata->algtype = OP_PCL_IPSEC_AES_XCBC_MAC_96;
+		authdata->algmode = OP_ALG_AAI_XCBC_MAC;
+		break;
 	case RTE_CRYPTO_AUTH_AES_CMAC:
 		authdata->algtype = OP_PCL_IPSEC_AES_CMAC_96;
+		authdata->algmode = OP_ALG_AAI_CMAC;
 		break;
 	case RTE_CRYPTO_AUTH_NULL:
 		authdata->algtype = OP_PCL_IPSEC_HMAC_NULL;
 		break;
 	case RTE_CRYPTO_AUTH_SHA224_HMAC:
-	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
 	case RTE_CRYPTO_AUTH_SNOW3G_UIA2:
 	case RTE_CRYPTO_AUTH_SHA1:
 	case RTE_CRYPTO_AUTH_SHA256:
@@ -3534,31 +3564,9 @@ dpaa2_sec_dev_stop(struct rte_cryptodev *dev)
 }
 
 static int
-dpaa2_sec_dev_close(struct rte_cryptodev *dev)
+dpaa2_sec_dev_close(struct rte_cryptodev *dev __rte_unused)
 {
-	struct dpaa2_sec_dev_private *priv = dev->data->dev_private;
-	struct fsl_mc_io *dpseci = (struct fsl_mc_io *)priv->hw;
-	int ret;
-
 	PMD_INIT_FUNC_TRACE();
-
-	/* Function is reverse of dpaa2_sec_dev_init.
-	 * It does the following:
-	 * 1. Detach a DPSECI from attached resources i.e. buffer pools, dpbp_id
-	 * 2. Close the DPSECI device
-	 * 3. Free the allocated resources.
-	 */
-
-	/*Close the device at underlying layer*/
-	ret = dpseci_close(dpseci, CMD_PRI_LOW, priv->token);
-	if (ret) {
-		DPAA2_SEC_ERR("Failure closing dpseci device: err(%d)", ret);
-		return -1;
-	}
-
-	/*Free the allocated memory for ethernet private data and dpseci*/
-	priv->hw = NULL;
-	rte_free(dpseci);
 
 	return 0;
 }
@@ -3819,11 +3827,31 @@ static const struct rte_security_ops dpaa2_sec_security_ops = {
 static int
 dpaa2_sec_uninit(const struct rte_cryptodev *dev)
 {
-	struct dpaa2_sec_dev_private *internals = dev->data->dev_private;
+	struct dpaa2_sec_dev_private *priv = dev->data->dev_private;
+	struct fsl_mc_io *dpseci = (struct fsl_mc_io *)priv->hw;
+	int ret;
 
+	PMD_INIT_FUNC_TRACE();
+
+	/* Function is reverse of dpaa2_sec_dev_init.
+	 * It does the following:
+	 * 1. Detach a DPSECI from attached resources i.e. buffer pools, dpbp_id
+	 * 2. Close the DPSECI device
+	 * 3. Free the allocated resources.
+	 */
+
+	/*Close the device at underlying layer*/
+	ret = dpseci_close(dpseci, CMD_PRI_LOW, priv->token);
+	if (ret) {
+		DPAA2_SEC_ERR("Failure closing dpseci device: err(%d)", ret);
+		return -1;
+	}
+
+	/*Free the allocated memory for ethernet private data and dpseci*/
+	priv->hw = NULL;
+	rte_free(dpseci);
 	rte_free(dev->security_ctx);
-
-	rte_mempool_free(internals->fle_pool);
+	rte_mempool_free(priv->fle_pool);
 
 	DPAA2_SEC_INFO("Closing DPAA2_SEC device %s on numa socket %u",
 		       dev->data->name, rte_socket_id());

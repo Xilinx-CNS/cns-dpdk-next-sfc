@@ -28,6 +28,7 @@ struct mlx5_pmd_mr {
 	void		     *addr;
 	size_t		     len;
 	void		     *obj;  /* verbs mr object or devx umem object. */
+	struct mlx5_devx_obj *mkey; /* devx mkey object. */
 };
 
 /**
@@ -142,6 +143,9 @@ __rte_internal
 void mlx5_mr_rebuild_cache(struct mlx5_mr_share_cache *share_cache);
 __rte_internal
 void mlx5_mr_flush_local_cache(struct mlx5_mr_ctrl *mr_ctrl);
+__rte_internal
+void mlx5_free_mr_by_addr(struct mlx5_mr_share_cache *share_cache,
+			  const char *ibdev_name, const void *addr, size_t len);
 __rte_internal
 int
 mlx5_mr_insert_cache(struct mlx5_mr_share_cache *share_cache,

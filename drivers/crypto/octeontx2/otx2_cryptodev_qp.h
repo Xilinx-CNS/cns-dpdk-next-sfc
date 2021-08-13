@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright (C) 2020 Marvell International Ltd.
+ * Copyright (C) 2020-2021 Marvell.
  */
 
 #ifndef _OTX2_CRYPTODEV_QP_H_
@@ -15,6 +15,8 @@
 struct otx2_cpt_qp {
 	uint32_t id;
 	/**< Queue pair id */
+	uint8_t blkaddr;
+	/**<  CPT0/1 BLKADDR of LF */
 	uintptr_t base;
 	/**< Base address where BAR is mapped */
 	void *lmtline;
@@ -37,6 +39,8 @@ struct otx2_cpt_qp {
 	 */
 	uint8_t ca_enable;
 	/**< Set when queue pair is added to crypto adapter */
+	uint8_t qp_ev_bind;
+	/**< Set when queue pair is bound to event queue */
 };
 
 #endif /* _OTX2_CRYPTODEV_QP_H_ */

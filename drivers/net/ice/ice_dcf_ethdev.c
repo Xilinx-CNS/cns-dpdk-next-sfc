@@ -5,7 +5,6 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <sys/types.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include <rte_interrupts.h>
@@ -14,7 +13,7 @@
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
-#include <rte_ethdev_pci.h>
+#include <ethdev_pci.h>
 #include <rte_kvargs.h>
 #include <rte_malloc.h>
 #include <rte_memzone.h>
@@ -25,6 +24,13 @@
 #include "ice_generic_flow.h"
 #include "ice_dcf_ethdev.h"
 #include "ice_rxtx.h"
+
+static int
+ice_dcf_dev_udp_tunnel_port_add(struct rte_eth_dev *dev,
+				struct rte_eth_udp_tunnel *udp_tunnel);
+static int
+ice_dcf_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
+				struct rte_eth_udp_tunnel *udp_tunnel);
 
 static uint16_t
 ice_dcf_recv_pkts(__rte_unused void *rx_queue,
@@ -48,35 +54,36 @@ ice_dcf_init_rxq(struct rte_eth_dev *dev, struct ice_rx_queue *rxq)
 	struct ice_dcf_adapter *dcf_ad = dev->data->dev_private;
 	struct rte_eth_dev_data *dev_data = dev->data;
 	struct iavf_hw *hw = &dcf_ad->real_hw.avf;
-	uint16_t buf_size, max_pkt_len, len;
+	uint16_t buf_size, max_pkt_len;
 
 	buf_size = rte_pktmbuf_data_room_size(rxq->mp) - RTE_PKTMBUF_HEADROOM;
 	rxq->rx_hdr_len = 0;
 	rxq->rx_buf_len = RTE_ALIGN(buf_size, (1 << ICE_RLAN_CTX_DBUF_S));
-	len = ICE_SUPPORT_CHAIN_NUM * rxq->rx_buf_len;
-	max_pkt_len = RTE_MIN(len, dev->data->dev_conf.rxmode.max_rx_pkt_len);
+	max_pkt_len = RTE_MIN((uint32_t)
+			      ICE_SUPPORT_CHAIN_NUM * rxq->rx_buf_len,
+			      dev->data->dev_conf.rxmode.max_rx_pkt_len);
 
 	/* Check if the jumbo frame and maximum packet length are set
 	 * correctly.
 	 */
 	if (dev->data->dev_conf.rxmode.offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) {
-		if (max_pkt_len <= RTE_ETHER_MAX_LEN ||
+		if (max_pkt_len <= ICE_ETH_MAX_LEN ||
 		    max_pkt_len > ICE_FRAME_SIZE_MAX) {
 			PMD_DRV_LOG(ERR, "maximum packet length must be "
 				    "larger than %u and smaller than %u, "
 				    "as jumbo frame is enabled",
-				    (uint32_t)RTE_ETHER_MAX_LEN,
+				    (uint32_t)ICE_ETH_MAX_LEN,
 				    (uint32_t)ICE_FRAME_SIZE_MAX);
 			return -EINVAL;
 		}
 	} else {
 		if (max_pkt_len < RTE_ETHER_MIN_LEN ||
-		    max_pkt_len > RTE_ETHER_MAX_LEN) {
+		    max_pkt_len > ICE_ETH_MAX_LEN) {
 			PMD_DRV_LOG(ERR, "maximum packet length must be "
 				    "larger than %u and smaller than %u, "
 				    "as jumbo frame is disabled",
 				    (uint32_t)RTE_ETHER_MIN_LEN,
-				    (uint32_t)RTE_ETHER_MAX_LEN);
+				    (uint32_t)ICE_ETH_MAX_LEN);
 			return -EINVAL;
 		}
 	}
@@ -601,6 +608,9 @@ ice_dcf_dev_stop(struct rte_eth_dev *dev)
 		return 0;
 	}
 
+	/* Stop the VF representors for this device */
+	ice_dcf_vf_repr_stop_all(dcf_ad);
+
 	ice_dcf_stop_queues(dev);
 
 	rte_intr_efd_disable(intr_handle);
@@ -733,31 +743,14 @@ ice_dcf_dev_allmulticast_disable(__rte_unused struct rte_eth_dev *dev)
 }
 
 static int
-ice_dcf_dev_filter_ctrl(struct rte_eth_dev *dev,
-			enum rte_filter_type filter_type,
-			enum rte_filter_op filter_op,
-			void *arg)
+ice_dcf_dev_flow_ops_get(struct rte_eth_dev *dev,
+			 const struct rte_flow_ops **ops)
 {
-	int ret = 0;
-
 	if (!dev)
 		return -EINVAL;
 
-	switch (filter_type) {
-	case RTE_ETH_FILTER_GENERIC:
-		if (filter_op != RTE_ETH_FILTER_GET)
-			return -EINVAL;
-		*(const void **)arg = &ice_flow_ops;
-		break;
-
-	default:
-		PMD_DRV_LOG(WARNING, "Filter type (%d) not supported",
-			    filter_type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
+	*ops = &ice_flow_ops;
+	return 0;
 }
 
 #define ICE_DCF_32_BIT_WIDTH (CHAR_BIT * 4)
@@ -849,6 +842,30 @@ ice_dcf_stats_reset(struct rte_eth_dev *dev)
 	return 0;
 }
 
+static void
+ice_dcf_free_repr_info(struct ice_dcf_adapter *dcf_adapter)
+{
+	if (dcf_adapter->repr_infos) {
+		rte_free(dcf_adapter->repr_infos);
+		dcf_adapter->repr_infos = NULL;
+	}
+}
+
+static int
+ice_dcf_init_repr_info(struct ice_dcf_adapter *dcf_adapter)
+{
+	dcf_adapter->repr_infos =
+			rte_calloc("ice_dcf_rep_info",
+				   dcf_adapter->real_hw.num_vfs,
+				   sizeof(dcf_adapter->repr_infos[0]), 0);
+	if (!dcf_adapter->repr_infos) {
+		PMD_DRV_LOG(ERR, "Failed to alloc memory for VF representors\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
 static int
 ice_dcf_dev_close(struct rte_eth_dev *dev)
 {
@@ -857,16 +874,135 @@ ice_dcf_dev_close(struct rte_eth_dev *dev)
 	if (rte_eal_process_type() != RTE_PROC_PRIMARY)
 		return 0;
 
+	ice_dcf_free_repr_info(adapter);
 	ice_dcf_uninit_parent_adapter(dev);
 	ice_dcf_uninit_hw(dev, &adapter->real_hw);
 
 	return 0;
 }
 
-static int
-ice_dcf_link_update(__rte_unused struct rte_eth_dev *dev,
+int
+ice_dcf_link_update(struct rte_eth_dev *dev,
 		    __rte_unused int wait_to_complete)
 {
+	struct ice_dcf_adapter *ad = dev->data->dev_private;
+	struct ice_dcf_hw *hw = &ad->real_hw;
+	struct rte_eth_link new_link;
+
+	memset(&new_link, 0, sizeof(new_link));
+
+	/* Only read status info stored in VF, and the info is updated
+	 * when receive LINK_CHANGE event from PF by virtchnl.
+	 */
+	switch (hw->link_speed) {
+	case 10:
+		new_link.link_speed = ETH_SPEED_NUM_10M;
+		break;
+	case 100:
+		new_link.link_speed = ETH_SPEED_NUM_100M;
+		break;
+	case 1000:
+		new_link.link_speed = ETH_SPEED_NUM_1G;
+		break;
+	case 10000:
+		new_link.link_speed = ETH_SPEED_NUM_10G;
+		break;
+	case 20000:
+		new_link.link_speed = ETH_SPEED_NUM_20G;
+		break;
+	case 25000:
+		new_link.link_speed = ETH_SPEED_NUM_25G;
+		break;
+	case 40000:
+		new_link.link_speed = ETH_SPEED_NUM_40G;
+		break;
+	case 50000:
+		new_link.link_speed = ETH_SPEED_NUM_50G;
+		break;
+	case 100000:
+		new_link.link_speed = ETH_SPEED_NUM_100G;
+		break;
+	default:
+		new_link.link_speed = ETH_SPEED_NUM_NONE;
+		break;
+	}
+
+	new_link.link_duplex = ETH_LINK_FULL_DUPLEX;
+	new_link.link_status = hw->link_up ? ETH_LINK_UP :
+					     ETH_LINK_DOWN;
+	new_link.link_autoneg = !(dev->data->dev_conf.link_speeds &
+				ETH_LINK_SPEED_FIXED);
+
+	return rte_eth_linkstatus_set(dev, &new_link);
+}
+
+/* Add UDP tunneling port */
+static int
+ice_dcf_dev_udp_tunnel_port_add(struct rte_eth_dev *dev,
+				struct rte_eth_udp_tunnel *udp_tunnel)
+{
+	struct ice_dcf_adapter *adapter = dev->data->dev_private;
+	struct ice_adapter *parent_adapter = &adapter->parent;
+	struct ice_hw *parent_hw = &parent_adapter->hw;
+	int ret = 0;
+
+	if (!udp_tunnel)
+		return -EINVAL;
+
+	switch (udp_tunnel->prot_type) {
+	case RTE_TUNNEL_TYPE_VXLAN:
+		ret = ice_create_tunnel(parent_hw, TNL_VXLAN,
+					udp_tunnel->udp_port);
+		break;
+	case RTE_TUNNEL_TYPE_ECPRI:
+		ret = ice_create_tunnel(parent_hw, TNL_ECPRI,
+					udp_tunnel->udp_port);
+		break;
+	default:
+		PMD_DRV_LOG(ERR, "Invalid tunnel type");
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+/* Delete UDP tunneling port */
+static int
+ice_dcf_dev_udp_tunnel_port_del(struct rte_eth_dev *dev,
+				struct rte_eth_udp_tunnel *udp_tunnel)
+{
+	struct ice_dcf_adapter *adapter = dev->data->dev_private;
+	struct ice_adapter *parent_adapter = &adapter->parent;
+	struct ice_hw *parent_hw = &parent_adapter->hw;
+	int ret = 0;
+
+	if (!udp_tunnel)
+		return -EINVAL;
+
+	switch (udp_tunnel->prot_type) {
+	case RTE_TUNNEL_TYPE_VXLAN:
+	case RTE_TUNNEL_TYPE_ECPRI:
+		ret = ice_destroy_tunnel(parent_hw, udp_tunnel->udp_port, 0);
+		break;
+	default:
+		PMD_DRV_LOG(ERR, "Invalid tunnel type");
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static int
+ice_dcf_tm_ops_get(struct rte_eth_dev *dev __rte_unused,
+		void *arg)
+{
+	if (!arg)
+		return -EINVAL;
+
+	*(const void **)arg = &ice_dcf_tm_ops;
+
 	return 0;
 }
 
@@ -891,7 +1027,10 @@ static const struct eth_dev_ops ice_dcf_eth_dev_ops = {
 	.promiscuous_disable     = ice_dcf_dev_promiscuous_disable,
 	.allmulticast_enable     = ice_dcf_dev_allmulticast_enable,
 	.allmulticast_disable    = ice_dcf_dev_allmulticast_disable,
-	.filter_ctrl             = ice_dcf_dev_filter_ctrl,
+	.flow_ops_get            = ice_dcf_dev_flow_ops_get,
+	.udp_tunnel_port_add	 = ice_dcf_dev_udp_tunnel_port_add,
+	.udp_tunnel_port_del	 = ice_dcf_dev_udp_tunnel_port_del,
+	.tm_ops_get              = ice_dcf_tm_ops_get,
 };
 
 static int
@@ -970,20 +1109,116 @@ exit:
 	return ret;
 }
 
-static int eth_ice_dcf_pci_probe(__rte_unused struct rte_pci_driver *pci_drv,
-			     struct rte_pci_device *pci_dev)
+static int
+eth_ice_dcf_pci_probe(__rte_unused struct rte_pci_driver *pci_drv,
+		      struct rte_pci_device *pci_dev)
 {
+	struct rte_eth_devargs eth_da = { .nb_representor_ports = 0 };
+	struct ice_dcf_vf_repr_param repr_param;
+	char repr_name[RTE_ETH_NAME_MAX_LEN];
+	struct ice_dcf_adapter *dcf_adapter;
+	struct rte_eth_dev *dcf_ethdev;
+	uint16_t dcf_vsi_id;
+	int i, ret;
+
 	if (!ice_dcf_cap_selected(pci_dev->device.devargs))
 		return 1;
 
-	return rte_eth_dev_pci_generic_probe(pci_dev,
-					     sizeof(struct ice_dcf_adapter),
-					     ice_dcf_dev_init);
+	ret = rte_eth_devargs_parse(pci_dev->device.devargs->args, &eth_da);
+	if (ret)
+		return ret;
+
+	ret = rte_eth_dev_pci_generic_probe(pci_dev,
+					    sizeof(struct ice_dcf_adapter),
+					    ice_dcf_dev_init);
+	if (ret || !eth_da.nb_representor_ports)
+		return ret;
+	if (eth_da.type != RTE_ETH_REPRESENTOR_VF)
+		return -ENOTSUP;
+
+	dcf_ethdev = rte_eth_dev_allocated(pci_dev->device.name);
+	if (dcf_ethdev == NULL)
+		return -ENODEV;
+
+	dcf_adapter = dcf_ethdev->data->dev_private;
+	ret = ice_dcf_init_repr_info(dcf_adapter);
+	if (ret)
+		return ret;
+
+	if (eth_da.nb_representor_ports > dcf_adapter->real_hw.num_vfs ||
+	    eth_da.nb_representor_ports >= RTE_MAX_ETHPORTS) {
+		PMD_DRV_LOG(ERR, "the number of port representors is too large: %u",
+			    eth_da.nb_representor_ports);
+		ice_dcf_free_repr_info(dcf_adapter);
+		return -EINVAL;
+	}
+
+	dcf_vsi_id = dcf_adapter->real_hw.vsi_id | VIRTCHNL_DCF_VF_VSI_VALID;
+
+	repr_param.dcf_eth_dev = dcf_ethdev;
+	repr_param.switch_domain_id = 0;
+
+	for (i = 0; i < eth_da.nb_representor_ports; i++) {
+		uint16_t vf_id = eth_da.representor_ports[i];
+		struct rte_eth_dev *vf_rep_eth_dev;
+
+		if (vf_id >= dcf_adapter->real_hw.num_vfs) {
+			PMD_DRV_LOG(ERR, "VF ID %u is out of range (0 ~ %u)",
+				    vf_id, dcf_adapter->real_hw.num_vfs - 1);
+			ret = -EINVAL;
+			break;
+		}
+
+		if (dcf_adapter->real_hw.vf_vsi_map[vf_id] == dcf_vsi_id) {
+			PMD_DRV_LOG(ERR, "VF ID %u is DCF's ID.\n", vf_id);
+			ret = -EINVAL;
+			break;
+		}
+
+		repr_param.vf_id = vf_id;
+		snprintf(repr_name, sizeof(repr_name), "net_%s_representor_%u",
+			 pci_dev->device.name, vf_id);
+		ret = rte_eth_dev_create(&pci_dev->device, repr_name,
+					 sizeof(struct ice_dcf_vf_repr),
+					 NULL, NULL, ice_dcf_vf_repr_init,
+					 &repr_param);
+		if (ret) {
+			PMD_DRV_LOG(ERR, "failed to create DCF VF representor %s",
+				    repr_name);
+			break;
+		}
+
+		vf_rep_eth_dev = rte_eth_dev_allocated(repr_name);
+		if (!vf_rep_eth_dev) {
+			PMD_DRV_LOG(ERR,
+				    "Failed to find the ethdev for DCF VF representor: %s",
+				    repr_name);
+			ret = -ENODEV;
+			break;
+		}
+
+		dcf_adapter->repr_infos[vf_id].vf_rep_eth_dev = vf_rep_eth_dev;
+		dcf_adapter->num_reprs++;
+	}
+
+	return ret;
 }
 
-static int eth_ice_dcf_pci_remove(struct rte_pci_device *pci_dev)
+static int
+eth_ice_dcf_pci_remove(struct rte_pci_device *pci_dev)
 {
-	return rte_eth_dev_pci_generic_remove(pci_dev, ice_dcf_dev_uninit);
+	struct rte_eth_dev *eth_dev;
+
+	eth_dev = rte_eth_dev_allocated(pci_dev->device.name);
+	if (!eth_dev)
+		return 0;
+
+	if (eth_dev->data->dev_flags & RTE_ETH_DEV_REPRESENTOR)
+		return rte_eth_dev_pci_generic_remove(pci_dev,
+						      ice_dcf_vf_repr_uninit);
+	else
+		return rte_eth_dev_pci_generic_remove(pci_dev,
+						      ice_dcf_dev_uninit);
 }
 
 static const struct rte_pci_id pci_id_ice_dcf_map[] = {

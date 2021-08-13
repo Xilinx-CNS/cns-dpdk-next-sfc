@@ -5,7 +5,9 @@
 MAPFILE=$1
 OBJFILE=$2
 
-LIST_SYMBOL=$(dirname $(readlink -f $0))/map-list-symbol.sh
+ROOTDIR=$(readlink -f $(dirname $(readlink -f $0))/..)
+LIST_SYMBOL=$ROOTDIR/buildtools/map-list-symbol.sh
+CHECK_SYMBOL_MAPS=$ROOTDIR/devtools/check-symbol-maps.sh
 
 # added check for "make -C test/" usage
 if [ ! -e $MAPFILE ] || [ ! -f $OBJFILE ]
@@ -18,11 +20,16 @@ then
 	exit 0
 fi
 
-DUMPFILE=$(mktemp -t dpdk.${0##*/}.XXX.objdump)
+DUMPFILE=$(mktemp -t dpdk.${0##*/}.objdump.XXXXXX)
 trap 'rm -f "$DUMPFILE"' EXIT
 objdump -t $OBJFILE >$DUMPFILE
 
 ret=0
+
+if ! $CHECK_SYMBOL_MAPS $MAPFILE; then
+	ret=1
+fi
+
 for SYM in `$LIST_SYMBOL -S EXPERIMENTAL $MAPFILE |cut -d ' ' -f 3`
 do
 	if grep -q "\.text.*[[:space:]]$SYM$" $DUMPFILE &&

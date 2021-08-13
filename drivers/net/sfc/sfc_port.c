@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * Copyright(c) 2019-2020 Xilinx, Inc.
+ * Copyright(c) 2019-2021 Xilinx, Inc.
  * Copyright(c) 2016-2019 Solarflare Communications Inc.
  *
  * This software was jointly developed between OKTET Labs (under contract
  * for Solarflare) and Solarflare Communications, Inc.
  */
+
+#include <rte_bitmap.h>
 
 #include "efx.h"
 
@@ -26,7 +28,8 @@
 /**
  * Update MAC statistics in the buffer.
  *
- * @param	sa	Adapter
+ * @param	sa		Adapter
+ * @param	force_upload	Flag to upload MAC stats in any case
  *
  * @return Status code
  * @retval	0	Success
@@ -34,7 +37,7 @@
  * @retval	ENOMEM	Memory allocation failure
  */
 int
-sfc_port_update_mac_stats(struct sfc_adapter *sa)
+sfc_port_update_mac_stats(struct sfc_adapter *sa, boolean_t force_upload)
 {
 	struct sfc_port *port = &sa->port;
 	efsys_mem_t *esmp = &port->mac_stats_dma_mem;
@@ -43,17 +46,17 @@ sfc_port_update_mac_stats(struct sfc_adapter *sa)
 	unsigned int nb_attempts = 0;
 	int rc;
 
-	SFC_ASSERT(rte_spinlock_is_locked(&port->mac_stats_lock));
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
 	if (sa->state != SFC_ADAPTER_STARTED)
-		return EINVAL;
+		return 0;
 
 	/*
 	 * If periodic statistics DMA'ing is off or if not supported,
 	 * make a manual request and keep an eye on timer if need be
 	 */
 	if (!port->mac_stats_periodic_dma_supported ||
-	    (port->mac_stats_update_period_ms == 0)) {
+	    (port->mac_stats_update_period_ms == 0) || force_upload) {
 		if (port->mac_stats_update_period_ms != 0) {
 			uint64_t timestamp = sfc_get_system_msecs();
 
@@ -103,14 +106,13 @@ sfc_port_reset_sw_stats(struct sfc_adapter *sa)
 int
 sfc_port_reset_mac_stats(struct sfc_adapter *sa)
 {
-	struct sfc_port *port = &sa->port;
 	int rc;
 
-	rte_spinlock_lock(&port->mac_stats_lock);
+	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
 	rc = efx_mac_stats_clear(sa->nic);
 	if (rc == 0)
 		sfc_port_reset_sw_stats(sa);
-	rte_spinlock_unlock(&port->mac_stats_lock);
 
 	return rc;
 }
@@ -158,6 +160,27 @@ sfc_port_phy_caps_to_max_link_speed(uint32_t phy_caps)
 
 #endif
 
+static void
+sfc_port_fill_mac_stats_info(struct sfc_adapter *sa)
+{
+	unsigned int mac_stats_nb_supported = 0;
+	struct sfc_port *port = &sa->port;
+	unsigned int stat_idx;
+
+	efx_mac_stats_get_mask(sa->nic, port->mac_stats_mask,
+			       sizeof(port->mac_stats_mask));
+
+	for (stat_idx = 0; stat_idx < EFX_MAC_NSTATS; ++stat_idx) {
+		if (!EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, stat_idx))
+			continue;
+
+		port->mac_stats_by_id[mac_stats_nb_supported] = stat_idx;
+		mac_stats_nb_supported++;
+	}
+
+	port->mac_stats_nb_supported = mac_stats_nb_supported;
+}
+
 int
 sfc_port_start(struct sfc_adapter *sa)
 {
@@ -166,7 +189,6 @@ sfc_port_start(struct sfc_adapter *sa)
 	uint32_t phy_adv_cap;
 	const uint32_t phy_pause_caps =
 		((1u << EFX_PHY_CAP_PAUSE) | (1u << EFX_PHY_CAP_ASYM));
-	unsigned int i;
 
 	sfc_log_init(sa, "entry");
 
@@ -260,12 +282,7 @@ sfc_port_start(struct sfc_adapter *sa)
 		port->mac_stats_reset_pending = B_FALSE;
 	}
 
-	efx_mac_stats_get_mask(sa->nic, port->mac_stats_mask,
-			       sizeof(port->mac_stats_mask));
-
-	for (i = 0, port->mac_stats_nb_supported = 0; i < EFX_MAC_NSTATS; ++i)
-		if (EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i))
-			port->mac_stats_nb_supported++;
+	sfc_port_fill_mac_stats_info(sa);
 
 	port->mac_stats_update_generation = 0;
 
@@ -353,6 +370,8 @@ sfc_port_stop(struct sfc_adapter *sa)
 	(void)efx_mac_stats_periodic(sa->nic, &sa->port.mac_stats_dma_mem,
 				     0, B_FALSE);
 
+	sfc_port_update_mac_stats(sa, B_TRUE);
+
 	efx_port_fini(sa->nic);
 	efx_filter_fini(sa->nic);
 
@@ -415,8 +434,6 @@ sfc_port_attach(struct sfc_adapter *sa)
 		rc = ENOMEM;
 		goto fail_mcast_addr_list_buf_alloc;
 	}
-
-	rte_spinlock_init(&port->mac_stats_lock);
 
 	rc = ENOMEM;
 	port->mac_stats_buf = rte_calloc_socket("mac_stats_buf", EFX_MAC_NSTATS,
@@ -620,4 +637,80 @@ sfc_port_link_mode_to_info(efx_link_mode_t link_mode,
 	}
 
 	link_info->link_autoneg = ETH_LINK_AUTONEG;
+}
+
+int
+sfc_port_get_mac_stats(struct sfc_adapter *sa, struct rte_eth_xstat *xstats,
+		       unsigned int xstats_count, unsigned int *nb_written)
+{
+	struct sfc_port *port = &sa->port;
+	uint64_t *mac_stats;
+	unsigned int i;
+	int nstats = 0;
+	int ret;
+
+	sfc_adapter_lock(sa);
+
+	ret = sfc_port_update_mac_stats(sa, B_FALSE);
+	if (ret != 0) {
+		SFC_ASSERT(ret > 0);
+		ret = -ret;
+		goto unlock;
+	}
+
+	mac_stats = port->mac_stats_buf;
+
+	for (i = 0; i < EFX_MAC_NSTATS; ++i) {
+		if (EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i)) {
+			if (nstats < (int)xstats_count) {
+				xstats[nstats].id = nstats;
+				xstats[nstats].value = mac_stats[i];
+				(*nb_written)++;
+			}
+			nstats++;
+		}
+	}
+	ret = nstats;
+
+unlock:
+	sfc_adapter_unlock(sa);
+
+	return ret;
+}
+
+int
+sfc_port_get_mac_stats_by_id(struct sfc_adapter *sa, const uint64_t *ids,
+			     uint64_t *values, unsigned int n)
+{
+	struct sfc_port *port = &sa->port;
+	uint64_t *mac_stats;
+	unsigned int i;
+	int ret;
+	int rc;
+
+	sfc_adapter_lock(sa);
+
+	rc = sfc_port_update_mac_stats(sa, B_FALSE);
+	if (rc != 0) {
+		SFC_ASSERT(rc > 0);
+		ret = -rc;
+		goto unlock;
+	}
+
+	mac_stats = port->mac_stats_buf;
+
+	SFC_ASSERT(port->mac_stats_nb_supported <=
+		   RTE_DIM(port->mac_stats_by_id));
+
+	for (i = 0; i < n; i++) {
+		if (ids[i] < port->mac_stats_nb_supported)
+			values[i] = mac_stats[port->mac_stats_by_id[ids[i]]];
+	}
+
+	ret = 0;
+
+unlock:
+	sfc_adapter_unlock(sa);
+
+	return ret;
 }

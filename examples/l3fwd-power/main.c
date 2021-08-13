@@ -47,6 +47,7 @@
 #include <rte_power_empty_poll.h>
 #include <rte_metrics.h>
 #include <rte_telemetry.h>
+#include <rte_power_pmd_mgmt.h>
 
 #include "perf_core.h"
 #include "main.h"
@@ -199,10 +200,14 @@ enum appmode {
 	APP_MODE_LEGACY,
 	APP_MODE_EMPTY_POLL,
 	APP_MODE_TELEMETRY,
-	APP_MODE_INTERRUPT
+	APP_MODE_INTERRUPT,
+	APP_MODE_PMD_MGMT
 };
 
 enum appmode app_mode;
+
+static enum rte_power_pmd_mgmt_type pmgmt_type;
+bool baseline_enabled;
 
 enum freq_scale_hint_t
 {
@@ -906,7 +911,7 @@ static int event_register(struct lcore_conf *qconf)
 	return 0;
 }
 
-/* main processing loop */
+/* Main processing loop. 8< */
 static int main_intr_loop(__rte_unused void *dummy)
 {
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
@@ -1069,6 +1074,7 @@ start_rx:
 
 	return 0;
 }
+/* >8 End of main processing loop. */
 
 /* main processing loop */
 static int
@@ -1611,7 +1617,9 @@ print_usage(const char *prgname)
 		" follow (training_flag, high_threshold, med_threshold)\n"
 		" --telemetry: enable telemetry mode, to update"
 		" empty polls, full polls, and core busyness to telemetry\n"
-		" --interrupt-only: enable interrupt-only mode\n",
+		" --interrupt-only: enable interrupt-only mode\n"
+		" --pmd-mgmt MODE: enable PMD power management mode. "
+		"Currently supported modes: baseline, monitor, pause, scale\n",
 		prgname);
 }
 
@@ -1701,6 +1709,37 @@ parse_config(const char *q_arg)
 
 	return 0;
 }
+
+static int
+parse_pmd_mgmt_config(const char *name)
+{
+#define PMD_MGMT_MONITOR "monitor"
+#define PMD_MGMT_PAUSE   "pause"
+#define PMD_MGMT_SCALE   "scale"
+#define PMD_MGMT_BASELINE  "baseline"
+
+	if (strncmp(PMD_MGMT_MONITOR, name, sizeof(PMD_MGMT_MONITOR)) == 0) {
+		pmgmt_type = RTE_POWER_MGMT_TYPE_MONITOR;
+		return 0;
+	}
+
+	if (strncmp(PMD_MGMT_PAUSE, name, sizeof(PMD_MGMT_PAUSE)) == 0) {
+		pmgmt_type = RTE_POWER_MGMT_TYPE_PAUSE;
+		return 0;
+	}
+
+	if (strncmp(PMD_MGMT_SCALE, name, sizeof(PMD_MGMT_SCALE)) == 0) {
+		pmgmt_type = RTE_POWER_MGMT_TYPE_SCALE;
+		return 0;
+	}
+	if (strncmp(PMD_MGMT_BASELINE, name, sizeof(PMD_MGMT_BASELINE)) == 0) {
+		baseline_enabled = true;
+		return 0;
+	}
+	/* unknown PMD power management mode */
+	return -1;
+}
+
 static int
 parse_ep_config(const char *q_arg)
 {
@@ -1716,7 +1755,7 @@ parse_ep_config(const char *q_arg)
 	int hgh_edpi;
 
 	ep_med_edpi = EMPTY_POLL_MED_THRESHOLD;
-	ep_hgh_edpi = EMPTY_POLL_MED_THRESHOLD;
+	ep_hgh_edpi = EMPTY_POLL_HGH_THRESHOLD;
 
 	strlcpy(s, p, sizeof(s));
 
@@ -1739,7 +1778,7 @@ parse_ep_config(const char *q_arg)
 		if (med_edpi > 0)
 			ep_med_edpi = med_edpi;
 
-		if (med_edpi > 0)
+		if (hgh_edpi > 0)
 			ep_hgh_edpi = hgh_edpi;
 
 	} else {
@@ -1755,6 +1794,7 @@ parse_ep_config(const char *q_arg)
 #define CMD_LINE_OPT_EMPTY_POLL "empty-poll"
 #define CMD_LINE_OPT_INTERRUPT_ONLY "interrupt-only"
 #define CMD_LINE_OPT_TELEMETRY "telemetry"
+#define CMD_LINE_OPT_PMD_MGMT "pmd-mgmt"
 
 /* Parse the argument given in the command line of the application */
 static int
@@ -1776,6 +1816,7 @@ parse_args(int argc, char **argv)
 		{CMD_LINE_OPT_LEGACY, 0, 0, 0},
 		{CMD_LINE_OPT_TELEMETRY, 0, 0, 0},
 		{CMD_LINE_OPT_INTERRUPT_ONLY, 0, 0, 0},
+		{CMD_LINE_OPT_PMD_MGMT, 1, 0, 0},
 		{NULL, 0, 0, 0}
 	};
 
@@ -1886,6 +1927,21 @@ parse_args(int argc, char **argv)
 				printf("telemetry mode is enabled\n");
 			}
 
+			if (!strncmp(lgopts[option_index].name,
+					CMD_LINE_OPT_PMD_MGMT,
+					sizeof(CMD_LINE_OPT_PMD_MGMT))) {
+				if (app_mode != APP_MODE_DEFAULT) {
+					printf(" power mgmt mode is mutually exclusive with other modes\n");
+					return -1;
+				}
+				if (parse_pmd_mgmt_config(optarg) < 0) {
+					printf(" Invalid PMD power management mode: %s\n",
+							optarg);
+					return -1;
+				}
+				app_mode = APP_MODE_PMD_MGMT;
+				printf("PMD power mgmt mode is enabled\n");
+			}
 			if (!strncmp(lgopts[option_index].name,
 					CMD_LINE_OPT_INTERRUPT_ONLY,
 					sizeof(CMD_LINE_OPT_INTERRUPT_ONLY))) {
@@ -2442,11 +2498,14 @@ mode_to_str(enum appmode mode)
 		return "telemetry";
 	case APP_MODE_INTERRUPT:
 		return "interrupt-only";
+	case APP_MODE_PMD_MGMT:
+		return "pmd mgmt";
 	default:
 		return "invalid";
 	}
 }
 
+/* Power library initialized in the main routine. 8< */
 int
 main(int argc, char **argv)
 {
@@ -2476,6 +2535,9 @@ main(int argc, char **argv)
 
 	/* init RTE timer library to be used late */
 	rte_timer_subsystem_init();
+
+	/* if we're running pmd-mgmt mode, don't default to baseline mode */
+	baseline_enabled = false;
 
 	/* parse application arguments (after the EAL ones) */
 	ret = parse_args(argc, argv);
@@ -2671,6 +2733,7 @@ main(int argc, char **argv)
 		qconf = &lcore_conf[lcore_id];
 		printf("\nInitializing rx queues on lcore %u ... ", lcore_id );
 		fflush(stdout);
+
 		/* init RX queues */
 		for(queue = 0; queue < qconf->n_rx_queue; ++queue) {
 			struct rte_eth_rxconf rxq_conf;
@@ -2708,8 +2771,19 @@ main(int argc, char **argv)
 					rte_exit(EXIT_FAILURE,
 						 "Fail to add ptype cb\n");
 			}
+
+			if (app_mode == APP_MODE_PMD_MGMT && !baseline_enabled) {
+				ret = rte_power_ethdev_pmgmt_queue_enable(
+						lcore_id, portid, queueid,
+						pmgmt_type);
+				if (ret < 0)
+					rte_exit(EXIT_FAILURE,
+						"rte_power_ethdev_pmgmt_queue_enable: err=%d, port=%d\n",
+							ret, portid);
+			}
 		}
 	}
+	/* >8 End of power library initialization. */
 
 	printf("\n");
 
@@ -2798,6 +2872,9 @@ main(int argc, char **argv)
 						SKIP_MAIN);
 	} else if (app_mode == APP_MODE_INTERRUPT) {
 		rte_eal_mp_remote_launch(main_intr_loop, NULL, CALL_MAIN);
+	} else if (app_mode == APP_MODE_PMD_MGMT) {
+		/* reuse telemetry loop for PMD power management mode */
+		rte_eal_mp_remote_launch(main_telemetry_loop, NULL, CALL_MAIN);
 	}
 
 	if (app_mode == APP_MODE_EMPTY_POLL || app_mode == APP_MODE_TELEMETRY)
@@ -2806,6 +2883,21 @@ main(int argc, char **argv)
 	RTE_LCORE_FOREACH_WORKER(lcore_id) {
 		if (rte_eal_wait_lcore(lcore_id) < 0)
 			return -1;
+	}
+
+	if (app_mode == APP_MODE_PMD_MGMT) {
+		for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+			if (rte_lcore_is_enabled(lcore_id) == 0)
+				continue;
+			qconf = &lcore_conf[lcore_id];
+			for (queue = 0; queue < qconf->n_rx_queue; ++queue) {
+				portid = qconf->rx_queue_list[queue].port_id;
+				queueid = qconf->rx_queue_list[queue].queue_id;
+
+				rte_power_ethdev_pmgmt_queue_disable(lcore_id,
+						portid, queueid);
+			}
+		}
 	}
 
 	RTE_ETH_FOREACH_DEV(portid)
