@@ -13,8 +13,12 @@ librte_vhost.so.21 librte-vhost21 #MINVER#
  rte_vdpa_reset_stats@DPDK_21 20.11
  rte_vdpa_unregister_device@DPDK_21 20.11
  rte_vhost_async_channel_register@EXPERIMENTAL 20.08
+ rte_vhost_async_channel_register_thread_unsafe@EXPERIMENTAL 21.08
  rte_vhost_async_channel_unregister@EXPERIMENTAL 20.08
+ rte_vhost_async_channel_unregister_thread_unsafe@EXPERIMENTAL 21.08
+ rte_vhost_async_get_inflight@EXPERIMENTAL 21.08
  rte_vhost_avail_entries@DPDK_21 20.11
+ rte_vhost_clear_queue_thread_unsafe@EXPERIMENTAL 21.08
  rte_vhost_clr_inflight_desc_packed@EXPERIMENTAL 19.11
  rte_vhost_clr_inflight_desc_split@EXPERIMENTAL 19.11
  rte_vhost_crypto_create@EXPERIMENTAL 18.05
@@ -46,6 +50,7 @@ librte_vhost.so.21 librte-vhost21 #MINVER#
  rte_vhost_get_mem_table@DPDK_21 20.11
  rte_vhost_get_mtu@DPDK_21 20.11
  rte_vhost_get_negotiated_features@DPDK_21 20.11
+ rte_vhost_get_negotiated_protocol_features@EXPERIMENTAL 21.08
  rte_vhost_get_numa_node@DPDK_21 20.11
  rte_vhost_get_queue_num@DPDK_21 20.11
  rte_vhost_get_vdpa_device@DPDK_21 20.11

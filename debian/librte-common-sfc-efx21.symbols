@@ -5,6 +5,7 @@ librte_common_sfc_efx.so.21 librte-common-sfc-efx21 #MINVER#
  efx_ev_init@INTERNAL 20.11
  efx_ev_qcreate@INTERNAL 20.11
  efx_ev_qcreate_check_init_done@INTERNAL 20.11
+ efx_ev_qcreate_irq@INTERNAL 21.08
  efx_ev_qdestroy@INTERNAL 20.11
  efx_ev_qmoderate@INTERNAL 20.11
  efx_ev_qpending@INTERNAL 20.11
@@ -77,9 +78,15 @@ librte_common_sfc_efx.so.21 librte-common-sfc-efx21 #MINVER#
  efx_mae_action_rule_insert@INTERNAL 20.11~rc3
  efx_mae_action_rule_remove@INTERNAL 20.11~rc3
  efx_mae_action_set_alloc@INTERNAL 20.11~rc3
+ efx_mae_action_set_fill_in_counter_id@INTERNAL 21.08
+ efx_mae_action_set_fill_in_eh_id@INTERNAL 21.08
  efx_mae_action_set_free@INTERNAL 20.11~rc3
+ efx_mae_action_set_get_nb_count@INTERNAL 21.08
+ efx_mae_action_set_populate_count@INTERNAL 21.08
+ efx_mae_action_set_populate_decap@INTERNAL 21.08
  efx_mae_action_set_populate_deliver@INTERNAL 20.11~rc3
  efx_mae_action_set_populate_drop@INTERNAL 20.11~rc3
+ efx_mae_action_set_populate_encap@INTERNAL 21.08
  efx_mae_action_set_populate_flag@INTERNAL 20.11~rc3
  efx_mae_action_set_populate_mark@INTERNAL 20.11~rc3
  efx_mae_action_set_populate_vlan_pop@INTERNAL 20.11~rc3
@@ -87,9 +94,17 @@ librte_common_sfc_efx.so.21 librte-common-sfc-efx21 #MINVER#
  efx_mae_action_set_spec_fini@INTERNAL 20.11~rc3
  efx_mae_action_set_spec_init@INTERNAL 20.11~rc3
  efx_mae_action_set_specs_equal@INTERNAL 20.11~rc3
+ efx_mae_counters_alloc@INTERNAL 21.08
+ efx_mae_counters_free@INTERNAL 21.08
+ efx_mae_counters_stream_give_credits@INTERNAL 21.08
+ efx_mae_counters_stream_start@INTERNAL 21.08
+ efx_mae_counters_stream_stop@INTERNAL 21.08
+ efx_mae_encap_header_alloc@INTERNAL 21.08
+ efx_mae_encap_header_free@INTERNAL 21.08
  efx_mae_fini@INTERNAL 20.11~rc3
  efx_mae_get_limits@INTERNAL 20.11~rc3
  efx_mae_init@INTERNAL 20.11~rc3
+ efx_mae_match_spec_bit_set@INTERNAL 21.08
  efx_mae_match_spec_field_set@INTERNAL 20.11~rc3
  efx_mae_match_spec_fini@INTERNAL 20.11~rc3
  efx_mae_match_spec_init@INTERNAL 20.11~rc3
@@ -199,5 +214,7 @@ librte_common_sfc_efx.so.21 librte-common-sfc-efx21 #MINVER#
  efx_tx_qpush@INTERNAL 20.11
  efx_txq_nbufs@INTERNAL 20.11
  efx_txq_size@INTERNAL 20.11
+ sfc_efx_dev_class_get@INTERNAL 21.08
+ sfc_efx_family@INTERNAL 21.08
  sfc_efx_mcdi_fini@INTERNAL 20.11
  sfc_efx_mcdi_init@INTERNAL 20.11

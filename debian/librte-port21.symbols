@@ -32,5 +32,9 @@ librte_port.so.21 librte-port21 #MINVER#
  rte_port_sym_crypto_writer_ops@DPDK_21 20.11
  rte_swx_port_ethdev_reader_ops@EXPERIMENTAL 20.11
  rte_swx_port_ethdev_writer_ops@EXPERIMENTAL 20.11
+ rte_swx_port_fd_reader_ops@EXPERIMENTAL 21.08
+ rte_swx_port_fd_writer_ops@EXPERIMENTAL 21.08
+ rte_swx_port_ring_reader_ops@EXPERIMENTAL 21.08
+ rte_swx_port_ring_writer_ops@EXPERIMENTAL 21.08
  rte_swx_port_sink_ops@EXPERIMENTAL 20.11
  rte_swx_port_source_ops@EXPERIMENTAL 20.11

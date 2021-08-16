@@ -11,6 +11,7 @@ librte_bus_pci.so.21 librte-bus-pci21 #MINVER#
  rte_pci_map_device@DPDK_21 20.11
  rte_pci_read_config@DPDK_21 20.11
  rte_pci_register@DPDK_21 20.11
+ rte_pci_set_bus_master@EXPERIMENTAL 21.08
  rte_pci_unmap_device@DPDK_21 20.11
  rte_pci_unregister@DPDK_21 20.11
  rte_pci_write_config@DPDK_21 20.11

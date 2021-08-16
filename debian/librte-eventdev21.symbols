@@ -5,6 +5,7 @@ librte_eventdev.so.21 librte-eventdev21 #MINVER#
  __rte_eventdev_trace_close@EXPERIMENTAL 20.08
  __rte_eventdev_trace_configure@EXPERIMENTAL 20.08
  __rte_eventdev_trace_crypto_adapter_create@EXPERIMENTAL 20.08
+ __rte_eventdev_trace_crypto_adapter_enqueue@EXPERIMENTAL 21.08
  __rte_eventdev_trace_crypto_adapter_free@EXPERIMENTAL 20.08
  __rte_eventdev_trace_crypto_adapter_queue_pair_add@EXPERIMENTAL 20.08
  __rte_eventdev_trace_crypto_adapter_queue_pair_del@EXPERIMENTAL 20.08
@@ -75,11 +76,13 @@ librte_eventdev.so.21 librte-eventdev21 #MINVER#
  rte_event_eth_rx_adapter_free@DPDK_21 20.11
  rte_event_eth_rx_adapter_queue_add@DPDK_21 20.11
  rte_event_eth_rx_adapter_queue_del@DPDK_21 20.11
+ rte_event_eth_rx_adapter_queue_event_vector_config@EXPERIMENTAL 21.08
  rte_event_eth_rx_adapter_service_id_get@DPDK_21 20.11
  rte_event_eth_rx_adapter_start@DPDK_21 20.11
  rte_event_eth_rx_adapter_stats_get@DPDK_21 20.11
  rte_event_eth_rx_adapter_stats_reset@DPDK_21 20.11
  rte_event_eth_rx_adapter_stop@DPDK_21 20.11
+ rte_event_eth_rx_adapter_vector_limits_get@EXPERIMENTAL 21.08
  rte_event_eth_tx_adapter_caps_get@DPDK_21 20.11
  rte_event_eth_tx_adapter_create@DPDK_21 20.11
  rte_event_eth_tx_adapter_create_ext@DPDK_21 20.11
@@ -120,4 +123,5 @@ librte_eventdev.so.21 librte-eventdev21 #MINVER#
  rte_event_timer_adapter_stats_get@DPDK_21 20.11
  rte_event_timer_adapter_stats_reset@DPDK_21 20.11
  rte_event_timer_adapter_stop@DPDK_21 20.11
+ rte_event_vector_pool_create@EXPERIMENTAL 21.08
  rte_eventdevs@DPDK_21 20.11

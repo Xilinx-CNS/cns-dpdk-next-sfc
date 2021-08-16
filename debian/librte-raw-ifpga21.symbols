@@ -1,4 +1,17 @@
 librte_raw_ifpga.so.21 librte-raw-ifpga21 #MINVER#
  DPDK_21@DPDK_21 20.11
+ EXPERIMENTAL@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_cleanup@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_get_dev_id@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_get_pci_bus@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_get_phy_info@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_get_property@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_get_rsu_status@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_partial_reconfigure@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_reboot_try@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_reload@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_set_rsu_status@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_stop_update@EXPERIMENTAL 21.08
+ rte_pmd_ifpga_update_flash@EXPERIMENTAL 21.08
 # INFO: this library exports no symbols, essentially it is a driver that
 # registers itself on load and is then only driven by callbacks.

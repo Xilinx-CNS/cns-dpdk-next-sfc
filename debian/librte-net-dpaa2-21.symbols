@@ -4,4 +4,6 @@ librte_net_dpaa2.so.21 librte-net-dpaa2-21 #MINVER#
  dpaa2_eth_eventq_attach@INTERNAL 20.11
  dpaa2_eth_eventq_detach@INTERNAL 20.11
  rte_pmd_dpaa2_mux_flow_create@EXPERIMENTAL 20.11
+ rte_pmd_dpaa2_mux_rx_frame_len@EXPERIMENTAL 21.08
  rte_pmd_dpaa2_set_custom_hash@EXPERIMENTAL 20.11
+ rte_pmd_dpaa2_thread_init@EXPERIMENTAL 21.08

@@ -34,6 +34,12 @@ librte_pipeline.so.21 librte-pipeline21 #MINVER#
  rte_port_in_action_profile_freeze@EXPERIMENTAL 18.05
  rte_swx_ctl_action_arg_info_get@EXPERIMENTAL 20.11
  rte_swx_ctl_action_info_get@EXPERIMENTAL 20.11
+ rte_swx_ctl_metarray_info_get@EXPERIMENTAL 21.08
+ rte_swx_ctl_meter_profile_add@EXPERIMENTAL 21.08
+ rte_swx_ctl_meter_profile_delete@EXPERIMENTAL 21.08
+ rte_swx_ctl_meter_reset@EXPERIMENTAL 21.08
+ rte_swx_ctl_meter_set@EXPERIMENTAL 21.08
+ rte_swx_ctl_meter_stats_read@EXPERIMENTAL 21.08
  rte_swx_ctl_pipeline_abort@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_commit@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_create@EXPERIMENTAL 20.11
@@ -42,11 +48,25 @@ librte_pipeline.so.21 librte-pipeline21 #MINVER#
  rte_swx_ctl_pipeline_numa_node_get@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_port_in_stats_read@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_port_out_stats_read@EXPERIMENTAL 20.11
+ rte_swx_ctl_pipeline_regarray_read@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_regarray_write@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_selector_fprintf@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_selector_group_add@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_selector_group_delete@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_selector_group_member_add@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_selector_group_member_delete@EXPERIMENTAL 21.08
+ rte_swx_ctl_pipeline_selector_stats_read@EXPERIMENTAL 21.08
  rte_swx_ctl_pipeline_table_default_entry_add@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_table_entry_add@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_table_entry_delete@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_table_entry_read@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_table_fprintf@EXPERIMENTAL 20.11
+ rte_swx_ctl_pipeline_table_stats_read@EXPERIMENTAL 21.08
+ rte_swx_ctl_regarray_info_get@EXPERIMENTAL 21.08
+ rte_swx_ctl_selector_field_info_get@EXPERIMENTAL 21.08
+ rte_swx_ctl_selector_group_id_field_info_get@EXPERIMENTAL 21.08
+ rte_swx_ctl_selector_info_get@EXPERIMENTAL 21.08
+ rte_swx_ctl_selector_member_id_field_info_get@EXPERIMENTAL 21.08
  rte_swx_ctl_table_action_info_get@EXPERIMENTAL 20.11
  rte_swx_ctl_table_info_get@EXPERIMENTAL 20.11
  rte_swx_ctl_table_match_field_info_get@EXPERIMENTAL 20.11
@@ -62,13 +82,16 @@ librte_pipeline.so.21 librte-pipeline21 #MINVER#
  rte_swx_pipeline_flush@EXPERIMENTAL 20.11
  rte_swx_pipeline_free@EXPERIMENTAL 20.11
  rte_swx_pipeline_instructions_config@EXPERIMENTAL 20.11
+ rte_swx_pipeline_metarray_config@EXPERIMENTAL 21.08
  rte_swx_pipeline_packet_header_register@EXPERIMENTAL 20.11
  rte_swx_pipeline_packet_metadata_register@EXPERIMENTAL 20.11
  rte_swx_pipeline_port_in_config@EXPERIMENTAL 20.11
  rte_swx_pipeline_port_in_type_register@EXPERIMENTAL 20.11
  rte_swx_pipeline_port_out_config@EXPERIMENTAL 20.11
  rte_swx_pipeline_port_out_type_register@EXPERIMENTAL 20.11
+ rte_swx_pipeline_regarray_config@EXPERIMENTAL 21.08
  rte_swx_pipeline_run@EXPERIMENTAL 20.11
+ rte_swx_pipeline_selector_config@EXPERIMENTAL 21.08
  rte_swx_pipeline_struct_type_register@EXPERIMENTAL 20.11
  rte_swx_pipeline_table_config@EXPERIMENTAL 20.11
  rte_swx_pipeline_table_state_get@EXPERIMENTAL 20.11

@@ -26,6 +26,8 @@ librte_cryptodev.so.21 librte-cryptodev21 #MINVER#
  rte_crypto_cipher_algorithm_strings@DPDK_21 20.11
  rte_crypto_cipher_operation_strings@DPDK_21 20.11
  rte_crypto_op_pool_create@DPDK_21 20.11
+ rte_cryptodev_add_deq_callback@EXPERIMENTAL 21.08
+ rte_cryptodev_add_enq_callback@EXPERIMENTAL 21.08
  rte_cryptodev_allocate_driver@DPDK_21 20.11
  rte_cryptodev_asym_capability_get@EXPERIMENTAL 18.08
  rte_cryptodev_asym_get_header_session_size@EXPERIMENTAL 18.08
@@ -73,6 +75,8 @@ librte_cryptodev.so.21 librte-cryptodev21 #MINVER#
  rte_cryptodev_raw_dequeue_done@EXPERIMENTAL 20.11
  rte_cryptodev_raw_enqueue_burst@EXPERIMENTAL 20.11
  rte_cryptodev_raw_enqueue_done@EXPERIMENTAL 20.11
+ rte_cryptodev_remove_deq_callback@EXPERIMENTAL 21.08
+ rte_cryptodev_remove_enq_callback@EXPERIMENTAL 21.08
  rte_cryptodev_socket_id@DPDK_21 20.11
  rte_cryptodev_start@DPDK_21 20.11
  rte_cryptodev_stats_get@DPDK_21 20.11

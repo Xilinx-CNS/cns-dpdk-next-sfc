@@ -7,6 +7,8 @@ librte_power.so.21 librte-power21 #MINVER#
  rte_power_empty_poll_stat_free@EXPERIMENTAL 18.11
  rte_power_empty_poll_stat_init@EXPERIMENTAL 18.11
  rte_power_empty_poll_stat_update@EXPERIMENTAL 18.11
+ rte_power_ethdev_pmgmt_queue_disable@EXPERIMENTAL 21.08
+ rte_power_ethdev_pmgmt_queue_enable@EXPERIMENTAL 21.08
  rte_power_exit@DPDK_21 20.11
  rte_power_freq_disable_turbo@DPDK_21 20.11
  rte_power_freq_down@DPDK_21 20.11

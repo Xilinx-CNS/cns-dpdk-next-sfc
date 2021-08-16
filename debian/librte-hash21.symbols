@@ -30,3 +30,11 @@ librte_hash.so.21 librte-hash21 #MINVER#
  rte_hash_rcu_qsbr_add@EXPERIMENTAL 20.11~rc3
  rte_hash_reset@DPDK_21 20.11
  rte_hash_set_cmp_func@DPDK_21 20.11
+ rte_thash_add_helper@EXPERIMENTAL 21.08
+ rte_thash_adjust_tuple@EXPERIMENTAL 21.08
+ rte_thash_find_existing@EXPERIMENTAL 21.08
+ rte_thash_free_ctx@EXPERIMENTAL 21.08
+ rte_thash_get_complement@EXPERIMENTAL 21.08
+ rte_thash_get_helper@EXPERIMENTAL 21.08
+ rte_thash_get_key@EXPERIMENTAL 21.08
+ rte_thash_init_ctx@EXPERIMENTAL 21.08
