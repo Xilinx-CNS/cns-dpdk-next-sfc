@@ -2666,6 +2666,7 @@ sfc_register_dp(void)
 static int
 sfc_parse_switch_mode(struct sfc_adapter *sa, bool has_representors)
 {
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
 	const char *switch_mode = NULL;
 	int rc;
 
@@ -2677,7 +2678,9 @@ sfc_parse_switch_mode(struct sfc_adapter *sa, bool has_representors)
 		goto fail_kvargs;
 
 	if (switch_mode == NULL) {
-		sa->switchdev = has_representors;
+		sa->switchdev = encp->enc_mae_supported &&
+				(!encp->enc_datapath_cap_evb ||
+				 has_representors);
 	} else if (strcasecmp(switch_mode, SFC_KVARG_SWITCH_MODE_LEGACY) == 0) {
 		sa->switchdev = false;
 	} else if (strcasecmp(switch_mode,
@@ -2787,14 +2790,18 @@ sfc_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 	sfc_adapter_lock_init(sa);
 	sfc_adapter_lock(sa);
 
-	rc = sfc_parse_switch_mode(sa, init_data->nb_representors > 0);
-	if (rc != 0)
-		goto fail_switch_mode;
-
 	sfc_log_init(sa, "probing");
 	rc = sfc_probe(sa);
 	if (rc != 0)
 		goto fail_probe;
+
+	/*
+	 * Selecting a default switch mode requires the NIC to be probed and
+	 * to have its capabilities filled in.
+	 */
+	rc = sfc_parse_switch_mode(sa, init_data->nb_representors > 0);
+	if (rc != 0)
+		goto fail_switch_mode;
 
 	sfc_log_init(sa, "set device ops");
 	rc = sfc_eth_dev_set_ops(dev);
@@ -2834,10 +2841,10 @@ fail_attach:
 	sfc_eth_dev_clear_ops(dev);
 
 fail_set_ops:
+fail_switch_mode:
 	sfc_unprobe(sa);
 
 fail_probe:
-fail_switch_mode:
 	sfc_adapter_unlock(sa);
 	sfc_adapter_lock_fini(sa);
 	rte_free(dev->data->mac_addrs);
