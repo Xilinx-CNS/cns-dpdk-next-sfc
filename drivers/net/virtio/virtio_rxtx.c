@@ -917,6 +917,7 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 	struct rte_net_hdr_lens hdr_lens;
 	uint32_t hdrlen, ptype;
 	int l4_supported = 0;
+	int tunnel_used = 0;
 
 	/* nothing to do */
 	if (hdr->flags == 0 && hdr->gso_type == VIRTIO_NET_HDR_GSO_NONE)
@@ -931,9 +932,12 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 	    (ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_SCTP)
 		l4_supported = 1;
 
+	if ((ptype & RTE_PTYPE_TUNNEL_MASK) != 0)
+		tunnel_used = 1;
+
 	if (hdr->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM) {
 		hdrlen = hdr_lens.l2_len + hdr_lens.l3_len + hdr_lens.l4_len;
-		if (hdr->csum_start <= hdrlen && l4_supported) {
+		if (hdr->csum_start <= hdrlen && l4_supported && tunnel_used) {
 			m->ol_flags |= PKT_RX_L4_CKSUM_NONE;
 		} else {
 			/* Unknown proto or tunnel, do sw cksum. We can assume
