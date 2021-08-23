@@ -951,6 +951,19 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 			bool inner_udp = false;
 			bool udp_packet = false;
 
+			/*
+			 * Checksum field should be in the first segment since
+			 * the buffers we provide to the host are large enough,
+			 * otherwise we simply keep PKT_RX_L4_CKSUM_UNKNOWN and
+			 * the packet will be double-checked in SW and dropped
+			 * because of invalid checksum. Skip GSO flags
+			 * processing since it does not make sense.
+			 */
+			off = hdr->csum_start + hdr->csum_offset;
+			if (unlikely(rte_pktmbuf_data_len(m) <
+				     off + sizeof(uint16_t)))
+				return -EINVAL;
+
 			if (rte_raw_cksum_mbuf(m, hdr->csum_start,
 				rte_pktmbuf_pkt_len(m) - hdr->csum_start,
 				&csum) < 0)
@@ -975,10 +988,8 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 			if (csum == 0 && udp_packet)
 				csum = 0xffff;
 
-			off = hdr->csum_offset + hdr->csum_start;
-			if (rte_pktmbuf_data_len(m) >= off + 1)
-				*rte_pktmbuf_mtod_offset(m, uint16_t *,
-					off) = csum;
+			*rte_pktmbuf_mtod_offset(m, uint16_t *,
+				off) = csum;
 		}
 	} else if (hdr->flags & VIRTIO_NET_HDR_F_DATA_VALID && l4_supported) {
 		m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
