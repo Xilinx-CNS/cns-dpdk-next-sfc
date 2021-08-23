@@ -947,13 +947,34 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 			 * but there's nothing we can do.
 			 */
 			uint16_t csum = 0, off;
+			bool outer_udp = false;
+			bool inner_udp = false;
+			bool udp_packet = false;
 
 			if (rte_raw_cksum_mbuf(m, hdr->csum_start,
 				rte_pktmbuf_pkt_len(m) - hdr->csum_start,
 				&csum) < 0)
 				return -EINVAL;
-			if (likely(csum != 0xffff))
-				csum = ~csum;
+			csum = ~csum;
+
+			if ((ptype & RTE_PTYPE_L4_MASK) ==
+			    RTE_PTYPE_L4_UDP)
+				outer_udp = true;
+
+			if ((ptype & RTE_PTYPE_INNER_L4_MASK) ==
+			    RTE_PTYPE_INNER_L4_UDP)
+				inner_udp = true;
+
+			udp_packet = (!tunnel_used && outer_udp) ||
+			             (tunnel_used && inner_udp);
+			/*
+			 * Per RFC 768: If the computed checksum is zero for
+			 * UDP, it is transmitted as all ones
+			 * (the equivalent in one's complement arithmetic).
+			 */
+			if (csum == 0 && udp_packet)
+				csum = 0xffff;
+
 			off = hdr->csum_offset + hdr->csum_start;
 			if (rte_pktmbuf_data_len(m) >= off + 1)
 				*rte_pktmbuf_mtod_offset(m, uint16_t *,
