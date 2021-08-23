@@ -935,11 +935,18 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 		if (hdr->csum_start <= hdrlen && tunnel_used) {
 			m->ol_flags |= PKT_RX_L4_CKSUM_NONE;
 		} else {
-			/* Unknown proto or tunnel, do sw cksum. We can assume
-			 * the cksum field is in the first segment since the
-			 * buffers we provided to the host are large enough.
-			 * In case of SCTP, this will be wrong since it's a CRC
-			 * but there's nothing we can do.
+			/*
+			 * According to Virtual I/O Device (VIRTIO) Version 1.1
+			 * 5.1.6.4.1 Device Requirements: Processing of Incoming
+			 * Packets:
+			 * the device MAY set the VIRTIO_NET_HDR_F_NEEDS_CSUM
+			 * bit in flags, if so:
+			 * ...
+			 * 3. The device MUST set csum_start and csum_offset
+			 * such that calculating a ones’ complement checksum
+			 * from csum_start up until the end of the packet and
+			 * storing the result at offset csum_offset from
+			 * csum_start will result in a fully checksummed packet.
 			 */
 			uint16_t csum = 0, off;
 			bool outer_udp = false;
