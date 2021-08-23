@@ -990,6 +990,7 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 
 			*rte_pktmbuf_mtod_offset(m, uint16_t *,
 				off) = csum;
+			m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
 		}
 	} else if (hdr->flags & VIRTIO_NET_HDR_F_DATA_VALID && l4_supported) {
 		m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
