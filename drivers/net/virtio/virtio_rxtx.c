@@ -916,7 +916,6 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 {
 	struct rte_net_hdr_lens hdr_lens;
 	uint32_t hdrlen, ptype;
-	int l4_supported = 0;
 	int tunnel_used = 0;
 
 	/* nothing to do */
@@ -927,17 +926,13 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 
 	ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
 	m->packet_type = ptype;
-	if ((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_TCP ||
-	    (ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP ||
-	    (ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_SCTP)
-		l4_supported = 1;
 
 	if ((ptype & RTE_PTYPE_TUNNEL_MASK) != 0)
 		tunnel_used = 1;
 
 	if (hdr->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM) {
 		hdrlen = hdr_lens.l2_len + hdr_lens.l3_len + hdr_lens.l4_len;
-		if (hdr->csum_start <= hdrlen && l4_supported && tunnel_used) {
+		if (hdr->csum_start <= hdrlen && tunnel_used) {
 			m->ol_flags |= PKT_RX_L4_CKSUM_NONE;
 		} else {
 			/* Unknown proto or tunnel, do sw cksum. We can assume
@@ -992,7 +987,7 @@ virtio_rx_offload(struct rte_mbuf *m, struct virtio_net_hdr *hdr)
 				off) = csum;
 			m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
 		}
-	} else if (hdr->flags & VIRTIO_NET_HDR_F_DATA_VALID && l4_supported) {
+	} else if (hdr->flags & VIRTIO_NET_HDR_F_DATA_VALID) {
 		m->ol_flags |= PKT_RX_L4_CKSUM_GOOD;
 	}
 
