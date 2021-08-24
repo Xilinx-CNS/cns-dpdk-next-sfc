@@ -1,3 +1,9 @@
+dpdk (21.08-2) experimental; urgency=medium
+
+  * librte-compress-mlx5-21 builds for arm64 and ppc64el too
+
+ -- Luca Boccassi <bluca@debian.org>  Tue, 24 Aug 2021 12:21:56 +0100
+
 dpdk (21.08-1) experimental; urgency=medium
 
   [ Luca Boccassi ]
