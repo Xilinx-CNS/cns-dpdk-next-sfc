@@ -662,7 +662,7 @@ Description: Data Plane Development Kit (librte-compress-isal runtime library)
  Inflate(decompression).
 
 Package: librte-compress-mlx5-21
-Architecture: amd64 i386
+Architecture: amd64 arm64 i386 ppc64el
 Multi-Arch: same
 Homepage: https://doc.dpdk.org/guides/compressdevs/mlx5.html
 Pre-Depends: ${misc:Pre-Depends},
