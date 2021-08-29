@@ -681,7 +681,9 @@ virtio_dev_rx_queue_setup(struct rte_eth_dev *dev,
 				     hw->rx_ol_scatter, &error)) {
 		PMD_INIT_LOG(ERR, "RxQ %u Rx scatter check failed: %s",
 			     queue_idx, error);
+#if 0
 		return -EINVAL;
+#endif
 	}
 
 	rx_free_thresh = rx_conf->rx_free_thresh;
