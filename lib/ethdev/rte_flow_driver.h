@@ -40,6 +40,7 @@ struct rte_flow_ops {
 	/** See rte_flow_validate(). */
 	int (*validate)
 		(struct rte_eth_dev *,
+		 uint16_t target_port_id,
 		 const struct rte_flow_attr *,
 		 const struct rte_flow_item [],
 		 const struct rte_flow_action [],
@@ -47,6 +48,7 @@ struct rte_flow_ops {
 	/** See rte_flow_create(). */
 	struct rte_flow *(*create)
 		(struct rte_eth_dev *,
+		 uint16_t target_port_id,
 		 const struct rte_flow_attr *,
 		 const struct rte_flow_item [],
 		 const struct rte_flow_action [],

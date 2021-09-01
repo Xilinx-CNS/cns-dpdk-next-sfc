@@ -1974,6 +1974,7 @@ hns3_flow_query(struct rte_eth_dev *dev, struct rte_flow *flow,
 
 static int
 hns3_flow_validate_wrap(struct rte_eth_dev *dev,
+			uint16_t target_port_id __rte_unused,
 			const struct rte_flow_attr *attr,
 			const struct rte_flow_item pattern[],
 			const struct rte_flow_action actions[],
@@ -1990,7 +1991,9 @@ hns3_flow_validate_wrap(struct rte_eth_dev *dev,
 }
 
 static struct rte_flow *
-hns3_flow_create_wrap(struct rte_eth_dev *dev, const struct rte_flow_attr *attr,
+hns3_flow_create_wrap(struct rte_eth_dev *dev,
+		      uint16_t target_port_id __rte_unused,
+		      const struct rte_flow_attr *attr,
 		      const struct rte_flow_item pattern[],
 		      const struct rte_flow_action actions[],
 		      struct rte_flow_error *error)

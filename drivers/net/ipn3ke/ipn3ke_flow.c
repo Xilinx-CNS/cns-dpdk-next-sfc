@@ -1149,6 +1149,7 @@ ipn3ke_flow_convert(const struct rte_flow_attr *attr,
 
 static int
 ipn3ke_flow_validate(__rte_unused struct rte_eth_dev *dev,
+	__rte_unused uint16_t target_port_id,
 	const struct rte_flow_attr *attr, const struct rte_flow_item pattern[],
 	const struct rte_flow_action actions[], struct rte_flow_error *error)
 {
@@ -1158,6 +1159,7 @@ ipn3ke_flow_validate(__rte_unused struct rte_eth_dev *dev,
 
 static struct rte_flow *
 ipn3ke_flow_create(struct rte_eth_dev *dev,
+	__rte_unused uint16_t target_port_id,
 	const struct rte_flow_attr *attr, const struct rte_flow_item pattern[],
 	const struct rte_flow_action actions[], struct rte_flow_error *error)
 {

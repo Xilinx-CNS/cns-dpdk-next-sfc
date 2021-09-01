@@ -928,6 +928,7 @@ exit_action_not_supported:
  */
 static int
 mlx4_flow_validate(struct rte_eth_dev *dev,
+		   uint16_t target_port_id __rte_unused,
 		   const struct rte_flow_attr *attr,
 		   const struct rte_flow_item pattern[],
 		   const struct rte_flow_action actions[],
@@ -1137,6 +1138,7 @@ error:
  */
 static struct rte_flow *
 mlx4_flow_create(struct rte_eth_dev *dev,
+		 uint16_t target_port_id __rte_unused,
 		 const struct rte_flow_attr *attr,
 		 const struct rte_flow_item pattern[],
 		 const struct rte_flow_action actions[],
@@ -1440,7 +1442,9 @@ next_vlan:
 		if (!flow || !flow->internal) {
 			/* Not found, create a new flow rule. */
 			memcpy(rule_mac, mac, sizeof(*mac));
-			flow = mlx4_flow_create(ETH_DEV(priv), &attr, pattern,
+			flow = mlx4_flow_create(ETH_DEV(priv),
+						ETH_DEV(priv)->data->port_id,
+						&attr, pattern,
 						actions, error);
 			if (!flow) {
 				err = -rte_errno;
@@ -1488,7 +1492,9 @@ next_vlan:
 				pattern[1].mask = &eth_allmulti;
 			}
 			pattern[2] = pattern[3];
-			flow = mlx4_flow_create(ETH_DEV(priv), &attr, pattern,
+			flow = mlx4_flow_create(ETH_DEV(priv),
+						ETH_DEV(priv)->data->port_id,
+						&attr, pattern,
 						actions, error);
 			if (!flow) {
 				err = -rte_errno;

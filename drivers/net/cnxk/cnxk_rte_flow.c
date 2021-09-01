@@ -241,6 +241,7 @@ cnxk_map_flow_data(struct rte_eth_dev *eth_dev,
 
 static int
 cnxk_flow_validate(struct rte_eth_dev *eth_dev,
+		   uint16_t target_port_id __rte_unused,
 		   const struct rte_flow_attr *attr,
 		   const struct rte_flow_item pattern[],
 		   const struct rte_flow_action actions[],
@@ -269,7 +270,9 @@ cnxk_flow_validate(struct rte_eth_dev *eth_dev,
 }
 
 struct roc_npc_flow *
-cnxk_flow_create(struct rte_eth_dev *eth_dev, const struct rte_flow_attr *attr,
+cnxk_flow_create(struct rte_eth_dev *eth_dev,
+		 uint16_t target_port_id __rte_unused,
+		 const struct rte_flow_attr *attr,
 		 const struct rte_flow_item pattern[],
 		 const struct rte_flow_action actions[],
 		 struct rte_flow_error *error)

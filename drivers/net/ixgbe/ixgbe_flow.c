@@ -3004,6 +3004,7 @@ ixgbe_filterlist_flush(void)
  */
 static struct rte_flow *
 ixgbe_flow_create(struct rte_eth_dev *dev,
+		  __rte_unused uint16_t target_port_id,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item pattern[],
 		  const struct rte_flow_action actions[],
@@ -3266,6 +3267,7 @@ out:
  */
 static int
 ixgbe_flow_validate(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],

@@ -1691,7 +1691,9 @@ enic_flow_del_filter(struct enic *enic, struct rte_flow *flow,
  * @see rte_flow_ops
  */
 static int
-enic_flow_validate(struct rte_eth_dev *dev, const struct rte_flow_attr *attrs,
+enic_flow_validate(struct rte_eth_dev *dev,
+		   __rte_unused uint16_t target_port_id,
+		   const struct rte_flow_attr *attrs,
 		   const struct rte_flow_item pattern[],
 		   const struct rte_flow_action actions[],
 		   struct rte_flow_error *error)
@@ -1717,6 +1719,7 @@ enic_flow_validate(struct rte_eth_dev *dev, const struct rte_flow_attr *attrs,
  */
 static struct rte_flow *
 enic_flow_create(struct rte_eth_dev *dev,
+		 __rte_unused uint16_t target_port_id,
 		 const struct rte_flow_attr *attrs,
 		 const struct rte_flow_item pattern[],
 		 const struct rte_flow_action actions[],

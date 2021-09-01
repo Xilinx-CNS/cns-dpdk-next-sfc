@@ -283,15 +283,27 @@ rte_flow_validate(uint16_t port_id,
 		  const struct rte_flow_action actions[],
 		  struct rte_flow_error *error)
 {
-	const struct rte_flow_ops *ops = rte_flow_ops_get(port_id, error);
+	const struct rte_flow_ops *ops;
 	struct rte_eth_dev *dev = &rte_eth_devices[port_id];
+	uint16_t supervisor_id;
 	int ret;
+
+	if (!!dev->dev_ops->supervisor_port_get) {
+		ret = dev->dev_ops->supervisor_port_get(dev, &supervisor_id);
+		if (ret != 0)
+			return ret;
+		dev = &rte_eth_devices[supervisor_id];
+	} else {
+		supervisor_id = port_id;
+	}
+
+	ops = rte_flow_ops_get(supervisor_id, error);
 
 	if (unlikely(!ops))
 		return -rte_errno;
 	if (likely(!!ops->validate)) {
 		fts_enter(dev);
-		ret = ops->validate(dev, attr, pattern, actions, error);
+		ret = ops->validate(dev, port_id, attr, pattern, actions, error);
 		fts_exit(dev);
 		return flow_err(port_id, ret, error);
 	}
@@ -311,12 +323,29 @@ rte_flow_create(uint16_t port_id,
 	struct rte_eth_dev *dev = &rte_eth_devices[port_id];
 	struct rte_flow *flow;
 	const struct rte_flow_ops *ops = rte_flow_ops_get(port_id, error);
+	uint16_t supervisor_id;
+	int ret;
+
+	if (!!dev->dev_ops->supervisor_port_get) {
+		ret = dev->dev_ops->supervisor_port_get(dev, &supervisor_id);
+		if (ret != 0) {
+			rte_flow_error_set(error, -ret,
+					   RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
+					   NULL, rte_strerror(-ret));
+			return NULL;
+		}
+		dev = &rte_eth_devices[supervisor_id];
+	} else {
+		supervisor_id = port_id;
+	}
+
+	ops = rte_flow_ops_get(supervisor_id, error);
 
 	if (unlikely(!ops))
 		return NULL;
 	if (likely(!!ops->create)) {
 		fts_enter(dev);
-		flow = ops->create(dev, attr, pattern, actions, error);
+		flow = ops->create(dev, port_id, attr, pattern, actions, error);
 		fts_exit(dev);
 		if (flow == NULL)
 			flow_err(port_id, -rte_errno, error);

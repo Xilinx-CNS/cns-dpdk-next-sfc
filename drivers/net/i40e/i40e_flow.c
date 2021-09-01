@@ -34,11 +34,13 @@
 #define I40E_VLAN_VID_MASK	0x0FFF
 
 static int i40e_flow_validate(struct rte_eth_dev *dev,
+			      __rte_unused uint16_t target_port_id,
 			      const struct rte_flow_attr *attr,
 			      const struct rte_flow_item pattern[],
 			      const struct rte_flow_action actions[],
 			      struct rte_flow_error *error);
 static struct rte_flow *i40e_flow_create(struct rte_eth_dev *dev,
+					 __rte_unused uint16_t target_port_id,
 					 const struct rte_flow_attr *attr,
 					 const struct rte_flow_item pattern[],
 					 const struct rte_flow_action actions[],
@@ -4522,6 +4524,7 @@ i40e_flow_parse_qinq_filter(struct rte_eth_dev *dev,
 
 static int
 i40e_flow_validate(struct rte_eth_dev *dev,
+		   __rte_unused uint16_t target_port_id,
 		   const struct rte_flow_attr *attr,
 		   const struct rte_flow_item pattern[],
 		   const struct rte_flow_action actions[],
@@ -4622,6 +4625,7 @@ i40e_flow_validate(struct rte_eth_dev *dev,
 
 static struct rte_flow *
 i40e_flow_create(struct rte_eth_dev *dev,
+		 __rte_unused uint16_t target_port_id,
 		 const struct rte_flow_attr *attr,
 		 const struct rte_flow_item pattern[],
 		 const struct rte_flow_action actions[],
@@ -4632,7 +4636,8 @@ i40e_flow_create(struct rte_eth_dev *dev,
 	struct i40e_fdir_info *fdir_info = &pf->fdir;
 	int ret;
 
-	ret = i40e_flow_validate(dev, attr, pattern, actions, error);
+	ret = i40e_flow_validate(dev, target_port_id, attr, pattern, actions,
+				 error);
 	if (ret < 0)
 		return NULL;
 

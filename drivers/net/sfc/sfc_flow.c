@@ -2675,6 +2675,7 @@ sfc_flow_verify(struct sfc_adapter *sa, struct rte_flow *flow,
 
 static int
 sfc_flow_validate(struct rte_eth_dev *dev,
+		  __rte_unused uint16_t target_port_id,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item pattern[],
 		  const struct rte_flow_action actions[],
@@ -2703,6 +2704,7 @@ sfc_flow_validate(struct rte_eth_dev *dev,
 
 static struct rte_flow *
 sfc_flow_create(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],

@@ -2478,6 +2478,7 @@ enic_fm_close_scratch(struct enic_flowman *fm)
 
 static int
 enic_fm_flow_validate(struct rte_eth_dev *dev,
+		      __rte_unused uint16_t target_port_id,
 		      const struct rte_flow_attr *attrs,
 		      const struct rte_flow_item pattern[],
 		      const struct rte_flow_action actions[],
@@ -2577,6 +2578,7 @@ enic_fm_flow_query(struct rte_eth_dev *dev,
 
 static struct rte_flow *
 enic_fm_flow_create(struct rte_eth_dev *dev,
+		    __rte_unused uint16_t target_port_id,
 		    const struct rte_flow_attr *attrs,
 		    const struct rte_flow_item pattern[],
 		    const struct rte_flow_action actions[],

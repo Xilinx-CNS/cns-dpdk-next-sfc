@@ -1713,7 +1713,7 @@ mrvl_flow_can_be_added(struct mrvl_priv *priv, const struct rte_flow *flow)
  * @returns Pointer to the created flow in case of success, NULL otherwise.
  */
 static struct rte_flow *
-mrvl_flow_create(struct rte_eth_dev *dev,
+mrvl_flow_create(struct rte_eth_dev *dev, uint16_t target_port_id __rte_unused,
 		 const struct rte_flow_attr *attr,
 		 const struct rte_flow_item pattern[],
 		 const struct rte_flow_action actions[],
@@ -1874,7 +1874,7 @@ mrvl_flow_destroy(struct rte_eth_dev *dev, struct rte_flow *flow,
  * @returns 0 on success, negative value otherwise.
  */
 static int
-mrvl_flow_validate(struct rte_eth_dev *dev,
+mrvl_flow_validate(struct rte_eth_dev *dev, uint16_t target_port_id,
 		   const struct rte_flow_attr *attr,
 		   const struct rte_flow_item pattern[],
 		   const struct rte_flow_action actions[],
@@ -1882,7 +1882,8 @@ mrvl_flow_validate(struct rte_eth_dev *dev,
 {
 	static struct rte_flow *flow;
 
-	flow = mrvl_flow_create(dev, attr, pattern, actions, error);
+	flow = mrvl_flow_create(dev, target_port_id, attr, pattern, actions,
+				error);
 	if (!flow)
 		return -rte_errno;
 

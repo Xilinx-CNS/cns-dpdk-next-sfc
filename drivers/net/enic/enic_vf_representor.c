@@ -314,6 +314,7 @@ adjust_flow_attr(const struct rte_flow_attr *attrs,
 
 static int
 enic_vf_flow_validate(struct rte_eth_dev *dev,
+		      __rte_unused uint16_t target_port_id,
 		      const struct rte_flow_attr *attrs,
 		      const struct rte_flow_item pattern[],
 		      const struct rte_flow_action actions[],
@@ -326,11 +327,13 @@ enic_vf_flow_validate(struct rte_eth_dev *dev,
 	if (ret)
 		return ret;
 	attrs = &vf_attrs;
-	return enic_fm_flow_ops.validate(dev, attrs, pattern, actions, error);
+	return enic_fm_flow_ops.validate(dev, target_port_id, attrs, pattern,
+					 actions, error);
 }
 
 static struct rte_flow *
 enic_vf_flow_create(struct rte_eth_dev *dev,
+		    __rte_unused uint16_t target_port_id,
 		    const struct rte_flow_attr *attrs,
 		    const struct rte_flow_item pattern[],
 		    const struct rte_flow_action actions[],
@@ -341,7 +344,8 @@ enic_vf_flow_create(struct rte_eth_dev *dev,
 	if (adjust_flow_attr(attrs, &vf_attrs, error))
 		return NULL;
 	attrs = &vf_attrs;
-	return enic_fm_flow_ops.create(dev, attrs, pattern, actions, error);
+	return enic_fm_flow_ops.create(dev, target_port_id, attrs, pattern,
+				       actions, error);
 }
 
 static int

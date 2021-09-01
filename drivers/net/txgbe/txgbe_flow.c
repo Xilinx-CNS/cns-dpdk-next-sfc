@@ -2674,6 +2674,7 @@ txgbe_filterlist_flush(void)
  */
 static struct rte_flow *
 txgbe_flow_create(struct rte_eth_dev *dev,
+		  uint16_t target_port_id __rte_unused,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item pattern[],
 		  const struct rte_flow_action actions[],
@@ -2935,6 +2936,7 @@ out:
  */
 static int
 txgbe_flow_validate(struct rte_eth_dev *dev,
+		uint16_t target_port_id __rte_unused,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],

@@ -829,6 +829,21 @@ typedef int (*eth_representor_info_get_t)(struct rte_eth_dev *dev,
 	struct rte_eth_representor_info *info);
 
 /**
+ * @internal
+ * Get supervisor port to be able to set up flow rules.
+ *
+ * @param dev
+ *   Ethdev handle of port.
+ * @param [out] supervisor_port
+ *   Pointer to memory to save the port ID of the supervisor device.
+ * @return
+ *   Negative errno value on error, 0 on success.
+ */
+
+typedef int (*eth_supervisor_port_get_t)(struct rte_eth_dev *dev,
+	uint16_t *supervisor_port);
+
+/**
  * @internal A structure containing the functions exported by an Ethernet driver.
  */
 struct eth_dev_ops {
@@ -988,6 +1003,9 @@ struct eth_dev_ops {
 
 	eth_representor_info_get_t representor_info_get;
 	/**< Get representor info. */
+
+	eth_supervisor_port_get_t supervisor_port_get;
+	/**< Get supervisor port for establishing flow rules */
 };
 
 /**

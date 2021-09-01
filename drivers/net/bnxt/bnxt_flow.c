@@ -1543,6 +1543,7 @@ struct bnxt_vnic_info *find_matching_vnic(struct bnxt *bp,
 
 static int
 bnxt_flow_validate(struct rte_eth_dev *dev,
+		   uint16_t target_port_id __rte_unused,
 		   const struct rte_flow_attr *attr,
 		   const struct rte_flow_item pattern[],
 		   const struct rte_flow_action actions[],
@@ -1735,6 +1736,7 @@ void bnxt_flow_cnt_alarm_cb(void *arg)
 
 static struct rte_flow *
 bnxt_flow_create(struct rte_eth_dev *dev,
+		 uint16_t target_port_id __rte_unused,
 		 const struct rte_flow_attr *attr,
 		 const struct rte_flow_item pattern[],
 		 const struct rte_flow_action actions[],

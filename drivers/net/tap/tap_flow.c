@@ -173,6 +173,7 @@ static int tap_flow_create_udp(const struct rte_flow_item *item, void *data);
 static int tap_flow_create_tcp(const struct rte_flow_item *item, void *data);
 static int
 tap_flow_validate(struct rte_eth_dev *dev,
+		  uint16_t target_port_id __rte_unused,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item items[],
 		  const struct rte_flow_action actions[],
@@ -180,6 +181,7 @@ tap_flow_validate(struct rte_eth_dev *dev,
 
 static struct rte_flow *
 tap_flow_create(struct rte_eth_dev *dev,
+		uint16_t target_port_id __rte_unused,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item items[],
 		const struct rte_flow_action actions[],
@@ -1271,6 +1273,7 @@ exit_action_not_supported:
  */
 static int
 tap_flow_validate(struct rte_eth_dev *dev,
+		  uint16_t target_port_id __rte_unused,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item items[],
 		  const struct rte_flow_action actions[],
@@ -1358,6 +1361,7 @@ tap_flow_free(struct pmd_internals *pmd, struct rte_flow *flow)
  */
 static struct rte_flow *
 tap_flow_create(struct rte_eth_dev *dev,
+		uint16_t target_port_id __rte_unused,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item items[],
 		const struct rte_flow_action actions[],

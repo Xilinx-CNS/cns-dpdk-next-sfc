@@ -713,6 +713,7 @@ igc_is_flow_in_list(struct igc_flow_list *list, struct rte_flow *flow)
  **/
 static struct rte_flow *
 igc_flow_create(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item patterns[],
 		const struct rte_flow_action actions[],
@@ -797,6 +798,7 @@ igc_flow_create(struct rte_eth_dev *dev,
  **/
 static int
 igc_flow_validate(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item patterns[],
 		const struct rte_flow_action actions[],

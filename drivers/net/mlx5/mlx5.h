@@ -1664,11 +1664,13 @@ int mlx5_flow_discover_mreg_c(struct rte_eth_dev *eth_dev);
 bool mlx5_flow_ext_mreg_supported(struct rte_eth_dev *dev);
 void mlx5_flow_print(struct rte_flow *flow);
 int mlx5_flow_validate(struct rte_eth_dev *dev,
+		       uint16_t target_port_id __rte_unused,
 		       const struct rte_flow_attr *attr,
 		       const struct rte_flow_item items[],
 		       const struct rte_flow_action actions[],
 		       struct rte_flow_error *error);
 struct rte_flow *mlx5_flow_create(struct rte_eth_dev *dev,
+				  uint16_t target_port_id __rte_unused,
 				  const struct rte_flow_attr *attr,
 				  const struct rte_flow_item items[],
 				  const struct rte_flow_action actions[],

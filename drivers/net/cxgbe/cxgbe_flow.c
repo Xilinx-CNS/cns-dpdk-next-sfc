@@ -1158,6 +1158,7 @@ static int __cxgbe_flow_create(struct rte_eth_dev *dev, struct rte_flow *flow)
 
 static struct rte_flow *
 cxgbe_flow_create(struct rte_eth_dev *dev,
+		  uint16_t target_port_id __rte_unused,
 		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item item[],
 		  const struct rte_flow_action action[],
@@ -1325,6 +1326,7 @@ out:
 
 static int
 cxgbe_flow_validate(struct rte_eth_dev *dev,
+		    uint16_t target_port_id __rte_unused,
 		    const struct rte_flow_attr *attr,
 		    const struct rte_flow_item item[],
 		    const struct rte_flow_action action[],

@@ -32,11 +32,13 @@ static struct ice_engine_list engine_list =
 		TAILQ_HEAD_INITIALIZER(engine_list);
 
 static int ice_flow_validate(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],
 		struct rte_flow_error *error);
 static struct rte_flow *ice_flow_create(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],
@@ -2385,6 +2387,7 @@ ice_flow_process_filter(struct rte_eth_dev *dev,
 
 static int
 ice_flow_validate(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],
@@ -2398,6 +2401,7 @@ ice_flow_validate(struct rte_eth_dev *dev,
 
 static struct rte_flow *
 ice_flow_create(struct rte_eth_dev *dev,
+		__rte_unused uint16_t target_port_id,
 		const struct rte_flow_attr *attr,
 		const struct rte_flow_item pattern[],
 		const struct rte_flow_action actions[],

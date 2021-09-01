@@ -1634,6 +1634,7 @@ step_next:
  * the HW. Because there can be no enough room for the rule.
  */
 static int hinic_flow_validate(struct rte_eth_dev *dev,
+				__rte_unused uint16_t target_port_id,
 				const struct rte_flow_attr *attr,
 				const struct rte_flow_item pattern[],
 				const struct rte_flow_action actions[],
@@ -2941,6 +2942,7 @@ static int hinic_add_del_tcam_fdir_filter(struct rte_eth_dev *dev,
  * So, the sequence matters.
  */
 static struct rte_flow *hinic_flow_create(struct rte_eth_dev *dev,
+					__rte_unused uint16_t target_port_id,
 					const struct rte_flow_attr *attr,
 					const struct rte_flow_item pattern[],
 					const struct rte_flow_action actions[],

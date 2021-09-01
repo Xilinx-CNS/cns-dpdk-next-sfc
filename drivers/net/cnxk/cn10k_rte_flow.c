@@ -7,7 +7,8 @@
 #include "cn10k_rx.h"
 
 struct rte_flow *
-cn10k_flow_create(struct rte_eth_dev *eth_dev, const struct rte_flow_attr *attr,
+cn10k_flow_create(struct rte_eth_dev *eth_dev, uint16_t target_port_id,
+		  const struct rte_flow_attr *attr,
 		  const struct rte_flow_item pattern[],
 		  const struct rte_flow_action actions[],
 		  struct rte_flow_error *error)
@@ -17,7 +18,8 @@ cn10k_flow_create(struct rte_eth_dev *eth_dev, const struct rte_flow_attr *attr,
 	struct roc_npc *npc = &dev->npc;
 	struct roc_npc_flow *flow;
 
-	flow = cnxk_flow_create(eth_dev, attr, pattern, actions, error);
+	flow = cnxk_flow_create(eth_dev, target_port_id, attr, pattern,
+				actions, error);
 	if (!flow)
 		return NULL;
 

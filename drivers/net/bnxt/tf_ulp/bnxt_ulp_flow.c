@@ -130,6 +130,7 @@ bnxt_ulp_init_mapper_params(struct bnxt_ulp_mapper_create_parms *mapper_cparms,
 /* Function to create the rte flow. */
 static struct rte_flow *
 bnxt_ulp_flow_create(struct rte_eth_dev *dev,
+		     uint16_t target_port_id __rte_unused,
 		     const struct rte_flow_attr *attr,
 		     const struct rte_flow_item pattern[],
 		     const struct rte_flow_action actions[],
@@ -256,6 +257,7 @@ flow_error:
 /* Function to validate the rte flow. */
 static int
 bnxt_ulp_flow_validate(struct rte_eth_dev *dev,
+		       uint16_t target_port_id __rte_unused,
 		       const struct rte_flow_attr *attr,
 		       const struct rte_flow_item pattern[],
 		       const struct rte_flow_action actions[],
