@@ -63,6 +63,8 @@ struct sfc_mae_switch_port {
 	enum sfc_mae_switch_port_type		type;
 	/** RTE switch port ID */
 	uint16_t				id;
+	/** Is this port a MAE admin? */
+	bool					mae_admin;
 
 	union sfc_mae_switch_port_data		data;
 };
@@ -448,6 +450,11 @@ sfc_mae_assign_switch_port(uint16_t switch_domain_id,
 
 	port->id = (domain->nb_ports++);
 
+	if (port->type == SFC_MAE_SWITCH_PORT_INDEPENDENT)
+		port->mae_admin = req->port_data.indep.mae_admin;
+	else
+		port->mae_admin = B_FALSE;
+
 	TAILQ_INSERT_TAIL(&domain->ports, port, switch_domain_ports);
 
 done:
@@ -535,5 +542,41 @@ sfc_mae_switch_port_id_by_entity(uint16_t switch_domain_id,
 						   switch_port_id);
 	rte_spinlock_unlock(&sfc_mae_switch.lock);
 
+	return rc;
+}
+
+static int
+sfc_mae_find_supervisor_switch_port(uint16_t switch_domain_id,
+				    uint16_t *port_id)
+{
+	struct sfc_mae_switch_domain *domain;
+	struct sfc_mae_switch_port *port;
+
+	SFC_ASSERT(rte_spinlock_is_locked(&sfc_mae_switch.lock));
+
+	domain = sfc_mae_find_switch_domain_by_id(switch_domain_id);
+	if (domain == NULL)
+		return EINVAL;
+
+	TAILQ_FOREACH(port, &domain->ports, switch_domain_ports) {
+		if (port->type == SFC_MAE_SWITCH_PORT_INDEPENDENT &&
+		    port->data.indep.mae_admin) {
+			*port_id = port->ethdev_port_id;
+			return 0;
+		}
+	}
+
+	return ENOENT;
+}
+
+int
+sfc_mae_switch_supervisor_ethdev(uint16_t switch_domain_id,
+				 uint16_t *port_id)
+{
+	int rc;
+
+	rte_spinlock_lock(&sfc_mae_switch.lock);
+	rc = sfc_mae_find_supervisor_switch_port(switch_domain_id, port_id);
+	rte_spinlock_unlock(&sfc_mae_switch.lock);
 	return rc;
 }

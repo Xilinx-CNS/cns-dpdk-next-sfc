@@ -34,6 +34,10 @@ enum sfc_mae_switch_port_type {
 	SFC_MAE_SWITCH_PORT_REPRESENTOR,
 };
 
+struct sfc_mae_switch_port_indep_data {
+	bool					mae_admin;
+};
+
 struct sfc_mae_switch_port_repr_data {
 	efx_pcie_interface_t			intf;
 	uint16_t				pf;
@@ -42,6 +46,7 @@ struct sfc_mae_switch_port_repr_data {
 
 union sfc_mae_switch_port_data {
 	struct sfc_mae_switch_port_repr_data	repr;
+	struct sfc_mae_switch_port_indep_data	indep;
 };
 
 struct sfc_mae_switch_port_request {
@@ -102,6 +107,9 @@ int sfc_mae_switch_port_id_by_entity(uint16_t switch_domain_id,
 				     const efx_mport_sel_t *entity_mportp,
 				     enum sfc_mae_switch_port_type type,
 				     uint16_t *switch_port_id);
+
+int sfc_mae_switch_supervisor_ethdev(uint16_t switch_domain_id,
+				     uint16_t *port_id);
 
 #ifdef __cplusplus
 }

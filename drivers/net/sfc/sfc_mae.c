@@ -231,6 +231,7 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	/* RTE ethdev MPORT matches that of the entity for independent ports. */
 	switch_port_request.ethdev_mportp = &entity_mport;
 	switch_port_request.ethdev_port_id = sas->port_id;
+	switch_port_request.port_data.indep.mae_admin = B_TRUE;
 	rc = sfc_mae_assign_switch_port(mae->switch_domain_id,
 					&switch_port_request,
 					&mae->switch_port_id);
