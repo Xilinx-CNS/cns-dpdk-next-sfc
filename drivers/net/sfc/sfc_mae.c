@@ -3461,6 +3461,58 @@ sfc_mae_rule_parse_action_port_id(struct sfc_adapter *sa,
 	return rc;
 }
 
+static int
+sfc_mae_rule_parse_action_port_representor(struct sfc_adapter *sa,
+		const struct rte_flow_action_ethdev *conf,
+		efx_mae_actions_t *spec)
+{
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t mport;
+	int rc;
+
+	rc = sfc_mae_switch_port_by_ethdev(mae->switch_domain_id,
+					   conf->port_id, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to find MAE switch port SW entry for RTE ethdev port %u: %s",
+			conf->port_id, strerror(rc));
+		return rc;
+	}
+
+	rc = efx_mae_action_set_populate_deliver(spec, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to request action DELIVER with m-port selector 0x%08x: %s",
+			mport.sel, strerror(rc));
+	}
+
+	return rc;
+}
+
+static int
+sfc_mae_rule_parse_action_represented_port(struct sfc_adapter *sa,
+		const struct rte_flow_action_ethdev *conf,
+		efx_mae_actions_t *spec)
+{
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t mport;
+	int rc;
+
+	rc = sfc_mae_switch_port_entity_by_ethdev(mae->switch_domain_id,
+						  conf->port_id, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to find MAE switch port SW entry for RTE ethdev port %u: %s",
+			conf->port_id, strerror(rc));
+		return rc;
+	}
+
+	rc = efx_mae_action_set_populate_deliver(spec, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to request action DELIVER with m-port selector 0x%08x: %s",
+			mport.sel, strerror(rc));
+	}
+
+	return rc;
+}
+
 static const char * const action_names[] = {
 	[RTE_FLOW_ACTION_TYPE_VXLAN_DECAP] = "VXLAN_DECAP",
 	[RTE_FLOW_ACTION_TYPE_OF_POP_VLAN] = "OF_POP_VLAN",
@@ -3474,6 +3526,8 @@ static const char * const action_names[] = {
 	[RTE_FLOW_ACTION_TYPE_PF] = "PF",
 	[RTE_FLOW_ACTION_TYPE_VF] = "VF",
 	[RTE_FLOW_ACTION_TYPE_PORT_ID] = "PORT_ID",
+	[RTE_FLOW_ACTION_TYPE_PORT_REPRESENTOR] = "PORT_REPRESENTOR",
+	[RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT] = "REPRESENTED_PORT",
 	[RTE_FLOW_ACTION_TYPE_DROP] = "DROP",
 	[RTE_FLOW_ACTION_TYPE_JUMP] = "JUMP",
 };
@@ -3581,6 +3635,18 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_PORT_ID,
 				       bundle->actions_mask);
 		rc = sfc_mae_rule_parse_action_port_id(sa, action->conf, spec);
+		break;
+	case RTE_FLOW_ACTION_TYPE_PORT_REPRESENTOR:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_PORT_REPRESENTOR,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_port_representor(sa,
+				action->conf, spec);
+		break;
+	case RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_REPRESENTED_PORT,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_represented_port(sa,
+				action->conf, spec);
 		break;
 	case RTE_FLOW_ACTION_TYPE_DROP:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_DROP,
