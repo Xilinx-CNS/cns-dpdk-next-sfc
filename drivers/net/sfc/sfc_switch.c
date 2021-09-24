@@ -482,7 +482,7 @@ fail_find_switch_domain_by_id:
 static int
 sfc_mae_find_switch_port_by_ethdev(uint16_t switch_domain_id,
 				   uint16_t ethdev_port_id,
-				   efx_mport_sel_t *mport_sel)
+				   struct sfc_mae_switch_port **switch_port)
 {
 	struct sfc_mae_switch_domain *domain;
 	struct sfc_mae_switch_port *port;
@@ -498,7 +498,7 @@ sfc_mae_find_switch_port_by_ethdev(uint16_t switch_domain_id,
 
 	TAILQ_FOREACH(port, &domain->ports, switch_domain_ports) {
 		if (port->ethdev_port_id == ethdev_port_id) {
-			*mport_sel = port->ethdev_mport;
+			*switch_port = port;
 			return 0;
 		}
 	}
@@ -511,11 +511,32 @@ sfc_mae_switch_port_by_ethdev(uint16_t switch_domain_id,
 			      uint16_t ethdev_port_id,
 			      efx_mport_sel_t *mport_sel)
 {
+	struct sfc_mae_switch_port *port;
 	int rc;
 
 	rte_spinlock_lock(&sfc_mae_switch.lock);
 	rc = sfc_mae_find_switch_port_by_ethdev(switch_domain_id,
-						ethdev_port_id, mport_sel);
+						ethdev_port_id, &port);
+	if (rc == 0)
+		*mport_sel = port->ethdev_mport;
+	rte_spinlock_unlock(&sfc_mae_switch.lock);
+
+	return rc;
+}
+
+int
+sfc_mae_switch_port_entity_by_ethdev(uint16_t switch_domain_id,
+				     uint16_t ethdev_port_id,
+				     efx_mport_sel_t *entity_mport_sel)
+{
+	struct sfc_mae_switch_port *port;
+	int rc;
+
+	rte_spinlock_lock(&sfc_mae_switch.lock);
+	rc = sfc_mae_find_switch_port_by_ethdev(switch_domain_id,
+						ethdev_port_id, &port);
+	if (rc == 0)
+		*entity_mport_sel = port->entity_mport;
 	rte_spinlock_unlock(&sfc_mae_switch.lock);
 
 	return rc;
