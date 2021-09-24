@@ -496,10 +496,11 @@ ulp_rte_parser_implicit_act_port_process(struct ulp_rte_parser_params *params)
 		return BNXT_TF_RC_SUCCESS;
 	}
 	port_id.id = ULP_COMP_FLD_IDX_RD(params, BNXT_ULP_CF_IDX_INCOMING_IF);
+	action_item.type = RTE_FLOW_ACTION_TYPE_PORT_ID;
 	action_item.conf = &port_id;
 
 	/* Update the action port based on incoming port */
-	ulp_rte_port_id_act_handler(&action_item, params);
+	ulp_rte_port_act_handler(&action_item, params);
 
 	/* Reset the action port set bit */
 	ULP_COMP_FLD_IDX_WR(params, BNXT_ULP_CF_IDX_ACT_PORT_IS_SET, 0);
@@ -2171,7 +2172,8 @@ ulp_rte_count_act_handler(const struct rte_flow_action *action_item,
 /* Function to handle the parsing of action ports. */
 static int32_t
 ulp_rte_parser_act_port_set(struct ulp_rte_parser_params *param,
-			    uint32_t ifindex)
+			    uint32_t ifindex,
+			    enum bnxt_ulp_direction_type act_dir)
 {
 	enum bnxt_ulp_direction_type dir;
 	uint16_t pid_s;
@@ -2181,8 +2183,13 @@ ulp_rte_parser_act_port_set(struct ulp_rte_parser_params *param,
 	uint32_t vnic_type;
 
 	/* Get the direction */
-	dir = ULP_COMP_FLD_IDX_RD(param, BNXT_ULP_CF_IDX_DIRECTION);
-	if (dir == BNXT_ULP_DIR_EGRESS) {
+	/* If action implicitly specifies direction, use the specification. */
+	dir = (act_dir == BNXT_ULP_DIR_INVALID) ?
+		ULP_COMP_FLD_IDX_RD(param, BNXT_ULP_CF_IDX_DIRECTION) :
+		act_dir;
+	port_type = ULP_COMP_FLD_IDX_RD(param, BNXT_ULP_CF_IDX_ACT_PORT_TYPE);
+	if (dir == BNXT_ULP_DIR_EGRESS &&
+	    port_type != BNXT_ULP_INTF_TYPE_VF_REP) {
 		/* For egress direction, fill vport */
 		if (ulp_port_db_vport_get(param->ulp_ctx, ifindex, &pid_s))
 			return BNXT_TF_RC_ERROR;
@@ -2193,9 +2200,14 @@ ulp_rte_parser_act_port_set(struct ulp_rte_parser_params *param,
 		       &pid, BNXT_ULP_ACT_PROP_SZ_VPORT);
 	} else {
 		/* For ingress direction, fill vnic */
-		port_type = ULP_COMP_FLD_IDX_RD(param,
-						BNXT_ULP_CF_IDX_ACT_PORT_TYPE);
-		if (port_type == BNXT_ULP_INTF_TYPE_VF_REP)
+		/*
+		 * In ETHDEV action case, destination is a driver
+		 * function of the representor itself, otherwise
+		 * (PORT_ID or ESWITCH_PORT) the destination is
+		 * corresponding VF.
+		 */
+		if (act_dir != BNXT_ULP_DIR_INGRESS &&
+		    port_type == BNXT_ULP_INTF_TYPE_VF_REP)
 			vnic_type = BNXT_ULP_VF_FUNC_VNIC;
 		else
 			vnic_type = BNXT_ULP_DRV_FUNC_VNIC;
@@ -2242,7 +2254,8 @@ ulp_rte_pf_act_handler(const struct rte_flow_action *action_item __rte_unused,
 	}
 	/* Update the action properties */
 	ULP_COMP_FLD_IDX_WR(params, BNXT_ULP_CF_IDX_ACT_PORT_TYPE, intf_type);
-	return ulp_rte_parser_act_port_set(params, ifindex);
+	return ulp_rte_parser_act_port_set(params, ifindex,
+					   BNXT_ULP_DIR_INVALID);
 }
 
 /* Function to handle the parsing of RTE Flow action VF. */
@@ -2293,31 +2306,62 @@ ulp_rte_vf_act_handler(const struct rte_flow_action *action_item,
 
 	/* Update the action properties */
 	ULP_COMP_FLD_IDX_WR(params, BNXT_ULP_CF_IDX_ACT_PORT_TYPE, intf_type);
-	return ulp_rte_parser_act_port_set(params, ifindex);
+	return ulp_rte_parser_act_port_set(params, ifindex,
+					   BNXT_ULP_DIR_INVALID);
 }
 
-/* Function to handle the parsing of RTE Flow action port_id. */
+/*
+ * Function to handle the parsing of RTE Flow actions PORT_ID, ETHDEV and
+ * ESWITCH_PORT.
+ */
 int32_t
-ulp_rte_port_id_act_handler(const struct rte_flow_action *act_item,
-			    struct ulp_rte_parser_params *param)
+ulp_rte_port_act_handler(const struct rte_flow_action *act_item,
+			 struct ulp_rte_parser_params *param)
 {
-	const struct rte_flow_action_port_id *port_id = act_item->conf;
+	uint32_t ethdev_id;
 	uint32_t ifindex;
 	enum bnxt_ulp_intf_type intf_type;
+	enum bnxt_ulp_direction_type act_dir;
 
-	if (!port_id) {
+	if (!act_item->conf) {
 		BNXT_TF_DBG(ERR,
 			    "ParseErr: Invalid Argument\n");
 		return BNXT_TF_RC_PARSE_ERR;
 	}
-	if (port_id->original) {
-		BNXT_TF_DBG(ERR,
-			    "ParseErr:Portid Original not supported\n");
-		return BNXT_TF_RC_PARSE_ERR;
+	switch (act_item->type) {
+	case RTE_FLOW_ACTION_TYPE_PORT_ID: {
+		const struct rte_flow_action_port_id *port_id = act_item->conf;
+
+		if (port_id->original) {
+			BNXT_TF_DBG(ERR,
+				    "ParseErr:Portid Original not supported\n");
+			return BNXT_TF_RC_PARSE_ERR;
+		}
+		ethdev_id = port_id->id;
+		act_dir = BNXT_ULP_DIR_INVALID;
+		break;
+	}
+	case RTE_FLOW_ACTION_TYPE_ETHDEV: {
+		const struct rte_flow_action_ethdev *ethdev = act_item->conf;
+
+		ethdev_id = ethdev->port_id;
+		act_dir = BNXT_ULP_DIR_INGRESS;
+		break;
+	}
+	case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT: {
+		const struct rte_flow_action_ethdev *ethdev = act_item->conf;
+
+		ethdev_id = ethdev->port_id;
+		act_dir = BNXT_ULP_DIR_EGRESS;
+		break;
+	}
+	default:
+		BNXT_TF_DBG(ERR, "Unknown port action\n");
+		return BNXT_TF_RC_ERROR;
 	}
 
 	/* Get the port db ifindex */
-	if (ulp_port_db_dev_port_to_ulp_index(param->ulp_ctx, port_id->id,
+	if (ulp_port_db_dev_port_to_ulp_index(param->ulp_ctx, ethdev_id,
 					      &ifindex)) {
 		BNXT_TF_DBG(ERR, "Invalid port id\n");
 		return BNXT_TF_RC_ERROR;
@@ -2332,7 +2376,7 @@ ulp_rte_port_id_act_handler(const struct rte_flow_action *act_item,
 
 	/* Set the action port */
 	ULP_COMP_FLD_IDX_WR(param, BNXT_ULP_CF_IDX_ACT_PORT_TYPE, intf_type);
-	return ulp_rte_parser_act_port_set(param, ifindex);
+	return ulp_rte_parser_act_port_set(param, ifindex, act_dir);
 }
 
 /* Function to handle the parsing of RTE Flow action phy_port. */
