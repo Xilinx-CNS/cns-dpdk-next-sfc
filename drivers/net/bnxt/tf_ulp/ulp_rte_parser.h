@@ -90,10 +90,13 @@ int32_t
 ulp_rte_vf_hdr_handler(const struct rte_flow_item *item,
 		       struct ulp_rte_parser_params *params);
 
-/* Function to handle the parsing of RTE Flow item port id Header. */
+/*
+ * Function to handle the parsing of RTE Flow items port id, ethdev and
+ * E-Switch port Headers.
+ */
 int32_t
-ulp_rte_port_id_hdr_handler(const struct rte_flow_item *item,
-			    struct ulp_rte_parser_params *params);
+ulp_rte_port_hdr_handler(const struct rte_flow_item *item,
+			 struct ulp_rte_parser_params *params);
 
 /* Function to handle the parsing of RTE Flow item port Header. */
 int32_t
