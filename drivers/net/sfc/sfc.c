@@ -16,6 +16,7 @@
 #include "efx.h"
 
 #include "sfc.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_debug.h"
 #include "sfc_log.h"
 #include "sfc_ev.h"
@@ -995,6 +996,12 @@ sfc_attach(struct sfc_adapter *sa)
 	rc = sfc_repr_proxy_attach(sa);
 	if (rc != 0)
 		goto fail_repr_proxy_attach;
+
+#if 1
+	/* FIXME: temporary workaround to unblock OvS demo */
+	if (sfc_flow_tunnel_is_supported(sa))
+		sa->negotiated_rx_metadata |= RTE_ETH_RX_METADATA_TUNNEL_ID;
+#endif
 
 	sfc_log_init(sa, "fini nic");
 	efx_nic_fini(enp);
