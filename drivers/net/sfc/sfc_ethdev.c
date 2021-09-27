@@ -2796,6 +2796,8 @@ sfc_eth_dev_init(struct rte_eth_dev *dev, void *init_params)
 		goto fail_alloc_sa;
 	}
 
+	sa->negotiated_rx_metadata = RTE_ETH_RX_METADATA_TUNNEL_ID;
+
 	dev->process_private = sa;
 
 	/* Required for logging */
