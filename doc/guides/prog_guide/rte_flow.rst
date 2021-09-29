@@ -3056,6 +3056,37 @@ which is set in the packet meta-data (i.e. struct ``rte_mbuf::sched::color``)
    | ``meter_color`` | Packet color |
    +-----------------+--------------+
 
+Action: ``ETHDEV``
+^^^^^^^^^^^^^^^^^^
+At e-switch level, directs matching packets to the given ethdev.
+
+These packets can originate from any of e-switch ports, not
+just the ones associated with the given ethdev. They come
+from the match engine in general, as per some criteria.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) <<<< [] ~~~~ (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the action engine;
+   *    << shows the traffic flow in question established by the action;
+   *    ~~ shows logical interconnects between the endpoints.
+
+See `Item: ETHDEV`_.
+
+.. _table_rte_flow_action_ethdev:
+
+.. table:: ETHDEV
+
+   +-------------+----------------+
+   | Field       | Value          |
+   +=============+================+
+   | ``port_id`` | ethdev port ID |
+   +-------------+----------------+
+
 Negative types
 ~~~~~~~~~~~~~~
 
