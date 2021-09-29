@@ -1425,6 +1425,41 @@ Matches a conntrack state after conntrack action.
 - ``flags``: conntrack packet state flags.
 - Default ``mask`` matches all state bits.
 
+Item: ``ETHDEV``
+^^^^^^^^^^^^^^^^
+
+Matches traffic at e-switch going from (sent by) the given ethdev port.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) >>>> [] ~~~~ (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the match engine;
+   *    >> shows the traffic flow in question hitting the match engine;
+   *    ~~ shows logical interconnects between the endpoints.
+
+Use this with attribute **transfer**. Attributes **ingress** and
+**egress** (`Attribute: Traffic direction`_) must not be used.
+
+- Default ``mask`` provides exact match behaviour.
+
+.. _table_rte_flow_item_ethdev:
+
+.. table:: ETHDEV
+
+   +----------+-------------+---------------------------+
+   | Field    | Subfield    | Value                     |
+   +==========+=============+===========================+
+   | ``spec`` | ``port_id`` | ethdev ID                 |
+   +----------+-------------+---------------------------+
+   | ``last`` | ``port_id`` | upper range value         |
+   +----------+-------------+---------------------------+
+   | ``mask`` | ``port_id`` | zeroed for wildcard match |
+   +----------+-------------+---------------------------+
+
 Actions
 ~~~~~~~
 

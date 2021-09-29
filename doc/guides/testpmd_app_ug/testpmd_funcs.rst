@@ -3820,6 +3820,10 @@ This section lists supported pattern items and their attributes, if any.
 
 - ``conntrack``: match conntrack state.
 
+- ``ethdev``: match traffic at e-switch going from (sent by) the given ethdev
+
+  - ``port_id {unsigned}``: ethdev port ID
+
 Actions list
 ^^^^^^^^^^^^
 
