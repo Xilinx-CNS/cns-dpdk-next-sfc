@@ -2453,6 +2453,14 @@ enum rte_flow_action_type {
 	 * @see struct rte_flow_action_ethdev
 	 */
 	RTE_FLOW_ACTION_TYPE_ETHDEV,
+
+	/**
+	 * At e-switch level, directs matching packets to the external port
+	 * associated with the given ethdev, that is, to net. port or guest.
+	 *
+	 * @see struct rte_flow_action_ethdev
+	 */
+	RTE_FLOW_ACTION_TYPE_ESWITCH_PORT,
 };
 
 /**
@@ -3217,7 +3225,7 @@ struct rte_flow_action_meter_color {
  * @b EXPERIMENTAL: this structure may change without prior notice
  *
  * Provides an ethdev port ID for use with actions which are as follows:
- * RTE_FLOW_ACTION_TYPE_ETHDEV.
+ * RTE_FLOW_ACTION_TYPE_ETHDEV, RTE_FLOW_ACTION_TYPE_ESWITCH_PORT.
  */
 struct rte_flow_action_ethdev {
 	uint16_t port_id; /**< ethdev port ID */

@@ -462,6 +462,8 @@ enum index {
 	ACTION_POL_R,
 	ACTION_ETHDEV,
 	ACTION_ETHDEV_PORT_ID,
+	ACTION_ESWITCH_PORT,
+	ACTION_ESWITCH_PORT_ETHDEV_PORT_ID,
 };
 
 /** Maximum size for pattern in struct rte_flow_item_raw. */
@@ -1455,6 +1457,7 @@ static const enum index next_action[] = {
 	ACTION_CONNTRACK,
 	ACTION_CONNTRACK_UPDATE,
 	ACTION_ETHDEV,
+	ACTION_ESWITCH_PORT,
 	ZERO,
 };
 
@@ -1738,6 +1741,12 @@ static const enum index action_update_conntrack[] = {
 
 static const enum index action_ethdev[] = {
 	ACTION_ETHDEV_PORT_ID,
+	ACTION_NEXT,
+	ZERO,
+};
+
+static const enum index action_eswitch_port[] = {
+	ACTION_ESWITCH_PORT_ETHDEV_PORT_ID,
 	ACTION_NEXT,
 	ZERO,
 };
@@ -4841,6 +4850,21 @@ static const struct token token_list[] = {
 		.name = "port_id",
 		.help = "ethdev port ID",
 		.next = NEXT(action_ethdev, NEXT_ENTRY(COMMON_UNSIGNED)),
+		.args = ARGS(ARGS_ENTRY(struct rte_flow_action_ethdev, port_id)),
+		.call = parse_vc_conf,
+	},
+	[ACTION_ESWITCH_PORT] = {
+		.name = "eswitch_port",
+		.help = "at e-switch level, direct matching packets to the external port associated with the given ethdev",
+		.priv = PRIV_ACTION(ESWITCH_PORT,
+				sizeof(struct rte_flow_action_ethdev)),
+		.next = NEXT(action_eswitch_port),
+		.call = parse_vc,
+	},
+	[ACTION_ESWITCH_PORT_ETHDEV_PORT_ID] = {
+		.name = "ethdev_port_id",
+		.help = "ethdev port ID",
+		.next = NEXT(action_eswitch_port, NEXT_ENTRY(COMMON_UNSIGNED)),
 		.args = ARGS(ARGS_ENTRY(struct rte_flow_action_ethdev, port_id)),
 		.call = parse_vc_conf,
 	},

@@ -192,6 +192,7 @@ static const struct rte_flow_desc_data rte_flow_desc_action[] = {
 	MK_FLOW_ACTION(INDIRECT, 0),
 	MK_FLOW_ACTION(CONNTRACK, sizeof(struct rte_flow_action_conntrack)),
 	MK_FLOW_ACTION(ETHDEV, sizeof(struct rte_flow_action_ethdev)),
+	MK_FLOW_ACTION(ESWITCH_PORT, sizeof(struct rte_flow_action_ethdev)),
 };
 
 int

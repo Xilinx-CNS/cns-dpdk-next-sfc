@@ -4108,6 +4108,11 @@ This section lists supported actions and their attributes, if any.
 
   - ``port_id {unsigned}``: ethdev port ID
 
+- ``eswitch_port``: at e-switch level, direct matching packets to the external
+  port associated with the given ethdev
+
+  - ``ethdev_port_id {unsigned}``: ethdev port ID
+
 Destroying flow rules
 ~~~~~~~~~~~~~~~~~~~~~
 

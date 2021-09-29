@@ -3087,6 +3087,30 @@ See `Item: ETHDEV`_.
    | ``port_id`` | ethdev port ID |
    +-------------+----------------+
 
+Action: ``ESWITCH_PORT``
+^^^^^^^^^^^^^^^^^^^^^^^^
+At e-switch level, directs matching packets to the external port
+associated with the given ethdev, that is, to net. port or guest.
+
+These packets can originate from any of e-switch ports, not
+just the ones associated with the given ethdev. They come
+from the match engine in general, as per some criteria.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) ~~~~ [] >>>> (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the action engine;
+   *    >> shows the traffic flow in question established by the action;
+   *    ~~ shows logical interconnects between the endpoints.
+
+See `Item: ESWITCH_PORT`_.
+
+This action is meant to use the same structure as `Action: ETHDEV`_.
+
 Negative types
 ~~~~~~~~~~~~~~
 

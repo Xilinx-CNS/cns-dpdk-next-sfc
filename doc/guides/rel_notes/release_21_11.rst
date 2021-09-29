@@ -174,7 +174,7 @@ API Changes
   removed. Its usages have been replaced by a new function
   ``rte_kvargs_get_with_value()``.
 
-* ethdev: Added items ``ETHDEV``, ``ESWITCH_PORT`` and action ``ETHDEV`` to flow API.
+* ethdev: Added items and actions ``ETHDEV``, ``ESWITCH_PORT`` to flow API.
 
 * cryptodev: The API rte_cryptodev_pmd_is_valid_dev is modified to
   rte_cryptodev_is_valid_dev as it can be used by the application as
