@@ -3824,6 +3824,11 @@ This section lists supported pattern items and their attributes, if any.
 
   - ``port_id {unsigned}``: ethdev port ID
 
+- ``eswitch_port``: match traffic at e-switch going from the external port
+  associated with the given ethdev
+
+  - ``ethdev_port_id {unsigned}``: ethdev port ID
+
 Actions list
 ^^^^^^^^^^^^
 

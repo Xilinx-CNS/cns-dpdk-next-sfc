@@ -308,6 +308,8 @@ enum index {
 	ITEM_POL_POLICY,
 	ITEM_ETHDEV,
 	ITEM_ETHDEV_PORT_ID,
+	ITEM_ESWITCH_PORT,
+	ITEM_ESWITCH_PORT_ETHDEV_PORT_ID,
 
 	/* Validate/create actions. */
 	ACTIONS,
@@ -1003,6 +1005,7 @@ static const enum index next_item[] = {
 	ITEM_INTEGRITY,
 	ITEM_CONNTRACK,
 	ITEM_ETHDEV,
+	ITEM_ESWITCH_PORT,
 	END_SET,
 	ZERO,
 };
@@ -1373,6 +1376,12 @@ static const enum index item_integrity_lv[] = {
 
 static const enum index item_ethdev[] = {
 	ITEM_ETHDEV_PORT_ID,
+	ITEM_NEXT,
+	ZERO,
+};
+
+static const enum index item_eswitch_port[] = {
+	ITEM_ESWITCH_PORT_ETHDEV_PORT_ID,
 	ITEM_NEXT,
 	ZERO,
 };
@@ -3629,6 +3638,21 @@ static const struct token token_list[] = {
 		.name = "port_id",
 		.help = "ethdev port ID",
 		.next = NEXT(item_ethdev, NEXT_ENTRY(COMMON_UNSIGNED),
+			     item_param),
+		.args = ARGS(ARGS_ENTRY(struct rte_flow_item_ethdev, port_id)),
+	},
+	[ITEM_ESWITCH_PORT] = {
+		.name = "eswitch_port",
+		.help = "match traffic at e-switch going from the external port associated with the given ethdev",
+		.priv = PRIV_ITEM(ESWITCH_PORT,
+				  sizeof(struct rte_flow_item_ethdev)),
+		.next = NEXT(item_eswitch_port),
+		.call = parse_vc,
+	},
+	[ITEM_ESWITCH_PORT_ETHDEV_PORT_ID] = {
+		.name = "ethdev_port_id",
+		.help = "ethdev port ID",
+		.next = NEXT(item_eswitch_port, NEXT_ENTRY(COMMON_UNSIGNED),
 			     item_param),
 		.args = ARGS(ARGS_ENTRY(struct rte_flow_item_ethdev, port_id)),
 	},
@@ -8368,6 +8392,7 @@ flow_item_default_mask(const struct rte_flow_item *item)
 		mask = &rte_flow_item_pfcp_mask;
 		break;
 	case RTE_FLOW_ITEM_TYPE_ETHDEV:
+	case RTE_FLOW_ITEM_TYPE_ESWITCH_PORT:
 		mask = &rte_flow_item_ethdev_mask;
 		break;
 	default:

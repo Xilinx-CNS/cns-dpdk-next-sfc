@@ -1460,6 +1460,28 @@ Use this with attribute **transfer**. Attributes **ingress** and
    | ``mask`` | ``port_id`` | zeroed for wildcard match |
    +----------+-------------+---------------------------+
 
+Item: ``ESWITCH_PORT``
+^^^^^^^^^^^^^^^^^^^^^^
+
+Matches traffic at e-switch going from the external port associated
+with the given ethdev, for example, traffic from net. port or guest.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) ~~~~ [] <<<< (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the match engine;
+   *    << shows the traffic flow in question hitting the match engine;
+   *    ~~ shows logical interconnects between the endpoints.
+
+Use this with attribute **transfer**. Attributes **ingress** and
+**egress** (`Attribute: Traffic direction`_) must not be used.
+
+This item is meant to use the same structure as `Item: ETHDEV`_.
+
 Actions
 ~~~~~~~
 

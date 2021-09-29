@@ -583,6 +583,16 @@ enum rte_flow_item_type {
 	 * @see struct rte_flow_item_ethdev
 	 */
 	RTE_FLOW_ITEM_TYPE_ETHDEV,
+
+	/**
+	 * [META]
+	 *
+	 * Matches traffic at e-switch going from the external port associated
+	 * with the given ethdev, for example, traffic from net. port or guest.
+	 *
+	 * @see struct rte_flow_item_ethdev
+	 */
+	RTE_FLOW_ITEM_TYPE_ESWITCH_PORT,
 };
 
 /**
@@ -1813,7 +1823,7 @@ static const struct rte_flow_item_conntrack rte_flow_item_conntrack_mask = {
  * @b EXPERIMENTAL: this structure may change without prior notice
  *
  * Provides an ethdev port ID for use with items which are as follows:
- * RTE_FLOW_ITEM_TYPE_ETHDEV.
+ * RTE_FLOW_ITEM_TYPE_ETHDEV, RTE_FLOW_ITEM_TYPE_ESWITCH_PORT.
  */
 struct rte_flow_item_ethdev {
 	uint16_t port_id; /**< ethdev port ID */
