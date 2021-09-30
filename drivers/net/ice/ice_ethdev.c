@@ -145,6 +145,7 @@ static int ice_stats_reset(struct rte_eth_dev *dev);
 static int ice_xstats_get(struct rte_eth_dev *dev,
 			  struct rte_eth_xstat *xstats, unsigned int n);
 static int ice_xstats_get_names(struct rte_eth_dev *dev,
+				const uint64_t *ids,
 				struct rte_eth_xstat_name *xstats_names,
 				unsigned int limit);
 static int ice_dev_flow_ops_get(struct rte_eth_dev *dev,
@@ -5409,11 +5410,15 @@ ice_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 }
 
 static int ice_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+				const uint64_t *ids,
 				struct rte_eth_xstat_name *xstats_names,
 				__rte_unused unsigned int limit)
 {
 	unsigned int count = 0;
 	unsigned int i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names)
 		return ice_xstats_calc_num();

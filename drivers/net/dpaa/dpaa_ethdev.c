@@ -736,9 +736,9 @@ dpaa_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 }
 
 static int
-dpaa_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-		      struct rte_eth_xstat_name *xstats_names,
-		      unsigned int limit)
+dpaa_xstats_get_all_names(__rte_unused struct rte_eth_dev *dev,
+			  struct rte_eth_xstat_name *xstats_names,
+			  unsigned int limit)
 {
 	unsigned int i, stat_cnt = RTE_DIM(dpaa_xstats_strings);
 
@@ -791,7 +791,7 @@ dpaa_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 }
 
 static int
-dpaa_xstats_get_names_by_id(
+dpaa_xstats_get_names(
 	struct rte_eth_dev *dev,
 	const uint64_t *ids,
 	struct rte_eth_xstat_name *xstats_names,
@@ -801,9 +801,9 @@ dpaa_xstats_get_names_by_id(
 	struct rte_eth_xstat_name xstats_names_copy[stat_cnt];
 
 	if (!ids)
-		return dpaa_xstats_get_names(dev, xstats_names, limit);
+		return dpaa_xstats_get_all_names(dev, xstats_names, limit);
 
-	dpaa_xstats_get_names(dev, xstats_names_copy, limit);
+	dpaa_xstats_get_all_names(dev, xstats_names_copy, limit);
 
 	for (i = 0; i < limit; i++) {
 		if (ids[i] >= stat_cnt) {
@@ -1548,7 +1548,6 @@ static struct eth_dev_ops dpaa_devops = {
 	.stats_get		  = dpaa_eth_stats_get,
 	.xstats_get		  = dpaa_dev_xstats_get,
 	.xstats_get_by_id	  = dpaa_xstats_get_by_id,
-	.xstats_get_names_by_id	  = dpaa_xstats_get_names_by_id,
 	.xstats_get_names	  = dpaa_xstats_get_names,
 	.xstats_reset		  = dpaa_eth_stats_reset,
 	.stats_reset		  = dpaa_eth_stats_reset,

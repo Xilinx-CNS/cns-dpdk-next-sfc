@@ -214,6 +214,7 @@ get_stats_fail:
 
 static int
 lio_dev_xstats_get_names(struct rte_eth_dev *eth_dev,
+			 const uint64_t *ids,
 			 struct rte_eth_xstat_name *xstats_names,
 			 unsigned limit __rte_unused)
 {
@@ -225,6 +226,9 @@ lio_dev_xstats_get_names(struct rte_eth_dev *eth_dev,
 			    lio_dev->port_id);
 		return -EINVAL;
 	}
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return LIO_NB_XSTATS;

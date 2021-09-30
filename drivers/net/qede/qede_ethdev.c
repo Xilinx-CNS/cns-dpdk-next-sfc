@@ -1711,6 +1711,7 @@ qede_get_xstats_count(struct qede_dev *qdev) {
 
 static int
 qede_get_xstats_names(struct rte_eth_dev *dev,
+		      const uint64_t *ids,
 		      struct rte_eth_xstat_name *xstats_names,
 		      __rte_unused unsigned int limit)
 {
@@ -1718,6 +1719,9 @@ qede_get_xstats_names(struct rte_eth_dev *dev,
 	struct ecore_dev *edev = &qdev->edev;
 	const unsigned int stat_cnt = qede_get_xstats_count(qdev);
 	unsigned int i, qid, hw_fn, stat_idx = 0;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return stat_cnt;

@@ -480,10 +480,14 @@ bnx2x_dev_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 
 static int
 bnx2x_get_xstats_names(__rte_unused struct rte_eth_dev *dev,
+		       const uint64_t *ids,
 		       struct rte_eth_xstat_name *xstats_names,
 		       __rte_unused unsigned limit)
 {
 	unsigned int i, stat_cnt = RTE_DIM(bnx2x_xstats_strings);
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL)
 		for (i = 0; i < stat_cnt; i++)

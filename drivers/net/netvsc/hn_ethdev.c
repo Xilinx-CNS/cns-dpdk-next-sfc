@@ -851,12 +851,15 @@ hn_dev_xstats_count(struct rte_eth_dev *dev)
 }
 
 static int
-hn_dev_xstats_get_names(struct rte_eth_dev *dev,
+hn_dev_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
 			struct rte_eth_xstat_name *xstats_names,
 			unsigned int limit)
 {
 	unsigned int i, t, count = 0;
 	int ret;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names)
 		return hn_dev_xstats_count(dev);

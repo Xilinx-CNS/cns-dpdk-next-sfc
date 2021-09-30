@@ -1232,10 +1232,14 @@ fm10k_link_update(struct rte_eth_dev *dev,
 }
 
 static int fm10k_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+	const uint64_t *ids,
 	struct rte_eth_xstat_name *xstats_names, __rte_unused unsigned limit)
 {
 	unsigned i, q;
 	unsigned count = 0;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL) {
 		/* Note: limit checked in rte_eth_xstats_names() */

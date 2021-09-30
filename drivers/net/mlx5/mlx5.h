@@ -1629,6 +1629,7 @@ int mlx5_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *stats,
 		    unsigned int n);
 int mlx5_xstats_reset(struct rte_eth_dev *dev);
 int mlx5_xstats_get_names(struct rte_eth_dev *dev __rte_unused,
+			  const uint64_t *ids,
 			  struct rte_eth_xstat_name *xstats_names,
 			  unsigned int n);
 

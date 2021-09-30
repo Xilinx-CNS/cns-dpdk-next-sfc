@@ -234,7 +234,7 @@ static void ena_interrupt_handler_rte(void *cb_arg);
 static void ena_timer_wd_callback(struct rte_timer *timer, void *arg);
 static void ena_destroy_device(struct rte_eth_dev *eth_dev);
 static int eth_ena_dev_init(struct rte_eth_dev *eth_dev);
-static int ena_xstats_get_names(struct rte_eth_dev *dev,
+static int ena_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
 				struct rte_eth_xstat_name *xstats_names,
 				unsigned int n);
 static int ena_xstats_get(struct rte_eth_dev *dev,
@@ -2881,11 +2881,15 @@ int ena_copy_eni_stats(struct ena_adapter *adapter)
  *   Number of xstats names.
  */
 static int ena_xstats_get_names(struct rte_eth_dev *dev,
+				const uint64_t *ids,
 				struct rte_eth_xstat_name *xstats_names,
 				unsigned int n)
 {
 	unsigned int xstats_count = ena_xstats_calc_num(dev->data);
 	unsigned int stat, i, count = 0;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (n < xstats_count || !xstats_names)
 		return xstats_count;

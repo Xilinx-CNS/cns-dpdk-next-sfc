@@ -980,11 +980,14 @@ __fs_xstats_get_names(struct rte_eth_dev *dev,
 }
 
 static int
-fs_xstats_get_names(struct rte_eth_dev *dev,
+fs_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
 		    struct rte_eth_xstat_name *xstats_names,
 		    unsigned int limit)
 {
 	int ret;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	fs_lock(dev, 0);
 	ret = __fs_xstats_get_names(dev, xstats_names, limit);

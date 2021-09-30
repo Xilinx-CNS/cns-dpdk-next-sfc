@@ -29,6 +29,7 @@ static int atl_dev_allmulticast_disable(struct rte_eth_dev *dev);
 static int  atl_dev_link_update(struct rte_eth_dev *dev, int wait);
 
 static int atl_dev_xstats_get_names(struct rte_eth_dev *dev __rte_unused,
+				    const uint64_t *ids,
 				    struct rte_eth_xstat_name *xstats_names,
 				    unsigned int size);
 
@@ -1002,11 +1003,15 @@ atl_dev_xstats_get_count(struct rte_eth_dev *dev)
 
 static int
 atl_dev_xstats_get_names(struct rte_eth_dev *dev __rte_unused,
+			 const uint64_t *ids,
 			 struct rte_eth_xstat_name *xstats_names,
 			 unsigned int size)
 {
 	unsigned int i;
 	unsigned int count = atl_dev_xstats_get_count(dev);
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names) {
 		for (i = 0; i < size && i < count; i++) {
