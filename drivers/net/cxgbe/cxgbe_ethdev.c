@@ -1006,8 +1006,9 @@ out_err:
 
 /* Get names of port extended statistics by ID. */
 static int cxgbe_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
+					    const uint64_t *ids,
 					    struct rte_eth_xstat_name *xnames,
-					    const uint64_t *ids, unsigned int n)
+					    unsigned int n)
 {
 	struct port_info *pi = dev->data->dev_private;
 	struct rte_eth_xstat_name *xnames_copy;
