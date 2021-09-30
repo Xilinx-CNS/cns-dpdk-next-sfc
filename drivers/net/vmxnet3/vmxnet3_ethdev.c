@@ -80,6 +80,7 @@ static int vmxnet3_dev_stats_get(struct rte_eth_dev *dev,
 				  struct rte_eth_stats *stats);
 static int vmxnet3_dev_stats_reset(struct rte_eth_dev *dev);
 static int vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
+					const uint64_t *ids,
 					struct rte_eth_xstat_name *xstats,
 					unsigned int n);
 static int vmxnet3_dev_xstats_get(struct rte_eth_dev *dev,
@@ -1201,6 +1202,7 @@ vmxnet3_hw_stats_save(struct vmxnet3_hw *hw)
 
 static int
 vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
+			     const uint64_t *ids,
 			     struct rte_eth_xstat_name *xstats_names,
 			     unsigned int n)
 {
@@ -1208,6 +1210,9 @@ vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
 	unsigned int nstats =
 		dev->data->nb_tx_queues * RTE_DIM(vmxnet3_txq_stat_strings) +
 		dev->data->nb_rx_queues * RTE_DIM(vmxnet3_rxq_stat_strings);
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names || n < nstats)
 		return nstats;

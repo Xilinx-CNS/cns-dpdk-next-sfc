@@ -708,7 +708,7 @@ Extended stats
 Supports Extended Statistics, changes from driver to driver.
 
 * **[implements] eth_dev_ops**: ``xstats_get``, ``xstats_reset``, ``xstats_get_names``.
-* **[implements] eth_dev_ops**: ``xstats_get_by_id``, ``xstats_get_names_by_id``.
+* **[implements] eth_dev_ops**: ``xstats_get_by_id``.
 * **[related]    API**: ``rte_eth_xstats_get()``, ``rte_eth_xstats_reset()``,
   ``rte_eth_xstats_get_names``, ``rte_eth_xstats_get_by_id()``,
   ``rte_eth_xstats_get_names_by_id()``, ``rte_eth_xstats_get_id_by_name()``.

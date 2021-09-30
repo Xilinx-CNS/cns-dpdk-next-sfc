@@ -258,6 +258,7 @@ static int i40e_dev_stats_get(struct rte_eth_dev *dev,
 static int i40e_dev_xstats_get(struct rte_eth_dev *dev,
 			       struct rte_eth_xstat *xstats, unsigned n);
 static int i40e_dev_xstats_get_names(struct rte_eth_dev *dev,
+				     const uint64_t *ids,
 				     struct rte_eth_xstat_name *xstats_names,
 				     unsigned limit);
 static int i40e_dev_stats_reset(struct rte_eth_dev *dev);
@@ -3567,11 +3568,15 @@ i40e_xstats_calc_num(void)
 }
 
 static int i40e_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+				     const uint64_t *ids,
 				     struct rte_eth_xstat_name *xstats_names,
 				     __rte_unused unsigned limit)
 {
 	unsigned count = 0;
 	unsigned i, prio;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return i40e_xstats_calc_num();

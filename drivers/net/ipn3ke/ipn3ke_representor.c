@@ -2329,12 +2329,15 @@ ipn3ke_rpst_xstats_get
 
 static int
 ipn3ke_rpst_xstats_get_names
-(__rte_unused struct rte_eth_dev *dev,
+(__rte_unused struct rte_eth_dev *dev, const uint64_t *ids,
 struct rte_eth_xstat_name *xstats_names,
 __rte_unused unsigned int limit)
 {
 	unsigned int count = 0;
 	unsigned int i, prio;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names)
 		return ipn3ke_rpst_xstats_calc_num();

@@ -50,8 +50,6 @@ static int  ionic_dev_xstats_get_by_id(struct rte_eth_dev *dev,
 	const uint64_t *ids, uint64_t *values, unsigned int n);
 static int  ionic_dev_xstats_reset(struct rte_eth_dev *dev);
 static int  ionic_dev_xstats_get_names(struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names, unsigned int size);
-static int  ionic_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 	const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 	unsigned int limit);
 static int  ionic_dev_fw_version_get(struct rte_eth_dev *eth_dev,
@@ -119,7 +117,6 @@ static const struct eth_dev_ops ionic_eth_dev_ops = {
 	.xstats_get_by_id       = ionic_dev_xstats_get_by_id,
 	.xstats_reset           = ionic_dev_xstats_reset,
 	.xstats_get_names       = ionic_dev_xstats_get_names,
-	.xstats_get_names_by_id = ionic_dev_xstats_get_names_by_id,
 	.fw_version_get         = ionic_dev_fw_version_get,
 };
 
@@ -714,25 +711,7 @@ ionic_dev_stats_reset(struct rte_eth_dev *eth_dev)
 }
 
 static int
-ionic_dev_xstats_get_names(__rte_unused struct rte_eth_dev *eth_dev,
-		struct rte_eth_xstat_name *xstats_names,
-		__rte_unused unsigned int size)
-{
-	unsigned int i;
-
-	if (xstats_names != NULL) {
-		for (i = 0; i < IONIC_NB_HW_STATS; i++) {
-			snprintf(xstats_names[i].name,
-					sizeof(xstats_names[i].name),
-					"%s", rte_ionic_xstats_strings[i].name);
-		}
-	}
-
-	return IONIC_NB_HW_STATS;
-}
-
-static int
-ionic_dev_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
+ionic_dev_xstats_get_names(struct rte_eth_dev *eth_dev,
 		const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 		unsigned int limit)
 {
@@ -751,7 +730,7 @@ ionic_dev_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
 		return IONIC_NB_HW_STATS;
 	}
 
-	ionic_dev_xstats_get_names_by_id(eth_dev, NULL, xstats_names_copy,
+	ionic_dev_xstats_get_names(eth_dev, NULL, xstats_names_copy,
 		IONIC_NB_HW_STATS);
 
 	for (i = 0; i < limit; i++) {

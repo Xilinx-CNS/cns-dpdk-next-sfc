@@ -845,6 +845,7 @@ int bnxt_flow_stats_cnt(struct bnxt *bp)
 }
 
 int bnxt_dev_xstats_get_names_op(struct rte_eth_dev *eth_dev,
+		const uint64_t *ids,
 		struct rte_eth_xstat_name *xstats_names,
 		__rte_unused unsigned int limit)
 {
@@ -861,6 +862,9 @@ int bnxt_dev_xstats_get_names_op(struct rte_eth_dev *eth_dev,
 	rc = is_bnxt_in_error(bp);
 	if (rc)
 		return rc;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL) {
 		count = 0;

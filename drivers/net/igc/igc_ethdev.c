@@ -213,9 +213,6 @@ static int eth_igc_xstats_get_by_id(struct rte_eth_dev *dev,
 				const uint64_t *ids,
 				uint64_t *values, unsigned int n);
 static int eth_igc_xstats_get_names(struct rte_eth_dev *dev,
-				struct rte_eth_xstat_name *xstats_names,
-				unsigned int size);
-static int eth_igc_xstats_get_names_by_id(struct rte_eth_dev *dev,
 		const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 		unsigned int limit);
 static int eth_igc_xstats_reset(struct rte_eth_dev *dev);
@@ -280,7 +277,6 @@ static const struct eth_dev_ops eth_igc_ops = {
 	.stats_get		= eth_igc_stats_get,
 	.xstats_get		= eth_igc_xstats_get,
 	.xstats_get_by_id	= eth_igc_xstats_get_by_id,
-	.xstats_get_names_by_id	= eth_igc_xstats_get_names_by_id,
 	.xstats_get_names	= eth_igc_xstats_get_names,
 	.stats_reset		= eth_igc_xstats_reset,
 	.xstats_reset		= eth_igc_xstats_reset,
@@ -1991,7 +1987,7 @@ eth_igc_xstats_reset(struct rte_eth_dev *dev)
 }
 
 static int
-eth_igc_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+eth_igc_xstats_get_all_names(__rte_unused struct rte_eth_dev *dev,
 	struct rte_eth_xstat_name *xstats_names, unsigned int size)
 {
 	unsigned int i;
@@ -2012,14 +2008,14 @@ eth_igc_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
 }
 
 static int
-eth_igc_xstats_get_names_by_id(struct rte_eth_dev *dev,
+eth_igc_xstats_get_names(struct rte_eth_dev *dev,
 		const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 		unsigned int limit)
 {
 	unsigned int i;
 
 	if (!ids)
-		return eth_igc_xstats_get_names(dev, xstats_names, limit);
+		return eth_igc_xstats_get_all_names(dev, xstats_names, limit);
 
 	for (i = 0; i < limit; i++) {
 		if (ids[i] >= IGC_NB_XSTATS) {

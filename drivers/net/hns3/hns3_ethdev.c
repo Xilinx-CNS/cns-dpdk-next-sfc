@@ -7413,7 +7413,6 @@ static const struct eth_dev_ops hns3_eth_dev_ops = {
 	.xstats_get_names   = hns3_dev_xstats_get_names,
 	.xstats_reset       = hns3_dev_xstats_reset,
 	.xstats_get_by_id   = hns3_dev_xstats_get_by_id,
-	.xstats_get_names_by_id = hns3_dev_xstats_get_names_by_id,
 	.dev_infos_get          = hns3_dev_infos_get,
 	.fw_version_get         = hns3_fw_version_get,
 	.rx_queue_setup         = hns3_rx_queue_setup,
