@@ -60,6 +60,7 @@ static int virtio_dev_stats_get(struct rte_eth_dev *dev,
 static int virtio_dev_xstats_get(struct rte_eth_dev *dev,
 				 struct rte_eth_xstat *xstats, unsigned n);
 static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
+				       const uint64_t *ids,
 				       struct rte_eth_xstat_name *xstats_names,
 				       unsigned limit);
 static int virtio_dev_stats_reset(struct rte_eth_dev *dev);
@@ -1038,6 +1039,7 @@ virtio_update_stats(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 }
 
 static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
+				       const uint64_t *ids,
 				       struct rte_eth_xstat_name *xstats_names,
 				       __rte_unused unsigned limit)
 {
@@ -1047,6 +1049,9 @@ static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
 
 	unsigned nstats = dev->data->nb_tx_queues * VIRTIO_NB_TXQ_XSTATS +
 		dev->data->nb_rx_queues * VIRTIO_NB_RXQ_XSTATS;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL) {
 		/* Note: limit checked in rte_eth_xstats_names() */

@@ -348,9 +348,13 @@ static struct rte_pci_driver rte_txgbevf_pmd = {
 };
 
 static int txgbevf_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+	const uint64_t *ids,
 	struct rte_eth_xstat_name *xstats_names, unsigned int limit)
 {
 	unsigned int i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (limit < TXGBEVF_NB_XSTATS && xstats_names != NULL)
 		return -ENOMEM;

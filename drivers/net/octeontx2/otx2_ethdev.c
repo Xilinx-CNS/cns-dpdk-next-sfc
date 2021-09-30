@@ -2329,7 +2329,6 @@ static const struct eth_dev_ops otx2_eth_dev_ops = {
 	.xstats_get_names         = otx2_nix_xstats_get_names,
 	.xstats_reset             = otx2_nix_xstats_reset,
 	.xstats_get_by_id         = otx2_nix_xstats_get_by_id,
-	.xstats_get_names_by_id   = otx2_nix_xstats_get_names_by_id,
 	.rxq_info_get             = otx2_nix_rxq_info_get,
 	.txq_info_get             = otx2_nix_txq_info_get,
 	.rx_burst_mode_get        = otx2_rx_burst_mode_get,

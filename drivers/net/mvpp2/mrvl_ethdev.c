@@ -1680,10 +1680,14 @@ mrvl_xstats_reset(struct rte_eth_dev *dev)
  */
 static int
 mrvl_xstats_get_names(struct rte_eth_dev *dev __rte_unused,
+		      const uint64_t *ids,
 		      struct rte_eth_xstat_name *xstats_names,
 		      unsigned int size)
 {
 	unsigned int i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names)
 		return RTE_DIM(mrvl_xstats_tbl);

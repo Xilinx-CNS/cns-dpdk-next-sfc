@@ -260,6 +260,8 @@ mlx5_xstats_reset(struct rte_eth_dev *dev)
  *
  * @param dev
  *   Pointer to Ethernet device structure.
+ * @param ids
+ *   Array of xstats IDs to get names
  * @param[out] xstats_names
  *   Buffer to insert names into.
  * @param n
@@ -269,13 +271,16 @@ mlx5_xstats_reset(struct rte_eth_dev *dev)
  *   Number of xstats names.
  */
 int
-mlx5_xstats_get_names(struct rte_eth_dev *dev,
+mlx5_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
 		      struct rte_eth_xstat_name *xstats_names, unsigned int n)
 {
 	unsigned int i;
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_xstats_ctrl *xstats_ctrl = &priv->xstats_ctrl;
 	unsigned int mlx5_xstats_n = xstats_ctrl->mlx5_stats_n;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (n >= mlx5_xstats_n && xstats_names) {
 		for (i = 0; i != mlx5_xstats_n; ++i) {

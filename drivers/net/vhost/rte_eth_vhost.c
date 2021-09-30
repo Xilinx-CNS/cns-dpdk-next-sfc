@@ -251,12 +251,16 @@ vhost_dev_xstats_reset(struct rte_eth_dev *dev)
 
 static int
 vhost_dev_xstats_get_names(struct rte_eth_dev *dev __rte_unused,
+			   const uint64_t *ids,
 			   struct rte_eth_xstat_name *xstats_names,
 			   unsigned int limit __rte_unused)
 {
 	unsigned int t = 0;
 	int count = 0;
 	int nstats = VHOST_NB_XSTATS_RXPORT + VHOST_NB_XSTATS_TXPORT;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names)
 		return nstats;
