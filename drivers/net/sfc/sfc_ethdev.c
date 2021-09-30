@@ -838,43 +838,6 @@ sfc_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 }
 
 static int
-sfc_xstats_get_names(struct rte_eth_dev *dev,
-		     struct rte_eth_xstat_name *xstats_names,
-		     unsigned int xstats_count)
-{
-	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
-	struct sfc_port *port = &sa->port;
-	unsigned int i;
-	unsigned int nstats = 0;
-	unsigned int nb_written = 0;
-	int ret;
-
-	if (unlikely(xstats_names == NULL))
-		return sfc_xstats_get_nb_supported(sa);
-
-	for (i = 0; i < EFX_MAC_NSTATS; ++i) {
-		if (EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i)) {
-			if (nstats < xstats_count) {
-				strlcpy(xstats_names[nstats].name,
-					efx_mac_stat_name(sa->nic, i),
-					sizeof(xstats_names[0].name));
-				nb_written++;
-			}
-			nstats++;
-		}
-	}
-
-	ret = sfc_sw_xstats_get_names(sa, xstats_names, xstats_count,
-				      &nb_written, &nstats);
-	if (ret != 0) {
-		SFC_ASSERT(ret < 0);
-		return ret;
-	}
-
-	return nstats;
-}
-
-static int
 sfc_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 		     uint64_t *values, unsigned int n)
 {
@@ -911,10 +874,42 @@ sfc_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 }
 
 static int
-sfc_xstats_get_names_by_id(struct rte_eth_dev *dev,
-			   const uint64_t *ids,
-			   struct rte_eth_xstat_name *xstats_names,
-			   unsigned int size)
+sfc_xstats_get_all_names(struct sfc_adapter *sa,
+			 struct rte_eth_xstat_name *xstats_names,
+			 unsigned int xstats_count)
+{
+	struct sfc_port *port = &sa->port;
+	unsigned int i;
+	unsigned int nstats = 0;
+	unsigned int nb_written = 0;
+	int ret;
+
+	for (i = 0; i < EFX_MAC_NSTATS; ++i) {
+		if (EFX_MAC_STAT_SUPPORTED(port->mac_stats_mask, i)) {
+			if (nstats < xstats_count) {
+				strlcpy(xstats_names[nstats].name,
+					efx_mac_stat_name(sa->nic, i),
+					sizeof(xstats_names[0].name));
+				nb_written++;
+			}
+			nstats++;
+		}
+	}
+
+	ret = sfc_sw_xstats_get_names(sa, xstats_names, xstats_count,
+				      &nb_written, &nstats);
+	if (ret != 0) {
+		SFC_ASSERT(ret < 0);
+		return ret;
+	}
+
+	return nstats;
+}
+
+static int
+sfc_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
+		     struct rte_eth_xstat_name *xstats_names,
+		     unsigned int size)
 {
 	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
 	struct sfc_port *port = &sa->port;
@@ -922,12 +917,14 @@ sfc_xstats_get_names_by_id(struct rte_eth_dev *dev,
 	unsigned int i;
 	int ret;
 
-	if (unlikely(xstats_names == NULL && ids != NULL) ||
-	    unlikely(xstats_names != NULL && ids == NULL))
+	if (unlikely(xstats_names == NULL && ids != NULL))
 		return -EINVAL;
 
 	if (unlikely(xstats_names == NULL && ids == NULL))
 		return sfc_xstats_get_nb_supported(sa);
+
+	if (ids == NULL)
+		return sfc_xstats_get_all_names(sa, xstats_names, size);
 
 	/*
 	 * Names array could be filled in nonsequential order. Fill names with
@@ -2385,7 +2382,6 @@ static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.txq_info_get			= sfc_tx_queue_info_get,
 	.fw_version_get			= sfc_fw_version_get,
 	.xstats_get_by_id		= sfc_xstats_get_by_id,
-	.xstats_get_names_by_id		= sfc_xstats_get_names_by_id,
 	.pool_ops_supported		= sfc_pool_ops_supported,
 	.representor_info_get		= sfc_representor_info_get,
 	.rx_metadata_negotiate		= sfc_rx_metadata_negotiate,

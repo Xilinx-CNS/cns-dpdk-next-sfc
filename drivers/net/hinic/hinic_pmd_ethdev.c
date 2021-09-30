@@ -2284,12 +2284,16 @@ static void hinic_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
  *   Number of xstats names.
  */
 static int hinic_dev_xstats_get_names(struct rte_eth_dev *dev,
+			       const uint64_t *ids,
 			       struct rte_eth_xstat_name *xstats_names,
 			       __rte_unused unsigned int limit)
 {
 	struct hinic_nic_dev *nic_dev = HINIC_ETH_DEV_TO_PRIVATE_NIC_DEV(dev);
 	int count = 0;
 	u16 i = 0, q_num;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return hinic_xstats_calc_num(nic_dev);

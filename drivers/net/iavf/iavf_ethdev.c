@@ -87,8 +87,9 @@ static int iavf_dev_stats_reset(struct rte_eth_dev *dev);
 static int iavf_dev_xstats_get(struct rte_eth_dev *dev,
 				 struct rte_eth_xstat *xstats, unsigned int n);
 static int iavf_dev_xstats_get_names(struct rte_eth_dev *dev,
-				       struct rte_eth_xstat_name *xstats_names,
-				       unsigned int limit);
+				     const uint64_t *ids,
+				     struct rte_eth_xstat_name *xstats_names,
+				     unsigned int limit);
 static int iavf_dev_promiscuous_enable(struct rte_eth_dev *dev);
 static int iavf_dev_promiscuous_disable(struct rte_eth_dev *dev);
 static int iavf_dev_allmulticast_enable(struct rte_eth_dev *dev);
@@ -1611,10 +1612,14 @@ iavf_dev_stats_reset(struct rte_eth_dev *dev)
 }
 
 static int iavf_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-				      struct rte_eth_xstat_name *xstats_names,
-				      __rte_unused unsigned int limit)
+				     const uint64_t *ids,
+				     struct rte_eth_xstat_name *xstats_names,
+				     __rte_unused unsigned int limit)
 {
 	unsigned int i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL)
 		for (i = 0; i < IAVF_NB_XSTATS; i++) {

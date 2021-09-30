@@ -2853,7 +2853,7 @@ eth_dev_get_xstats_count(uint16_t port_id)
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
 	if (dev->dev_ops->xstats_get_names != NULL) {
-		count = (*dev->dev_ops->xstats_get_names)(dev, NULL, 0);
+		count = (*dev->dev_ops->xstats_get_names)(dev, NULL, NULL, 0);
 		if (count < 0)
 			return eth_err(port_id, count);
 	} else
@@ -2991,7 +2991,7 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 	if (ids && !xstats_names)
 		return -EINVAL;
 
-	if (ids && dev->dev_ops->xstats_get_names_by_id != NULL && size > 0) {
+	if (ids && dev->dev_ops->xstats_get_names != NULL && size > 0) {
 		uint64_t ids_copy[size];
 
 		for (i = 0; i < size; i++) {
@@ -3007,9 +3007,16 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 			ids_copy[i] = ids[i] - basic_count;
 		}
 
-		if (no_basic_stat_requested)
-			return (*dev->dev_ops->xstats_get_names_by_id)(dev,
+		if (no_basic_stat_requested) {
+			ret = (*dev->dev_ops->xstats_get_names)(dev,
 					ids_copy, xstats_names, size);
+			if (ret == 0 || ret != -ENOTSUP)
+				return ret;
+			/*
+			 * Driver does not support getting names by IDs.
+			 * Fallback to support on ethdev layer.
+			 */
+		}
 	}
 
 	/* Retrieve all stats */
@@ -3090,7 +3097,7 @@ rte_eth_xstats_get_names(uint16_t port_id,
 		 * to end of list.
 		 */
 		cnt_driver_entries = (*dev->dev_ops->xstats_get_names)(
-			dev,
+			dev, NULL,
 			xstats_names + cnt_used_entries,
 			size - cnt_used_entries);
 		if (cnt_driver_entries < 0)

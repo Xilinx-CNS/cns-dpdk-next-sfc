@@ -1034,10 +1034,10 @@ out_err:
 }
 
 /* Get names of port extended statistics by ID. */
-int cxgbe_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
-					    const uint64_t *ids,
-					    struct rte_eth_xstat_name *xnames,
-					    unsigned int n)
+int cxgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
+			       const uint64_t *ids,
+			       struct rte_eth_xstat_name *xnames,
+			       unsigned int n)
 {
 	struct port_info *pi = dev->data->dev_private;
 	struct rte_eth_xstat_name *xnames_copy;
@@ -1075,14 +1075,6 @@ int cxgbe_dev_xstats_get(struct rte_eth_dev *dev,
 			 struct rte_eth_xstat *xstats, unsigned int n)
 {
 	return cxgbe_dev_xstats(dev, NULL, xstats, n);
-}
-
-/* Get names of port extended statistics. */
-int cxgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
-			       struct rte_eth_xstat_name *xstats_names,
-			       unsigned int n)
-{
-	return cxgbe_dev_xstats(dev, xstats_names, NULL, n);
 }
 
 /* Reset port extended statistics. */
@@ -1674,7 +1666,6 @@ static const struct eth_dev_ops cxgbe_eth_dev_ops = {
 	.xstats_get             = cxgbe_dev_xstats_get,
 	.xstats_get_by_id       = cxgbe_dev_xstats_get_by_id,
 	.xstats_get_names       = cxgbe_dev_xstats_get_names,
-	.xstats_get_names_by_id = cxgbe_dev_xstats_get_names_by_id,
 	.xstats_reset           = cxgbe_dev_xstats_reset,
 	.flow_ctrl_get		= cxgbe_flow_ctrl_get,
 	.flow_ctrl_set		= cxgbe_flow_ctrl_set,
