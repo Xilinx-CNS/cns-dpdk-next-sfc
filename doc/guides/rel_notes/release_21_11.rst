@@ -179,6 +179,10 @@ API Changes
 * ethdev: Deprecated items and actions ``PF``, ``VF``, ``PHY_PORT``, ``PORT_ID``.
   Suggested items and actions ``ETHDEV``, ``ESWITCH_PORT`` instead.
 
+* ethdev: Deprecated the use of attributes ``ingress`` / ``egress`` combined
+  with attribute ``transfer``. Items ``ETHDEV``, ``ESWITCH_PORT``
+  should be used instead to specify traffic source(s).
+
 * cryptodev: The API rte_cryptodev_pmd_is_valid_dev is modified to
   rte_cryptodev_is_valid_dev as it can be used by the application as
   well as PMD to check whether the device is valid or not.
