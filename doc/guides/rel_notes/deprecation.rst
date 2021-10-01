@@ -113,12 +113,6 @@ Deprecation Notices
   to support modifying fields larger than 64 bits.
   In addition, documentation will be updated to clarify byte order.
 
-* ethdev: Definition of the flow API action ``RTE_FLOW_ACTION_TYPE_PORT_ID``
-  is ambiguous and needs clarification.
-  Structure ``rte_flow_action_port_id`` will be extended to specify
-  traffic direction to the represented entity or ethdev port itself
-  in DPDK 21.11.
-
 * ethdev: Flow API documentation is unclear if ethdev port used to create
   a flow rule adds any implicit match criteria in the case of transfer rules.
   The semantics will be clarified in DPDK 21.11 and it will require fixes in
@@ -232,3 +226,6 @@ Deprecation Notices
 * cmdline: ``cmdline`` structure will be made opaque to hide platform-specific
   content. On Linux and FreeBSD, supported prior to DPDK 20.11,
   original structure will be kept until DPDK 21.11.
+
+* ethdev: Items and actions ``PF``, ``VF``, ``PHY_PORT``, ``PORT_ID`` are
+  deprecated as hard-to-use / ambiguous and will be removed in DPDK 22.11.
