@@ -504,6 +504,8 @@ Usage example, matching non-TCPv4 packets only:
 Item: ``PF``
 ^^^^^^^^^^^^
 
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
+
 Matches traffic originating from (ingress) or going to (egress) the physical
 function of the current device.
 
@@ -530,6 +532,8 @@ the application and thus not associated with a DPDK port ID.
 
 Item: ``VF``
 ^^^^^^^^^^^^
+
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
 
 Matches traffic originating from (ingress) or going to (egress) a given
 virtual function of the current device.
@@ -561,6 +565,8 @@ separate entities, should be addressed through their own DPDK port IDs.
 
 Item: ``PHY_PORT``
 ^^^^^^^^^^^^^^^^^^
+
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
 
 Matches traffic originating from (ingress) or going to (egress) a physical
 port of the underlying device.
@@ -595,6 +601,8 @@ associated with a port_id should be retrieved by other means.
 
 Item: ``PORT_ID``
 ^^^^^^^^^^^^^^^^^
+
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
 
 Matches traffic originating from (ingress) or going to (egress) a given DPDK
 port ID.
@@ -1913,6 +1921,8 @@ only matching traffic goes through.
 Action: ``PF``
 ^^^^^^^^^^^^^^
 
+This action is DEPRECATED. Consider: `Action: ETHDEV`_.
+
 Directs matching traffic to the physical function (PF) of the current
 device.
 
@@ -1932,6 +1942,8 @@ See `Item: PF`_.
 
 Action: ``VF``
 ^^^^^^^^^^^^^^
+
+This action is DEPRECATED. Consider: `Action: ETHDEV`_, `Action: ESWITCH_PORT`_.
 
 Directs matching traffic to a given virtual function of the current device.
 
@@ -1957,6 +1969,8 @@ See `Item: VF`_.
 Action: ``PHY_PORT``
 ^^^^^^^^^^^^^^^^^^^^
 
+This action is DEPRECATED. Consider: `Action: ESWITCH_PORT`_.
+
 Directs matching traffic to a given physical port index of the underlying
 device.
 
@@ -1976,6 +1990,8 @@ See `Item: PHY_PORT`_.
 
 Action: ``PORT_ID``
 ^^^^^^^^^^^^^^^^^^^
+This action is DEPRECATED. Consider: `Action: ETHDEV`_, `Action: ESWITCH_PORT`_.
+
 Directs matching traffic to a given DPDK port ID.
 
 See `Item: PORT_ID`_.
