@@ -137,6 +137,15 @@ New Features
   * Added tests to validate packets hard expiry.
   * Added tests to verify tunnel header verification in IPsec inbound.
 
+* **Added an API to control delivery of Rx metadata from the HW to the PMD**
+
+  A new API, ``rte_eth_rx_metadata_negotiate()``, was added.
+  The following parts of Rx metadata were defined:
+
+  * ``RTE_ETH_RX_METADATA_USER_FLAG``
+  * ``RTE_ETH_RX_METADATA_USER_MARK``
+  * ``RTE_ETH_RX_METADATA_TUNNEL_ID``
+
 
 Removed Items
 -------------
