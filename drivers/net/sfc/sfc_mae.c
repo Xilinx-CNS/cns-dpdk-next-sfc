@@ -2707,6 +2707,7 @@ sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 			   struct rte_flow_error *error)
 {
 	struct sfc_mae_parse_ctx ctx_mae;
+	unsigned int priority_shift = 0;
 	struct sfc_flow_parse_ctx ctx;
 	int rc;
 
@@ -2718,13 +2719,32 @@ sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 
 	switch (ctx_mae.ft_rule_type) {
 	case SFC_FT_RULE_JUMP:
-		/* No action rule */
-		break;
+		/*
+		 * By design, this flow should be represented solely by the
+		 * outer rule. But the HW/FW hasn't got support for setting
+		 * Rx mark from RECIRC_ID on outer rule lookup yet. Neither
+		 * does it support outer rule counters. As a workaround, an
+		 * action rule of lower priority is used to do the job.
+		 */
+		priority_shift = 1;
+
+		/* FALLTHROUGH */
 	case SFC_FT_RULE_GROUP:
+		if (ctx_mae.priority != 0) {
+			/*
+			 * Because of the above workaround, deny the
+			 * use of priorities to JUMP and GROUP rules.
+			 */
+			rc = rte_flow_error_set(error, ENOTSUP,
+				RTE_FLOW_ERROR_TYPE_ATTR_PRIORITY, NULL,
+				"tunnel offload: priorities are not supported");
+			goto fail_priority_check;
+		}
+
 		/* FALLTHROUGH */
 	case SFC_FT_RULE_NONE:
 		rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_ACTION,
-					     spec->priority,
+					     spec->priority + priority_shift,
 					     &ctx_mae.match_spec_action);
 		if (rc != 0) {
 			rc = rte_flow_error_set(error, rc,
@@ -2799,6 +2819,7 @@ fail_encap_parse_init:
 		efx_mae_match_spec_fini(sa->nic, ctx_mae.match_spec_action);
 
 fail_init_match_spec_action:
+fail_priority_check:
 	return rc;
 }
 
@@ -3248,11 +3269,14 @@ sfc_mae_rule_parse_action_vxlan_encap(
 static int
 sfc_mae_rule_parse_action_mark(struct sfc_adapter *sa,
 			       const struct rte_flow_action_mark *conf,
+			       const struct sfc_flow_spec_mae *spec_mae,
 			       efx_mae_actions_t *spec)
 {
 	int rc;
 
-	if (conf->id > SFC_FT_USER_MARK_MASK) {
+	if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+		/* Workaround. See sfc_flow_parse_rte_to_mae() */
+	} else if (conf->id > SFC_FT_USER_MARK_MASK) {
 		sfc_err(sa, "the mark value is too large");
 		return EINVAL;
 	}
@@ -3476,11 +3500,12 @@ static const char * const action_names[] = {
 static int
 sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 			  const struct rte_flow_action *action,
-			  const struct sfc_mae_outer_rule *outer_rule,
+			  const struct sfc_flow_spec_mae *spec_mae,
 			  struct sfc_mae_actions_bundle *bundle,
 			  efx_mae_actions_t *spec,
 			  struct rte_flow_error *error)
 {
+	const struct sfc_mae_outer_rule *outer_rule = spec_mae->outer_rule;
 	const uint64_t rx_metadata = sa->negotiated_rx_metadata;
 	bool custom_error = B_FALSE;
 	int rc = 0;
@@ -3544,9 +3569,10 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 	case RTE_FLOW_ACTION_TYPE_MARK:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_MARK,
 				       bundle->actions_mask);
-		if ((rx_metadata & RTE_ETH_RX_METADATA_USER_MARK) != 0) {
+		if ((rx_metadata & RTE_ETH_RX_METADATA_USER_MARK) != 0 ||
+		    spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
 			rc = sfc_mae_rule_parse_action_mark(sa, action->conf,
-							    spec);
+							    spec_mae, spec);
 		} else {
 			rc = rte_flow_error_set(error, ENOTSUP,
 						RTE_FLOW_ERROR_TYPE_ACTION,
@@ -3591,6 +3617,12 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 				       bundle->actions_mask);
 		rc = efx_mae_action_set_populate_drop(spec);
 		break;
+	case RTE_FLOW_ACTION_TYPE_JUMP:
+		if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+			/* Workaround. See sfc_flow_parse_rte_to_mae() */
+			break;
+		}
+		/* FALLTHROUGH */
 	default:
 		return rte_flow_error_set(error, ENOTSUP,
 				RTE_FLOW_ERROR_TYPE_ACTION, NULL,
@@ -3680,7 +3712,7 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 		if (rc != 0)
 			goto fail_rule_parse_action;
 
-		rc = sfc_mae_rule_parse_action(sa, action, spec_mae->outer_rule,
+		rc = sfc_mae_rule_parse_action(sa, action, spec_mae,
 					       &bundle, spec, error);
 		if (rc != 0)
 			goto fail_rule_parse_action;
@@ -3703,6 +3735,12 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 
 	switch (spec_mae->ft_rule_type) {
 	case SFC_FT_RULE_NONE:
+		break;
+	case SFC_FT_RULE_JUMP:
+		/* Workaround. See sfc_flow_parse_rte_to_mae() */
+		rc = sfc_mae_rule_parse_action_pf_vf(sa, NULL, spec);
+		if (rc != 0)
+			goto fail_workaround_jump_delivery;
 		break;
 	case SFC_FT_RULE_GROUP:
 		/*
@@ -3733,6 +3771,7 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	return 0;
 
 fail_action_set_add:
+fail_workaround_jump_delivery:
 fail_nb_count:
 	sfc_mae_encap_header_del(sa, encap_header);
 
