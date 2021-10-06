@@ -140,6 +140,7 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_eth_representor_info_get@EXPERIMENTAL 21.08
  rte_eth_rx_burst_mode_get@EXPERIMENTAL 19.11
  rte_eth_rx_hairpin_queue_setup@EXPERIMENTAL 19.11
+ rte_eth_rx_metadata_negotiate@EXPERIMENTAL 21.11
  rte_eth_rx_queue_info_get@DPDK_22 20.11
  rte_eth_rx_queue_setup@DPDK_22 20.11
  rte_eth_set_queue_rate_limit@DPDK_22 20.11
@@ -188,10 +189,6 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_flow_get_restore_info@EXPERIMENTAL 20.11
  rte_flow_isolate@DPDK_22 20.11
  rte_flow_query@DPDK_22 20.11
-#MISSING: 21.08# rte_flow_shared_action_create@EXPERIMENTAL 20.11
-#MISSING: 21.08# rte_flow_shared_action_destroy@EXPERIMENTAL 20.11
-#MISSING: 21.08# rte_flow_shared_action_query@EXPERIMENTAL 20.11
-#MISSING: 21.08# rte_flow_shared_action_update@EXPERIMENTAL 20.11
  rte_flow_tunnel_action_decap_release@EXPERIMENTAL 20.11
  rte_flow_tunnel_decap_set@EXPERIMENTAL 20.11
  rte_flow_tunnel_item_release@EXPERIMENTAL 20.11
@@ -210,7 +207,6 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_mtr_meter_profile_add@EXPERIMENTAL 17.11
  rte_mtr_meter_profile_delete@EXPERIMENTAL 17.11
  rte_mtr_meter_profile_update@EXPERIMENTAL 17.11
-#MISSING: 21.08# rte_mtr_policer_actions_update@EXPERIMENTAL 17.11
  rte_mtr_stats_read@EXPERIMENTAL 17.11
  rte_mtr_stats_update@EXPERIMENTAL 17.11
  rte_tm_capabilities_get@EXPERIMENTAL 20.11
