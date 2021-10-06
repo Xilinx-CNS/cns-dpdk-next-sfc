@@ -127,36 +127,36 @@ librte_eal.so.22 librte-eal22 #MINVER#
  rte_epoll_wait@DPDK_22 20.11
  rte_epoll_wait_interruptible@EXPERIMENTAL 20.11
  rte_exit@DPDK_22 20.11
- rte_extmem_attach@EXPERIMENTAL 19.08
- rte_extmem_detach@EXPERIMENTAL 19.08
- rte_extmem_register@EXPERIMENTAL 19.08
- rte_extmem_unregister@EXPERIMENTAL 19.08
- rte_fbarray_attach@EXPERIMENTAL 18.05
- rte_fbarray_destroy@EXPERIMENTAL 18.05
- rte_fbarray_detach@EXPERIMENTAL 18.05
- rte_fbarray_dump_metadata@EXPERIMENTAL 18.05
- rte_fbarray_find_biggest_free@EXPERIMENTAL 19.08
- rte_fbarray_find_biggest_used@EXPERIMENTAL 19.08
- rte_fbarray_find_contig_free@EXPERIMENTAL 18.05
- rte_fbarray_find_contig_used@EXPERIMENTAL 18.05
- rte_fbarray_find_idx@EXPERIMENTAL 18.05
- rte_fbarray_find_next_free@EXPERIMENTAL 18.05
- rte_fbarray_find_next_n_free@EXPERIMENTAL 18.05
- rte_fbarray_find_next_n_used@EXPERIMENTAL 18.05
- rte_fbarray_find_next_used@EXPERIMENTAL 18.05
- rte_fbarray_find_prev_free@EXPERIMENTAL 18.08
- rte_fbarray_find_prev_n_free@EXPERIMENTAL 18.08
- rte_fbarray_find_prev_n_used@EXPERIMENTAL 18.08
- rte_fbarray_find_prev_used@EXPERIMENTAL 18.08
- rte_fbarray_find_rev_biggest_free@EXPERIMENTAL 19.08
- rte_fbarray_find_rev_biggest_used@EXPERIMENTAL 19.08
- rte_fbarray_find_rev_contig_free@EXPERIMENTAL 18.08
- rte_fbarray_find_rev_contig_used@EXPERIMENTAL 18.08
- rte_fbarray_get@EXPERIMENTAL 18.05
- rte_fbarray_init@EXPERIMENTAL 18.05
- rte_fbarray_is_used@EXPERIMENTAL 18.05
- rte_fbarray_set_free@EXPERIMENTAL 18.05
- rte_fbarray_set_used@EXPERIMENTAL 18.05
+ rte_extmem_attach@DPDK_22 21.09-1
+ rte_extmem_detach@DPDK_22 21.09-1
+ rte_extmem_register@DPDK_22 21.09-1
+ rte_extmem_unregister@DPDK_22 21.09-1
+ rte_fbarray_attach@DPDK_22 21.09-1
+ rte_fbarray_destroy@DPDK_22 21.09-1
+ rte_fbarray_detach@DPDK_22 21.09-1
+ rte_fbarray_dump_metadata@DPDK_22 21.09-1
+ rte_fbarray_find_biggest_free@DPDK_22 21.09-1
+ rte_fbarray_find_biggest_used@DPDK_22 21.09-1
+ rte_fbarray_find_contig_free@DPDK_22 21.09-1
+ rte_fbarray_find_contig_used@DPDK_22 21.09-1
+ rte_fbarray_find_idx@DPDK_22 21.09-1
+ rte_fbarray_find_next_free@DPDK_22 21.09-1
+ rte_fbarray_find_next_n_free@DPDK_22 21.09-1
+ rte_fbarray_find_next_n_used@DPDK_22 21.09-1
+ rte_fbarray_find_next_used@DPDK_22 21.09-1
+ rte_fbarray_find_prev_free@DPDK_22 21.09-1
+ rte_fbarray_find_prev_n_free@DPDK_22 21.09-1
+ rte_fbarray_find_prev_n_used@DPDK_22 21.09-1
+ rte_fbarray_find_prev_used@DPDK_22 21.09-1
+ rte_fbarray_find_rev_biggest_free@DPDK_22 21.09-1
+ rte_fbarray_find_rev_biggest_used@DPDK_22 21.09-1
+ rte_fbarray_find_rev_contig_free@DPDK_22 21.09-1
+ rte_fbarray_find_rev_contig_used@DPDK_22 21.09-1
+ rte_fbarray_get@DPDK_22 21.09-1
+ rte_fbarray_init@DPDK_22 21.09-1
+ rte_fbarray_is_used@DPDK_22 21.09-1
+ rte_fbarray_set_free@DPDK_22 21.09-1
+ rte_fbarray_set_used@DPDK_22 21.09-1
  rte_firmware_read@INTERNAL 21.08
  rte_free@DPDK_22 20.11
  rte_get_main_lcore@DPDK_22 20.11
@@ -207,28 +207,28 @@ librte_eal.so.22 librte-eal22 #MINVER#
  rte_log_get_stream@DPDK_22 20.11
  rte_log_list_types@EXPERIMENTAL 21.08
  rte_log_register@DPDK_22 20.11
- rte_log_register_type_and_pick_level@EXPERIMENTAL 18.05
+ rte_log_register_type_and_pick_level@DPDK_22 21.09-1
  rte_log_set_global_level@DPDK_22 20.11
  rte_log_set_level@DPDK_22 20.11
  rte_log_set_level_pattern@DPDK_22 20.11
  rte_log_set_level_regexp@DPDK_22 20.11
  rte_malloc@DPDK_22 20.11
- rte_malloc_dump_heaps@EXPERIMENTAL 18.05
+ rte_malloc_dump_heaps@DPDK_22 21.09-1
  rte_malloc_dump_stats@DPDK_22 20.11
  rte_malloc_get_socket_stats@DPDK_22 20.11
- rte_malloc_heap_create@EXPERIMENTAL 18.11
- rte_malloc_heap_destroy@EXPERIMENTAL 18.11
- rte_malloc_heap_get_socket@EXPERIMENTAL 18.11
- rte_malloc_heap_memory_add@EXPERIMENTAL 18.11
- rte_malloc_heap_memory_attach@EXPERIMENTAL 18.11
- rte_malloc_heap_memory_detach@EXPERIMENTAL 18.11
- rte_malloc_heap_memory_remove@EXPERIMENTAL 18.11
- rte_malloc_heap_socket_is_external@EXPERIMENTAL 18.11
+ rte_malloc_heap_create@DPDK_22 21.09-1
+ rte_malloc_heap_destroy@DPDK_22 21.09-1
+ rte_malloc_heap_get_socket@DPDK_22 21.09-1
+ rte_malloc_heap_memory_add@DPDK_22 21.09-1
+ rte_malloc_heap_memory_attach@DPDK_22 21.09-1
+ rte_malloc_heap_memory_detach@DPDK_22 21.09-1
+ rte_malloc_heap_memory_remove@DPDK_22 21.09-1
+ rte_malloc_heap_socket_is_external@DPDK_22 21.09-1
  rte_malloc_set_limit@DPDK_22 20.11
  rte_malloc_socket@DPDK_22 20.11
  rte_malloc_validate@DPDK_22 20.11
  rte_malloc_virt2iova@DPDK_22 20.11
- rte_mcfg_get_single_file_segments@EXPERIMENTAL 19.11
+ rte_mcfg_get_single_file_segments@DPDK_22 21.09-1
  rte_mcfg_mem_read_lock@DPDK_22 20.11
  rte_mcfg_mem_read_unlock@DPDK_22 20.11
  rte_mcfg_mem_write_lock@DPDK_22 20.11
@@ -241,38 +241,38 @@ librte_eal.so.22 librte-eal22 #MINVER#
  rte_mcfg_tailq_read_unlock@DPDK_22 20.11
  rte_mcfg_tailq_write_lock@DPDK_22 20.11
  rte_mcfg_tailq_write_unlock@DPDK_22 20.11
- rte_mcfg_timer_lock@EXPERIMENTAL 19.08
- rte_mcfg_timer_unlock@EXPERIMENTAL 19.08
- rte_mem_alloc_validator_register@EXPERIMENTAL 18.05
- rte_mem_alloc_validator_unregister@EXPERIMENTAL 18.05
- rte_mem_check_dma_mask@EXPERIMENTAL 18.11
- rte_mem_check_dma_mask_thread_unsafe@EXPERIMENTAL 18.11
- rte_mem_event_callback_register@EXPERIMENTAL 18.05
- rte_mem_event_callback_unregister@EXPERIMENTAL 18.05
- rte_mem_iova2virt@EXPERIMENTAL 18.05
+ rte_mcfg_timer_lock@DPDK_22 21.09-1
+ rte_mcfg_timer_unlock@DPDK_22 21.09-1
+ rte_mem_alloc_validator_register@DPDK_22 21.09-1
+ rte_mem_alloc_validator_unregister@DPDK_22 21.09-1
+ rte_mem_check_dma_mask@DPDK_22 21.09-1
+ rte_mem_check_dma_mask_thread_unsafe@DPDK_22 21.09-1
+ rte_mem_event_callback_register@DPDK_22 21.09-1
+ rte_mem_event_callback_unregister@DPDK_22 21.09-1
+ rte_mem_iova2virt@DPDK_22 21.09-1
  rte_mem_lock@INTERNAL 20.08
  rte_mem_lock_page@DPDK_22 20.11
  rte_mem_map@INTERNAL 20.08
  rte_mem_page_size@INTERNAL 20.08
- rte_mem_set_dma_mask@EXPERIMENTAL 18.11
+ rte_mem_set_dma_mask@DPDK_22 21.09-1
  rte_mem_unmap@INTERNAL 20.08
  rte_mem_virt2iova@DPDK_22 20.11
- rte_mem_virt2memseg@EXPERIMENTAL 18.05
- rte_mem_virt2memseg_list@EXPERIMENTAL 18.05
+ rte_mem_virt2memseg@DPDK_22 21.09-1
+ rte_mem_virt2memseg_list@DPDK_22 21.09-1
  rte_mem_virt2phy@DPDK_22 20.11
  rte_memdump@DPDK_22 20.11
  rte_memory_get_nchannel@DPDK_22 20.11
  rte_memory_get_nrank@DPDK_22 20.11
- rte_memseg_contig_walk@EXPERIMENTAL 18.05
- rte_memseg_contig_walk_thread_unsafe@EXPERIMENTAL 18.08
- rte_memseg_get_fd@EXPERIMENTAL 18.11
- rte_memseg_get_fd_offset@EXPERIMENTAL 18.11
- rte_memseg_get_fd_offset_thread_unsafe@EXPERIMENTAL 18.11
- rte_memseg_get_fd_thread_unsafe@EXPERIMENTAL 18.11
- rte_memseg_list_walk@EXPERIMENTAL 18.05
- rte_memseg_list_walk_thread_unsafe@EXPERIMENTAL 18.08
- rte_memseg_walk@EXPERIMENTAL 18.05
- rte_memseg_walk_thread_unsafe@EXPERIMENTAL 18.08
+ rte_memseg_contig_walk@DPDK_22 21.09-1
+ rte_memseg_contig_walk_thread_unsafe@DPDK_22 21.09-1
+ rte_memseg_get_fd@DPDK_22 21.09-1
+ rte_memseg_get_fd_offset@DPDK_22 21.09-1
+ rte_memseg_get_fd_offset_thread_unsafe@DPDK_22 21.09-1
+ rte_memseg_get_fd_thread_unsafe@DPDK_22 21.09-1
+ rte_memseg_list_walk@DPDK_22 21.09-1
+ rte_memseg_list_walk_thread_unsafe@DPDK_22 21.09-1
+ rte_memseg_walk@DPDK_22 21.09-1
+ rte_memseg_walk_thread_unsafe@DPDK_22 21.09-1
  rte_memzone_dump@DPDK_22 20.11
  rte_memzone_free@DPDK_22 20.11
  rte_memzone_lookup@DPDK_22 20.11
@@ -280,22 +280,22 @@ librte_eal.so.22 librte-eal22 #MINVER#
  rte_memzone_reserve_aligned@DPDK_22 20.11
  rte_memzone_reserve_bounded@DPDK_22 20.11
  rte_memzone_walk@DPDK_22 20.11
- rte_mp_action_register@EXPERIMENTAL 18.02
- rte_mp_action_unregister@EXPERIMENTAL 18.02
+ rte_mp_action_register@DPDK_22 21.09-1
+ rte_mp_action_unregister@DPDK_22 21.09-1
  rte_mp_disable@EXPERIMENTAL 20.08
- rte_mp_reply@EXPERIMENTAL 18.02
- rte_mp_request_async@EXPERIMENTAL 18.05
- rte_mp_request_sync@EXPERIMENTAL 18.05
- rte_mp_sendmsg@EXPERIMENTAL 18.02
+ rte_mp_reply@DPDK_22 21.09-1
+ rte_mp_request_async@DPDK_22 21.09-1
+ rte_mp_request_sync@DPDK_22 21.09-1
+ rte_mp_sendmsg@DPDK_22 21.09-1
  rte_openlog_stream@DPDK_22 20.11
  rte_power_monitor@EXPERIMENTAL 21.08
  rte_power_monitor_multi@EXPERIMENTAL 21.08
  rte_power_monitor_wakeup@EXPERIMENTAL 21.08
  rte_power_pause@EXPERIMENTAL 21.08
  rte_rand@DPDK_22 20.11
- rte_rand_max@EXPERIMENTAL 19.08
+ rte_rand_max@DPDK_22 21.09-1
  rte_realloc@DPDK_22 20.11
- rte_realloc_socket@EXPERIMENTAL 19.08
+ rte_realloc_socket@DPDK_22 21.09-1
  rte_reciprocal_value@DPDK_22 20.11
  rte_reciprocal_value_u64@DPDK_22 20.11
  (arch=!ppc64el !arm64 !armhf)rte_rtm_supported@DPDK_22 20.11

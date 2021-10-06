@@ -16,25 +16,25 @@ librte_mbuf.so.22 librte-mbuf22 #MINVER#
  rte_get_tx_ol_flag_list@DPDK_22 20.11
  rte_get_tx_ol_flag_name@DPDK_22 20.11
  rte_mbuf_best_mempool_ops@DPDK_22 20.11
- rte_mbuf_check@EXPERIMENTAL 19.08
- rte_mbuf_dyn_dump@EXPERIMENTAL 19.11
- rte_mbuf_dyn_rx_timestamp_register@EXPERIMENTAL 20.11~rc3
- rte_mbuf_dyn_tx_timestamp_register@EXPERIMENTAL 20.11~rc3
- rte_mbuf_dynfield_lookup@EXPERIMENTAL 19.11
- rte_mbuf_dynfield_register@EXPERIMENTAL 19.11
- rte_mbuf_dynfield_register_offset@EXPERIMENTAL 19.11
- rte_mbuf_dynflag_lookup@EXPERIMENTAL 19.11
- rte_mbuf_dynflag_register@EXPERIMENTAL 19.11
- rte_mbuf_dynflag_register_bitnum@EXPERIMENTAL 19.11
+ rte_mbuf_check@DPDK_22 21.09-1
+ rte_mbuf_dyn_dump@DPDK_22 21.09-1
+ rte_mbuf_dyn_rx_timestamp_register@DPDK_22 21.09-1
+ rte_mbuf_dyn_tx_timestamp_register@DPDK_22 21.09-1
+ rte_mbuf_dynfield_lookup@DPDK_22 21.09-1
+ rte_mbuf_dynfield_register@DPDK_22 21.09-1
+ rte_mbuf_dynfield_register_offset@DPDK_22 21.09-1
+ rte_mbuf_dynflag_lookup@DPDK_22 21.09-1
+ rte_mbuf_dynflag_register@DPDK_22 21.09-1
+ rte_mbuf_dynflag_register_bitnum@DPDK_22 21.09-1
  rte_mbuf_platform_mempool_ops@DPDK_22 20.11
  rte_mbuf_sanity_check@DPDK_22 20.11
  rte_mbuf_set_platform_mempool_ops@DPDK_22 20.11
  rte_mbuf_set_user_mempool_ops@DPDK_22 20.11
  rte_mbuf_user_mempool_ops@DPDK_22 20.11
  rte_pktmbuf_clone@DPDK_22 20.11
- rte_pktmbuf_copy@EXPERIMENTAL 19.11
+ rte_pktmbuf_copy@DPDK_22 21.09-1
  rte_pktmbuf_dump@DPDK_22 20.11
- rte_pktmbuf_free_bulk@EXPERIMENTAL 19.11
+ rte_pktmbuf_free_bulk@DPDK_22 21.09-1
  rte_pktmbuf_init@DPDK_22 20.11
  rte_pktmbuf_pool_create@DPDK_22 20.11
  rte_pktmbuf_pool_create_by_ops@DPDK_22 20.11

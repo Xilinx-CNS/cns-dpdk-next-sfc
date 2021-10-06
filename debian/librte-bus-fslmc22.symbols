@@ -1,5 +1,5 @@
 librte_bus_fslmc.so.22 librte-bus-fslmc22 #MINVER#
- EXPERIMENTAL@EXPERIMENTAL 19.08
+ DPDK_22@DPDK_22 21.09-1
  INTERNAL@INTERNAL 20.08
  dpaa2_affine_qbman_ethrx_swp@INTERNAL 20.08
  dpaa2_affine_qbman_swp@INTERNAL 20.08
@@ -99,5 +99,5 @@ librte_bus_fslmc.so.22 librte-bus-fslmc22 #MINVER#
  rte_fslmc_driver_unregister@INTERNAL 20.08
  rte_fslmc_get_device_count@INTERNAL 20.08
  rte_fslmc_object_register@INTERNAL 20.08
- rte_fslmc_vfio_mem_dmamap@EXPERIMENTAL 19.08
+ rte_fslmc_vfio_mem_dmamap@DPDK_22 21.09-1
  rte_global_active_dqs_list@INTERNAL 20.08

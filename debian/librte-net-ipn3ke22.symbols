@@ -1,6 +1,6 @@
 librte_net_ipn3ke.so.22 librte-net-ipn3ke22 #MINVER#
  DPDK_22@DPDK_22 20.11
- EXPERIMENTAL@EXPERIMENTAL 20.11
- ipn3ke_bridge_func@EXPERIMENTAL 20.11
+ INTERNAL@INTERNAL 21.09-1
+ ipn3ke_bridge_func@INTERNAL 21.09-1
 # INFO: this library exports no stable symbols, essentially it is a driver that
 # registers itself on load and is then only driven by callbacks.

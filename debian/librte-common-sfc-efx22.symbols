@@ -111,16 +111,27 @@ librte_common_sfc_efx.so.22 librte-common-sfc-efx22 #MINVER#
  efx_mae_match_spec_is_valid@INTERNAL 20.11~rc3
  efx_mae_match_spec_mport_set@INTERNAL 20.11~rc3
  efx_mae_match_spec_outer_rule_id_set@INTERNAL 20.11~rc3
+ efx_mae_match_spec_recirc_id_set@INTERNAL 21.09-1
  efx_mae_match_specs_class_cmp@INTERNAL 20.11~rc3
  efx_mae_match_specs_equal@INTERNAL 20.11~rc3
+ efx_mae_mport_by_id@INTERNAL 21.09-1
  efx_mae_mport_by_pcie_function@INTERNAL 20.11~rc3
+ efx_mae_mport_by_pcie_mh_function@INTERNAL 21.09-1
  efx_mae_mport_by_phy_port@INTERNAL 20.11~rc3
+ efx_mae_mport_free@INTERNAL 21.09-1
+ efx_mae_mport_id_by_selector@INTERNAL 21.09-1
+ efx_mae_mport_invalid@INTERNAL 21.09-1
  efx_mae_outer_rule_insert@INTERNAL 20.11~rc3
+ efx_mae_outer_rule_recirc_id_set@INTERNAL 21.09-1
  efx_mae_outer_rule_remove@INTERNAL 20.11~rc3
+ efx_mae_read_mport_journal@INTERNAL 21.09-1
  efx_mcdi_fini@INTERNAL 20.11
+ efx_mcdi_get_client_handle@INTERNAL 21.09-1
+ efx_mcdi_get_own_client_handle@INTERNAL 21.09-1
  efx_mcdi_get_proxy_handle@INTERNAL 20.11
  efx_mcdi_get_timeout@INTERNAL 20.11
  efx_mcdi_init@INTERNAL 20.11
+ efx_mcdi_mport_alloc_alias@INTERNAL 21.09-1
  efx_mcdi_new_epoch@INTERNAL 20.11
  efx_mcdi_reboot@INTERNAL 20.11
  efx_mcdi_request_abort@INTERNAL 20.11
@@ -134,6 +145,9 @@ librte_common_sfc_efx.so.22 librte-common-sfc-efx22 #MINVER#
  efx_nic_check_pcie_link_speed@INTERNAL 20.11
  efx_nic_create@INTERNAL 20.11
  efx_nic_destroy@INTERNAL 20.11
+ efx_nic_dma_config_add@INTERNAL 21.09-1
+ efx_nic_dma_map@INTERNAL 21.09-1
+ efx_nic_dma_reconfigure@INTERNAL 21.09-1
  efx_nic_fini@INTERNAL 20.11
  efx_nic_get_bar_region@INTERNAL 20.11
  efx_nic_get_board_info@INTERNAL 20.11~rc3
@@ -214,6 +228,15 @@ librte_common_sfc_efx.so.22 librte-common-sfc-efx22 #MINVER#
  efx_tx_qpush@INTERNAL 20.11
  efx_txq_nbufs@INTERNAL 20.11
  efx_txq_size@INTERNAL 20.11
+ efx_virtio_fini@INTERNAL 21.09-1
+ efx_virtio_get_doorbell_offset@INTERNAL 21.09-1
+ efx_virtio_get_features@INTERNAL 21.09-1
+ efx_virtio_init@INTERNAL 21.09-1
+ efx_virtio_qcreate@INTERNAL 21.09-1
+ efx_virtio_qdestroy@INTERNAL 21.09-1
+ efx_virtio_qstart@INTERNAL 21.09-1
+ efx_virtio_qstop@INTERNAL 21.09-1
+ efx_virtio_verify_features@INTERNAL 21.09-1
  sfc_efx_dev_class_get@INTERNAL 21.08
  sfc_efx_family@INTERNAL 21.08
  sfc_efx_mcdi_fini@INTERNAL 20.11

@@ -34,6 +34,9 @@ librte_pipeline.so.22 librte-pipeline22 #MINVER#
  rte_port_in_action_profile_freeze@EXPERIMENTAL 18.05
  rte_swx_ctl_action_arg_info_get@EXPERIMENTAL 20.11
  rte_swx_ctl_action_info_get@EXPERIMENTAL 20.11
+ rte_swx_ctl_learner_action_info_get@EXPERIMENTAL 21.09-1
+ rte_swx_ctl_learner_info_get@EXPERIMENTAL 21.09-1
+ rte_swx_ctl_learner_match_field_info_get@EXPERIMENTAL 21.09-1
  rte_swx_ctl_metarray_info_get@EXPERIMENTAL 21.08
  rte_swx_ctl_meter_profile_add@EXPERIMENTAL 21.08
  rte_swx_ctl_meter_profile_delete@EXPERIMENTAL 21.08
@@ -45,6 +48,9 @@ librte_pipeline.so.22 librte-pipeline22 #MINVER#
  rte_swx_ctl_pipeline_create@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_free@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_info_get@EXPERIMENTAL 20.11
+ rte_swx_ctl_pipeline_learner_default_entry_add@EXPERIMENTAL 21.09-1
+ rte_swx_ctl_pipeline_learner_default_entry_read@EXPERIMENTAL 21.09-1
+ rte_swx_ctl_pipeline_learner_stats_read@EXPERIMENTAL 21.09-1
  rte_swx_ctl_pipeline_numa_node_get@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_port_in_stats_read@EXPERIMENTAL 20.11
  rte_swx_ctl_pipeline_port_out_stats_read@EXPERIMENTAL 20.11
@@ -82,6 +88,7 @@ librte_pipeline.so.22 librte-pipeline22 #MINVER#
  rte_swx_pipeline_flush@EXPERIMENTAL 20.11
  rte_swx_pipeline_free@EXPERIMENTAL 20.11
  rte_swx_pipeline_instructions_config@EXPERIMENTAL 20.11
+ rte_swx_pipeline_learner_config@EXPERIMENTAL 21.09-1
  rte_swx_pipeline_metarray_config@EXPERIMENTAL 21.08
  rte_swx_pipeline_packet_header_register@EXPERIMENTAL 20.11
  rte_swx_pipeline_packet_metadata_register@EXPERIMENTAL 20.11

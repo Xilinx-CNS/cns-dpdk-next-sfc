@@ -1,9 +1,10 @@
 librte_net_dpaa2.so.22 librte-net-dpaa2-22 #MINVER#
+ DPDK_22@DPDK_22 21.09-1
  EXPERIMENTAL@EXPERIMENTAL 20.11
  INTERNAL@INTERNAL 20.11
  dpaa2_eth_eventq_attach@INTERNAL 20.11
  dpaa2_eth_eventq_detach@INTERNAL 20.11
- rte_pmd_dpaa2_mux_flow_create@EXPERIMENTAL 20.11
+ rte_pmd_dpaa2_mux_flow_create@DPDK_22 21.09-1
  rte_pmd_dpaa2_mux_rx_frame_len@EXPERIMENTAL 21.08
- rte_pmd_dpaa2_set_custom_hash@EXPERIMENTAL 20.11
+ rte_pmd_dpaa2_set_custom_hash@DPDK_22 21.09-1
  rte_pmd_dpaa2_thread_init@EXPERIMENTAL 21.08

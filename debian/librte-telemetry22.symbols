@@ -1,19 +1,19 @@
 librte_telemetry.so.22 librte-telemetry22 #MINVER#
- DPDK_22@DPDK_22 21.11
+ DPDK_22@DPDK_22 21.09-1
  INTERNAL@INTERNAL 21.08
- rte_tel_data_add_array_container@DPDK_22 21.11
- rte_tel_data_add_array_int@DPDK_22 21.11
- rte_tel_data_add_array_string@DPDK_22 21.11
- rte_tel_data_add_array_u64@DPDK_22 21.11
- rte_tel_data_add_dict_container@DPDK_22 21.11
- rte_tel_data_add_dict_int@DPDK_22 21.11
- rte_tel_data_add_dict_string@DPDK_22 21.11
- rte_tel_data_add_dict_u64@DPDK_22 21.11
- rte_tel_data_alloc@DPDK_22 21.11
- rte_tel_data_free@DPDK_22 21.11
- rte_tel_data_start_array@DPDK_22 21.11
- rte_tel_data_start_dict@DPDK_22 21.11
- rte_tel_data_string@DPDK_22 21.11
+ rte_tel_data_add_array_container@DPDK_22 21.09-1
+ rte_tel_data_add_array_int@DPDK_22 21.09-1
+ rte_tel_data_add_array_string@DPDK_22 21.09-1
+ rte_tel_data_add_array_u64@DPDK_22 21.09-1
+ rte_tel_data_add_dict_container@DPDK_22 21.09-1
+ rte_tel_data_add_dict_int@DPDK_22 21.09-1
+ rte_tel_data_add_dict_string@DPDK_22 21.09-1
+ rte_tel_data_add_dict_u64@DPDK_22 21.09-1
+ rte_tel_data_alloc@DPDK_22 21.09-1
+ rte_tel_data_free@DPDK_22 21.09-1
+ rte_tel_data_start_array@DPDK_22 21.09-1
+ rte_tel_data_start_dict@DPDK_22 21.09-1
+ rte_tel_data_string@DPDK_22 21.09-1
  rte_telemetry_init@INTERNAL 21.08
  rte_telemetry_legacy_register@INTERNAL 21.08
- rte_telemetry_register_cmd@DPDK_22 21.11
+ rte_telemetry_register_cmd@DPDK_22 21.09-1

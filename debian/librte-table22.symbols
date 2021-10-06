@@ -3,6 +3,13 @@ librte_table.so.22 librte-table22 #MINVER#
  EXPERIMENTAL@EXPERIMENTAL 20.11
  rte_swx_table_exact_match_ops@EXPERIMENTAL 20.11
  rte_swx_table_exact_match_unoptimized_ops@EXPERIMENTAL 20.11
+ rte_swx_table_learner_add@EXPERIMENTAL 21.09-1
+ rte_swx_table_learner_create@EXPERIMENTAL 21.09-1
+ rte_swx_table_learner_delete@EXPERIMENTAL 21.09-1
+ rte_swx_table_learner_footprint_get@EXPERIMENTAL 21.09-1
+ rte_swx_table_learner_free@EXPERIMENTAL 21.09-1
+ rte_swx_table_learner_lookup@EXPERIMENTAL 21.09-1
+ rte_swx_table_learner_mailbox_size_get@EXPERIMENTAL 21.09-1
  rte_swx_table_selector_create@EXPERIMENTAL 21.08
  rte_swx_table_selector_footprint_get@EXPERIMENTAL 21.08
  rte_swx_table_selector_free@EXPERIMENTAL 21.08

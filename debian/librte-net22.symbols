@@ -3,9 +3,9 @@ librte_net.so.22 librte-net22 #MINVER#
  EXPERIMENTAL@EXPERIMENTAL 18.02
  rte_eth_random_addr@DPDK_22 20.11
  rte_ether_format_addr@DPDK_22 20.11
- rte_ether_unformat_addr@EXPERIMENTAL 19.08
+ rte_ether_unformat_addr@DPDK_22 21.09-1
  rte_net_crc_calc@DPDK_22 20.11
  rte_net_crc_set_alg@DPDK_22 20.11
  rte_net_get_ptype@DPDK_22 20.11
- rte_net_make_rarp_packet@EXPERIMENTAL 18.02
+ rte_net_make_rarp_packet@DPDK_22 21.09-1
  rte_net_skip_ip6_ext@EXPERIMENTAL 18.05

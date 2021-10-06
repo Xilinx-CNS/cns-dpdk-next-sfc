@@ -71,7 +71,7 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_eth_dev_rss_reta_update@DPDK_22 20.11
  rte_eth_dev_rx_intr_ctl@DPDK_22 20.11
  rte_eth_dev_rx_intr_ctl_q@DPDK_22 20.11
- rte_eth_dev_rx_intr_ctl_q_get_fd@EXPERIMENTAL 18.11
+ rte_eth_dev_rx_intr_ctl_q_get_fd@DPDK_22 21.09-1
  rte_eth_dev_rx_intr_disable@DPDK_22 20.11
  rte_eth_dev_rx_intr_enable@DPDK_22 20.11
  rte_eth_dev_rx_offload_name@DPDK_22 20.11
@@ -82,7 +82,7 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_eth_dev_set_link_up@DPDK_22 20.11
  rte_eth_dev_set_mc_addr_list@DPDK_22 20.11
  rte_eth_dev_set_mtu@DPDK_22 20.11
- rte_eth_dev_set_ptypes@EXPERIMENTAL 19.11
+ rte_eth_dev_set_ptypes@DPDK_22 21.09-1
  rte_eth_dev_set_rx_queue_stats_mapping@DPDK_22 20.11
  rte_eth_dev_set_tx_queue_stats_mapping@DPDK_22 20.11
  rte_eth_dev_set_vlan_ether_type@DPDK_22 20.11
@@ -108,9 +108,9 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_eth_fec_get_capability@EXPERIMENTAL 20.11
  rte_eth_fec_set@EXPERIMENTAL 20.11
  rte_eth_find_next@DPDK_22 20.11
- rte_eth_find_next_of@EXPERIMENTAL 19.08
+ rte_eth_find_next_of@DPDK_22 21.09-1
  rte_eth_find_next_owned_by@DPDK_22 20.11
- rte_eth_find_next_sibling@EXPERIMENTAL 19.08
+ rte_eth_find_next_sibling@DPDK_22 21.09-1
  rte_eth_get_monitor_addr@EXPERIMENTAL 21.08
  rte_eth_hairpin_bind@EXPERIMENTAL 20.11
  rte_eth_hairpin_get_peer_ports@EXPERIMENTAL 20.11
@@ -138,9 +138,9 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_eth_remove_tx_callback@DPDK_22 20.11
  rte_eth_representor_id_get@INTERNAL 21.08
  rte_eth_representor_info_get@EXPERIMENTAL 21.08
- rte_eth_rx_burst_mode_get@EXPERIMENTAL 19.11
+ rte_eth_rx_burst_mode_get@DPDK_22 21.09-1
  rte_eth_rx_hairpin_queue_setup@EXPERIMENTAL 19.11
- rte_eth_rx_metadata_negotiate@EXPERIMENTAL 21.11
+ rte_eth_rx_metadata_negotiate@EXPERIMENTAL 21.09-1
  rte_eth_rx_queue_info_get@DPDK_22 20.11
  rte_eth_rx_queue_setup@DPDK_22 20.11
  rte_eth_set_queue_rate_limit@DPDK_22 20.11
@@ -160,7 +160,7 @@ librte_ethdev.so.22 librte-ethdev22 #MINVER#
  rte_eth_tx_buffer_drop_callback@DPDK_22 20.11
  rte_eth_tx_buffer_init@DPDK_22 20.11
  rte_eth_tx_buffer_set_err_callback@DPDK_22 20.11
- rte_eth_tx_burst_mode_get@EXPERIMENTAL 19.11
+ rte_eth_tx_burst_mode_get@DPDK_22 21.09-1
  rte_eth_tx_done_cleanup@DPDK_22 20.11
  rte_eth_tx_hairpin_queue_setup@EXPERIMENTAL 19.11
  rte_eth_tx_queue_info_get@DPDK_22 20.11

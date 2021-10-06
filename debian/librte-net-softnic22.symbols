@@ -1,5 +1,4 @@
 librte_net_softnic.so.22 librte-net-softnic22 #MINVER#
  DPDK_22@DPDK_22 20.11
- EXPERIMENTAL@EXPERIMENTAL 20.11
- rte_pmd_softnic_manage@EXPERIMENTAL 20.11
+ rte_pmd_softnic_manage@DPDK_22 21.09-1
  rte_pmd_softnic_run@DPDK_22 20.11

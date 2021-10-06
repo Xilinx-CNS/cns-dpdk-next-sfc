@@ -1,7 +1,7 @@
 librte_metrics.so.22 librte-metrics22 #MINVER#
  DPDK_22@DPDK_22 20.11
  EXPERIMENTAL@EXPERIMENTAL 19.08
- rte_metrics_deinit@EXPERIMENTAL 19.08
+ rte_metrics_deinit@DPDK_22 21.09-1
  rte_metrics_get_names@DPDK_22 20.11
  rte_metrics_get_values@DPDK_22 20.11
  rte_metrics_init@DPDK_22 20.11

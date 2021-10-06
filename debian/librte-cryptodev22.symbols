@@ -1,6 +1,7 @@
 librte_cryptodev.so.22 librte-cryptodev22 #MINVER#
  DPDK_22@DPDK_22 20.08
  EXPERIMENTAL@EXPERIMENTAL 18.05
+ INTERNAL@INTERNAL 21.09-1
  __rte_cryptodev_trace_asym_session_clear@EXPERIMENTAL 20.08
  __rte_cryptodev_trace_asym_session_create@EXPERIMENTAL 20.08
  __rte_cryptodev_trace_asym_session_free@EXPERIMENTAL 20.08
@@ -28,7 +29,7 @@ librte_cryptodev.so.22 librte-cryptodev22 #MINVER#
  rte_crypto_op_pool_create@DPDK_22 20.11
  rte_cryptodev_add_deq_callback@EXPERIMENTAL 21.08
  rte_cryptodev_add_enq_callback@EXPERIMENTAL 21.08
- rte_cryptodev_allocate_driver@DPDK_22 20.11
+ rte_cryptodev_allocate_driver@INTERNAL 21.09-1
  rte_cryptodev_asym_capability_get@EXPERIMENTAL 18.08
  rte_cryptodev_asym_get_header_session_size@EXPERIMENTAL 18.08
  rte_cryptodev_asym_get_private_session_size@EXPERIMENTAL 18.08
@@ -58,17 +59,17 @@ librte_cryptodev.so.22 librte-cryptodev22 #MINVER#
  rte_cryptodev_get_raw_dp_ctx_size@EXPERIMENTAL 20.11
  rte_cryptodev_get_sec_ctx@DPDK_22 20.11
  rte_cryptodev_info_get@DPDK_22 20.08
+ rte_cryptodev_is_valid_dev@DPDK_22 21.09-1
  rte_cryptodev_name_get@DPDK_22 20.11
- rte_cryptodev_pmd_allocate@DPDK_22 20.11
- rte_cryptodev_pmd_callback_process@DPDK_22 20.11
- rte_cryptodev_pmd_create@DPDK_22 20.11
- rte_cryptodev_pmd_create_dev_name@DPDK_22 20.11
- rte_cryptodev_pmd_destroy@DPDK_22 20.11
- rte_cryptodev_pmd_get_dev@DPDK_22 20.11
- rte_cryptodev_pmd_get_named_dev@DPDK_22 20.11
- rte_cryptodev_pmd_is_valid_dev@DPDK_22 20.11
- rte_cryptodev_pmd_parse_input_args@DPDK_22 20.11
- rte_cryptodev_pmd_release_device@DPDK_22 20.11
+ rte_cryptodev_pmd_allocate@INTERNAL 21.09-1
+ rte_cryptodev_pmd_callback_process@INTERNAL 21.09-1
+ rte_cryptodev_pmd_create@INTERNAL 21.09-1
+ rte_cryptodev_pmd_create_dev_name@INTERNAL 21.09-1
+ rte_cryptodev_pmd_destroy@INTERNAL 21.09-1
+ rte_cryptodev_pmd_get_dev@INTERNAL 21.09-1
+ rte_cryptodev_pmd_get_named_dev@INTERNAL 21.09-1
+ rte_cryptodev_pmd_parse_input_args@INTERNAL 21.09-1
+ rte_cryptodev_pmd_release_device@INTERNAL 21.09-1
  rte_cryptodev_queue_pair_count@DPDK_22 20.11
  rte_cryptodev_queue_pair_setup@DPDK_22 20.11
  rte_cryptodev_raw_dequeue_burst@EXPERIMENTAL 20.11

@@ -36,15 +36,14 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_bphy_cgx_stop_rxtx@INTERNAL 21.08
  roc_bphy_dev_fini@INTERNAL 21.08
  roc_bphy_dev_init@INTERNAL 21.08
- roc_bphy_handler_clear@INTERNAL 21.08
  roc_bphy_intr_available@INTERNAL 21.08
+ roc_bphy_intr_clear@INTERNAL 21.09-1
  roc_bphy_intr_fini@INTERNAL 21.08
  roc_bphy_intr_handler@INTERNAL 21.08
  roc_bphy_intr_init@INTERNAL 21.08
  roc_bphy_intr_register@INTERNAL 21.08
- roc_bphy_irq_handler_set@INTERNAL 21.08
- roc_bphy_irq_stack_get@INTERNAL 21.08
- roc_bphy_irq_stack_remove@INTERNAL 21.08
+ roc_bphy_npa_pf_func_get@INTERNAL 21.09-1
+ roc_bphy_sso_pf_func_get@INTERNAL 21.09-1
  roc_clk_freq_get@INTERNAL 21.08
  roc_cpt_afs_print@INTERNAL 21.08
  roc_cpt_dev_clear@INTERNAL 21.08
@@ -63,6 +62,9 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_cpt_lmtline_init@INTERNAL 21.08
  roc_cpt_rxc_time_cfg@INTERNAL 21.08
  roc_error_msg_get@INTERNAL 21.08
+ roc_hash_sha1_gen@INTERNAL 21.09-1
+ roc_hash_sha256_gen@INTERNAL 21.09-1
+ roc_hash_sha512_gen@INTERNAL 21.09-1
  roc_idev_cpt_get@INTERNAL 21.08
  roc_idev_cpt_set@INTERNAL 21.08
  roc_idev_lmt_base_addr_get@INTERNAL 21.08
@@ -108,6 +110,8 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_nix_mac_link_cb_unregister@INTERNAL 21.08
  roc_nix_mac_link_event_start_stop@INTERNAL 21.08
  roc_nix_mac_link_info_get@INTERNAL 21.08
+ roc_nix_mac_link_info_get_cb_register@INTERNAL 21.09-1
+ roc_nix_mac_link_info_get_cb_unregister@INTERNAL 21.09-1
  roc_nix_mac_link_info_set@INTERNAL 21.08
  roc_nix_mac_link_state_set@INTERNAL 21.08
  roc_nix_mac_loopback_enable@INTERNAL 21.08
@@ -151,6 +155,7 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_nix_rss_reta_set@INTERNAL 21.08
  roc_nix_rx_queue_intr_disable@INTERNAL 21.08
  roc_nix_rx_queue_intr_enable@INTERNAL 21.08
+ roc_nix_smq_flush@INTERNAL 21.09-1
  roc_nix_sq_dump@INTERNAL 21.08
  roc_nix_sq_fini@INTERNAL 21.08
  roc_nix_sq_init@INTERNAL 21.08
@@ -160,12 +165,18 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_nix_stats_reset@INTERNAL 21.08
  roc_nix_switch_hdr_set@INTERNAL 21.08
  roc_nix_tm_dump@INTERNAL 21.08
+ roc_nix_tm_err_to_rte_err@INTERNAL 21.09-1
  roc_nix_tm_fini@INTERNAL 21.08
  roc_nix_tm_free_resources@INTERNAL 21.08
  roc_nix_tm_hierarchy_disable@INTERNAL 21.08
  roc_nix_tm_hierarchy_enable@INTERNAL 21.08
  roc_nix_tm_init@INTERNAL 21.08
+ roc_nix_tm_is_user_hierarchy_enabled@INTERNAL 21.09-1
  roc_nix_tm_leaf_cnt@INTERNAL 21.08
+ roc_nix_tm_lvl_cnt_get@INTERNAL 21.09-1
+ roc_nix_tm_lvl_have_link_access@INTERNAL 21.09-1
+ roc_nix_tm_lvl_is_leaf@INTERNAL 21.09-1
+ roc_nix_tm_max_prio@INTERNAL 21.09-1
  roc_nix_tm_node_add@INTERNAL 21.08
  roc_nix_tm_node_delete@INTERNAL 21.08
  roc_nix_tm_node_get@INTERNAL 21.08
@@ -178,10 +189,12 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_nix_tm_node_stats_get@INTERNAL 21.08
  roc_nix_tm_node_suspend_resume@INTERNAL 21.08
  roc_nix_tm_prealloc_res@INTERNAL 21.08
+ roc_nix_tm_prepare_rate_limited_tree@INTERNAL 21.09-1
  roc_nix_tm_rlimit_sq@INTERNAL 21.08
  roc_nix_tm_root_has_sp@INTERNAL 21.08
  roc_nix_tm_rsrc_count@INTERNAL 21.08
  roc_nix_tm_rsrc_max@INTERNAL 21.08
+ roc_nix_tm_shaper_default_red_algo@INTERNAL 21.09-1
  roc_nix_tm_shaper_profile_add@INTERNAL 21.08
  roc_nix_tm_shaper_profile_delete@INTERNAL 21.08
  roc_nix_tm_shaper_profile_get@INTERNAL 21.08
@@ -189,6 +202,7 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_nix_tm_shaper_profile_update@INTERNAL 21.08
  roc_nix_tm_sq_aura_fc@INTERNAL 21.08
  roc_nix_tm_sq_flush_spin@INTERNAL 21.08
+ roc_nix_tm_tree_type_get@INTERNAL 21.09-1
  roc_nix_unregister_cq_irqs@INTERNAL 21.08
  roc_nix_unregister_queue_irqs@INTERNAL 21.08
  roc_nix_vlan_insert_ena_dis@INTERNAL 21.08
@@ -228,6 +242,7 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_npc_mcam_free_all_resources@INTERNAL 21.08
  roc_npc_mcam_free_counter@INTERNAL 21.08
  roc_npc_mcam_free_entry@INTERNAL 21.08
+ roc_npc_mcam_merge_base_steering_rule@INTERNAL 21.09-1
  roc_npc_mcam_read_counter@INTERNAL 21.08
  roc_npc_mcam_write_entry@INTERNAL 21.08
  roc_npc_profile_name_get@INTERNAL 21.08
@@ -237,6 +252,7 @@ librte_common_cnxk.so.22 librte-common-cnxk22 #MINVER#
  roc_plt_init_cb_register@INTERNAL 21.08
  roc_se_auth_key_set@INTERNAL 21.08
  roc_se_ciph_key_set@INTERNAL 21.08
+ roc_se_ctx_swap@INTERNAL 21.09-1
  roc_sso_dev_fini@INTERNAL 21.08
  roc_sso_dev_init@INTERNAL 21.08
  roc_sso_dump@INTERNAL 21.08
