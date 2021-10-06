@@ -1,0 +1,3 @@
+librte_raw_dpaa2_qdma.so.22 librte-raw-dpaa2-qdma22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ rte_qdma_vq_stats@DPDK_22 20.11

@@ -1,0 +1,5 @@
+librte_stack.so.22 librte-stack22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ rte_stack_create@DPDK_22 20.11
+ rte_stack_free@DPDK_22 20.11
+ rte_stack_lookup@DPDK_22 20.11

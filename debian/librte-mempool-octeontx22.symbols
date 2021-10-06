@@ -1,0 +1,4 @@
+librte_mempool_octeontx.so.22 librte-mempool-octeontx22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+# This is odd, as it exports no symbols anymore, but it is still built
+# so keep the empty symbols for now

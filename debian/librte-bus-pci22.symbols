@@ -1,0 +1,17 @@
+librte_bus_pci.so.22 librte-bus-pci22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ EXPERIMENTAL@EXPERIMENTAL 20.11
+ rte_pci_dump@DPDK_22 20.11
+ rte_pci_find_ext_capability@EXPERIMENTAL 20.11
+ rte_pci_get_sysfs_path@DPDK_22 20.11
+ rte_pci_ioport_map@DPDK_22 20.11
+ rte_pci_ioport_read@DPDK_22 20.11
+ rte_pci_ioport_unmap@DPDK_22 20.11
+ rte_pci_ioport_write@DPDK_22 20.11
+ rte_pci_map_device@DPDK_22 20.11
+ rte_pci_read_config@DPDK_22 20.11
+ rte_pci_register@DPDK_22 20.11
+ rte_pci_set_bus_master@EXPERIMENTAL 21.08
+ rte_pci_unmap_device@DPDK_22 20.11
+ rte_pci_unregister@DPDK_22 20.11
+ rte_pci_write_config@DPDK_22 20.11

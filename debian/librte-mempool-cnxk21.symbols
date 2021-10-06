@@ -1,3 +1,0 @@
-librte_mempool_cnxk.so.21 librte-mempool-cnxk21 #MINVER#
-#MISSING: 21.08# DPDK_21@DPDK_21 21.08
- INTERNAL@INTERNAL 21.08

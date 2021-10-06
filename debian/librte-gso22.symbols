@@ -1,0 +1,3 @@
+librte_gso.so.22 librte-gso22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ rte_gso_segment@DPDK_22 20.11

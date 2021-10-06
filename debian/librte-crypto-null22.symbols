@@ -1,0 +1,4 @@
+librte_crypto_null.so.22 librte-crypto-null22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+# INFO: this library exports no symbols, essentially it is a driver that
+# registers itself on load and is then only driven by callbacks.

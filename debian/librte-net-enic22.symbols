@@ -1,0 +1,4 @@
+librte_net_enic.so.22 librte-net-enic22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+# INFO: this library exports no symbols, essentially it is a driver that
+# registers itself on load and is then only driven by callbacks.

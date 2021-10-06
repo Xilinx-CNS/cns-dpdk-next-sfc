@@ -1,0 +1,4 @@
+librte_net_vhost.so.22 librte-net-vhost22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ rte_eth_vhost_get_queue_event@DPDK_22 20.11
+ rte_eth_vhost_get_vid_from_port_id@DPDK_22 20.11

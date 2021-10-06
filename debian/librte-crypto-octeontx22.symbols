@@ -1,0 +1,5 @@
+librte_crypto_octeontx.so.22 librte-crypto-octeontx22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ INTERNAL@INTERNAL 21.08
+ otx_crypto_adapter_dequeue@INTERNAL 21.08
+ otx_crypto_adapter_enqueue@INTERNAL 21.08

@@ -1,0 +1,2 @@
+librte_compress_zlib.so.22 librte-compress-zlib22 #MINVER#
+ DPDK_22@DPDK_22 20.11

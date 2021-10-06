@@ -1,0 +1,12 @@
+librte_member.so.22 librte-member22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ rte_member_add@DPDK_22 20.11
+ rte_member_create@DPDK_22 20.11
+ rte_member_delete@DPDK_22 20.11
+ rte_member_find_existing@DPDK_22 20.11
+ rte_member_free@DPDK_22 20.11
+ rte_member_lookup@DPDK_22 20.11
+ rte_member_lookup_bulk@DPDK_22 20.11
+ rte_member_lookup_multi@DPDK_22 20.11
+ rte_member_lookup_multi_bulk@DPDK_22 20.11
+ rte_member_reset@DPDK_22 20.11

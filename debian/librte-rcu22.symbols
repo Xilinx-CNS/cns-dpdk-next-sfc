@@ -1,0 +1,14 @@
+librte_rcu.so.22 librte-rcu22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ EXPERIMENTAL@EXPERIMENTAL 19.11
+ rte_rcu_log_type@DPDK_22 20.11
+ rte_rcu_qsbr_dq_create@EXPERIMENTAL 20.08
+ rte_rcu_qsbr_dq_delete@EXPERIMENTAL 20.08
+ rte_rcu_qsbr_dq_enqueue@EXPERIMENTAL 20.08
+ rte_rcu_qsbr_dq_reclaim@EXPERIMENTAL 20.08
+ rte_rcu_qsbr_dump@DPDK_22 20.11
+ rte_rcu_qsbr_get_memsize@DPDK_22 20.11
+ rte_rcu_qsbr_init@DPDK_22 20.11
+ rte_rcu_qsbr_synchronize@DPDK_22 20.11
+ rte_rcu_qsbr_thread_register@DPDK_22 20.11
+ rte_rcu_qsbr_thread_unregister@DPDK_22 20.11

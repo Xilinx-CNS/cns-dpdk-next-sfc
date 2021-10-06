@@ -1,0 +1,12 @@
+librte_bpf.so.22 librte-bpf22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ rte_bpf_destroy@DPDK_22 20.11
+ rte_bpf_elf_load@DPDK_22 20.11
+ rte_bpf_eth_rx_elf_load@DPDK_22 20.11
+ rte_bpf_eth_rx_unload@DPDK_22 20.11
+ rte_bpf_eth_tx_elf_load@DPDK_22 20.11
+ rte_bpf_eth_tx_unload@DPDK_22 20.11
+ rte_bpf_exec@DPDK_22 20.11
+ rte_bpf_exec_burst@DPDK_22 20.11
+ rte_bpf_get_jit@DPDK_22 20.11
+ rte_bpf_load@DPDK_22 20.11

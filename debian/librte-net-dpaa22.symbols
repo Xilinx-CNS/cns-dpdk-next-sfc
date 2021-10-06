@@ -1,0 +1,6 @@
+librte_net_dpaa.so.22 librte-net-dpaa22 #MINVER#
+ DPDK_22@DPDK_22 20.11
+ INTERNAL@INTERNAL 20.11
+ dpaa_eth_eventq_attach@INTERNAL 20.11
+ dpaa_eth_eventq_detach@INTERNAL 20.11
+ rte_pmd_dpaa_set_tx_loopback@DPDK_22 20.11
