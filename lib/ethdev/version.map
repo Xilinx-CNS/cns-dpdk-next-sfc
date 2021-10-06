@@ -247,6 +247,9 @@ EXPERIMENTAL {
 	rte_mtr_meter_policy_delete;
 	rte_mtr_meter_policy_update;
 	rte_mtr_meter_policy_validate;
+
+	# added in 21.11
+	rte_flow_pick_transfer_proxy;
 };
 
 INTERNAL {

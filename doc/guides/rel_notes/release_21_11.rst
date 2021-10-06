@@ -67,6 +67,9 @@ New Features
   Added macros ETH_RSS_IPV4_CHKSUM and ETH_RSS_L4_CHKSUM, now IPv4 and
   TCP/UDP/SCTP header checksum field can be used as input set for RSS.
 
+* **Added an API to get a proxy port to manage "transfer" flows**
+  A new API, ``rte_flow_pick_transfer_proxy()``, was added.
+
 * **Updated Broadcom bnxt PMD.**
 
   * Added flow offload support for Thor.
