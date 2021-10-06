@@ -171,6 +171,7 @@ The following are the application command-line options:
            aead
            pdcp
            docsis
+           modex
 
         For GCM/CCM algorithms you should use aead flag.
 
@@ -318,7 +319,7 @@ The following are the application command-line options:
 
 * ``--pdcp-domain <control/user>``
 
-        Set PDCP domain to specify Control/user plane.
+        Set PDCP domain to specify short_mac/control/user plane.
 
 * ``--docsis-hdr-sz <n>``
 

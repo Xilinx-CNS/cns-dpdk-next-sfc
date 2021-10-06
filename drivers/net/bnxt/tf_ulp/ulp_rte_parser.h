@@ -33,8 +33,10 @@
 #define	BNXT_ULP_GET_IPV6_FLOWLABEL(vtcf)	\
 			((vtcf) & BNXT_ULP_PARSER_IPV6_FLOW_LABEL)
 #define	BNXT_ULP_PARSER_IPV6_VER_MASK		0xf0000000
+#define BNXT_ULP_IPV6_DFLT_VER			0x60000000
 #define	BNXT_ULP_PARSER_IPV6_TC			0x0ff00000
 #define	BNXT_ULP_PARSER_IPV6_FLOW_LABEL		0x000fffff
+#define BNXT_ULP_DEFAULT_TTL			64
 
 enum bnxt_ulp_prsr_action {
 	ULP_PRSR_ACT_DEFAULT = 0,
@@ -75,7 +77,7 @@ bnxt_ulp_rte_parser_act_parse(const struct rte_flow_action actions[],
 /*
  * Function to handle the post processing of the parsing details
  */
-int32_t
+void
 bnxt_ulp_rte_parser_post_process(struct ulp_rte_parser_params *params);
 
 /* Function to handle the parsing of RTE Flow item PF Header. */
@@ -88,10 +90,13 @@ int32_t
 ulp_rte_vf_hdr_handler(const struct rte_flow_item *item,
 		       struct ulp_rte_parser_params *params);
 
-/* Function to handle the parsing of RTE Flow item port id Header. */
+/*
+ * Function to handle the parsing of RTE Flow items port id, ethdev and
+ * E-Switch port Headers.
+ */
 int32_t
-ulp_rte_port_id_hdr_handler(const struct rte_flow_item *item,
-			    struct ulp_rte_parser_params *params);
+ulp_rte_port_hdr_handler(const struct rte_flow_item *item,
+			 struct ulp_rte_parser_params *params);
 
 /* Function to handle the parsing of RTE Flow item port Header. */
 int32_t
@@ -202,10 +207,13 @@ int32_t
 ulp_rte_vf_act_handler(const struct rte_flow_action *action_item,
 		       struct ulp_rte_parser_params *params);
 
-/* Function to handle the parsing of RTE Flow action port_id. */
+/*
+ * Function to handle the parsing of RTE Flow actions PORT_ID, ETHDEV and
+ * ESWITCH_PORT.
+ */
 int32_t
-ulp_rte_port_id_act_handler(const struct rte_flow_action *act_item,
-			    struct ulp_rte_parser_params *params);
+ulp_rte_port_act_handler(const struct rte_flow_action *act_item,
+			 struct ulp_rte_parser_params *params);
 
 /* Function to handle the parsing of RTE Flow action phy_port. */
 int32_t
@@ -269,5 +277,13 @@ ulp_rte_sample_act_handler(const struct rte_flow_action *action_item,
 int32_t
 ulp_rte_shared_act_handler(const struct rte_flow_action *action_item,
 			   struct ulp_rte_parser_params *params);
+
+int32_t
+ulp_vendor_vxlan_decap_act_handler(const struct rte_flow_action *action_item,
+				   struct ulp_rte_parser_params *params);
+
+int32_t
+ulp_rte_vendor_vxlan_decap_hdr_handler(const struct rte_flow_item *item,
+				       struct ulp_rte_parser_params *params);
 
 #endif /* _ULP_RTE_PARSER_H_ */

@@ -56,6 +56,14 @@ enum rte_security_ipsec_tunnel_type {
 };
 
 /**
+ * IPSEC tunnel header verification mode
+ *
+ * Controls how outer IP header is verified in inbound.
+ */
+#define RTE_SECURITY_IPSEC_TUNNEL_VERIFY_DST_ADDR     0x1
+#define RTE_SECURITY_IPSEC_TUNNEL_VERIFY_SRC_DST_ADDR 0x2
+
+/**
  * Security context for crypto/eth devices
  *
  * Security instance for each driver to register security operations.
@@ -71,7 +79,18 @@ struct rte_security_ctx {
 	/**< Pointer to security ops for the device */
 	uint16_t sess_cnt;
 	/**< Number of sessions attached to this context */
+	uint32_t flags;
+	/**< Flags for security context */
 };
+
+#define RTE_SEC_CTX_F_FAST_SET_MDATA 0x00000001
+/**< Driver uses fast metadata update without using driver specific callback */
+
+#define RTE_SEC_CTX_F_FAST_GET_UDATA 0x00000002
+/**< Driver provides udata using fast method without using driver specific
+ * callback. For fast mdata and udata, mbuf dynamic field would be registered
+ * by driver via rte_security_dynfield_register().
+ */
 
 /**
  * IPSEC tunnel parameters
@@ -181,6 +200,29 @@ struct rte_security_ipsec_sa_options {
 	 * * 0: Disable per session security statistics collection for this SA.
 	 */
 	uint32_t stats : 1;
+
+	/** Disable IV generation in PMD
+	 *
+	 * * 1: Disable IV generation in PMD. When disabled, IV provided in
+	 *      rte_crypto_op will be used by the PMD.
+	 *
+	 * * 0: Enable IV generation in PMD. When enabled, PMD generated random
+	 *      value would be used and application is not required to provide
+	 *      IV.
+	 *
+	 * Note: For inline cases, IV generation would always need to be handled
+	 * by the PMD.
+	 */
+	uint32_t iv_gen_disable : 1;
+
+	/** Verify tunnel header in inbound
+	 * * ``RTE_SECURITY_IPSEC_TUNNEL_VERIFY_DST_ADDR``: Verify destination
+	 *   IP address.
+	 *
+	 * * ``RTE_SECURITY_IPSEC_TUNNEL_VERIFY_SRC_DST_ADDR``: Verify both
+	 *   source and destination IP addresses.
+	 */
+	uint32_t tunnel_hdr_verify : 2;
 };
 
 /** IPSec security association direction */
@@ -189,6 +231,30 @@ enum rte_security_ipsec_sa_direction {
 	/**< Encrypt and generate digest */
 	RTE_SECURITY_IPSEC_SA_DIR_INGRESS,
 	/**< Verify digest and decrypt */
+};
+
+/**
+ * Configure soft and hard lifetime of an IPsec SA
+ *
+ * Lifetime of an IPsec SA would specify the maximum number of packets or bytes
+ * that can be processed. IPsec operations would start failing once any hard
+ * limit is reached.
+ *
+ * Soft limits can be specified to generate notification when the SA is
+ * approaching hard limits for lifetime. For inline operations, reaching soft
+ * expiry limit would result in raising an eth event for the same. For lookaside
+ * operations, this would result in a warning returned in
+ * ``rte_crypto_op.aux_flags``.
+ */
+struct rte_security_ipsec_lifetime {
+	uint64_t packets_soft_limit;
+	/**< Soft expiry limit in number of packets */
+	uint64_t bytes_soft_limit;
+	/**< Soft expiry limit in bytes */
+	uint64_t packets_hard_limit;
+	/**< Soft expiry limit in number of packets */
+	uint64_t bytes_hard_limit;
+	/**< Soft expiry limit in bytes */
 };
 
 /**
@@ -211,8 +277,8 @@ struct rte_security_ipsec_xform {
 	/**< IPsec SA Mode - transport/tunnel */
 	struct rte_security_ipsec_tunnel_param tunnel;
 	/**< Tunnel parameters, NULL for transport mode */
-	uint64_t esn_soft_limit;
-	/**< ESN for which the overflow event need to be raised */
+	struct rte_security_ipsec_lifetime life;
+	/**< IPsec SA lifetime */
 	uint32_t replay_win_sz;
 	/**< Anti replay window size to enable sequence replay attack handling.
 	 * replay checking is disabled if the window size is 0.
@@ -233,6 +299,7 @@ struct rte_security_macsec_xform {
 enum rte_security_pdcp_domain {
 	RTE_SECURITY_PDCP_MODE_CONTROL,	/**< PDCP control plane */
 	RTE_SECURITY_PDCP_MODE_DATA,	/**< PDCP data plane */
+	RTE_SECURITY_PDCP_MODE_SHORT_MAC,	/**< PDCP short mac */
 };
 
 /** PDCP Frame direction */
@@ -493,6 +560,12 @@ static inline bool rte_security_dynfield_is_registered(void)
 	return rte_security_dynfield_offset >= 0;
 }
 
+/** Function to call PMD specific function pointer set_pkt_metadata() */
+__rte_experimental
+extern int __rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
+					   struct rte_security_session *sess,
+					   struct rte_mbuf *m, void *params);
+
 /**
  *  Updates the buffer with device-specific defined metadata
  *
@@ -506,10 +579,26 @@ static inline bool rte_security_dynfield_is_registered(void)
  *  - On success, zero.
  *  - On failure, a negative value.
  */
-int
+static inline int
 rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
 			      struct rte_security_session *sess,
-			      struct rte_mbuf *mb, void *params);
+			      struct rte_mbuf *mb, void *params)
+{
+	/* Fast Path */
+	if (instance->flags & RTE_SEC_CTX_F_FAST_SET_MDATA) {
+		*rte_security_dynfield(mb) =
+			(rte_security_dynfield_t)(sess->sess_private_data);
+		return 0;
+	}
+
+	/* Jump to PMD specific function pointer */
+	return __rte_security_set_pkt_metadata(instance, sess, mb, params);
+}
+
+/** Function to call PMD specific function pointer get_userdata() */
+__rte_experimental
+extern void *__rte_security_get_userdata(struct rte_security_ctx *instance,
+					 uint64_t md);
 
 /**
  * Get userdata associated with the security session. Device specific metadata
@@ -529,8 +618,16 @@ rte_security_set_pkt_metadata(struct rte_security_ctx *instance,
  *  - On failure, NULL
  */
 __rte_experimental
-void *
-rte_security_get_userdata(struct rte_security_ctx *instance, uint64_t md);
+static inline void *
+rte_security_get_userdata(struct rte_security_ctx *instance, uint64_t md)
+{
+	/* Fast Path */
+	if (instance->flags & RTE_SEC_CTX_F_FAST_GET_UDATA)
+		return (void *)(uintptr_t)md;
+
+	/* Jump to PMD specific function pointer */
+	return __rte_security_get_userdata(instance, md);
+}
 
 /**
  * Attach a session to a symmetric crypto operation

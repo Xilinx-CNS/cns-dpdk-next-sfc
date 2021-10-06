@@ -191,11 +191,6 @@ rte_mbuf_from_indirect(struct rte_mbuf *mi)
  * mbuf is already known because it doesn't need to access mbuf contents in
  * order to get the mempool pointer.
  *
- * @warning
- * @b EXPERIMENTAL: This API may change without prior notice.
- * This will be used by rte_mbuf_to_baddr() which has redundant code once
- * experimental tag is removed.
- *
  * @param mb
  *   The pointer to the mbuf.
  * @param mp
@@ -203,7 +198,6 @@ rte_mbuf_from_indirect(struct rte_mbuf *mi)
  * @return
  *   The pointer of the mbuf buffer.
  */
-__rte_experimental
 static inline char *
 rte_mbuf_buf_addr(struct rte_mbuf *mb, struct rte_mempool *mp)
 {
@@ -213,26 +207,15 @@ rte_mbuf_buf_addr(struct rte_mbuf *mb, struct rte_mempool *mp)
 /**
  * Return the default address of the beginning of the mbuf data.
  *
- * @warning
- * @b EXPERIMENTAL: This API may change without prior notice.
- *
  * @param mb
  *   The pointer to the mbuf.
  * @return
  *   The pointer of the beginning of the mbuf data.
  */
-__rte_experimental
 static inline char *
-rte_mbuf_data_addr_default(__rte_unused struct rte_mbuf *mb)
+rte_mbuf_data_addr_default(struct rte_mbuf *mb)
 {
-	/* gcc complains about calling this experimental function even
-	 * when not using it. Hide it with ALLOW_EXPERIMENTAL_API.
-	 */
-#ifdef ALLOW_EXPERIMENTAL_API
 	return rte_mbuf_buf_addr(mb, mb->pool) + RTE_PKTMBUF_HEADROOM;
-#else
-	return NULL;
-#endif
 }
 
 /**
@@ -251,13 +234,7 @@ rte_mbuf_data_addr_default(__rte_unused struct rte_mbuf *mb)
 static inline char *
 rte_mbuf_to_baddr(struct rte_mbuf *md)
 {
-#ifdef ALLOW_EXPERIMENTAL_API
 	return rte_mbuf_buf_addr(md, md->pool);
-#else
-	char *buffer_addr;
-	buffer_addr = (char *)md + sizeof(*md) + rte_pktmbuf_priv_size(md->pool);
-	return buffer_addr;
-#endif
 }
 
 /**
@@ -272,7 +249,6 @@ rte_mbuf_to_baddr(struct rte_mbuf *md)
  * @return
  *   The starting address of the private data area of the given mbuf.
  */
-__rte_experimental
 static inline void *
 rte_mbuf_to_priv(struct rte_mbuf *m)
 {
@@ -536,7 +512,6 @@ rte_mbuf_sanity_check(const struct rte_mbuf *m, int is_header);
  *   - -1 if a problem is detected, reason then points to a string describing
  *     the reason why the mbuf is deemed invalid.
  */
-__rte_experimental
 int rte_mbuf_check(const struct rte_mbuf *m, int is_header,
 		   const char **reason);
 
@@ -1426,7 +1401,6 @@ static inline void rte_pktmbuf_free(struct rte_mbuf *m)
  *  @param count
  *    Array size.
  */
-__rte_experimental
 void rte_pktmbuf_free_bulk(struct rte_mbuf **mbufs, unsigned int count);
 
 /**
@@ -1470,7 +1444,6 @@ rte_pktmbuf_clone(struct rte_mbuf *md, struct rte_mempool *mp);
  *   - The pointer to the new "clone" mbuf on success.
  *   - NULL if allocation fails.
  */
-__rte_experimental
 struct rte_mbuf *
 rte_pktmbuf_copy(const struct rte_mbuf *m, struct rte_mempool *mp,
 		 uint32_t offset, uint32_t length);
@@ -1775,10 +1748,7 @@ static inline int rte_pktmbuf_chain(struct rte_mbuf *head, struct rte_mbuf *tail
 	return 0;
 }
 
-/*
- * @warning
- * @b EXPERIMENTAL: This API may change without prior notice.
- *
+/**
  * For given input values generate raw tx_offload value.
  * Note that it is caller responsibility to make sure that input parameters
  * don't exceed maximum bit-field values.

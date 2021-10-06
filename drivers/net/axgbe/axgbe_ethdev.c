@@ -47,19 +47,14 @@ static int axgbe_dev_xstats_get(struct rte_eth_dev *dev,
 				struct rte_eth_xstat *stats,
 				unsigned int n);
 static int
-axgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
-			   struct rte_eth_xstat_name *xstats_names,
-			   unsigned int size);
-static int
 axgbe_dev_xstats_get_by_id(struct rte_eth_dev *dev,
 			   const uint64_t *ids,
 			   uint64_t *values,
 			   unsigned int n);
 static int
-axgbe_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
-				 struct rte_eth_xstat_name *xstats_names,
-				 const uint64_t *ids,
-				 unsigned int size);
+axgbe_dev_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
+			   struct rte_eth_xstat_name *xstats_names,
+			   unsigned int size);
 static int axgbe_dev_xstats_reset(struct rte_eth_dev *dev);
 static int axgbe_dev_rss_reta_update(struct rte_eth_dev *dev,
 			  struct rte_eth_rss_reta_entry64 *reta_conf,
@@ -239,7 +234,6 @@ static const struct eth_dev_ops axgbe_eth_dev_ops = {
 	.xstats_get	      = axgbe_dev_xstats_get,
 	.xstats_reset	      = axgbe_dev_xstats_reset,
 	.xstats_get_names     = axgbe_dev_xstats_get_names,
-	.xstats_get_names_by_id = axgbe_dev_xstats_get_names_by_id,
 	.xstats_get_by_id     = axgbe_dev_xstats_get_by_id,
 	.reta_update          = axgbe_dev_rss_reta_update,
 	.reta_query           = axgbe_dev_rss_reta_query,
@@ -1022,9 +1016,9 @@ axgbe_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *stats,
 }
 
 static int
-axgbe_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-			   struct rte_eth_xstat_name *xstats_names,
-			   unsigned int n)
+axgbe_dev_xstats_get_all_names(__rte_unused struct rte_eth_dev *dev,
+			       struct rte_eth_xstat_name *xstats_names,
+			       unsigned int n)
 {
 	unsigned int i;
 
@@ -1075,18 +1069,18 @@ axgbe_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 }
 
 static int
-axgbe_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
-				 struct rte_eth_xstat_name *xstats_names,
-				 const uint64_t *ids,
-				 unsigned int size)
+axgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
+			   const uint64_t *ids,
+			   struct rte_eth_xstat_name *xstats_names,
+			   unsigned int size)
 {
 	struct rte_eth_xstat_name xstats_names_copy[AXGBE_XSTATS_COUNT];
 	unsigned int i;
 
 	if (!ids)
-		return axgbe_dev_xstats_get_names(dev, xstats_names, size);
+		return axgbe_dev_xstats_get_all_names(dev, xstats_names, size);
 
-	axgbe_dev_xstats_get_names(dev, xstats_names_copy, size);
+	axgbe_dev_xstats_get_all_names(dev, xstats_names_copy, size);
 
 	for (i = 0; i < size; i++) {
 		if (ids[i] >= AXGBE_XSTATS_COUNT) {

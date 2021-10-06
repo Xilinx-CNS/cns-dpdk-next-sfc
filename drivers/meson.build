@@ -109,16 +109,19 @@ foreach subpath:subdirs
                 build = false
                 reason = 'explicitly disabled via build config'
             endif
-        else
-            # pull in driver directory which should update all the local variables
-            subdir(drv_path)
         endif
 
         if build
+            # pull in driver directory which should update all the local variables
+            subdir(drv_path)
+
             # get dependency objs from strings
             shared_deps = ext_deps
             static_deps = ext_deps
             foreach d:deps
+                if not build
+                    break
+                endif
                 if not is_variable('shared_rte_' + d)
                     build = false
                     reason = 'missing internal dependency, "@0@"'.format(d)
@@ -160,7 +163,7 @@ foreach subpath:subdirs
                 include_directories: includes,
                 dependencies: static_deps,
                 c_args: cflags)
-        objs += tmp_lib.extract_all_objects()
+        objs += tmp_lib.extract_all_objects(recursive: true)
         sources = custom_target(out_filename,
                 command: [pmdinfo, tmp_lib.full_path(), '@OUTPUT@', pmdinfogen],
                 output: out_filename,

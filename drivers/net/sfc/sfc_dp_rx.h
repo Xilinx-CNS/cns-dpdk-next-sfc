@@ -92,6 +92,9 @@ struct sfc_dp_rx_qcreate_info {
 	efsys_dma_addr_t	fcw_offset;
 	/** VI window size shift */
 	unsigned int		vi_window_shift;
+
+	/** Mask to extract user bits from Rx prefix mark field */
+	uint32_t		user_mark_mask;
 };
 
 /**
@@ -216,6 +219,7 @@ struct sfc_dp_rx {
 #define SFC_DP_RX_FEAT_FLOW_FLAG		0x2
 #define SFC_DP_RX_FEAT_FLOW_MARK		0x4
 #define SFC_DP_RX_FEAT_INTR			0x8
+#define SFC_DP_RX_FEAT_STATS			0x10
 	/**
 	 * Rx offload capabilities supported by the datapath on device
 	 * level only if HW/FW supports it.

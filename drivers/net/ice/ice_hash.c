@@ -374,13 +374,17 @@ struct ice_rss_hash_cfg eth_tmplt = {
 
 /* IPv4 */
 #define ICE_RSS_TYPE_ETH_IPV4		(ETH_RSS_ETH | ETH_RSS_IPV4 | \
-					 ETH_RSS_FRAG_IPV4)
+					 ETH_RSS_FRAG_IPV4 | \
+					 ETH_RSS_IPV4_CHKSUM)
 #define ICE_RSS_TYPE_ETH_IPV4_UDP	(ICE_RSS_TYPE_ETH_IPV4 | \
-					 ETH_RSS_NONFRAG_IPV4_UDP)
+					 ETH_RSS_NONFRAG_IPV4_UDP | \
+					 ETH_RSS_L4_CHKSUM)
 #define ICE_RSS_TYPE_ETH_IPV4_TCP	(ICE_RSS_TYPE_ETH_IPV4 | \
-					 ETH_RSS_NONFRAG_IPV4_TCP)
+					 ETH_RSS_NONFRAG_IPV4_TCP | \
+					 ETH_RSS_L4_CHKSUM)
 #define ICE_RSS_TYPE_ETH_IPV4_SCTP	(ICE_RSS_TYPE_ETH_IPV4 | \
-					 ETH_RSS_NONFRAG_IPV4_SCTP)
+					 ETH_RSS_NONFRAG_IPV4_SCTP | \
+					 ETH_RSS_L4_CHKSUM)
 #define ICE_RSS_TYPE_IPV4		ETH_RSS_IPV4
 #define ICE_RSS_TYPE_IPV4_UDP		(ETH_RSS_IPV4 | \
 					 ETH_RSS_NONFRAG_IPV4_UDP)
@@ -394,11 +398,14 @@ struct ice_rss_hash_cfg eth_tmplt = {
 #define ICE_RSS_TYPE_ETH_IPV6_FRAG	(ETH_RSS_ETH | ETH_RSS_IPV6 | \
 					 ETH_RSS_FRAG_IPV6)
 #define ICE_RSS_TYPE_ETH_IPV6_UDP	(ICE_RSS_TYPE_ETH_IPV6 | \
-					 ETH_RSS_NONFRAG_IPV6_UDP)
+					 ETH_RSS_NONFRAG_IPV6_UDP | \
+					 ETH_RSS_L4_CHKSUM)
 #define ICE_RSS_TYPE_ETH_IPV6_TCP	(ICE_RSS_TYPE_ETH_IPV6 | \
-					 ETH_RSS_NONFRAG_IPV6_TCP)
+					 ETH_RSS_NONFRAG_IPV6_TCP | \
+					 ETH_RSS_L4_CHKSUM)
 #define ICE_RSS_TYPE_ETH_IPV6_SCTP	(ICE_RSS_TYPE_ETH_IPV6 | \
-					 ETH_RSS_NONFRAG_IPV6_SCTP)
+					 ETH_RSS_NONFRAG_IPV6_SCTP | \
+					 ETH_RSS_L4_CHKSUM)
 #define ICE_RSS_TYPE_IPV6		ETH_RSS_IPV6
 #define ICE_RSS_TYPE_IPV6_UDP		(ETH_RSS_IPV6 | \
 					 ETH_RSS_NONFRAG_IPV6_UDP)
@@ -619,9 +626,9 @@ ice_hash_parse_pattern(const struct rte_flow_item pattern[], uint64_t *phint,
 			psc = item->spec;
 			if (!psc)
 				break;
-			else if (psc->pdu_type == ICE_GTPU_EH_UPLINK)
+			else if (psc->hdr.type == ICE_GTPU_EH_UPLINK)
 				*phint |= ICE_PHINT_GTPU_EH_UP;
-			else if (psc->pdu_type == ICE_GTPU_EH_DWNLINK)
+			else if (psc->hdr.type == ICE_GTPU_EH_DWNLINK)
 				*phint |= ICE_PHINT_GTPU_EH_DWN;
 			break;
 		default:
@@ -689,6 +696,9 @@ ice_refine_hash_cfg_l234(struct ice_rss_hash_cfg *hash_cfg,
 		} else {
 			*hash_flds &= ~ICE_FLOW_HASH_IPV4;
 		}
+
+		if (rss_type & ETH_RSS_IPV4_CHKSUM)
+			*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_IPV4_CHKSUM);
 	}
 
 	if (*addl_hdrs & ICE_FLOW_SEG_HDR_IPV6) {
@@ -765,6 +775,9 @@ ice_refine_hash_cfg_l234(struct ice_rss_hash_cfg *hash_cfg,
 		} else {
 			*hash_flds &= ~ICE_FLOW_HASH_UDP_PORT;
 		}
+
+		if (rss_type & ETH_RSS_L4_CHKSUM)
+			*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_UDP_CHKSUM);
 	}
 
 	if (*addl_hdrs & ICE_FLOW_SEG_HDR_TCP) {
@@ -782,6 +795,9 @@ ice_refine_hash_cfg_l234(struct ice_rss_hash_cfg *hash_cfg,
 		} else {
 			*hash_flds &= ~ICE_FLOW_HASH_TCP_PORT;
 		}
+
+		if (rss_type & ETH_RSS_L4_CHKSUM)
+			*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_TCP_CHKSUM);
 	}
 
 	if (*addl_hdrs & ICE_FLOW_SEG_HDR_SCTP) {
@@ -799,6 +815,9 @@ ice_refine_hash_cfg_l234(struct ice_rss_hash_cfg *hash_cfg,
 		} else {
 			*hash_flds &= ~ICE_FLOW_HASH_SCTP_PORT;
 		}
+
+		if (rss_type & ETH_RSS_L4_CHKSUM)
+			*hash_flds |= BIT_ULL(ICE_FLOW_FIELD_IDX_SCTP_CHKSUM);
 	}
 
 	if (*addl_hdrs & ICE_FLOW_SEG_HDR_L2TPV3) {
@@ -1034,7 +1053,7 @@ ice_hash_parse_pattern_action(__rte_unused struct ice_adapter *ad,
 			uint32_t array_len,
 			const struct rte_flow_item pattern[],
 			const struct rte_flow_action actions[],
-			uint32_t priority __rte_unused,
+			uint32_t priority,
 			void **meta,
 			struct rte_flow_error *error)
 {
@@ -1042,6 +1061,9 @@ ice_hash_parse_pattern_action(__rte_unused struct ice_adapter *ad,
 	struct ice_pattern_match_item *pattern_match_item;
 	struct ice_rss_meta *rss_meta_ptr;
 	uint64_t phint = ICE_PHINT_NONE;
+
+	if (priority >= 1)
+		return -rte_errno;
 
 	rss_meta_ptr = rte_zmalloc(NULL, sizeof(*rss_meta_ptr), 0);
 	if (!rss_meta_ptr) {

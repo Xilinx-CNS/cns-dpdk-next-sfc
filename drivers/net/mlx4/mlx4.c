@@ -1014,11 +1014,8 @@ err_secondary:
 			      " (error: %s)", strerror(err));
 			goto port_error;
 		}
-		INFO("port %u MAC address is %02x:%02x:%02x:%02x:%02x:%02x",
-		     priv->port,
-		     mac.addr_bytes[0], mac.addr_bytes[1],
-		     mac.addr_bytes[2], mac.addr_bytes[3],
-		     mac.addr_bytes[4], mac.addr_bytes[5]);
+		INFO("port %u MAC address is " RTE_ETHER_ADDR_PRT_FMT,
+		     priv->port, RTE_ETHER_ADDR_BYTES(&mac));
 		/* Register MAC address. */
 		priv->mac[0] = mac;
 

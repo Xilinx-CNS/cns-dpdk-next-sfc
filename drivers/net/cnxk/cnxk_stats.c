@@ -162,10 +162,10 @@ cnxk_nix_xstats_get(struct rte_eth_dev *eth_dev, struct rte_eth_xstat *xstats,
 	return size;
 }
 
-int
-cnxk_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
-			  struct rte_eth_xstat_name *xstats_names,
-			  unsigned int limit)
+static int
+cnxk_nix_xstats_get_all_names(struct rte_eth_dev *eth_dev,
+			      struct rte_eth_xstat_name *xstats_names,
+			      unsigned int limit)
 {
 	struct cnxk_eth_dev *dev = cnxk_eth_pmd_priv(eth_dev);
 	struct roc_nix_xstat_name roc_xstats_name[limit];
@@ -226,9 +226,10 @@ cnxk_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
 }
 
 int
-cnxk_nix_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
-				struct rte_eth_xstat_name *xstats_names,
-				const uint64_t *ids, unsigned int limit)
+cnxk_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
+			  const uint64_t *ids,
+			  struct rte_eth_xstat_name *xstats_names,
+			  unsigned int limit)
 {
 	struct cnxk_eth_dev *dev = cnxk_eth_pmd_priv(eth_dev);
 	uint32_t nix_cnt = roc_nix_num_xstats_get(&dev->nix);
@@ -246,7 +247,7 @@ cnxk_nix_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
 	if (xstats_names == NULL)
 		return -ENOMEM;
 
-	cnxk_nix_xstats_get_names(eth_dev, xnames, stat_cnt);
+	cnxk_nix_xstats_get_all_names(eth_dev, xnames, stat_cnt);
 
 	for (i = 0; i < limit; i++) {
 		if (ids[i] >= stat_cnt)

@@ -219,6 +219,26 @@ Runtime Config Options
 
   These ICE_DBG_XXX are defined in ``drivers/net/ice/base/ice_type.h``.
 
+- ``1PPS out support``
+
+  The E810 supports four single-ended GPIO signals (SDP[20:23]). The 1PPS
+  signal outputs via SDP[20:23]. User can select GPIO pin index flexibly.
+  Pin index 0 means SDP20, 1 means SDP21 and so on. For example::
+
+    -a af:00.0,pps_out='[pin:0]'
+
+- ``Low Rx latency`` (default ``0``)
+
+  vRAN workloads require low latency DPDK interface for the front haul
+  interface connection to Radio. By specifying ``1`` for parameter
+  ``rx_low_latency``, each completed Rx descriptor can be written immediately
+  to host memory and the Rx interrupt latency can be reduced to 2us::
+
+    -a 0000:88:00.0,rx_low_latency=1
+
+  As a trade-off, this configuration may cause the packet processing performance
+  degradation due to the PCI bandwidth limitation.
+
 Driver compilation and testing
 ------------------------------
 

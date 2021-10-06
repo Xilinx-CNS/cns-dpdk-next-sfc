@@ -13,6 +13,7 @@
 #include <rte_common.h>
 
 #include <rte_debug.h>
+#include <rte_alarm.h>
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
@@ -181,7 +182,7 @@ iavf_execute_vf_cmd(struct iavf_adapter *adapter, struct iavf_cmd_info *args)
 						   args->out_buffer);
 			if (result == IAVF_MSG_CMD)
 				break;
-			rte_delay_ms(ASQ_DELAY_MS);
+			iavf_msec_delay(ASQ_DELAY_MS);
 		} while (i++ < MAX_TRY_TIMES);
 		if (i >= MAX_TRY_TIMES ||
 		    vf->cmd_retval != VIRTCHNL_STATUS_SUCCESS) {
@@ -207,7 +208,7 @@ iavf_execute_vf_cmd(struct iavf_adapter *adapter, struct iavf_cmd_info *args)
 				err = -1;
 				break;
 			}
-			rte_delay_ms(ASQ_DELAY_MS);
+			iavf_msec_delay(ASQ_DELAY_MS);
 			/* If don't read msg or read sys event, continue */
 		} while (i++ < MAX_TRY_TIMES);
 		if (i >= MAX_TRY_TIMES ||
@@ -225,7 +226,7 @@ iavf_execute_vf_cmd(struct iavf_adapter *adapter, struct iavf_cmd_info *args)
 		do {
 			if (vf->pend_cmd == VIRTCHNL_OP_UNKNOWN)
 				break;
-			rte_delay_ms(ASQ_DELAY_MS);
+			iavf_msec_delay(ASQ_DELAY_MS);
 			/* If don't read msg or read sys event, continue */
 		} while (i++ < MAX_TRY_TIMES);
 
@@ -1176,10 +1177,8 @@ iavf_add_del_all_mac_addr(struct iavf_adapter *adapter, bool add)
 			list->list[j].type = (j == 0 ?
 					      VIRTCHNL_ETHER_ADDR_PRIMARY :
 					      VIRTCHNL_ETHER_ADDR_EXTRA);
-			PMD_DRV_LOG(DEBUG, "add/rm mac:%x:%x:%x:%x:%x:%x",
-				    addr->addr_bytes[0], addr->addr_bytes[1],
-				    addr->addr_bytes[2], addr->addr_bytes[3],
-				    addr->addr_bytes[4], addr->addr_bytes[5]);
+			PMD_DRV_LOG(DEBUG, "add/rm mac:" RTE_ETHER_ADDR_PRT_FMT,
+				    RTE_ETHER_ADDR_BYTES(addr));
 			j++;
 		}
 		list->vsi_id = vf->vsi_res->vsi_id;
@@ -1626,13 +1625,8 @@ iavf_add_del_mc_addr_list(struct iavf_adapter *adapter,
 
 	for (i = 0; i < mc_addrs_num; i++) {
 		if (!IAVF_IS_MULTICAST(mc_addrs[i].addr_bytes)) {
-			PMD_DRV_LOG(ERR, "Invalid mac:%x:%x:%x:%x:%x:%x",
-				    mc_addrs[i].addr_bytes[0],
-				    mc_addrs[i].addr_bytes[1],
-				    mc_addrs[i].addr_bytes[2],
-				    mc_addrs[i].addr_bytes[3],
-				    mc_addrs[i].addr_bytes[4],
-				    mc_addrs[i].addr_bytes[5]);
+			PMD_DRV_LOG(ERR, "Invalid mac:" RTE_ETHER_ADDR_PRT_FMT,
+				    RTE_ETHER_ADDR_BYTES(&mc_addrs[i]));
 			return -EINVAL;
 		}
 
@@ -1687,13 +1681,20 @@ iavf_request_queues(struct iavf_adapter *adapter, uint16_t num)
 	args.out_buffer = vf->aq_resp;
 	args.out_size = IAVF_AQ_BUF_SZ;
 
-	/*
-	 * disable interrupt to avoid the admin queue message to be read
-	 * before iavf_read_msg_from_pf.
-	 */
-	rte_intr_disable(&pci_dev->intr_handle);
-	err = iavf_execute_vf_cmd(adapter, &args);
-	rte_intr_enable(&pci_dev->intr_handle);
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_WB_ON_ITR) {
+		/* disable interrupt to avoid the admin queue message to be read
+		 * before iavf_read_msg_from_pf.
+		 */
+		rte_intr_disable(&pci_dev->intr_handle);
+		err = iavf_execute_vf_cmd(adapter, &args);
+		rte_intr_enable(&pci_dev->intr_handle);
+	} else {
+		rte_eal_alarm_cancel(iavf_dev_alarm_handler, dev);
+		err = iavf_execute_vf_cmd(adapter, &args);
+		rte_eal_alarm_set(IAVF_ALARM_INTERVAL,
+				  iavf_dev_alarm_handler, dev);
+	}
+
 	if (err) {
 		PMD_DRV_LOG(ERR, "fail to execute command OP_REQUEST_QUEUES");
 		return err;

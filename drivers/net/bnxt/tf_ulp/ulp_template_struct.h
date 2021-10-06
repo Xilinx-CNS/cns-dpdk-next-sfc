@@ -30,6 +30,7 @@
 #define BNXT_ULP_PROTO_HDR_GRE_NUM	6
 #define BNXT_ULP_PROTO_HDR_ICMP_NUM	5
 #define BNXT_ULP_PROTO_HDR_MAX		128
+#define BNXT_ULP_PROTO_HDR_ENCAP_MAX	64
 #define BNXT_ULP_PROTO_HDR_FIELD_SVIF_IDX	1
 
 /* Direction attributes */
@@ -64,12 +65,13 @@ struct ulp_rte_act_prop {
 
 /* Structure to be used for passing all the parser functions */
 struct ulp_rte_parser_params {
-	STAILQ_ENTRY(ulp_rte_parser_params)  next;
 	struct ulp_rte_hdr_bitmap	hdr_bitmap;
+	struct ulp_rte_hdr_bitmap	enc_hdr_bitmap;
 	struct ulp_rte_hdr_bitmap	hdr_fp_bit;
 	struct ulp_rte_field_bitmap	fld_bitmap;
 	struct ulp_rte_field_bitmap	fld_s_bitmap;
 	struct ulp_rte_hdr_field	hdr_field[BNXT_ULP_PROTO_HDR_MAX];
+	struct ulp_rte_hdr_field	enc_field[BNXT_ULP_PROTO_HDR_ENCAP_MAX];
 	uint64_t			comp_fld[BNXT_ULP_CF_IDX_LAST];
 	uint32_t			field_idx;
 	struct ulp_rte_act_bitmap	act_bitmap;
@@ -78,17 +80,19 @@ struct ulp_rte_parser_params {
 	uint32_t			priority;
 	uint32_t			fid;
 	uint32_t			parent_flow;
-	uint32_t			parent_fid;
+	uint32_t			child_flow;
 	uint16_t			func_id;
 	uint16_t			port_id;
 	uint32_t			class_id;
 	uint32_t			act_tmpl;
 	struct bnxt_ulp_context		*ulp_ctx;
 	uint32_t			hdr_sig_id;
-	uint32_t			flow_sig_id;
+	uint64_t			flow_sig_id;
 	uint32_t			flow_pattern_id;
 	uint32_t			act_pattern_id;
 	uint8_t				app_id;
+	uint8_t				tun_idx;
+
 };
 
 /* Flow Parser Header Information Structure */
@@ -101,6 +105,7 @@ struct bnxt_ulp_rte_hdr_info {
 
 /* Flow Parser Header Information Structure Array defined in template source*/
 extern struct bnxt_ulp_rte_hdr_info	ulp_hdr_info[];
+extern struct bnxt_ulp_rte_hdr_info	ulp_vendor_hdr_info[];
 
 /* Flow Parser Action Information Structure */
 struct bnxt_ulp_rte_act_info {
@@ -113,6 +118,7 @@ struct bnxt_ulp_rte_act_info {
 
 /* Flow Parser Action Information Structure Array defined in template source*/
 extern struct bnxt_ulp_rte_act_info	ulp_act_info[];
+extern struct bnxt_ulp_rte_act_info	ulp_vendor_act_info[];
 
 /* Flow Matcher structures */
 struct bnxt_ulp_header_match_info {
@@ -136,7 +142,7 @@ struct bnxt_ulp_class_match_info {
 	uint8_t			wc_pri;
 	uint8_t			app_sig;
 	uint32_t		hdr_sig_id;
-	uint32_t		flow_sig_id;
+	uint64_t		flow_sig_id;
 	uint32_t		flow_pattern_id;
 };
 
@@ -200,10 +206,19 @@ struct bnxt_ulp_template_device_tbls {
 	uint32_t cond_list_size;
 };
 
+struct bnxt_ulp_dyn_size_map {
+	uint32_t		slab_size;
+	enum tf_tbl_type	tbl_type;
+};
+
 /* Device specific parameters */
 struct bnxt_ulp_device_params {
 	uint8_t				description[16];
-	enum bnxt_ulp_byte_order	byte_order;
+	enum bnxt_ulp_byte_order	key_byte_order;
+	enum bnxt_ulp_byte_order	result_byte_order;
+	enum bnxt_ulp_byte_order	encap_byte_order;
+	enum bnxt_ulp_byte_order	wc_key_byte_order;
+	enum bnxt_ulp_byte_order	em_byte_order;
 	uint8_t				encap_byte_swap;
 	uint8_t				num_phy_ports;
 	uint32_t			mark_db_lfid_entries;
@@ -219,6 +234,11 @@ struct bnxt_ulp_device_params {
 	uint32_t			byte_count_shift;
 	uint32_t			packet_count_shift;
 	uint32_t			dynamic_pad_en;
+	uint32_t			dynamic_sram_en;
+	uint32_t			dyn_encap_list_size;
+	struct bnxt_ulp_dyn_size_map	dyn_encap_sizes[4];
+	uint32_t			dyn_modify_list_size;
+	struct bnxt_ulp_dyn_size_map	dyn_modify_sizes[4];
 	uint16_t			em_blk_size_bits;
 	uint16_t			em_blk_align_bits;
 	uint16_t			em_key_align_bytes;
@@ -250,7 +270,6 @@ struct bnxt_ulp_mapper_tbl_info {
 	uint8_t				direction;
 	enum bnxt_ulp_pri_opc		pri_opcode;
 	uint32_t			pri_operand;
-	enum bnxt_ulp_byte_order	byte_order;
 
 	/* conflict resolution opcode */
 	enum bnxt_ulp_accept_opc	accept_opcode;
@@ -263,6 +282,7 @@ struct bnxt_ulp_mapper_tbl_info {
 	uint16_t	key_num_fields;
 	/* Size of the blob that holds the key */
 	uint16_t	blob_key_bit_size;
+	uint16_t	record_size;
 
 	/* Information for accessing the ulp_class_result_field_list */
 	uint32_t	result_start_idx;

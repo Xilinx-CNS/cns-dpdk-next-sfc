@@ -19,6 +19,7 @@
 #include <rte_kvargs.h>
 #include <rte_log.h>
 #include <rte_tailq.h>
+#include <rte_string_fns.h>
 #include "eal_private.h"
 
 /** user device double-linked queue type definition */
@@ -38,6 +39,28 @@ devargs_layer_count(const char *s)
 		s++;
 	}
 	return i;
+}
+
+/* Resolve devargs name from bus arguments. */
+static int
+devargs_bus_parse_default(struct rte_devargs *devargs,
+			  struct rte_kvargs *bus_args)
+{
+	const char *name;
+
+	/* Parse devargs name from bus key-value list. */
+	name = rte_kvargs_get(bus_args, "name");
+	if (name == NULL) {
+		RTE_LOG(INFO, EAL, "devargs name not found: %s\n",
+			devargs->data);
+		return 0;
+	}
+	if (rte_strscpy(devargs->name, name, sizeof(devargs->name)) < 0) {
+		RTE_LOG(ERR, EAL, "devargs name too long: %s\n",
+			devargs->data);
+		return -E2BIG;
+	}
+	return 0;
 }
 
 int
@@ -102,7 +125,6 @@ rte_devargs_layers_parse(struct rte_devargs *devargs,
 		layers[i].str = s;
 		layers[i].kvlist = rte_kvargs_parse_delim(s, NULL, "/");
 		if (layers[i].kvlist == NULL) {
-			RTE_LOG(ERR, EAL, "Could not parse %s\n", s);
 			ret = -EINVAL;
 			goto get_out;
 		}
@@ -118,6 +140,8 @@ next_layer:
 		if (layers[i].kvlist == NULL)
 			continue;
 		kv = &layers[i].kvlist->pairs[0];
+		if (kv->key == NULL)
+			continue;
 		if (strcmp(kv->key, RTE_DEVARGS_KEY_BUS) == 0) {
 			bus = rte_bus_find_by_name(kv->value);
 			if (bus == NULL) {
@@ -160,6 +184,12 @@ next_layer:
 		}
 	}
 
+	/* Resolve devargs name. */
+	if (bus != NULL && bus->devargs_parse != NULL)
+		ret = bus->devargs_parse(devargs);
+	else if (layers[0].kvlist != NULL)
+		ret = devargs_bus_parse_default(devargs, layers[0].kvlist);
+
 get_out:
 	for (i = 0; i < RTE_DIM(layers); i++) {
 		if (layers[i].kvlist)
@@ -192,6 +222,15 @@ rte_devargs_parse(struct rte_devargs *da, const char *dev)
 
 	if (da == NULL)
 		return -EINVAL;
+
+	/* First parse according global device syntax. */
+	if (rte_devargs_layers_parse(da, dev) == 0) {
+		if (da->bus != NULL || da->cls != NULL)
+			return 0;
+		rte_devargs_reset(da);
+	}
+
+	/* Otherwise fallback to legacy syntax: */
 
 	/* Retrieve eventual bus info */
 	do {
@@ -291,7 +330,7 @@ rte_devargs_insert(struct rte_devargs **da)
 	if (*da == NULL || (*da)->bus == NULL)
 		return -1;
 
-	TAILQ_FOREACH_SAFE(listed_da, &devargs_list, next, tmp) {
+	RTE_TAILQ_FOREACH_SAFE(listed_da, &devargs_list, next, tmp) {
 		if (listed_da == *da)
 			/* devargs already in the list */
 			return 0;
@@ -358,7 +397,7 @@ rte_devargs_remove(struct rte_devargs *devargs)
 	if (devargs == NULL || devargs->bus == NULL)
 		return -1;
 
-	TAILQ_FOREACH_SAFE(d, &devargs_list, next, tmp) {
+	RTE_TAILQ_FOREACH_SAFE(d, &devargs_list, next, tmp) {
 		if (strcmp(d->bus->name, devargs->bus->name) == 0 &&
 		    strcmp(d->name, devargs->name) == 0) {
 			TAILQ_REMOVE(&devargs_list, d, next);

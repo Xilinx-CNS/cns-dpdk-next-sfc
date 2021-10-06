@@ -50,6 +50,7 @@ static TAILQ_HEAD(mlx5_drivers, mlx5_class_driver) drivers_list =
 /* Head of devices. */
 static TAILQ_HEAD(mlx5_devices, mlx5_common_device) devices_list =
 				TAILQ_HEAD_INITIALIZER(devices_list);
+static pthread_mutex_t devices_list_lock;
 
 static const struct {
 	const char *name;
@@ -222,7 +223,9 @@ mlx5_dev_to_pci_str(const struct rte_device *dev, char *addr, size_t size)
 static void
 dev_release(struct mlx5_common_device *dev)
 {
+	pthread_mutex_lock(&devices_list_lock);
 	TAILQ_REMOVE(&devices_list, dev, next);
+	pthread_mutex_unlock(&devices_list_lock);
 	rte_free(dev);
 }
 
@@ -315,16 +318,20 @@ mlx5_common_dev_probe(struct rte_device *eal_dev)
 		if (!dev)
 			return -ENOMEM;
 		dev->dev = eal_dev;
+		pthread_mutex_lock(&devices_list_lock);
 		TAILQ_INSERT_HEAD(&devices_list, dev, next);
+		pthread_mutex_unlock(&devices_list_lock);
 		new_device = true;
-	} else {
-		/* Validate combination here. */
-		ret = is_valid_class_combination(classes |
-						 dev->classes_loaded);
-		if (ret != 0) {
-			DRV_LOG(ERR, "Unsupported mlx5 classes combination.");
-			return ret;
-		}
+	}
+	/*
+	 * Validate combination here.
+	 * For new device, the classes_loaded field is 0 and it check only
+	 * the classes given as user device arguments.
+	 */
+	ret = is_valid_class_combination(classes | dev->classes_loaded);
+	if (ret != 0) {
+		DRV_LOG(ERR, "Unsupported mlx5 classes combination.");
+		goto class_err;
 	}
 	ret = drivers_probe(dev, classes);
 	if (ret)
@@ -347,7 +354,7 @@ mlx5_common_dev_remove(struct rte_device *eal_dev)
 		return -ENODEV;
 	/* Matching device found, cleanup and unload drivers. */
 	ret = drivers_remove(dev, dev->classes_loaded);
-	if (ret != 0)
+	if (ret == 0)
 		dev_release(dev);
 	return ret;
 }
@@ -438,6 +445,7 @@ mlx5_common_init(void)
 	if (mlx5_common_initialized)
 		return;
 
+	pthread_mutex_init(&devices_list_lock, NULL);
 	mlx5_glue_constructor();
 	mlx5_common_driver_init();
 	mlx5_common_initialized = true;

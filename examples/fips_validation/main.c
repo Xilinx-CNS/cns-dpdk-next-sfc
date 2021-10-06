@@ -7,7 +7,7 @@
 #include <dirent.h>
 
 #include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
+#include <rte_malloc.h>
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 #include <rte_string_fns.h>
@@ -73,10 +73,7 @@ cryptodev_fips_validate_app_int(void)
 	if (env.self_test) {
 		ret = fips_dev_self_test(env.dev_id, env.broken_test_config);
 		if (ret < 0) {
-			struct rte_cryptodev *cryptodev =
-					rte_cryptodev_pmd_get_dev(env.dev_id);
-
-			rte_cryptodev_pmd_destroy(cryptodev);
+			rte_cryptodev_close(env.dev_id);
 
 			return ret;
 		}
@@ -196,7 +193,7 @@ parse_cryptodev_id_arg(char *arg)
 	}
 
 
-	if (!rte_cryptodev_pmd_is_valid_dev(cryptodev_id)) {
+	if (!rte_cryptodev_is_valid_dev(cryptodev_id)) {
 		RTE_LOG(ERR, USER1, "Error %i: invalid cryptodev id %s\n",
 				cryptodev_id, arg);
 		return -1;

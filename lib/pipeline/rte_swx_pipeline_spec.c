@@ -20,7 +20,10 @@
 #define TABLE_ACTIONS_BLOCK 4
 #define SELECTOR_BLOCK 5
 #define SELECTOR_SELECTOR_BLOCK 6
-#define APPLY_BLOCK 7
+#define LEARNER_BLOCK 7
+#define LEARNER_KEY_BLOCK 8
+#define LEARNER_ACTIONS_BLOCK 9
+#define APPLY_BLOCK 10
 
 /*
  * extobj.
@@ -95,7 +98,7 @@ extobj_statement_parse(struct extobj_spec *s,
  * struct.
  *
  * struct STRUCT_TYPE_NAME {
- *	bit<SIZE> FIELD_NAME
+ *	bit<SIZE> | varbit<SIZE> FIELD_NAME
  *	...
  * }
  */
@@ -103,6 +106,7 @@ struct struct_spec {
 	char *name;
 	struct rte_swx_field_params *fields;
 	uint32_t n_fields;
+	int varbit;
 };
 
 static void
@@ -126,6 +130,8 @@ struct_spec_free(struct struct_spec *s)
 	s->fields = NULL;
 
 	s->n_fields = 0;
+
+	s->varbit = 0;
 }
 
 static int
@@ -172,8 +178,9 @@ struct_block_parse(struct struct_spec *s,
 		   const char **err_msg)
 {
 	struct rte_swx_field_params *new_fields;
-	char *p = tokens[0], *name;
+	char *p = tokens[0], *name = NULL;
 	uint32_t n_bits;
+	int varbit = 0, error = 0, error_size_invalid = 0, error_varbit_not_last = 0;
 
 	/* Handle end of block. */
 	if ((n_tokens == 1) && !strcmp(tokens[0], "}")) {
@@ -182,64 +189,98 @@ struct_block_parse(struct struct_spec *s,
 	}
 
 	/* Check format. */
-	if ((n_tokens != 2) ||
-	    (strlen(p) < 6) ||
-	    (p[0] != 'b') ||
-	    (p[1] != 'i') ||
-	    (p[2] != 't') ||
-	    (p[3] != '<') ||
-	    (p[strlen(p) - 1] != '>')) {
-		if (err_line)
-			*err_line = n_lines;
-		if (err_msg)
-			*err_msg = "Invalid struct field statement.";
-		return -EINVAL;
+	if (n_tokens != 2) {
+		error = -EINVAL;
+		goto error;
 	}
 
-	/* Remove the "bit<" and ">". */
-	p[strlen(p) - 1] = 0;
-	p += 4;
+	if (s->varbit) {
+		error = -EINVAL;
+		error_varbit_not_last = 1;
+		goto error;
+	}
+
+	if (!strncmp(p, "bit<", strlen("bit<"))) {
+		size_t len = strlen(p);
+
+		if ((len < strlen("bit< >")) || (p[len - 1] != '>')) {
+			error = -EINVAL;
+			goto error;
+		}
+
+		/* Remove the "bit<" and ">". */
+		p[strlen(p) - 1] = 0;
+		p += strlen("bit<");
+	} else if (!strncmp(p, "varbit<", strlen("varbit<"))) {
+		size_t len = strlen(p);
+
+		if ((len < strlen("varbit< >")) || (p[len - 1] != '>')) {
+			error = -EINVAL;
+			goto error;
+		}
+
+		/* Remove the "varbit<" and ">". */
+		p[strlen(p) - 1] = 0;
+		p += strlen("varbit<");
+
+		/* Set the varbit flag. */
+		varbit = 1;
+	} else {
+		error = -EINVAL;
+		goto error;
+	}
 
 	n_bits = strtoul(p, &p, 0);
 	if ((p[0]) ||
 	    !n_bits ||
 	    (n_bits % 8) ||
-	    (n_bits > 64)) {
-		if (err_line)
-			*err_line = n_lines;
-		if (err_msg)
-			*err_msg = "Invalid struct field size.";
-		return -EINVAL;
+	    ((n_bits > 64) && !varbit)) {
+		error = -EINVAL;
+		error_size_invalid = 1;
+		goto error;
 	}
 
 	/* spec. */
 	name = strdup(tokens[1]);
 	if (!name) {
-		if (err_line)
-			*err_line = n_lines;
-		if (err_msg)
-			*err_msg = "Memory allocation failed.";
-		return -ENOMEM;
+		error = -ENOMEM;
+		goto error;
 	}
 
-	new_fields = realloc(s->fields,
-			     (s->n_fields + 1) * sizeof(struct rte_swx_field_params));
+	new_fields = realloc(s->fields, (s->n_fields + 1) * sizeof(struct rte_swx_field_params));
 	if (!new_fields) {
-		free(name);
-
-		if (err_line)
-			*err_line = n_lines;
-		if (err_msg)
-			*err_msg = "Memory allocation failed.";
-		return -ENOMEM;
+		error = -ENOMEM;
+		goto error;
 	}
 
 	s->fields = new_fields;
 	s->fields[s->n_fields].name = name;
 	s->fields[s->n_fields].n_bits = n_bits;
 	s->n_fields++;
+	s->varbit = varbit;
 
 	return 0;
+
+error:
+	free(name);
+
+	if (err_line)
+		*err_line = n_lines;
+
+	if (err_msg) {
+		*err_msg = "Invalid struct field statement.";
+
+		if ((error == -EINVAL) && error_varbit_not_last)
+			*err_msg = "Varbit field is not the last struct field.";
+
+		if ((error == -EINVAL) && error_size_invalid)
+			*err_msg = "Invalid struct field size.";
+
+		if (error == -ENOMEM)
+			*err_msg = "Memory allocation failed.";
+	}
+
+	return error;
 }
 
 /*
@@ -1244,6 +1285,393 @@ selector_block_parse(struct selector_spec *s,
 }
 
 /*
+ * learner.
+ *
+ * learner {
+ *	key {
+ *		MATCH_FIELD_NAME
+ *		...
+ *	}
+ *	actions {
+ *		ACTION_NAME
+ *		...
+ *	}
+ *	default_action ACTION_NAME args none | ARGS_BYTE_ARRAY [ const ]
+ *	size SIZE
+ *	timeout TIMEOUT_IN_SECONDS
+ * }
+ */
+struct learner_spec {
+	char *name;
+	struct rte_swx_pipeline_learner_params params;
+	uint32_t size;
+	uint32_t timeout;
+};
+
+static void
+learner_spec_free(struct learner_spec *s)
+{
+	uintptr_t default_action_name;
+	uint32_t i;
+
+	if (!s)
+		return;
+
+	free(s->name);
+	s->name = NULL;
+
+	for (i = 0; i < s->params.n_fields; i++) {
+		uintptr_t name = (uintptr_t)s->params.field_names[i];
+
+		free((void *)name);
+	}
+
+	free(s->params.field_names);
+	s->params.field_names = NULL;
+
+	s->params.n_fields = 0;
+
+	for (i = 0; i < s->params.n_actions; i++) {
+		uintptr_t name = (uintptr_t)s->params.action_names[i];
+
+		free((void *)name);
+	}
+
+	free(s->params.action_names);
+	s->params.action_names = NULL;
+
+	s->params.n_actions = 0;
+
+	default_action_name = (uintptr_t)s->params.default_action_name;
+	free((void *)default_action_name);
+	s->params.default_action_name = NULL;
+
+	free(s->params.default_action_data);
+	s->params.default_action_data = NULL;
+
+	s->params.default_action_is_const = 0;
+
+	s->size = 0;
+
+	s->timeout = 0;
+}
+
+static int
+learner_key_statement_parse(uint32_t *block_mask,
+			    char **tokens,
+			    uint32_t n_tokens,
+			    uint32_t n_lines,
+			    uint32_t *err_line,
+			    const char **err_msg)
+{
+	/* Check format. */
+	if ((n_tokens != 2) || strcmp(tokens[1], "{")) {
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Invalid key statement.";
+		return -EINVAL;
+	}
+
+	/* block_mask. */
+	*block_mask |= 1 << LEARNER_KEY_BLOCK;
+
+	return 0;
+}
+
+static int
+learner_key_block_parse(struct learner_spec *s,
+			uint32_t *block_mask,
+			char **tokens,
+			uint32_t n_tokens,
+			uint32_t n_lines,
+			uint32_t *err_line,
+			const char **err_msg)
+{
+	const char **new_field_names = NULL;
+	char *field_name = NULL;
+
+	/* Handle end of block. */
+	if ((n_tokens == 1) && !strcmp(tokens[0], "}")) {
+		*block_mask &= ~(1 << LEARNER_KEY_BLOCK);
+		return 0;
+	}
+
+	/* Check input arguments. */
+	if (n_tokens != 1) {
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Invalid match field statement.";
+		return -EINVAL;
+	}
+
+	field_name = strdup(tokens[0]);
+	new_field_names = realloc(s->params.field_names, (s->params.n_fields + 1) * sizeof(char *));
+	if (!field_name || !new_field_names) {
+		free(field_name);
+		free(new_field_names);
+
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Memory allocation failed.";
+		return -ENOMEM;
+	}
+
+	s->params.field_names = new_field_names;
+	s->params.field_names[s->params.n_fields] = field_name;
+	s->params.n_fields++;
+
+	return 0;
+}
+
+static int
+learner_actions_statement_parse(uint32_t *block_mask,
+				char **tokens,
+				uint32_t n_tokens,
+				uint32_t n_lines,
+				uint32_t *err_line,
+				const char **err_msg)
+{
+	/* Check format. */
+	if ((n_tokens != 2) || strcmp(tokens[1], "{")) {
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Invalid actions statement.";
+		return -EINVAL;
+	}
+
+	/* block_mask. */
+	*block_mask |= 1 << LEARNER_ACTIONS_BLOCK;
+
+	return 0;
+}
+
+static int
+learner_actions_block_parse(struct learner_spec *s,
+			    uint32_t *block_mask,
+			    char **tokens,
+			    uint32_t n_tokens,
+			    uint32_t n_lines,
+			    uint32_t *err_line,
+			    const char **err_msg)
+{
+	const char **new_action_names = NULL;
+	char *action_name = NULL;
+
+	/* Handle end of block. */
+	if ((n_tokens == 1) && !strcmp(tokens[0], "}")) {
+		*block_mask &= ~(1 << LEARNER_ACTIONS_BLOCK);
+		return 0;
+	}
+
+	/* Check input arguments. */
+	if (n_tokens != 1) {
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Invalid action name statement.";
+		return -EINVAL;
+	}
+
+	action_name = strdup(tokens[0]);
+
+	new_action_names = realloc(s->params.action_names,
+				   (s->params.n_actions + 1) * sizeof(char *));
+
+	if (!action_name || !new_action_names) {
+		free(action_name);
+		free(new_action_names);
+
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Memory allocation failed.";
+		return -ENOMEM;
+	}
+
+	s->params.action_names = new_action_names;
+	s->params.action_names[s->params.n_actions] = action_name;
+	s->params.n_actions++;
+
+	return 0;
+}
+
+static int
+learner_statement_parse(struct learner_spec *s,
+		      uint32_t *block_mask,
+		      char **tokens,
+		      uint32_t n_tokens,
+		      uint32_t n_lines,
+		      uint32_t *err_line,
+		      const char **err_msg)
+{
+	/* Check format. */
+	if ((n_tokens != 3) || strcmp(tokens[2], "{")) {
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Invalid learner statement.";
+		return -EINVAL;
+	}
+
+	/* spec. */
+	s->name = strdup(tokens[1]);
+	if (!s->name) {
+		if (err_line)
+			*err_line = n_lines;
+		if (err_msg)
+			*err_msg = "Memory allocation failed.";
+		return -ENOMEM;
+	}
+
+	/* block_mask. */
+	*block_mask |= 1 << LEARNER_BLOCK;
+
+	return 0;
+}
+
+static int
+learner_block_parse(struct learner_spec *s,
+		    uint32_t *block_mask,
+		    char **tokens,
+		    uint32_t n_tokens,
+		    uint32_t n_lines,
+		    uint32_t *err_line,
+		    const char **err_msg)
+{
+	if (*block_mask & (1 << LEARNER_KEY_BLOCK))
+		return learner_key_block_parse(s,
+					       block_mask,
+					       tokens,
+					       n_tokens,
+					       n_lines,
+					       err_line,
+					       err_msg);
+
+	if (*block_mask & (1 << LEARNER_ACTIONS_BLOCK))
+		return learner_actions_block_parse(s,
+						   block_mask,
+						   tokens,
+						   n_tokens,
+						   n_lines,
+						   err_line,
+						   err_msg);
+
+	/* Handle end of block. */
+	if ((n_tokens == 1) && !strcmp(tokens[0], "}")) {
+		*block_mask &= ~(1 << LEARNER_BLOCK);
+		return 0;
+	}
+
+	if (!strcmp(tokens[0], "key"))
+		return learner_key_statement_parse(block_mask,
+						   tokens,
+						   n_tokens,
+						   n_lines,
+						   err_line,
+						   err_msg);
+
+	if (!strcmp(tokens[0], "actions"))
+		return learner_actions_statement_parse(block_mask,
+						       tokens,
+						       n_tokens,
+						       n_lines,
+						       err_line,
+						       err_msg);
+
+	if (!strcmp(tokens[0], "default_action")) {
+		if (((n_tokens != 4) && (n_tokens != 5)) ||
+		    strcmp(tokens[2], "args") ||
+		    strcmp(tokens[3], "none") ||
+		    ((n_tokens == 5) && strcmp(tokens[4], "const"))) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Invalid default_action statement.";
+			return -EINVAL;
+		}
+
+		if (s->params.default_action_name) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Duplicate default_action stmt.";
+			return -EINVAL;
+		}
+
+		s->params.default_action_name = strdup(tokens[1]);
+		if (!s->params.default_action_name) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Memory allocation failed.";
+			return -ENOMEM;
+		}
+
+		if (n_tokens == 5)
+			s->params.default_action_is_const = 1;
+
+		return 0;
+	}
+
+	if (!strcmp(tokens[0], "size")) {
+		char *p = tokens[1];
+
+		if (n_tokens != 2) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Invalid size statement.";
+			return -EINVAL;
+		}
+
+		s->size = strtoul(p, &p, 0);
+		if (p[0]) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Invalid size argument.";
+			return -EINVAL;
+		}
+
+		return 0;
+	}
+
+	if (!strcmp(tokens[0], "timeout")) {
+		char *p = tokens[1];
+
+		if (n_tokens != 2) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Invalid timeout statement.";
+			return -EINVAL;
+		}
+
+		s->timeout = strtoul(p, &p, 0);
+		if (p[0]) {
+			if (err_line)
+				*err_line = n_lines;
+			if (err_msg)
+				*err_msg = "Invalid timeout argument.";
+			return -EINVAL;
+		}
+
+		return 0;
+	}
+
+	/* Anything else. */
+	if (err_line)
+		*err_line = n_lines;
+	if (err_msg)
+		*err_msg = "Invalid statement.";
+	return -EINVAL;
+}
+
+/*
  * regarray.
  *
  * regarray NAME size SIZE initval INITVAL
@@ -1507,6 +1935,7 @@ rte_swx_pipeline_build_from_spec(struct rte_swx_pipeline *p,
 	struct action_spec action_spec = {0};
 	struct table_spec table_spec = {0};
 	struct selector_spec selector_spec = {0};
+	struct learner_spec learner_spec = {0};
 	struct regarray_spec regarray_spec = {0};
 	struct metarray_spec metarray_spec = {0};
 	struct apply_spec apply_spec = {0};
@@ -1607,7 +2036,8 @@ rte_swx_pipeline_build_from_spec(struct rte_swx_pipeline *p,
 			status = rte_swx_pipeline_struct_type_register(p,
 				struct_spec.name,
 				struct_spec.fields,
-				struct_spec.n_fields);
+				struct_spec.n_fields,
+				struct_spec.varbit);
 			if (status) {
 				if (err_line)
 					*err_line = n_lines;
@@ -1718,6 +2148,40 @@ rte_swx_pipeline_build_from_spec(struct rte_swx_pipeline *p,
 			}
 
 			selector_spec_free(&selector_spec);
+
+			continue;
+		}
+
+		/* learner block. */
+		if (block_mask & (1 << LEARNER_BLOCK)) {
+			status = learner_block_parse(&learner_spec,
+						     &block_mask,
+						     tokens,
+						     n_tokens,
+						     n_lines,
+						     err_line,
+						     err_msg);
+			if (status)
+				goto error;
+
+			if (block_mask & (1 << LEARNER_BLOCK))
+				continue;
+
+			/* End of block. */
+			status = rte_swx_pipeline_learner_config(p,
+				learner_spec.name,
+				&learner_spec.params,
+				learner_spec.size,
+				learner_spec.timeout);
+			if (status) {
+				if (err_line)
+					*err_line = n_lines;
+				if (err_msg)
+					*err_msg = "Learner table configuration error.";
+				goto error;
+			}
+
+			learner_spec_free(&learner_spec);
 
 			continue;
 		}
@@ -1895,6 +2359,21 @@ rte_swx_pipeline_build_from_spec(struct rte_swx_pipeline *p,
 			continue;
 		}
 
+		/* learner. */
+		if (!strcmp(tokens[0], "learner")) {
+			status = learner_statement_parse(&learner_spec,
+							 &block_mask,
+							 tokens,
+							 n_tokens,
+							 n_lines,
+							 err_line,
+							 err_msg);
+			if (status)
+				goto error;
+
+			continue;
+		}
+
 		/* regarray. */
 		if (!strcmp(tokens[0], "regarray")) {
 			status = regarray_statement_parse(&regarray_spec,
@@ -2003,6 +2482,7 @@ error:
 	action_spec_free(&action_spec);
 	table_spec_free(&table_spec);
 	selector_spec_free(&selector_spec);
+	learner_spec_free(&learner_spec);
 	regarray_spec_free(&regarray_spec);
 	metarray_spec_free(&metarray_spec);
 	apply_spec_free(&apply_spec);

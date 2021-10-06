@@ -16,6 +16,7 @@
 #include <rte_interrupts.h>
 #include <rte_debug.h>
 #include <rte_pci.h>
+#include <rte_alarm.h>
 #include <rte_atomic.h>
 #include <rte_eal.h>
 #include <rte_ether.h>
@@ -86,8 +87,9 @@ static int iavf_dev_stats_reset(struct rte_eth_dev *dev);
 static int iavf_dev_xstats_get(struct rte_eth_dev *dev,
 				 struct rte_eth_xstat *xstats, unsigned int n);
 static int iavf_dev_xstats_get_names(struct rte_eth_dev *dev,
-				       struct rte_eth_xstat_name *xstats_names,
-				       unsigned int limit);
+				     const uint64_t *ids,
+				     struct rte_eth_xstat_name *xstats_names,
+				     unsigned int limit);
 static int iavf_dev_promiscuous_enable(struct rte_eth_dev *dev);
 static int iavf_dev_promiscuous_disable(struct rte_eth_dev *dev);
 static int iavf_dev_allmulticast_enable(struct rte_eth_dev *dev);
@@ -574,13 +576,14 @@ iavf_init_rxq(struct rte_eth_dev *dev, struct iavf_rx_queue *rxq)
 {
 	struct iavf_hw *hw = IAVF_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct rte_eth_dev_data *dev_data = dev->data;
-	uint16_t buf_size, max_pkt_len, len;
+	uint16_t buf_size, max_pkt_len;
 
 	buf_size = rte_pktmbuf_data_room_size(rxq->mp) - RTE_PKTMBUF_HEADROOM;
 
 	/* Calculate the maximum packet length allowed */
-	len = rxq->rx_buf_len * IAVF_MAX_CHAINED_RX_BUFFERS;
-	max_pkt_len = RTE_MIN(len, dev->data->dev_conf.rxmode.max_rx_pkt_len);
+	max_pkt_len = RTE_MIN((uint32_t)
+			rxq->rx_buf_len * IAVF_MAX_CHAINED_RX_BUFFERS,
+			dev->data->dev_conf.rxmode.max_rx_pkt_len);
 
 	/* Check if the jumbo frame and maximum packet length are set
 	 * correctly.
@@ -674,7 +677,7 @@ static int iavf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 	if (!qv_map) {
 		PMD_DRV_LOG(ERR, "Failed to allocate %d queue-vector map",
 				dev->data->nb_rx_queues);
-		return -1;
+		goto qv_map_alloc_err;
 	}
 
 	if (!dev->data->dev_conf.intr_conf.rxq ||
@@ -704,9 +707,9 @@ static int iavf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 			 */
 			vf->msix_base = IAVF_MISC_VEC_ID;
 
-			/* set ITR to max */
+			/* set ITR to default */
 			interval = iavf_calc_itr_interval(
-					IAVF_QUEUE_ITR_INTERVAL_MAX);
+					IAVF_QUEUE_ITR_INTERVAL_DEFAULT);
 			IAVF_WRITE_REG(hw, IAVF_VFINT_DYN_CTL01,
 				       IAVF_VFINT_DYN_CTL01_INTENA_MASK |
 				       (IAVF_ITR_INDEX_DEFAULT <<
@@ -759,7 +762,7 @@ static int iavf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 	if (!vf->lv_enabled) {
 		if (iavf_config_irq_map(adapter)) {
 			PMD_DRV_LOG(ERR, "config interrupt mapping failed");
-			return -1;
+			goto config_irq_map_err;
 		}
 	} else {
 		uint16_t num_qv_maps = dev->data->nb_rx_queues;
@@ -769,7 +772,7 @@ static int iavf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 			if (iavf_config_irq_map_lv(adapter,
 					IAVF_IRQ_MAP_NUM_PER_BUF, index)) {
 				PMD_DRV_LOG(ERR, "config interrupt mapping for large VF failed");
-				return -1;
+				goto config_irq_map_err;
 			}
 			num_qv_maps -= IAVF_IRQ_MAP_NUM_PER_BUF;
 			index += IAVF_IRQ_MAP_NUM_PER_BUF;
@@ -777,10 +780,20 @@ static int iavf_config_rx_queues_irqs(struct rte_eth_dev *dev,
 
 		if (iavf_config_irq_map_lv(adapter, num_qv_maps, index)) {
 			PMD_DRV_LOG(ERR, "config interrupt mapping for large VF failed");
-			return -1;
+			goto config_irq_map_err;
 		}
 	}
 	return 0;
+
+config_irq_map_err:
+	rte_free(vf->qv_map);
+	vf->qv_map = NULL;
+
+qv_map_alloc_err:
+	rte_free(intr_handle->intr_vec);
+	intr_handle->intr_vec = NULL;
+
+	return -1;
 }
 
 static int
@@ -867,7 +880,8 @@ iavf_dev_start(struct rte_eth_dev *dev)
 	}
 	/* re-enable intr again, because efd assign may change */
 	if (dev->data->dev_conf.intr_conf.rxq != 0) {
-		rte_intr_disable(intr_handle);
+		if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_WB_ON_ITR)
+			rte_intr_disable(intr_handle);
 		rte_intr_enable(intr_handle);
 	}
 
@@ -900,6 +914,10 @@ iavf_dev_stop(struct rte_eth_dev *dev)
 	struct rte_intr_handle *intr_handle = dev->intr_handle;
 
 	PMD_INIT_FUNC_TRACE();
+
+	if (!(vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_WB_ON_ITR) &&
+	    dev->data->dev_conf.intr_conf.rxq != 0)
+		rte_intr_disable(intr_handle);
 
 	if (adapter->stopped == 1)
 		return 0;
@@ -1485,24 +1503,14 @@ iavf_dev_set_default_mac_addr(struct rte_eth_dev *dev,
 	ret = iavf_add_del_eth_addr(adapter, old_addr, false, VIRTCHNL_ETHER_ADDR_PRIMARY);
 	if (ret)
 		PMD_DRV_LOG(ERR, "Fail to delete old MAC:"
-			    " %02X:%02X:%02X:%02X:%02X:%02X",
-			    old_addr->addr_bytes[0],
-			    old_addr->addr_bytes[1],
-			    old_addr->addr_bytes[2],
-			    old_addr->addr_bytes[3],
-			    old_addr->addr_bytes[4],
-			    old_addr->addr_bytes[5]);
+			    RTE_ETHER_ADDR_PRT_FMT,
+				RTE_ETHER_ADDR_BYTES(old_addr));
 
 	ret = iavf_add_del_eth_addr(adapter, mac_addr, true, VIRTCHNL_ETHER_ADDR_PRIMARY);
 	if (ret)
 		PMD_DRV_LOG(ERR, "Fail to add new MAC:"
-			    " %02X:%02X:%02X:%02X:%02X:%02X",
-			    mac_addr->addr_bytes[0],
-			    mac_addr->addr_bytes[1],
-			    mac_addr->addr_bytes[2],
-			    mac_addr->addr_bytes[3],
-			    mac_addr->addr_bytes[4],
-			    mac_addr->addr_bytes[5]);
+			    RTE_ETHER_ADDR_PRT_FMT,
+				RTE_ETHER_ADDR_BYTES(mac_addr));
 
 	if (ret)
 		return -EIO;
@@ -1604,10 +1612,14 @@ iavf_dev_stats_reset(struct rte_eth_dev *dev)
 }
 
 static int iavf_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-				      struct rte_eth_xstat_name *xstats_names,
-				      __rte_unused unsigned int limit)
+				     const uint64_t *ids,
+				     struct rte_eth_xstat_name *xstats_names,
+				     __rte_unused unsigned int limit)
 {
 	unsigned int i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL)
 		for (i = 0; i < IAVF_NB_XSTATS; i++) {
@@ -1659,6 +1671,7 @@ iavf_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 		IAVF_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(dev);
 	struct iavf_hw *hw = IAVF_DEV_PRIVATE_TO_HW(adapter);
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
 	uint16_t msix_intr;
 
 	msix_intr = pci_dev->intr_handle.intr_vec[queue_id];
@@ -1679,7 +1692,8 @@ iavf_dev_rx_queue_intr_enable(struct rte_eth_dev *dev, uint16_t queue_id)
 
 	IAVF_WRITE_FLUSH(hw);
 
-	rte_intr_ack(&pci_dev->intr_handle);
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_WB_ON_ITR)
+		rte_intr_ack(&pci_dev->intr_handle);
 
 	return 0;
 }
@@ -2185,6 +2199,30 @@ err:
 	return -1;
 }
 
+static void
+iavf_uninit_vf(struct rte_eth_dev *dev)
+{
+	struct iavf_hw *hw = IAVF_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
+
+	iavf_shutdown_adminq(hw);
+
+	rte_free(vf->vf_res);
+	vf->vsi_res = NULL;
+	vf->vf_res = NULL;
+
+	rte_free(vf->aq_resp);
+	vf->aq_resp = NULL;
+
+	rte_free(vf->qos_cap);
+	vf->qos_cap = NULL;
+
+	rte_free(vf->rss_lut);
+	vf->rss_lut = NULL;
+	rte_free(vf->rss_key);
+	vf->rss_key = NULL;
+}
+
 /* Enable default admin queue interrupt setting */
 static inline void
 iavf_enable_irq0(struct iavf_hw *hw)
@@ -2224,6 +2262,29 @@ iavf_dev_interrupt_handler(void *param)
 	iavf_enable_irq0(hw);
 }
 
+void
+iavf_dev_alarm_handler(void *param)
+{
+	struct rte_eth_dev *dev = (struct rte_eth_dev *)param;
+	struct iavf_hw *hw = IAVF_DEV_PRIVATE_TO_HW(dev->data->dev_private);
+	uint32_t icr0;
+
+	iavf_disable_irq0(hw);
+
+	/* read out interrupt causes */
+	icr0 = IAVF_READ_REG(hw, IAVF_VFINT_ICR01);
+
+	if (icr0 & IAVF_VFINT_ICR01_ADMINQ_MASK) {
+		PMD_DRV_LOG(DEBUG, "ICR01_ADMINQ is reported");
+		iavf_handle_virtchnl_msg(dev);
+	}
+
+	iavf_enable_irq0(hw);
+
+	rte_eal_alarm_set(IAVF_ALARM_INTERVAL,
+			  iavf_dev_alarm_handler, dev);
+}
+
 static int
 iavf_dev_flow_ops_get(struct rte_eth_dev *dev,
 		      const struct rte_flow_ops **ops)
@@ -2260,6 +2321,7 @@ iavf_dev_init(struct rte_eth_dev *eth_dev)
 	struct iavf_adapter *adapter =
 		IAVF_DEV_PRIVATE_TO_ADAPTER(eth_dev->data->dev_private);
 	struct iavf_hw *hw = IAVF_DEV_PRIVATE_TO_HW(adapter);
+	struct iavf_info *vf = IAVF_DEV_PRIVATE_TO_VF(adapter);
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(eth_dev);
 	int ret = 0;
 
@@ -2313,7 +2375,8 @@ iavf_dev_init(struct rte_eth_dev *eth_dev)
 		PMD_INIT_LOG(ERR, "Failed to allocate %d bytes needed to"
 			     " store MAC addresses",
 			     RTE_ETHER_ADDR_LEN * IAVF_NUM_MACADDR_MAX);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto init_vf_err;
 	}
 	/* If the MAC address is not configured by host,
 	 * generate a random one.
@@ -2324,13 +2387,18 @@ iavf_dev_init(struct rte_eth_dev *eth_dev)
 	rte_ether_addr_copy((struct rte_ether_addr *)hw->mac.addr,
 			&eth_dev->data->mac_addrs[0]);
 
-	/* register callback func to eal lib */
-	rte_intr_callback_register(&pci_dev->intr_handle,
-				   iavf_dev_interrupt_handler,
-				   (void *)eth_dev);
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_WB_ON_ITR) {
+		/* register callback func to eal lib */
+		rte_intr_callback_register(&pci_dev->intr_handle,
+					   iavf_dev_interrupt_handler,
+					   (void *)eth_dev);
 
-	/* enable uio intr after callback register */
-	rte_intr_enable(&pci_dev->intr_handle);
+		/* enable uio intr after callback register */
+		rte_intr_enable(&pci_dev->intr_handle);
+	} else {
+		rte_eal_alarm_set(IAVF_ALARM_INTERVAL,
+				  iavf_dev_alarm_handler, eth_dev);
+	}
 
 	/* configure and enable device interrupt */
 	iavf_enable_irq0(hw);
@@ -2338,12 +2406,21 @@ iavf_dev_init(struct rte_eth_dev *eth_dev)
 	ret = iavf_flow_init(adapter);
 	if (ret) {
 		PMD_INIT_LOG(ERR, "Failed to initialize flow");
-		return ret;
+		goto flow_init_err;
 	}
 
 	iavf_default_rss_disable(adapter);
 
 	return 0;
+
+flow_init_err:
+	rte_free(eth_dev->data->mac_addrs);
+	eth_dev->data->mac_addrs = NULL;
+
+init_vf_err:
+	iavf_uninit_vf(eth_dev);
+
+	return ret;
 }
 
 static int
@@ -2374,12 +2451,16 @@ iavf_dev_close(struct rte_eth_dev *dev)
 		iavf_config_promisc(adapter, false, false);
 
 	iavf_shutdown_adminq(hw);
-	/* disable uio intr before callback unregister */
-	rte_intr_disable(intr_handle);
+	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_WB_ON_ITR) {
+		/* disable uio intr before callback unregister */
+		rte_intr_disable(intr_handle);
 
-	/* unregister callback func from eal lib */
-	rte_intr_callback_unregister(intr_handle,
-				     iavf_dev_interrupt_handler, dev);
+		/* unregister callback func from eal lib */
+		rte_intr_callback_unregister(intr_handle,
+					     iavf_dev_interrupt_handler, dev);
+	} else {
+		rte_eal_alarm_cancel(iavf_dev_alarm_handler, dev);
+	}
 	iavf_disable_irq0(hw);
 
 	if (vf->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_QOS)
@@ -2481,58 +2562,10 @@ exit:
 	return ret;
 }
 
-static int
-iavf_drv_i40evf_check_handler(__rte_unused const char *key,
-			      const char *value, __rte_unused void *opaque)
-{
-	if (strcmp(value, "i40evf"))
-		return -1;
-
-	return 0;
-}
-
-static int
-iavf_drv_i40evf_selected(struct rte_devargs *devargs, uint16_t device_id)
-{
-	struct rte_kvargs *kvlist;
-	int ret = 0;
-
-	if (device_id != IAVF_DEV_ID_VF &&
-	    device_id != IAVF_DEV_ID_VF_HV &&
-	    device_id != IAVF_DEV_ID_X722_VF &&
-	    device_id != IAVF_DEV_ID_X722_A0_VF)
-		return 0;
-
-	if (devargs == NULL)
-		return 0;
-
-	kvlist = rte_kvargs_parse(devargs->args, NULL);
-	if (kvlist == NULL)
-		return 0;
-
-	if (!rte_kvargs_count(kvlist, RTE_DEVARGS_KEY_DRIVER))
-		goto exit;
-
-	/* i40evf driver selected when there's a key-value pair:
-	 * driver=i40evf
-	 */
-	if (rte_kvargs_process(kvlist, RTE_DEVARGS_KEY_DRIVER,
-			       iavf_drv_i40evf_check_handler, NULL) < 0)
-		goto exit;
-
-	ret = 1;
-
-exit:
-	rte_kvargs_free(kvlist);
-	return ret;
-}
-
 static int eth_iavf_pci_probe(struct rte_pci_driver *pci_drv __rte_unused,
 			     struct rte_pci_device *pci_dev)
 {
-	if (iavf_dcf_cap_selected(pci_dev->device.devargs) ||
-	    iavf_drv_i40evf_selected(pci_dev->device.devargs,
-				     pci_dev->id.device_id))
+	if (iavf_dcf_cap_selected(pci_dev->device.devargs))
 		return 1;
 
 	return rte_eth_dev_pci_generic_probe(pci_dev,
@@ -2555,7 +2588,7 @@ static struct rte_pci_driver rte_iavf_pmd = {
 RTE_PMD_REGISTER_PCI(net_iavf, rte_iavf_pmd);
 RTE_PMD_REGISTER_PCI_TABLE(net_iavf, pci_id_iavf_map);
 RTE_PMD_REGISTER_KMOD_DEP(net_iavf, "* igb_uio | vfio-pci");
-RTE_PMD_REGISTER_PARAM_STRING(net_iavf, "cap=dcf driver=i40evf");
+RTE_PMD_REGISTER_PARAM_STRING(net_iavf, "cap=dcf");
 RTE_LOG_REGISTER_SUFFIX(iavf_logtype_init, init, NOTICE);
 RTE_LOG_REGISTER_SUFFIX(iavf_logtype_driver, driver, NOTICE);
 #ifdef RTE_ETHDEV_DEBUG_RX

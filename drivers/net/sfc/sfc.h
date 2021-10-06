@@ -27,64 +27,18 @@
 #include "sfc_debug.h"
 #include "sfc_log.h"
 #include "sfc_filter.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_sriov.h"
 #include "sfc_mae.h"
 #include "sfc_dp.h"
+#include "sfc_sw_stats.h"
+#include "sfc_repr_proxy.h"
+#include "sfc_service.h"
+#include "sfc_ethdev_state.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*
- * +---------------+
- * | UNINITIALIZED |<-----------+
- * +---------------+		|
- *	|.eth_dev_init		|.eth_dev_uninit
- *	V			|
- * +---------------+------------+
- * |  INITIALIZED  |
- * +---------------+<-----------<---------------+
- *	|.dev_configure		|		|
- *	V			|failed		|
- * +---------------+------------+		|
- * |  CONFIGURING  |				|
- * +---------------+----+			|
- *	|success	|			|
- *	|		|		+---------------+
- *	|		|		|    CLOSING    |
- *	|		|		+---------------+
- *	|		|			^
- *	V		|.dev_configure		|
- * +---------------+----+			|.dev_close
- * |  CONFIGURED   |----------------------------+
- * +---------------+<-----------+
- *	|.dev_start		|
- *	V			|
- * +---------------+		|
- * |   STARTING    |------------^
- * +---------------+ failed	|
- *	|success		|
- *	|		+---------------+
- *	|		|   STOPPING    |
- *	|		+---------------+
- *	|			^
- *	V			|.dev_stop
- * +---------------+------------+
- * |    STARTED    |
- * +---------------+
- */
-enum sfc_adapter_state {
-	SFC_ADAPTER_UNINITIALIZED = 0,
-	SFC_ADAPTER_INITIALIZED,
-	SFC_ADAPTER_CONFIGURING,
-	SFC_ADAPTER_CONFIGURED,
-	SFC_ADAPTER_CLOSING,
-	SFC_ADAPTER_STARTING,
-	SFC_ADAPTER_STARTED,
-	SFC_ADAPTER_STOPPING,
-
-	SFC_ADAPTER_NSTATES
-};
 
 enum sfc_dev_filter_mode {
 	SFC_DEV_FILTER_MODE_PROMISC = 0,
@@ -189,6 +143,8 @@ struct sfc_adapter_shared {
 	char				*dp_tx_name;
 
 	bool				counters_rxq_allocated;
+	unsigned int			nb_repr_rxq;
+	unsigned int			nb_repr_txq;
 };
 
 /* Adapter process private data */
@@ -217,8 +173,29 @@ struct sfc_counter_rxq {
 	struct rte_mempool		*mp;
 };
 
-struct sfc_sw_xstats {
+struct sfc_sw_stat_data {
+	const struct sfc_sw_stat_descr *descr;
+	/* Cache fragment */
+	uint64_t			*cache;
+};
+
+struct sfc_sw_stats {
+	/* Number extended statistics provided by SW stats */
+	unsigned int			xstats_count;
+	/* Supported SW statistics */
+	struct sfc_sw_stat_data		*supp;
+	unsigned int			supp_count;
+
+	/* Cache for all supported SW statistics */
+	uint64_t			*cache;
+	unsigned int			cache_count;
+
 	uint64_t			*reset_vals;
+	/* Location of per-queue reset values for packets/bytes in reset_vals */
+	uint64_t			*reset_rx_pkts;
+	uint64_t			*reset_rx_bytes;
+	uint64_t			*reset_tx_pkts;
+	uint64_t			*reset_tx_bytes;
 
 	rte_spinlock_t			queues_bitmap_lock;
 	void				*queues_bitmap_mem;
@@ -241,7 +218,7 @@ struct sfc_adapter {
 	 * change its state should acquire the lock.
 	 */
 	rte_spinlock_t			lock;
-	enum sfc_adapter_state		state;
+	enum sfc_ethdev_state		state;
 	struct rte_eth_dev		*eth_dev;
 	struct rte_kvargs		*kvargs;
 	int				socket_id;
@@ -257,9 +234,12 @@ struct sfc_adapter {
 	struct sfc_sriov		sriov;
 	struct sfc_intr			intr;
 	struct sfc_port			port;
-	struct sfc_sw_xstats		sw_xstats;
+	struct sfc_sw_stats		sw_stats;
+	/* Registry of tunnel offload contexts */
+	struct sfc_flow_tunnel		flow_tunnels[SFC_FT_MAX_NTUNNELS];
 	struct sfc_filter		filter;
 	struct sfc_mae			mae;
+	struct sfc_repr_proxy		repr_proxy;
 
 	struct sfc_flow_list		flow_list;
 
@@ -312,7 +292,11 @@ struct sfc_adapter {
 	boolean_t			tso;
 	boolean_t			tso_encap;
 
+	uint64_t			negotiated_rx_metadata;
+
 	uint32_t			rxd_wait_timeout_ns;
+
+	bool				switchdev;
 };
 
 static inline struct sfc_adapter_shared *
@@ -386,6 +370,21 @@ sfc_nb_counter_rxq(const struct sfc_adapter_shared *sas)
 	return sas->counters_rxq_allocated ? 1 : 0;
 }
 
+bool sfc_repr_supported(const struct sfc_adapter *sa);
+bool sfc_repr_available(const struct sfc_adapter_shared *sas);
+
+static inline unsigned int
+sfc_repr_nb_rxq(const struct sfc_adapter_shared *sas)
+{
+	return sas->nb_repr_rxq;
+}
+
+static inline unsigned int
+sfc_repr_nb_txq(const struct sfc_adapter_shared *sas)
+{
+	return sas->nb_repr_txq;
+}
+
 /** Get the number of milliseconds since boot from the default timer */
 static inline uint64_t
 sfc_get_system_msecs(void)
@@ -394,7 +393,8 @@ sfc_get_system_msecs(void)
 }
 
 int sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
-		  size_t len, int socket_id, efsys_mem_t *esmp);
+		  efx_nic_dma_addr_type_t addr_type, size_t len, int socket_id,
+		  efsys_mem_t *esmp);
 void sfc_dma_free(const struct sfc_adapter *sa, efsys_mem_t *esmp);
 
 uint32_t sfc_register_logtype(const struct rte_pci_addr *pci_addr,
@@ -404,6 +404,7 @@ uint32_t sfc_register_logtype(const struct rte_pci_addr *pci_addr,
 int sfc_probe(struct sfc_adapter *sa);
 void sfc_unprobe(struct sfc_adapter *sa);
 int sfc_attach(struct sfc_adapter *sa);
+void sfc_pre_detach(struct sfc_adapter *sa);
 void sfc_detach(struct sfc_adapter *sa);
 int sfc_start(struct sfc_adapter *sa);
 void sfc_stop(struct sfc_adapter *sa);

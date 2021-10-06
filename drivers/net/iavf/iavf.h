@@ -5,6 +5,8 @@
 #ifndef _IAVF_ETHDEV_H_
 #define _IAVF_ETHDEV_H_
 
+#include <sys/queue.h>
+
 #include <rte_kvargs.h>
 #include <rte_tm_driver.h>
 
@@ -68,6 +70,8 @@
 #define IAVF_ITR_INDEX_DEFAULT          0
 #define IAVF_QUEUE_ITR_INTERVAL_DEFAULT 32 /* 32 us */
 #define IAVF_QUEUE_ITR_INTERVAL_MAX     8160 /* 8160 us */
+
+#define IAVF_ALARM_INTERVAL 50000 /* us */
 
 /* The overhead from MTU to max frame size.
  * Considering QinQ packet, the VLAN tag needs to be counted twice.
@@ -335,7 +339,8 @@ _clear_cmd(struct iavf_info *vf)
 static inline int
 _atomic_set_cmd(struct iavf_info *vf, enum virtchnl_ops ops)
 {
-	int ret = rte_atomic32_cmpset(&vf->pend_cmd, VIRTCHNL_OP_UNKNOWN, ops);
+	int ret = rte_atomic32_cmpset((volatile uint32_t *)&vf->pend_cmd,
+		VIRTCHNL_OP_UNKNOWN, ops);
 
 	if (!ret)
 		PMD_DRV_LOG(ERR, "There is incomplete cmd %d", vf->pend_cmd);
@@ -372,6 +377,7 @@ int iavf_config_irq_map_lv(struct iavf_adapter *adapter, uint16_t num,
 void iavf_add_del_all_mac_addr(struct iavf_adapter *adapter, bool add);
 int iavf_dev_link_update(struct rte_eth_dev *dev,
 			__rte_unused int wait_to_complete);
+void iavf_dev_alarm_handler(void *param);
 int iavf_query_stats(struct iavf_adapter *adapter,
 		    struct virtchnl_eth_stats **pstats);
 int iavf_config_promisc(struct iavf_adapter *adapter, bool enable_unicast,

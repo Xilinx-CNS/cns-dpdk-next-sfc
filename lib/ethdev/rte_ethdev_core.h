@@ -21,7 +21,7 @@
 
 struct rte_eth_dev_callback;
 /** @internal Structure to keep track of registered callbacks */
-TAILQ_HEAD(rte_eth_dev_cb_list, rte_eth_dev_callback);
+RTE_TAILQ_HEAD(rte_eth_dev_cb_list, rte_eth_dev_callback);
 
 struct rte_eth_dev;
 
@@ -183,6 +183,12 @@ struct rte_eth_dev_data {
 	struct rte_eth_dev_owner owner; /**< The port owner. */
 	uint16_t representor_id;
 			/**< Switch-specific identifier.
+			 *   Valid if RTE_ETH_DEV_REPRESENTOR in dev_flags.
+			 */
+	uint16_t backer_port_id;
+			/**< Port ID of the backing device.
+			 *   This device will be used to query representor
+			 *   info and calculate representor IDs.
 			 *   Valid if RTE_ETH_DEV_REPRESENTOR in dev_flags.
 			 */
 

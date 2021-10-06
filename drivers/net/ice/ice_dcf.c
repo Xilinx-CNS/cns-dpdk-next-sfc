@@ -337,6 +337,9 @@ ice_dcf_mode_disable(struct ice_dcf_hw *hw)
 {
 	int err;
 
+	if (hw->resetting)
+		return 0;
+
 	err = ice_dcf_send_cmd_req_no_irq(hw, VIRTCHNL_OP_DCF_DISABLE,
 					  NULL, 0);
 	if (err) {
@@ -531,15 +534,26 @@ int
 ice_dcf_handle_vsi_update_event(struct ice_dcf_hw *hw)
 {
 	struct rte_pci_device *pci_dev = RTE_ETH_DEV_TO_PCI(hw->eth_dev);
-	int err = 0;
+	int i = 0;
+	int err = -1;
 
 	rte_spinlock_lock(&hw->vc_cmd_send_lock);
 
 	rte_intr_disable(&pci_dev->intr_handle);
 	ice_dcf_disable_irq0(hw);
 
-	if (ice_dcf_get_vf_resource(hw) || ice_dcf_get_vf_vsi_map(hw) < 0)
-		err = -1;
+	for (;;) {
+		if (ice_dcf_get_vf_resource(hw) == 0 &&
+		    ice_dcf_get_vf_vsi_map(hw) >= 0) {
+			err = 0;
+			break;
+		}
+
+		if (++i >= ICE_DCF_ARQ_MAX_RETRIES)
+			break;
+
+		rte_delay_ms(ICE_DCF_ARQ_CHECK_TIME);
+	}
 
 	rte_intr_enable(&pci_dev->intr_handle);
 	ice_dcf_enable_irq0(hw);
@@ -721,11 +735,25 @@ ice_dcf_uninit_hw(struct rte_eth_dev *eth_dev, struct ice_dcf_hw *hw)
 	iavf_shutdown_adminq(&hw->avf);
 
 	rte_free(hw->arq_buf);
+	hw->arq_buf = NULL;
+
 	rte_free(hw->vf_vsi_map);
+	hw->vf_vsi_map = NULL;
+
 	rte_free(hw->vf_res);
+	hw->vf_res = NULL;
+
 	rte_free(hw->rss_lut);
+	hw->rss_lut = NULL;
+
 	rte_free(hw->rss_key);
+	hw->rss_key = NULL;
+
 	rte_free(hw->qos_bw_cfg);
+	hw->qos_bw_cfg = NULL;
+
+	rte_free(hw->ets_config);
+	hw->ets_config = NULL;
 }
 
 static int
@@ -847,7 +875,7 @@ ice_dcf_init_rss(struct ice_dcf_hw *hw)
 
 #define IAVF_RXDID_LEGACY_0 0
 #define IAVF_RXDID_LEGACY_1 1
-#define IAVF_RXDID_COMMS_GENERIC 16
+#define IAVF_RXDID_COMMS_OVS_1 22
 
 int
 ice_dcf_configure_queues(struct ice_dcf_hw *hw)
@@ -882,11 +910,11 @@ ice_dcf_configure_queues(struct ice_dcf_hw *hw)
 		}
 		vc_qp->rxq.vsi_id = hw->vsi_res->vsi_id;
 		vc_qp->rxq.queue_id = i;
-		vc_qp->rxq.max_pkt_size = rxq[i]->max_pkt_len;
 
 		if (i >= hw->eth_dev->data->nb_rx_queues)
 			continue;
 
+		vc_qp->rxq.max_pkt_size = rxq[i]->max_pkt_len;
 		vc_qp->rxq.ring_len = rxq[i]->nb_rx_desc;
 		vc_qp->rxq.dma_ring_addr = rxq[i]->rx_ring_dma;
 		vc_qp->rxq.databuffer_size = rxq[i]->rx_buf_len;
@@ -895,8 +923,8 @@ ice_dcf_configure_queues(struct ice_dcf_hw *hw)
 		if (hw->vf_res->vf_cap_flags &
 		    VIRTCHNL_VF_OFFLOAD_RX_FLEX_DESC &&
 		    hw->supported_rxdid &
-		    BIT(IAVF_RXDID_COMMS_GENERIC)) {
-			vc_qp->rxq.rxdid = IAVF_RXDID_COMMS_GENERIC;
+		    BIT(IAVF_RXDID_COMMS_OVS_1)) {
+			vc_qp->rxq.rxdid = IAVF_RXDID_COMMS_OVS_1;
 			PMD_DRV_LOG(NOTICE, "request RXDID == %d in "
 				    "Queue[%d]", vc_qp->rxq.rxdid, i);
 		} else {
@@ -1009,6 +1037,9 @@ ice_dcf_disable_queues(struct ice_dcf_hw *hw)
 	struct dcf_virtchnl_cmd args;
 	int err;
 
+	if (hw->resetting)
+		return 0;
+
 	memset(&queue_select, 0, sizeof(queue_select));
 	queue_select.vsi_id = hw->vsi_res->vsi_id;
 
@@ -1063,6 +1094,14 @@ ice_dcf_add_del_all_mac_addr(struct ice_dcf_hw *hw, bool add)
 	struct dcf_virtchnl_cmd args;
 	int len, err = 0;
 
+	if (hw->resetting) {
+		if (!add)
+			return 0;
+
+		PMD_DRV_LOG(ERR, "fail to add all MACs for VF resetting");
+		return -EIO;
+	}
+
 	len = sizeof(struct virtchnl_ether_addr_list);
 	addr = hw->eth_dev->data->mac_addrs;
 	len += sizeof(struct virtchnl_ether_addr);
@@ -1075,10 +1114,8 @@ ice_dcf_add_del_all_mac_addr(struct ice_dcf_hw *hw, bool add)
 
 	rte_memcpy(list->list[0].addr, addr->addr_bytes,
 			sizeof(addr->addr_bytes));
-	PMD_DRV_LOG(DEBUG, "add/rm mac:%x:%x:%x:%x:%x:%x",
-			    addr->addr_bytes[0], addr->addr_bytes[1],
-			    addr->addr_bytes[2], addr->addr_bytes[3],
-			    addr->addr_bytes[4], addr->addr_bytes[5]);
+	PMD_DRV_LOG(DEBUG, "add/rm mac:" RTE_ETHER_ADDR_PRT_FMT,
+			    RTE_ETHER_ADDR_BYTES(addr));
 
 	list->vsi_id = hw->vsi_res->vsi_id;
 	list->num_elements = 1;

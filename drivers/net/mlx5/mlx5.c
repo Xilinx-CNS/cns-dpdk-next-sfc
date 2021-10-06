@@ -43,6 +43,9 @@
 
 #define MLX5_ETH_DRIVER_NAME mlx5_eth
 
+/* Driver type key for new device global syntax. */
+#define MLX5_DRIVER_KEY "driver"
+
 /* Device parameter to enable RX completion queue compression. */
 #define MLX5_RXQ_CQE_COMP_EN "rxq_cqe_comp_en"
 
@@ -1254,6 +1257,8 @@ error:
 	MLX5_ASSERT(sh);
 	if (sh->cnt_id_tbl)
 		mlx5_l3t_destroy(sh->cnt_id_tbl);
+	if (sh->share_cache.cache.table)
+		mlx5_mr_btree_free(&sh->share_cache.cache);
 	if (sh->tis)
 		claim_zero(mlx5_devx_cmd_destroy(sh->tis));
 	if (sh->td)
@@ -1367,6 +1372,7 @@ mlx5_free_table_hash_list(struct mlx5_priv *priv)
 	if (!sh->flow_tbls)
 		return;
 	mlx5_hlist_destroy(sh->flow_tbls);
+	sh->flow_tbls = NULL;
 }
 
 /**
@@ -1860,7 +1866,7 @@ mlx5_args_check(const char *key, const char *val, void *opaque)
 	signed long tmp;
 
 	/* No-op, port representors are processed in mlx5_dev_spawn(). */
-	if (!strcmp(MLX5_REPRESENTOR, key))
+	if (!strcmp(MLX5_DRIVER_KEY, key) || !strcmp(MLX5_REPRESENTOR, key))
 		return 0;
 	errno = 0;
 	tmp = strtol(val, NULL, 0);
@@ -2014,6 +2020,7 @@ int
 mlx5_args(struct mlx5_dev_config *config, struct rte_devargs *devargs)
 {
 	const char **params = (const char *[]){
+		MLX5_DRIVER_KEY,
 		MLX5_RXQ_CQE_COMP_EN,
 		MLX5_RXQ_PKT_PAD_EN,
 		MLX5_RX_MPRQ_EN,
@@ -2384,7 +2391,7 @@ mlx5_eth_find_next(uint16_t port_id, struct rte_device *odev)
  * @return
  *   0 on success, the function cannot fail.
  */
-static int
+int
 mlx5_net_remove(struct rte_device *dev)
 {
 	uint16_t port_id;

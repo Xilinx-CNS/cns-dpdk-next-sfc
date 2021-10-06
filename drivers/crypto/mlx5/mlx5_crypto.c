@@ -252,11 +252,21 @@ mlx5_crypto_sym_session_clear(struct rte_cryptodev *dev,
 	DRV_LOG(DEBUG, "Session %p was cleared.", spriv);
 }
 
-static int
-mlx5_crypto_queue_pair_release(struct rte_cryptodev *dev, uint16_t qp_id)
+static void
+mlx5_crypto_indirect_mkeys_release(struct mlx5_crypto_qp *qp, uint16_t n)
 {
-	struct mlx5_crypto_qp *qp = dev->data->queue_pairs[qp_id];
+	uint16_t i;
 
+	for (i = 0; i < n; i++)
+		if (qp->mkey[i])
+			claim_zero(mlx5_devx_cmd_destroy(qp->mkey[i]));
+}
+
+static void
+mlx5_crypto_qp_release(struct mlx5_crypto_qp *qp)
+{
+	if (qp == NULL)
+		return;
 	if (qp->qp_obj != NULL)
 		claim_zero(mlx5_devx_cmd_destroy(qp->qp_obj));
 	if (qp->umem_obj != NULL)
@@ -266,6 +276,15 @@ mlx5_crypto_queue_pair_release(struct rte_cryptodev *dev, uint16_t qp_id)
 	mlx5_mr_btree_free(&qp->mr_ctrl.cache_bh);
 	mlx5_devx_cq_destroy(&qp->cq_obj);
 	rte_free(qp);
+}
+
+static int
+mlx5_crypto_queue_pair_release(struct rte_cryptodev *dev, uint16_t qp_id)
+{
+	struct mlx5_crypto_qp *qp = dev->data->queue_pairs[qp_id];
+
+	mlx5_crypto_indirect_mkeys_release(qp, qp->entries_n);
+	mlx5_crypto_qp_release(qp);
 	dev->data->queue_pairs[qp_id] = NULL;
 	return 0;
 }
@@ -494,6 +513,7 @@ mlx5_crypto_enqueue_burst(void *queue_pair, struct rte_crypto_op **ops,
 	struct rte_crypto_op *op;
 	uint16_t mask = qp->entries_n - 1;
 	uint16_t remain = qp->entries_n - (qp->pi - qp->ci);
+	uint32_t idx;
 
 	if (remain < nb_ops)
 		nb_ops = remain;
@@ -502,8 +522,9 @@ mlx5_crypto_enqueue_burst(void *queue_pair, struct rte_crypto_op **ops,
 	if (unlikely(remain == 0))
 		return 0;
 	do {
+		idx = qp->pi & mask;
 		op = *ops++;
-		umr = RTE_PTR_ADD(qp->umem_buf, priv->wqe_set_size * qp->pi);
+		umr = RTE_PTR_ADD(qp->umem_buf, priv->wqe_set_size * idx);
 		if (unlikely(mlx5_crypto_wqe_set(priv, qp, op, umr) == 0)) {
 			qp->stats.enqueue_err_count++;
 			if (remain != nb_ops) {
@@ -512,8 +533,8 @@ mlx5_crypto_enqueue_burst(void *queue_pair, struct rte_crypto_op **ops,
 			}
 			return 0;
 		}
-		qp->ops[qp->pi] = op;
-		qp->pi = (qp->pi + 1) & mask;
+		qp->ops[idx] = op;
+		qp->pi++;
 	} while (--remain);
 	qp->stats.enqueued_count += nb_ops;
 	rte_io_wmb();
@@ -632,12 +653,14 @@ mlx5_crypto_indirect_mkeys_prepare(struct mlx5_crypto_priv *priv,
 	   i < qp->entries_n; i++, umr = RTE_PTR_ADD(umr, priv->wqe_set_size)) {
 		attr.klm_array = (struct mlx5_klm *)&umr->kseg[0];
 		qp->mkey[i] = mlx5_devx_cmd_mkey_create(priv->ctx, &attr);
-		if (!qp->mkey[i]) {
-			DRV_LOG(ERR, "Failed to allocate indirect mkey.");
-			return -1;
-		}
+		if (!qp->mkey[i])
+			goto error;
 	}
 	return 0;
+error:
+	DRV_LOG(ERR, "Failed to allocate indirect mkey.");
+	mlx5_crypto_indirect_mkeys_release(qp, i);
+	return -1;
 }
 
 static int
@@ -701,12 +724,13 @@ mlx5_crypto_queue_pair_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 	attr.uar_index = mlx5_os_get_devx_uar_page_id(priv->uar);
 	attr.cqn = qp->cq_obj.cq->id;
 	attr.log_page_size = rte_log2_u32(sysconf(_SC_PAGESIZE));
-	attr.rq_size =  0;
+	attr.rq_size = 0;
 	attr.sq_size = RTE_BIT32(log_nb_desc);
 	attr.dbr_umem_valid = 1;
 	attr.wq_umem_id = qp->umem_obj->umem_id;
 	attr.wq_umem_offset = 0;
 	attr.dbr_umem_id = qp->umem_obj->umem_id;
+	attr.ts_format = mlx5_ts_format_conv(priv->qp_ts_format);
 	attr.dbr_address = RTE_BIT64(log_nb_desc) * priv->wqe_set_size;
 	qp->qp_obj = mlx5_devx_cmd_create_qp(priv->ctx, &attr);
 	if (qp->qp_obj == NULL) {
@@ -730,7 +754,7 @@ mlx5_crypto_queue_pair_setup(struct rte_cryptodev *dev, uint16_t qp_id,
 	dev->data->queue_pairs[qp_id] = qp;
 	return 0;
 error:
-	mlx5_crypto_queue_pair_release(dev, qp_id);
+	mlx5_crypto_qp_release(qp);
 	return -1;
 }
 
@@ -1049,6 +1073,7 @@ mlx5_crypto_dev_probe(struct rte_device *dev)
 	priv->ctx = ctx;
 	priv->login_obj = login;
 	priv->crypto_dev = crypto_dev;
+	priv->qp_ts_format = attr.qp_ts_format;
 	if (mlx5_crypto_hw_global_prepare(priv) != 0) {
 		rte_cryptodev_pmd_destroy(priv->crypto_dev);
 		claim_zero(mlx5_glue->close_device(priv->ctx));

@@ -1,154 +1,42 @@
 /* SPDX-License-Identifier: BSD-3-Clause
- * Copyright (c) 2014-2018 Netronome Systems, Inc.
+ * Copyright (c) 2014-2021 Netronome Systems, Inc.
  * All rights reserved.
  */
 
 /*
  * vim:shiftwidth=8:noexpandtab
  *
- * @file dpdk/pmd/nfp_net_pmd.h
+ * @file dpdk/pmd/nfp_rxtx.h
  *
- * Netronome NFP_NET PMD driver
+ * Netronome NFP Rx/Tx specific header file
  */
 
-#ifndef _NFP_NET_PMD_H_
-#define _NFP_NET_PMD_H_
+#ifndef _NFP_RXTX_H_
+#define _NFP_RXTX_H_
 
-#define NFP_NET_PMD_VERSION "0.1"
-#define PCI_VENDOR_ID_NETRONOME         0x19ee
-#define PCI_DEVICE_ID_NFP4000_PF_NIC    0x4000
-#define PCI_DEVICE_ID_NFP6000_PF_NIC    0x6000
-#define PCI_DEVICE_ID_NFP6000_VF_NIC    0x6003
+#include <linux/types.h>
+#include <rte_io.h>
 
-/* Forward declaration */
-struct nfp_net_adapter;
+#define NFP_DESC_META_LEN(d) ((d)->rxd.meta_len_dd & PCIE_DESC_RX_META_LEN_MASK)
+
+#define NFP_HASH_OFFSET      ((uint8_t *)mbuf->buf_addr + mbuf->data_off - 4)
+#define NFP_HASH_TYPE_OFFSET ((uint8_t *)mbuf->buf_addr + mbuf->data_off - 8)
+
+#define RTE_MBUF_DMA_ADDR_DEFAULT(mb) \
+	((uint64_t)((mb)->buf_iova + RTE_PKTMBUF_HEADROOM))
 
 /*
  * The maximum number of descriptors is limited by design as
  * DPDK uses uint16_t variables for these values
  */
 #define NFP_NET_MAX_TX_DESC (32 * 1024)
-#define NFP_NET_MIN_TX_DESC 64
+#define NFP_NET_MIN_TX_DESC 256
 
 #define NFP_NET_MAX_RX_DESC (32 * 1024)
-#define NFP_NET_MIN_RX_DESC 64
+#define NFP_NET_MIN_RX_DESC 256
 
 /* Descriptor alignment */
 #define NFP_ALIGN_RING_DESC 128
-
-#define NFP_TX_MAX_SEG     UINT8_MAX
-#define NFP_TX_MAX_MTU_SEG 8
-
-/* Bar allocation */
-#define NFP_NET_CRTL_BAR        0
-#define NFP_NET_TX_BAR          2
-#define NFP_NET_RX_BAR          2
-#define NFP_QCP_QUEUE_AREA_SZ			0x80000
-
-/* Macros for accessing the Queue Controller Peripheral 'CSRs' */
-#define NFP_QCP_QUEUE_OFF(_x)                 ((_x) * 0x800)
-#define NFP_QCP_QUEUE_ADD_RPTR                  0x0000
-#define NFP_QCP_QUEUE_ADD_WPTR                  0x0004
-#define NFP_QCP_QUEUE_STS_LO                    0x0008
-#define NFP_QCP_QUEUE_STS_LO_READPTR_mask     (0x3ffff)
-#define NFP_QCP_QUEUE_STS_HI                    0x000c
-#define NFP_QCP_QUEUE_STS_HI_WRITEPTR_mask    (0x3ffff)
-
-/* Interrupt definitions */
-#define NFP_NET_IRQ_LSC_IDX             0
-
-/* Default values for RX/TX configuration */
-#define DEFAULT_RX_FREE_THRESH  32
-#define DEFAULT_RX_PTHRESH      8
-#define DEFAULT_RX_HTHRESH      8
-#define DEFAULT_RX_WTHRESH      0
-
-#define DEFAULT_TX_RS_THRESH	32
-#define DEFAULT_TX_FREE_THRESH  32
-#define DEFAULT_TX_PTHRESH      32
-#define DEFAULT_TX_HTHRESH      0
-#define DEFAULT_TX_WTHRESH      0
-#define DEFAULT_TX_RSBIT_THRESH 32
-
-/* Alignment for dma zones */
-#define NFP_MEMZONE_ALIGN	128
-
-/*
- * This is used by the reconfig protocol. It sets the maximum time waiting in
- * milliseconds before a reconfig timeout happens.
- */
-#define NFP_NET_POLL_TIMEOUT    5000
-
-#define NFP_QCP_QUEUE_ADDR_SZ   (0x800)
-
-#define NFP_NET_LINK_DOWN_CHECK_TIMEOUT 4000 /* ms */
-#define NFP_NET_LINK_UP_CHECK_TIMEOUT   1000 /* ms */
-
-/* Version number helper defines */
-#define NFD_CFG_CLASS_VER_msk       0xff
-#define NFD_CFG_CLASS_VER_shf       24
-#define NFD_CFG_CLASS_VER(x)        (((x) & 0xff) << 24)
-#define NFD_CFG_CLASS_VER_of(x)     (((x) >> 24) & 0xff)
-#define NFD_CFG_CLASS_TYPE_msk      0xff
-#define NFD_CFG_CLASS_TYPE_shf      16
-#define NFD_CFG_CLASS_TYPE(x)       (((x) & 0xff) << 16)
-#define NFD_CFG_CLASS_TYPE_of(x)    (((x) >> 16) & 0xff)
-#define NFD_CFG_MAJOR_VERSION_msk   0xff
-#define NFD_CFG_MAJOR_VERSION_shf   8
-#define NFD_CFG_MAJOR_VERSION(x)    (((x) & 0xff) << 8)
-#define NFD_CFG_MAJOR_VERSION_of(x) (((x) >> 8) & 0xff)
-#define NFD_CFG_MINOR_VERSION_msk   0xff
-#define NFD_CFG_MINOR_VERSION_shf   0
-#define NFD_CFG_MINOR_VERSION(x)    (((x) & 0xff) << 0)
-#define NFD_CFG_MINOR_VERSION_of(x) (((x) >> 0) & 0xff)
-
-/* Number of supported physical ports */
-#define NFP_MAX_PHYPORTS	12
-
-#include <linux/types.h>
-#include <rte_io.h>
-
-static inline uint8_t nn_readb(volatile const void *addr)
-{
-	return rte_read8(addr);
-}
-
-static inline void nn_writeb(uint8_t val, volatile void *addr)
-{
-	rte_write8(val, addr);
-}
-
-static inline uint32_t nn_readl(volatile const void *addr)
-{
-	return rte_read32(addr);
-}
-
-static inline void nn_writel(uint32_t val, volatile void *addr)
-{
-	rte_write32(val, addr);
-}
-
-static inline void nn_writew(uint16_t val, volatile void *addr)
-{
-	rte_write16(val, addr);
-}
-
-static inline uint64_t nn_readq(volatile void *addr)
-{
-	const volatile uint32_t *p = addr;
-	uint32_t low, high;
-
-	high = nn_readl((volatile const void *)(p + 1));
-	low = nn_readl((volatile const void *)p);
-
-	return low + ((uint64_t)high << 32);
-}
-
-static inline void nn_writeq(uint64_t val, volatile void *addr)
-{
-	nn_writel(val >> 32, (volatile char *)addr + 4);
-	nn_writel(val, addr);
-}
 
 /* TX descriptor format */
 #define PCIE_DESC_TX_EOP                (1 << 7)
@@ -278,6 +166,7 @@ struct nfp_net_txq {
 
 #define PCIE_DESC_RX_L4_CSUM_OK         (PCIE_DESC_RX_TCP_CSUM_OK | \
 					 PCIE_DESC_RX_UDP_CSUM_OK)
+
 struct nfp_net_rx_desc {
 	union {
 		/* Freelist descriptor */
@@ -385,126 +274,30 @@ struct nfp_net_rxq {
 	int rx_qcidx;
 } __rte_aligned(64);
 
-struct nfp_pf_dev {
-	/* Backpointer to associated pci device */
-	struct rte_pci_device *pci_dev;
+int nfp_net_rx_freelist_setup(struct rte_eth_dev *dev);
+uint32_t nfp_net_rx_queue_count(struct rte_eth_dev *dev,
+				       uint16_t queue_idx);
+uint16_t nfp_net_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts,
+				  uint16_t nb_pkts);
+void nfp_net_rx_queue_release(void *rxq);
+void nfp_net_reset_rx_queue(struct nfp_net_rxq *rxq);
+int nfp_net_rx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
+				  uint16_t nb_desc, unsigned int socket_id,
+				  const struct rte_eth_rxconf *rx_conf,
+				  struct rte_mempool *mp);
+void nfp_net_tx_queue_release(void *txq);
+void nfp_net_reset_tx_queue(struct nfp_net_txq *txq);
+int nfp_net_tx_queue_setup(struct rte_eth_dev *dev, uint16_t queue_idx,
+				  uint16_t nb_desc, unsigned int socket_id,
+				  const struct rte_eth_txconf *tx_conf);
+uint16_t nfp_net_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts,
+				  uint16_t nb_pkts);
 
-	/* Array of physical ports belonging to this PF */
-	struct nfp_net_hw *ports[NFP_MAX_PHYPORTS];
-
-	/* Current values for control */
-	uint32_t ctrl;
-
-	uint8_t *ctrl_bar;
-	uint8_t *tx_bar;
-	uint8_t *rx_bar;
-
-	uint8_t *qcp_cfg;
-	rte_spinlock_t reconfig_lock;
-
-	uint16_t flbufsz;
-	uint16_t device_id;
-	uint16_t vendor_id;
-	uint16_t subsystem_device_id;
-	uint16_t subsystem_vendor_id;
-#if defined(DSTQ_SELECTION)
-#if DSTQ_SELECTION
-	uint16_t device_function;
-#endif
-#endif
-
-	struct nfp_cpp *cpp;
-	struct nfp_cpp_area *ctrl_area;
-	struct nfp_cpp_area *hwqueues_area;
-	struct nfp_cpp_area *msix_area;
-
-	uint8_t *hw_queues;
-	uint8_t total_phyports;
-	bool	multiport;
-
-	union eth_table_entry *eth_table;
-
-	struct nfp_hwinfo *hwinfo;
-	struct nfp_rtsym_table *sym_tbl;
-	uint32_t nfp_cpp_service_id;
-};
-
-struct nfp_net_hw {
-	/* Backpointer to the PF this port belongs to */
-	struct nfp_pf_dev *pf_dev;
-
-	/* Backpointer to the eth_dev of this port*/
-	struct rte_eth_dev *eth_dev;
-
-	/* Info from the firmware */
-	uint32_t ver;
-	uint32_t cap;
-	uint32_t max_mtu;
-	uint32_t mtu;
-	uint32_t rx_offset;
-
-	/* Current values for control */
-	uint32_t ctrl;
-
-	uint8_t *ctrl_bar;
-	uint8_t *tx_bar;
-	uint8_t *rx_bar;
-
-	int stride_rx;
-	int stride_tx;
-
-	uint8_t *qcp_cfg;
-	rte_spinlock_t reconfig_lock;
-
-	uint32_t max_tx_queues;
-	uint32_t max_rx_queues;
-	uint16_t flbufsz;
-	uint16_t device_id;
-	uint16_t vendor_id;
-	uint16_t subsystem_device_id;
-	uint16_t subsystem_vendor_id;
-#if defined(DSTQ_SELECTION)
-#if DSTQ_SELECTION
-	uint16_t device_function;
-#endif
-#endif
-
-	uint8_t mac_addr[RTE_ETHER_ADDR_LEN];
-
-	/* Records starting point for counters */
-	struct rte_eth_stats eth_stats_base;
-
-	struct nfp_cpp *cpp;
-	struct nfp_cpp_area *ctrl_area;
-	struct nfp_cpp_area *hwqueues_area;
-	struct nfp_cpp_area *msix_area;
-
-	uint8_t *hw_queues;
-	/* Sequential physical port number */
-	uint8_t idx;
-	/* Internal port number as seen from NFP */
-	uint8_t nfp_idx;
-	bool	is_phyport;
-
-	union eth_table_entry *eth_table;
-
-	uint32_t nfp_cpp_service_id;
-};
-
-struct nfp_net_adapter {
-	struct nfp_net_hw hw;
-};
-
-#define NFP_NET_DEV_PRIVATE_TO_HW(adapter)\
-	(&((struct nfp_net_adapter *)adapter)->hw)
-
-#define NFP_NET_DEV_PRIVATE_TO_PF(dev_priv)\
-	(((struct nfp_net_hw *)dev_priv)->pf_dev)
-
-#endif /* _NFP_NET_PMD_H_ */
+#endif /* _NFP_RXTX_H_ */
 /*
  * Local variables:
  * c-file-style: "Linux"
  * indent-tabs-mode: t
  * End:
  */
+

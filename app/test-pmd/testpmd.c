@@ -208,6 +208,11 @@ uint32_t param_total_num_mbufs = 0;  /**< number of mbufs in all pools - if
                                       * specified on command-line. */
 uint16_t stats_period; /**< Period to show statistics (disabled by default) */
 
+/** Extended statistics to show. */
+struct rte_eth_xstat_name *xstats_display;
+
+unsigned int xstats_display_num; /**< Size of extended statistics to show */
+
 /*
  * In container, it cannot terminate the process which running with 'stats-period'
  * option. Set flag to exit stats period loop after received SIGINT/SIGTERM.
@@ -246,6 +251,7 @@ uint32_t tx_pkt_times_intra;
 
 uint16_t nb_pkt_per_burst = DEF_PKT_BURST; /**< Number of packets per burst. */
 uint16_t nb_pkt_flowgen_clones; /**< Number of Tx packet clones to send in flowgen mode. */
+int nb_flows_flowgen = 1024; /**< Number of flows in flowgen mode. */
 uint16_t mb_mempool_cache = DEF_MBUF_CACHE; /**< Size of mbuf mempool cache. */
 
 /* current configuration is in DCB or not,0 means it is not in DCB mode */
@@ -520,6 +526,97 @@ enum rte_eth_rx_mq_mode rx_mq_mode = ETH_MQ_RX_VMDQ_DCB_RSS;
  */
 uint32_t eth_link_speed;
 
+/*
+ * ID of the current process in multi-process, used to
+ * configure the queues to be polled.
+ */
+int proc_id;
+
+/*
+ * Number of processes in multi-process, used to
+ * configure the queues to be polled.
+ */
+unsigned int num_procs = 1;
+
+static void
+eth_rx_metadata_negotiate_mp(uint16_t port_id)
+{
+	uint64_t rx_meta_features = 0;
+	int ret;
+
+	if (!is_proc_primary())
+		return;
+
+	rx_meta_features |= RTE_ETH_RX_METADATA_USER_FLAG;
+	rx_meta_features |= RTE_ETH_RX_METADATA_USER_MARK;
+	rx_meta_features |= RTE_ETH_RX_METADATA_TUNNEL_ID;
+
+	ret = rte_eth_rx_metadata_negotiate(port_id, &rx_meta_features);
+	if (ret == 0) {
+		if (!(rx_meta_features & RTE_ETH_RX_METADATA_USER_FLAG)) {
+			TESTPMD_LOG(DEBUG, "Flow action FLAG will not affect Rx mbufs on port %u\n",
+				    port_id);
+		}
+
+		if (!(rx_meta_features & RTE_ETH_RX_METADATA_USER_MARK)) {
+			TESTPMD_LOG(DEBUG, "Flow action MARK will not affect Rx mbufs on port %u\n",
+				    port_id);
+		}
+
+		if (!(rx_meta_features & RTE_ETH_RX_METADATA_TUNNEL_ID)) {
+			TESTPMD_LOG(DEBUG, "Flow tunnel offload support might be limited or unavailable on port %u\n",
+				    port_id);
+		}
+	} else if (ret != -ENOTSUP) {
+		rte_exit(EXIT_FAILURE, "Error when negotiating Rx meta features on port %u: %s\n",
+			 port_id, rte_strerror(-ret));
+	}
+}
+
+static int
+eth_dev_configure_mp(uint16_t port_id, uint16_t nb_rx_q, uint16_t nb_tx_q,
+		      const struct rte_eth_conf *dev_conf)
+{
+	if (is_proc_primary())
+		return rte_eth_dev_configure(port_id, nb_rx_q, nb_tx_q,
+					dev_conf);
+	return 0;
+}
+
+static int
+eth_dev_start_mp(uint16_t port_id)
+{
+	if (is_proc_primary())
+		return rte_eth_dev_start(port_id);
+
+	return 0;
+}
+
+static int
+eth_dev_stop_mp(uint16_t port_id)
+{
+	if (is_proc_primary())
+		return rte_eth_dev_stop(port_id);
+
+	return 0;
+}
+
+static void
+mempool_free_mp(struct rte_mempool *mp)
+{
+	if (is_proc_primary())
+		rte_mempool_free(mp);
+}
+
+static int
+eth_dev_set_mtu_mp(uint16_t port_id, uint16_t mtu)
+{
+	if (is_proc_primary())
+		return rte_eth_dev_set_mtu(port_id, mtu);
+
+	return 0;
+}
+
 /* Forward function declarations */
 static void setup_attached_port(portid_t pi);
 static void check_all_ports_link_status(uint32_t port_mask);
@@ -529,6 +626,7 @@ static int eth_event_callback(portid_t port_id,
 static void dev_event_callback(const char *device_name,
 				enum rte_dev_event_type type,
 				void *param);
+static void fill_xstats_display_info(void);
 
 /*
  * Check if all the ports are started.
@@ -541,6 +639,7 @@ uint16_t gso_max_segment_size = RTE_ETHER_MAX_LEN - RTE_ETHER_CRC_LEN;
 
 /* Holds the registered mbuf dynamic flags names. */
 char dynf_names[64][RTE_MBUF_DYN_NAMESIZE];
+
 
 /*
  * Helper function to check if socket is already discovered.
@@ -995,6 +1094,14 @@ mbuf_pool_create(uint16_t mbuf_seg_size, unsigned nb_mbuf,
 	mb_size = sizeof(struct rte_mbuf) + mbuf_seg_size;
 #endif
 	mbuf_poolname_build(socket_id, pool_name, sizeof(pool_name), size_idx);
+	if (!is_proc_primary()) {
+		rte_mp = rte_mempool_lookup(pool_name);
+		if (rte_mp == NULL)
+			rte_exit(EXIT_FAILURE,
+				"Get mbuf pool for socket %u failed: %s\n",
+				socket_id, rte_strerror(rte_errno));
+		return rte_mp;
+	}
 
 	TESTPMD_LOG(INFO,
 		"create a new mbuf pool <%s>: n=%u, size=%u, socket=%u\n",
@@ -1423,6 +1530,8 @@ init_config_port_offloads(portid_t pid, uint32_t socket_id)
 	uint16_t data_size;
 	int ret;
 	int i;
+
+	eth_rx_metadata_negotiate_mp(pid);
 
 	port->dev_conf.txmode = tx_mode;
 	port->dev_conf.rxmode = rx_mode;
@@ -1994,6 +2103,11 @@ flush_fwd_rx_queues(void)
 	uint64_t prev_tsc = 0, diff_tsc, cur_tsc, timer_tsc = 0;
 	uint64_t timer_period;
 
+	if (num_procs > 1) {
+		printf("multi-process not support for flushing fwd Rx queues, skip the below lines and return.\n");
+		return;
+	}
+
 	/* convert to number of cycles */
 	timer_period = rte_get_timer_hz(); /* 1 second timeout */
 
@@ -2430,6 +2544,101 @@ rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 	return ret;
 }
 
+static int
+alloc_xstats_display_info(portid_t pi)
+{
+	uint64_t **ids_supp = &ports[pi].xstats_info.ids_supp;
+	uint64_t **prev_values = &ports[pi].xstats_info.prev_values;
+	uint64_t **curr_values = &ports[pi].xstats_info.curr_values;
+
+	if (xstats_display_num == 0)
+		return 0;
+
+	*ids_supp = calloc(xstats_display_num, sizeof(**ids_supp));
+	if (*ids_supp == NULL)
+		return -ENOMEM;
+
+	*prev_values = calloc(xstats_display_num,
+			      sizeof(**prev_values));
+	if (*prev_values == NULL)
+		return -ENOMEM;
+
+	*curr_values = calloc(xstats_display_num,
+			      sizeof(**curr_values));
+	if (*curr_values == NULL)
+		return -ENOMEM;
+
+	ports[pi].xstats_info.allocated = true;
+
+	return 0;
+}
+
+static void
+free_xstats_display_info(portid_t pi)
+{
+	if (!ports[pi].xstats_info.allocated)
+		return;
+	free(ports[pi].xstats_info.ids_supp);
+	free(ports[pi].xstats_info.prev_values);
+	free(ports[pi].xstats_info.curr_values);
+	ports[pi].xstats_info.allocated = false;
+}
+
+/** Fill helper structures for specified port to show extended statistics. */
+static void
+fill_xstats_display_info_for_port(portid_t pi)
+{
+	unsigned int stat, stat_supp;
+	const char *xstat_name;
+	struct rte_port *port;
+	uint64_t *ids_supp;
+	int rc;
+
+	if (xstats_display_num == 0)
+		return;
+
+	if (pi == (portid_t)RTE_PORT_ALL) {
+		fill_xstats_display_info();
+		return;
+	}
+
+	port = &ports[pi];
+	if (port->port_status != RTE_PORT_STARTED)
+		return;
+
+	if (!port->xstats_info.allocated && alloc_xstats_display_info(pi) != 0)
+		rte_exit(EXIT_FAILURE,
+			 "Failed to allocate xstats display memory\n");
+
+	ids_supp = port->xstats_info.ids_supp;
+	for (stat = stat_supp = 0; stat < xstats_display_num; stat++) {
+		xstat_name = xstats_display[stat].name;
+		rc = rte_eth_xstats_get_id_by_name(pi, xstat_name,
+						   ids_supp + stat_supp);
+		if (rc != 0) {
+			fprintf(stderr, "No xstat '%s' on port %u - skip it %u\n",
+				xstat_name, pi, stat);
+			continue;
+		}
+		stat_supp++;
+	}
+
+	port->xstats_info.ids_supp_sz = stat_supp;
+}
+
+/** Fill helper structures for all ports to show extended statistics. */
+static void
+fill_xstats_display_info(void)
+{
+	portid_t pi;
+
+	if (xstats_display_num == 0)
+		return;
+
+	RTE_ETH_FOREACH_DEV(pi)
+		fill_xstats_display_info_for_port(pi);
+}
+
 int
 start_port(portid_t pid)
 {
@@ -2483,7 +2692,7 @@ start_port(portid_t pid)
 				return -1;
 			}
 			/* configure port */
-			diag = rte_eth_dev_configure(pi, nb_rxq + nb_hairpinq,
+			diag = eth_dev_configure_mp(pi, nb_rxq + nb_hairpinq,
 						     nb_txq + nb_hairpinq,
 						     &(port->dev_conf));
 			if (diag != 0) {
@@ -2499,7 +2708,7 @@ start_port(portid_t pid)
 				return -1;
 			}
 		}
-		if (port->need_reconfig_queues > 0) {
+		if (port->need_reconfig_queues > 0 && is_proc_primary()) {
 			port->need_reconfig_queues = 0;
 			/* setup tx queues */
 			for (qi = 0; qi < nb_txq; qi++) {
@@ -2602,7 +2811,7 @@ start_port(portid_t pid)
 		cnt_pi++;
 
 		/* start port */
-		diag = rte_eth_dev_start(pi);
+		diag = eth_dev_start_mp(pi);
 		if (diag < 0) {
 			fprintf(stderr, "Fail to start port %d: %s\n",
 				pi, rte_strerror(-diag));
@@ -2622,13 +2831,8 @@ start_port(portid_t pid)
 				pi);
 
 		if (eth_macaddr_get_print_err(pi, &port->eth_addr) == 0)
-			printf("Port %d: %02X:%02X:%02X:%02X:%02X:%02X\n", pi,
-				port->eth_addr.addr_bytes[0],
-				port->eth_addr.addr_bytes[1],
-				port->eth_addr.addr_bytes[2],
-				port->eth_addr.addr_bytes[3],
-				port->eth_addr.addr_bytes[4],
-				port->eth_addr.addr_bytes[5]);
+			printf("Port %d: " RTE_ETHER_ADDR_PRT_FMT "\n", pi,
+					RTE_ETHER_ADDR_BYTES(&port->eth_addr));
 
 		/* at least one port started, need checking link status */
 		need_check_link_status = 1;
@@ -2684,6 +2888,8 @@ start_port(portid_t pid)
 			}
 		}
 	}
+
+	fill_xstats_display_info_for_port(pid);
 
 	printf("Done\n");
 	return 0;
@@ -2745,7 +2951,7 @@ stop_port(portid_t pid)
 		if (port->flow_list)
 			port_flow_flush(pi);
 
-		if (rte_eth_dev_stop(pi) != 0)
+		if (eth_dev_stop_mp(pi) != 0)
 			RTE_LOG(ERR, EAL, "rte_eth_dev_stop failed for port %u\n",
 				pi);
 
@@ -2819,8 +3025,11 @@ close_port(portid_t pid)
 			continue;
 		}
 
-		port_flow_flush(pi);
-		rte_eth_dev_close(pi);
+		if (is_proc_primary()) {
+			port_flow_flush(pi);
+			free_xstats_display_info(pi);
+			rte_eth_dev_close(pi);
+		}
 	}
 
 	remove_invalid_ports();
@@ -3105,8 +3314,9 @@ pmd_test_exit(void)
 	}
 	for (i = 0 ; i < RTE_DIM(mempools) ; i++) {
 		if (mempools[i])
-			rte_mempool_free(mempools[i]);
+			mempool_free_mp(mempools[i]);
 	}
+	free(xstats_display);
 
 	printf("\nBye...\n");
 }
@@ -3446,7 +3656,7 @@ update_jumbo_frame_offload(portid_t portid)
 	 * if unset do it here
 	 */
 	if ((rx_offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) == 0) {
-		ret = rte_eth_dev_set_mtu(portid,
+		ret = eth_dev_set_mtu_mp(portid,
 				port->dev_conf.rxmode.max_rx_pkt_len - eth_overhead);
 		if (ret)
 			fprintf(stderr,
@@ -3642,6 +3852,10 @@ init_port_dcb_config(portid_t pid,
 	int retval;
 	uint16_t i;
 
+	if (num_procs > 1) {
+		printf("The multi-process feature doesn't support dcb.\n");
+		return -ENOTSUP;
+	}
 	rte_port = &ports[pid];
 
 	memset(&port_conf, 0, sizeof(struct rte_eth_conf));
@@ -3734,6 +3948,8 @@ init_port(void)
 				RTE_MAX_ETHPORTS);
 	}
 	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
+		ports[i].xstats_info.allocated = false;
+	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
 		LIST_INIT(&ports[i].flow_tunnel_list);
 	/* Initialize ports NUMA structures */
 	memset(port_numa, NUMA_NO_CONFIG, RTE_MAX_ETHPORTS);
@@ -3810,10 +4026,6 @@ main(int argc, char** argv)
 	if (diag < 0)
 		rte_exit(EXIT_FAILURE, "Cannot init EAL: %s\n",
 			 rte_strerror(rte_errno));
-
-	if (rte_eal_process_type() == RTE_PROC_SECONDARY)
-		rte_exit(EXIT_FAILURE,
-			 "Secondary process type not supported.\n");
 
 	ret = register_eth_event_callback();
 	if (ret != 0)

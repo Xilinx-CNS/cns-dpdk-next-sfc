@@ -16,25 +16,11 @@
 #include "tf_session.h"
 #include "tf_device.h"
 
-#define TF_TBL_RM_TO_PTR(new_idx, idx, base, shift) {		\
-		*(new_idx) = (((idx) + (base)) << (shift));	\
-}
-
-#define TF_TBL_PTR_TO_RM(new_idx, idx, base, shift) {		\
-		*(new_idx) = (((idx) >> (shift)) - (base));	\
-}
-
 struct tf;
 
-/**
- * Table Shadow DBs
- */
-static void *shadow_tbl_db[TF_DIR_MAX];
-
-/**
- * Shadow init flag, set on bind and cleared on unbind
- */
-static uint8_t shadow_init;
+#define TF_TBL_RM_TO_PTR(new_idx, idx, base, shift) {          \
+		*(new_idx) = (((idx) + (base)) << (shift));    \
+}
 
 int
 tf_tbl_bind(struct tf *tfp,
@@ -126,8 +112,6 @@ tf_tbl_unbind(struct tf *tfp)
 		tbl_db->tbl_db[i] = NULL;
 	}
 
-	shadow_init = 0;
-
 	return 0;
 }
 
@@ -140,7 +124,6 @@ tf_tbl_alloc(struct tf *tfp __rte_unused,
 	struct tf_rm_allocate_parms aparms = { 0 };
 	struct tf_session *tfs;
 	struct tf_dev_info *dev;
-	uint16_t base = 0, shift = 0;
 	struct tbl_rm_db *tbl_db;
 	void *tbl_db_ptr = NULL;
 
@@ -159,27 +142,11 @@ tf_tbl_alloc(struct tf *tfp __rte_unused,
 	rc = tf_session_get_db(tfp, TF_MODULE_TYPE_TABLE, &tbl_db_ptr);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "Failed to get em_ext_db from session, rc:%s\n",
+			    "Failed to get tbl_db from session, rc:%s\n",
 			    strerror(-rc));
 		return rc;
 	}
 	tbl_db = (struct tbl_rm_db *)tbl_db_ptr;
-
-	/* Only get table info if required for the device */
-	if (dev->ops->tf_dev_get_tbl_info) {
-		rc = dev->ops->tf_dev_get_tbl_info(tfp,
-						   tbl_db->tbl_db[parms->dir],
-						   parms->type,
-						   &base,
-						   &shift);
-		if (rc) {
-			TFP_DRV_LOG(ERR,
-				    "%s: Failed to get table info:%d\n",
-				    tf_dir_2_str(parms->dir),
-				    parms->type);
-			return rc;
-		}
-	}
 
 	/* Allocate requested element */
 	aparms.rm_db = tbl_db->tbl_db[parms->dir];
@@ -188,13 +155,12 @@ tf_tbl_alloc(struct tf *tfp __rte_unused,
 	rc = tf_rm_allocate(&aparms);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s: Failed allocate, type:%d\n",
+			    "%s: Failed allocate, type:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type);
+			    tf_tbl_type_2_str(parms->type));
 		return rc;
 	}
 
-	TF_TBL_RM_TO_PTR(&idx, idx, base, shift);
 	*parms->idx = idx;
 
 	return 0;
@@ -210,7 +176,6 @@ tf_tbl_free(struct tf *tfp __rte_unused,
 	int allocated = 0;
 	struct tf_session *tfs;
 	struct tf_dev_info *dev;
-	uint16_t base = 0, shift = 0;
 	struct tbl_rm_db *tbl_db;
 	void *tbl_db_ptr = NULL;
 
@@ -235,28 +200,10 @@ tf_tbl_free(struct tf *tfp __rte_unused,
 	}
 	tbl_db = (struct tbl_rm_db *)tbl_db_ptr;
 
-	/* Only get table info if required for the device */
-	if (dev->ops->tf_dev_get_tbl_info) {
-		rc = dev->ops->tf_dev_get_tbl_info(tfp,
-						   tbl_db->tbl_db[parms->dir],
-						   parms->type,
-						   &base,
-						   &shift);
-		if (rc) {
-			TFP_DRV_LOG(ERR,
-				    "%s: Failed to get table info:%d\n",
-				    tf_dir_2_str(parms->dir),
-				    parms->type);
-			return rc;
-		}
-	}
-
 	/* Check if element is in use */
 	aparms.rm_db = tbl_db->tbl_db[parms->dir];
 	aparms.subtype = parms->type;
-
-	TF_TBL_PTR_TO_RM(&aparms.index, parms->idx, base, shift);
-
+	aparms.index = parms->idx;
 	aparms.allocated = &allocated;
 	rc = tf_rm_is_allocated(&aparms);
 	if (rc)
@@ -264,9 +211,9 @@ tf_tbl_free(struct tf *tfp __rte_unused,
 
 	if (allocated != TF_RM_ALLOCATED_ENTRY_IN_USE) {
 		TFP_DRV_LOG(ERR,
-			    "%s: Entry already free, type:%d, index:%d\n",
+			    "%s: Entry already free, type:%s, index:%d\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    parms->idx);
 		return -EINVAL;
 	}
@@ -284,9 +231,9 @@ tf_tbl_free(struct tf *tfp __rte_unused,
 		rc = tf_rm_get_hcapi_type(&hparms);
 		if (rc) {
 			TFP_DRV_LOG(ERR,
-				    "%s, Failed type lookup, type:%d, rc:%s\n",
+				    "%s, Failed type lookup, type:%s, rc:%s\n",
 				    tf_dir_2_str(parms->dir),
-				    parms->type,
+				    tf_tbl_type_2_str(parms->type),
 				    strerror(-rc));
 			return rc;
 		}
@@ -300,9 +247,9 @@ tf_tbl_free(struct tf *tfp __rte_unused,
 					  parms->idx);
 		if (rc) {
 			TFP_DRV_LOG(ERR,
-				    "%s, Set failed, type:%d, rc:%s\n",
+				    "%s, Set failed, type:%s, rc:%s\n",
 				    tf_dir_2_str(parms->dir),
-				    parms->type,
+				    tf_tbl_type_2_str(parms->type),
 				    strerror(-rc));
 			return rc;
 		}
@@ -311,36 +258,18 @@ tf_tbl_free(struct tf *tfp __rte_unused,
 	/* Free requested element */
 	fparms.rm_db = tbl_db->tbl_db[parms->dir];
 	fparms.subtype = parms->type;
-
-	TF_TBL_PTR_TO_RM(&fparms.index, parms->idx, base, shift);
-
+	fparms.index = parms->idx;
 	rc = tf_rm_free(&fparms);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s: Free failed, type:%d, index:%d\n",
+			    "%s: Free failed, type:%s, index:%d\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    parms->idx);
 		return rc;
 	}
 
 	return 0;
-}
-
-int
-tf_tbl_alloc_search(struct tf *tfp,
-		    struct tf_tbl_alloc_search_parms *parms)
-{
-	int rc = 0;
-	TF_CHECK_PARMS2(tfp, parms);
-
-	if (!shadow_init || !shadow_tbl_db[parms->dir]) {
-		TFP_DRV_LOG(ERR, "%s: Shadow TBL not initialized.\n",
-			    tf_dir_2_str(parms->dir));
-		return -EINVAL;
-	}
-
-	return rc;
 }
 
 int
@@ -354,7 +283,6 @@ tf_tbl_set(struct tf *tfp,
 	struct tf_rm_get_hcapi_parms hparms = { 0 };
 	struct tf_session *tfs;
 	struct tf_dev_info *dev;
-	uint16_t base = 0, shift = 0;
 	struct tbl_rm_db *tbl_db;
 	void *tbl_db_ptr = NULL;
 
@@ -379,39 +307,28 @@ tf_tbl_set(struct tf *tfp,
 	}
 	tbl_db = (struct tbl_rm_db *)tbl_db_ptr;
 
-	/* Only get table info if required for the device */
-	if (dev->ops->tf_dev_get_tbl_info) {
-		rc = dev->ops->tf_dev_get_tbl_info(tfp,
-						   tbl_db->tbl_db[parms->dir],
-						   parms->type,
-						   &base,
-						   &shift);
-		if (rc) {
-			TFP_DRV_LOG(ERR,
-				    "%s: Failed to get table info:%d\n",
-				    tf_dir_2_str(parms->dir),
-				    parms->type);
+
+	/* Do not check meter drop counter because it is not allocated
+	 * resources
+	 */
+	if (parms->type != TF_TBL_TYPE_METER_DROP_CNT) {
+		/* Verify that the entry has been previously allocated */
+		aparms.rm_db = tbl_db->tbl_db[parms->dir];
+		aparms.subtype = parms->type;
+		aparms.allocated = &allocated;
+		aparms.index = parms->idx;
+		rc = tf_rm_is_allocated(&aparms);
+		if (rc)
 			return rc;
+
+		if (allocated != TF_RM_ALLOCATED_ENTRY_IN_USE) {
+			TFP_DRV_LOG(ERR,
+			      "%s, Invalid or not allocated, type:%s, idx:%d\n",
+			      tf_dir_2_str(parms->dir),
+			      tf_tbl_type_2_str(parms->type),
+			      parms->idx);
+			return -EINVAL;
 		}
-	}
-
-	/* Verify that the entry has been previously allocated */
-	aparms.rm_db = tbl_db->tbl_db[parms->dir];
-	aparms.subtype = parms->type;
-	TF_TBL_PTR_TO_RM(&aparms.index, parms->idx, base, shift);
-
-	aparms.allocated = &allocated;
-	rc = tf_rm_is_allocated(&aparms);
-	if (rc)
-		return rc;
-
-	if (allocated != TF_RM_ALLOCATED_ENTRY_IN_USE) {
-		TFP_DRV_LOG(ERR,
-		   "%s, Invalid or not allocated index, type:%d, idx:%d\n",
-		   tf_dir_2_str(parms->dir),
-		   parms->type,
-		   parms->idx);
-		return -EINVAL;
 	}
 
 	/* Set the entry */
@@ -421,9 +338,9 @@ tf_tbl_set(struct tf *tfp,
 	rc = tf_rm_get_hcapi_type(&hparms);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s, Failed type lookup, type:%d, rc:%s\n",
+			    "%s, Failed type lookup, type:%s, rc:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    strerror(-rc));
 		return rc;
 	}
@@ -436,9 +353,9 @@ tf_tbl_set(struct tf *tfp,
 				  parms->idx);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s, Set failed, type:%d, rc:%s\n",
+			    "%s, Set failed, type:%s, rc:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    strerror(-rc));
 		return rc;
 	}
@@ -457,7 +374,6 @@ tf_tbl_get(struct tf *tfp,
 	struct tf_rm_get_hcapi_parms hparms = { 0 };
 	struct tf_session *tfs;
 	struct tf_dev_info *dev;
-	uint16_t base = 0, shift = 0;
 	struct tbl_rm_db *tbl_db;
 	void *tbl_db_ptr = NULL;
 
@@ -482,39 +398,27 @@ tf_tbl_get(struct tf *tfp,
 	}
 	tbl_db = (struct tbl_rm_db *)tbl_db_ptr;
 
-	/* Only get table info if required for the device */
-	if (dev->ops->tf_dev_get_tbl_info) {
-		rc = dev->ops->tf_dev_get_tbl_info(tfp,
-						   tbl_db->tbl_db[parms->dir],
-						   parms->type,
-						   &base,
-						   &shift);
-		if (rc) {
-			TFP_DRV_LOG(ERR,
-				    "%s: Failed to get table info:%d\n",
-				    tf_dir_2_str(parms->dir),
-				    parms->type);
+	/* Do not check meter drop counter because it is not allocated
+	 * resources.
+	 */
+	if (parms->type != TF_TBL_TYPE_METER_DROP_CNT) {
+		/* Verify that the entry has been previously allocated */
+		aparms.rm_db = tbl_db->tbl_db[parms->dir];
+		aparms.subtype = parms->type;
+		aparms.index = parms->idx;
+		aparms.allocated = &allocated;
+		rc = tf_rm_is_allocated(&aparms);
+		if (rc)
 			return rc;
+
+		if (allocated != TF_RM_ALLOCATED_ENTRY_IN_USE) {
+			TFP_DRV_LOG(ERR,
+			   "%s, Invalid or not allocated index, type:%s, idx:%d\n",
+			   tf_dir_2_str(parms->dir),
+			   tf_tbl_type_2_str(parms->type),
+			   parms->idx);
+			return -EINVAL;
 		}
-	}
-
-	/* Verify that the entry has been previously allocated */
-	aparms.rm_db = tbl_db->tbl_db[parms->dir];
-	aparms.subtype = parms->type;
-	TF_TBL_PTR_TO_RM(&aparms.index, parms->idx, base, shift);
-
-	aparms.allocated = &allocated;
-	rc = tf_rm_is_allocated(&aparms);
-	if (rc)
-		return rc;
-
-	if (allocated != TF_RM_ALLOCATED_ENTRY_IN_USE) {
-		TFP_DRV_LOG(ERR,
-		   "%s, Invalid or not allocated index, type:%d, idx:%d\n",
-		   tf_dir_2_str(parms->dir),
-		   parms->type,
-		   parms->idx);
-		return -EINVAL;
 	}
 
 	/* Set the entry */
@@ -524,9 +428,9 @@ tf_tbl_get(struct tf *tfp,
 	rc = tf_rm_get_hcapi_type(&hparms);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s, Failed type lookup, type:%d, rc:%s\n",
+			    "%s, Failed type lookup, type:%s, rc:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    strerror(-rc));
 		return rc;
 	}
@@ -540,9 +444,9 @@ tf_tbl_get(struct tf *tfp,
 				  parms->idx);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s, Get failed, type:%d, rc:%s\n",
+			    "%s, Get failed, type:%s, rc:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    strerror(-rc));
 		return rc;
 	}
@@ -560,7 +464,6 @@ tf_tbl_bulk_get(struct tf *tfp,
 	struct tf_rm_check_indexes_in_range_parms cparms = { 0 };
 	struct tf_session *tfs;
 	struct tf_dev_info *dev;
-	uint16_t base = 0, shift = 0;
 	struct tbl_rm_db *tbl_db;
 	void *tbl_db_ptr = NULL;
 
@@ -585,40 +488,21 @@ tf_tbl_bulk_get(struct tf *tfp,
 	}
 	tbl_db = (struct tbl_rm_db *)tbl_db_ptr;
 
-	/* Only get table info if required for the device */
-	if (dev->ops->tf_dev_get_tbl_info) {
-		rc = dev->ops->tf_dev_get_tbl_info(tfp,
-						   tbl_db->tbl_db[parms->dir],
-						   parms->type,
-						   &base,
-						   &shift);
-		if (rc) {
-			TFP_DRV_LOG(ERR,
-				    "%s: Failed to get table info:%d\n",
-				    tf_dir_2_str(parms->dir),
-				    parms->type);
-			return rc;
-		}
-	}
-
 	/* Verify that the entries are in the range of reserved resources. */
 	cparms.rm_db = tbl_db->tbl_db[parms->dir];
 	cparms.subtype = parms->type;
-
-	TF_TBL_PTR_TO_RM(&cparms.starting_index, parms->starting_idx,
-			 base, shift);
-
 	cparms.num_entries = parms->num_entries;
+	cparms.starting_index = parms->starting_idx;
 
 	rc = tf_rm_check_indexes_in_range(&cparms);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
 			    "%s, Invalid or %d index starting from %d"
-			    " not in range, type:%d",
+			    " not in range, type:%s",
 			    tf_dir_2_str(parms->dir),
 			    parms->starting_idx,
 			    parms->num_entries,
-			    parms->type);
+			    tf_tbl_type_2_str(parms->type));
 		return rc;
 	}
 
@@ -628,9 +512,9 @@ tf_tbl_bulk_get(struct tf *tfp,
 	rc = tf_rm_get_hcapi_type(&hparms);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s, Failed type lookup, type:%d, rc:%s\n",
+			    "%s, Failed type lookup, type:%s, rc:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    strerror(-rc));
 		return rc;
 	}
@@ -645,9 +529,9 @@ tf_tbl_bulk_get(struct tf *tfp,
 				       parms->physical_mem_addr);
 	if (rc) {
 		TFP_DRV_LOG(ERR,
-			    "%s, Bulk get failed, type:%d, rc:%s\n",
+			    "%s, Bulk get failed, type:%s, rc:%s\n",
 			    tf_dir_2_str(parms->dir),
-			    parms->type,
+			    tf_tbl_type_2_str(parms->type),
 			    strerror(-rc));
 	}
 
@@ -664,9 +548,9 @@ tf_tbl_get_resc_info(struct tf *tfp,
 	struct tf_rm_get_alloc_info_parms ainfo;
 	void *tbl_db_ptr = NULL;
 	struct tbl_rm_db *tbl_db;
-	uint16_t base = 0, shift = 0;
 	struct tf_dev_info *dev;
 	struct tf_session *tfs;
+	uint16_t base = 0, shift = 0;
 
 	TF_CHECK_PARMS2(tfp, tbl);
 
@@ -688,7 +572,6 @@ tf_tbl_get_resc_info(struct tf *tfp,
 
 	tbl_db = (struct tbl_rm_db *)tbl_db_ptr;
 
-	/* check if reserved resource for WC is multiple of num_slices */
 	for (d = 0; d < TF_DIR_MAX; d++) {
 		ainfo.rm_db = tbl_db->tbl_db[d];
 		dinfo = tbl[d].info;

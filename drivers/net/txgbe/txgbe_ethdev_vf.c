@@ -282,13 +282,8 @@ eth_txgbevf_dev_init(struct rte_eth_dev *eth_dev)
 		}
 		PMD_INIT_LOG(INFO, "\tVF MAC address not assigned by Host PF");
 		PMD_INIT_LOG(INFO, "\tAssign randomly generated MAC address "
-			     "%02x:%02x:%02x:%02x:%02x:%02x",
-			     perm_addr->addr_bytes[0],
-			     perm_addr->addr_bytes[1],
-			     perm_addr->addr_bytes[2],
-			     perm_addr->addr_bytes[3],
-			     perm_addr->addr_bytes[4],
-			     perm_addr->addr_bytes[5]);
+			     RTE_ETHER_ADDR_PRT_FMT,
+				 RTE_ETHER_ADDR_BYTES(perm_addr));
 	}
 
 	/* Copy the permanent MAC address */
@@ -353,9 +348,13 @@ static struct rte_pci_driver rte_txgbevf_pmd = {
 };
 
 static int txgbevf_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+	const uint64_t *ids,
 	struct rte_eth_xstat_name *xstats_names, unsigned int limit)
 {
 	unsigned int i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (limit < TXGBEVF_NB_XSTATS && xstats_names != NULL)
 		return -ENOMEM;
@@ -628,6 +627,7 @@ txgbevf_dev_start(struct rte_eth_dev *dev)
 		return err;
 	}
 	hw->mac.get_link_status = true;
+	hw->dev_start = true;
 
 	/* negotiate mailbox API version to use with the PF. */
 	txgbevf_negotiate_api(hw);
@@ -749,6 +749,7 @@ txgbevf_dev_stop(struct rte_eth_dev *dev)
 	}
 
 	adapter->rss_reta_updated = 0;
+	hw->dev_start = false;
 
 	return 0;
 }
@@ -1039,14 +1040,8 @@ txgbevf_add_mac_addr(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 	err = txgbevf_set_uc_addr_vf(hw, 2, mac_addr->addr_bytes);
 	if (err != 0)
 		PMD_DRV_LOG(ERR, "Unable to add MAC address "
-			    "%02x:%02x:%02x:%02x:%02x:%02x - err=%d",
-			    mac_addr->addr_bytes[0],
-			    mac_addr->addr_bytes[1],
-			    mac_addr->addr_bytes[2],
-			    mac_addr->addr_bytes[3],
-			    mac_addr->addr_bytes[4],
-			    mac_addr->addr_bytes[5],
-			    err);
+			    RTE_ETHER_ADDR_PRT_FMT " - err=%d",
+			    RTE_ETHER_ADDR_BYTES(mac_addr), err);
 	return err;
 }
 
@@ -1088,15 +1083,9 @@ txgbevf_remove_mac_addr(struct rte_eth_dev *dev, uint32_t index)
 		if (err != 0)
 			PMD_DRV_LOG(ERR,
 				    "Adding again MAC address "
-				    "%02x:%02x:%02x:%02x:%02x:%02x failed "
+				    RTE_ETHER_ADDR_PRT_FMT " failed "
 				    "err=%d",
-				    mac_addr->addr_bytes[0],
-				    mac_addr->addr_bytes[1],
-				    mac_addr->addr_bytes[2],
-				    mac_addr->addr_bytes[3],
-				    mac_addr->addr_bytes[4],
-				    mac_addr->addr_bytes[5],
-				    err);
+				    RTE_ETHER_ADDR_BYTES(mac_addr), err);
 	}
 }
 

@@ -22,6 +22,7 @@
 #include "sfc_rx.h"
 #include "sfc_filter.h"
 #include "sfc_flow.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_log.h"
 #include "sfc_dp_rx.h"
 #include "sfc_mae_counter.h"
@@ -1250,13 +1251,13 @@ sfc_flow_parse_attr(struct sfc_adapter *sa,
 				   "Groups are not supported");
 		return -rte_errno;
 	}
-	if (attr->egress != 0) {
+	if (attr->egress != 0 && attr->transfer == 0) {
 		rte_flow_error_set(error, ENOTSUP,
 				   RTE_FLOW_ERROR_TYPE_ATTR_EGRESS, attr,
 				   "Egress is not supported");
 		return -rte_errno;
 	}
-	if (attr->ingress == 0) {
+	if (attr->ingress == 0 && attr->transfer == 0) {
 		rte_flow_error_set(error, ENOTSUP,
 				   RTE_FLOW_ERROR_TYPE_ATTR_INGRESS, attr,
 				   "Ingress is compulsory");
@@ -1740,8 +1741,13 @@ sfc_flow_parse_mark(struct sfc_adapter *sa,
 	struct sfc_flow_spec *spec = &flow->spec;
 	struct sfc_flow_spec_filter *spec_filter = &spec->filter;
 	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	uint32_t mark_max;
 
-	if (mark == NULL || mark->id > encp->enc_filter_action_mark_max)
+	mark_max = encp->enc_filter_action_mark_max;
+	if (sfc_flow_tunnel_is_active(sa))
+		mark_max = RTE_MIN(mark_max, SFC_FT_USER_MARK_MASK);
+
+	if (mark == NULL || mark->id > mark_max)
 		return EINVAL;
 
 	spec_filter->template.efs_flags |= EFX_FILTER_FLAG_ACTION_MARK;
@@ -1760,6 +1766,7 @@ sfc_flow_parse_actions(struct sfc_adapter *sa,
 	struct sfc_flow_spec *spec = &flow->spec;
 	struct sfc_flow_spec_filter *spec_filter = &spec->filter;
 	const unsigned int dp_rx_features = sa->priv.dp_rx->features;
+	const uint64_t rx_metadata = sa->negotiated_rx_metadata;
 	uint32_t actions_set = 0;
 	const uint32_t fate_actions_mask = (1UL << RTE_FLOW_ACTION_TYPE_QUEUE) |
 					   (1UL << RTE_FLOW_ACTION_TYPE_RSS) |
@@ -1832,6 +1839,12 @@ sfc_flow_parse_actions(struct sfc_adapter *sa,
 					RTE_FLOW_ERROR_TYPE_ACTION, NULL,
 					"FLAG action is not supported on the current Rx datapath");
 				return -rte_errno;
+			} else if ((rx_metadata &
+				    RTE_ETH_RX_METADATA_USER_FLAG) == 0) {
+				rte_flow_error_set(error, ENOTSUP,
+					RTE_FLOW_ERROR_TYPE_ACTION, NULL,
+					"flag delivery has not been negotiated");
+				return -rte_errno;
 			}
 
 			spec_filter->template.efs_flags |=
@@ -1848,6 +1861,12 @@ sfc_flow_parse_actions(struct sfc_adapter *sa,
 				rte_flow_error_set(error, ENOTSUP,
 					RTE_FLOW_ERROR_TYPE_ACTION, NULL,
 					"MARK action is not supported on the current Rx datapath");
+				return -rte_errno;
+			} else if ((rx_metadata &
+				    RTE_ETH_RX_METADATA_USER_MARK) == 0) {
+				rte_flow_error_set(error, ENOTSUP,
+					RTE_FLOW_ERROR_TYPE_ACTION, NULL,
+					"mark delivery has not been negotiated");
 				return -rte_errno;
 			}
 
@@ -2530,15 +2549,49 @@ sfc_flow_parse_rte_to_mae(struct rte_eth_dev *dev,
 	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
 	int rc;
 
+	/*
+	 * If the flow is meant to be a JUMP rule in tunnel offload,
+	 * preparse its actions and save its properties in spec_mae.
+	 */
+	rc = sfc_flow_tunnel_detect_jump_rule(sa, actions, spec_mae, error);
+	if (rc != 0)
+		goto fail;
+
 	rc = sfc_mae_rule_parse_pattern(sa, pattern, spec_mae, error);
 	if (rc != 0)
-		return rc;
+		goto fail;
+
+	if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+		/*
+		 * By design, this flow should be represented solely by the
+		 * outer rule. But the HW/FW hasn't got support for setting
+		 * Rx mark from RECIRC_ID on outer rule lookup yet. Neither
+		 * does it support outer rule counters. As a workaround, an
+		 * action rule of lower priority is used to do the job.
+		 *
+		 * So don't skip sfc_mae_rule_parse_actions() below.
+		 */
+	}
 
 	rc = sfc_mae_rule_parse_actions(sa, actions, spec_mae, error);
 	if (rc != 0)
-		return rc;
+		goto fail;
+
+	if (spec_mae->ft != NULL) {
+		if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP)
+			spec_mae->ft->jump_rule_is_set = B_TRUE;
+
+		++(spec_mae->ft->refcnt);
+	}
 
 	return 0;
+
+fail:
+	/* Reset these values to avoid confusing sfc_mae_flow_cleanup(). */
+	spec_mae->ft_rule_type = SFC_FT_RULE_NONE;
+	spec_mae->ft = NULL;
+
+	return rc;
 }
 
 static int
@@ -2724,7 +2777,7 @@ sfc_flow_create(struct rte_eth_dev *dev,
 
 	TAILQ_INSERT_TAIL(&sa->flow_list, flow, entries);
 
-	if (sa->state == SFC_ADAPTER_STARTED) {
+	if (sa->state == SFC_ETHDEV_STARTED) {
 		rc = sfc_flow_insert(sa, flow, error);
 		if (rc != 0)
 			goto fail_flow_insert;
@@ -2767,7 +2820,7 @@ sfc_flow_destroy(struct rte_eth_dev *dev,
 		goto fail_bad_value;
 	}
 
-	if (sa->state == SFC_ADAPTER_STARTED)
+	if (sa->state == SFC_ETHDEV_STARTED)
 		rc = sfc_flow_remove(sa, flow, error);
 
 	TAILQ_REMOVE(&sa->flow_list, flow, entries);
@@ -2790,7 +2843,7 @@ sfc_flow_flush(struct rte_eth_dev *dev,
 	sfc_adapter_lock(sa);
 
 	while ((flow = TAILQ_FIRST(&sa->flow_list)) != NULL) {
-		if (sa->state == SFC_ADAPTER_STARTED) {
+		if (sa->state == SFC_ETHDEV_STARTED) {
 			int rc;
 
 			rc = sfc_flow_remove(sa, flow, error);
@@ -2828,7 +2881,7 @@ sfc_flow_query(struct rte_eth_dev *dev,
 		goto fail_no_backend;
 	}
 
-	if (sa->state != SFC_ADAPTER_STARTED) {
+	if (sa->state != SFC_ETHDEV_STARTED) {
 		ret = rte_flow_error_set(error, EINVAL,
 			RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
 			"Can't query the flow: the adapter is not started");
@@ -2858,7 +2911,7 @@ sfc_flow_isolate(struct rte_eth_dev *dev, int enable,
 	int ret = 0;
 
 	sfc_adapter_lock(sa);
-	if (sa->state != SFC_ADAPTER_INITIALIZED) {
+	if (sa->state != SFC_ETHDEV_INITIALIZED) {
 		rte_flow_error_set(error, EBUSY,
 				   RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
 				   NULL, "please close the port first");
@@ -2878,6 +2931,11 @@ const struct rte_flow_ops sfc_flow_ops = {
 	.flush = sfc_flow_flush,
 	.query = sfc_flow_query,
 	.isolate = sfc_flow_isolate,
+	.tunnel_decap_set = sfc_flow_tunnel_decap_set,
+	.tunnel_match = sfc_flow_tunnel_match,
+	.tunnel_action_decap_release = sfc_flow_tunnel_action_decap_release,
+	.tunnel_item_release = sfc_flow_tunnel_item_release,
+	.get_restore_info = sfc_flow_tunnel_get_restore_info,
 };
 
 void
@@ -2934,6 +2992,8 @@ sfc_flow_start(struct sfc_adapter *sa)
 	sfc_log_init(sa, "entry");
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
+
+	sfc_flow_tunnel_reset_hit_counters(sa);
 
 	TAILQ_FOREACH(flow, &sa->flow_list, entries) {
 		rc = sfc_flow_insert(sa, flow, NULL);

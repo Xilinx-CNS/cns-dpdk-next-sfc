@@ -543,6 +543,19 @@ mlx5_dev_spawn(struct rte_device *dpdk_dev,
 	if (priv->representor) {
 		eth_dev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
 		eth_dev->data->representor_id = priv->representor_id;
+		MLX5_ETH_FOREACH_DEV(port_id, &priv->pci_dev->device) {
+			struct mlx5_priv *opriv =
+				rte_eth_devices[port_id].data->dev_private;
+			if (opriv &&
+			    opriv->master &&
+			    opriv->domain_id == priv->domain_id &&
+			    opriv->sh == priv->sh) {
+				eth_dev->data->backer_port_id = port_id;
+				break;
+			}
+		}
+		if (port_id >= RTE_MAX_ETHPORTS)
+			eth_dev->data->backer_port_id = eth_dev->data->port_id;
 	}
 	/*
 	 * Store associated network device interface index. This index
@@ -566,11 +579,8 @@ mlx5_dev_spawn(struct rte_device *dpdk_dev,
 		goto error;
 	}
 	DRV_LOG(INFO,
-		"port %u MAC address is %02x:%02x:%02x:%02x:%02x:%02x",
-		eth_dev->data->port_id,
-		mac.addr_bytes[0], mac.addr_bytes[1],
-		mac.addr_bytes[2], mac.addr_bytes[3],
-		mac.addr_bytes[4], mac.addr_bytes[5]);
+		"port %u MAC address is " RTE_ETHER_ADDR_PRT_FMT,
+		eth_dev->data->port_id, RTE_ETHER_ADDR_BYTES(&mac));
 #ifdef RTE_LIBRTE_MLX5_DEBUG
 	{
 		char ifname[MLX5_NAMESIZE];

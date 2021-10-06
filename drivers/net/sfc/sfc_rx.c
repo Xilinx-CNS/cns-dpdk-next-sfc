@@ -13,6 +13,7 @@
 
 #include "sfc.h"
 #include "sfc_debug.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_log.h"
 #include "sfc_ev.h"
 #include "sfc_rx.h"
@@ -1178,6 +1179,13 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	if (offloads & DEV_RX_OFFLOAD_RSS_HASH)
 		rxq_info->type_flags |= EFX_RXQ_FLAG_RSS_HASH;
 
+	if ((sa->negotiated_rx_metadata & RTE_ETH_RX_METADATA_USER_FLAG) != 0)
+		rxq_info->type_flags |= EFX_RXQ_FLAG_USER_FLAG;
+
+	if ((sa->negotiated_rx_metadata & RTE_ETH_RX_METADATA_USER_MARK) != 0 ||
+	    sfc_flow_tunnel_is_active(sa))
+		rxq_info->type_flags |= EFX_RXQ_FLAG_USER_MARK;
+
 	rc = sfc_ev_qinit(sa, SFC_EVQ_TYPE_RX, sw_index,
 			  evq_entries, socket_id, &evq);
 	if (rc != 0)
@@ -1212,7 +1220,7 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 
 	rxq->buf_size = buf_size;
 
-	rc = sfc_dma_alloc(sa, "rxq", sw_index,
+	rc = sfc_dma_alloc(sa, "rxq", sw_index, EFX_NIC_DMA_ADDR_RX_RING,
 			   efx_rxq_size(sa->nic, rxq_info->entries),
 			   socket_id, &rxq->mem);
 	if (rc != 0)
@@ -1225,6 +1233,12 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	info.buf_size = buf_size;
 	info.batch_max = encp->enc_rx_batch_max;
 	info.prefix_size = encp->enc_rx_prefix_size;
+
+	if (sfc_flow_tunnel_is_active(sa))
+		info.user_mark_mask = SFC_FT_USER_MARK_MASK;
+	else
+		info.user_mark_mask = UINT32_MAX;
+
 	info.flags = rxq_info->rxq_flags;
 	info.rxq_entries = rxq_info->entries;
 	info.rxq_hw_ring = rxq->mem.esm_base;

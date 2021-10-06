@@ -1664,6 +1664,7 @@ txgbe_dev_start(struct rte_eth_dev *dev)
 		return -1;
 	hw->mac.start_hw(hw);
 	hw->mac.get_link_status = true;
+	hw->dev_start = true;
 
 	/* configure PF module if SRIOV enabled */
 	txgbe_pf_host_configure(dev);
@@ -1933,6 +1934,7 @@ txgbe_dev_stop(struct rte_eth_dev *dev)
 
 	hw->adapter_stopped = true;
 	dev->data->dev_started = 0;
+	hw->dev_start = false;
 
 	return 0;
 }
@@ -2422,7 +2424,7 @@ txgbe_get_offset_by_id(uint32_t id, uint32_t *offset)
 	return -1;
 }
 
-static int txgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
+static int txgbe_dev_xstats_get_all_names(struct rte_eth_dev *dev,
 	struct rte_eth_xstat_name *xstats_names, unsigned int limit)
 {
 	unsigned int i, count;
@@ -2448,15 +2450,15 @@ static int txgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
 	return i;
 }
 
-static int txgbe_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names,
+static int txgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
 	const uint64_t *ids,
+	struct rte_eth_xstat_name *xstats_names,
 	unsigned int limit)
 {
 	unsigned int i;
 
 	if (ids == NULL)
-		return txgbe_dev_xstats_get_names(dev, xstats_names, limit);
+		return txgbe_dev_xstats_get_all_names(dev, xstats_names, limit);
 
 	for (i = 0; i < limit; i++) {
 		if (txgbe_get_name_by_id(ids[i], xstats_names[i].name,
@@ -2734,6 +2736,8 @@ txgbe_dev_link_update_share(struct rte_eth_dev *dev,
 			rte_eal_alarm_set(10,
 				txgbe_dev_setup_link_alarm_handler, dev);
 		}
+		return rte_eth_linkstatus_set(dev, &link);
+	} else if (!hw->dev_start) {
 		return rte_eth_linkstatus_set(dev, &link);
 	}
 
@@ -5288,7 +5292,6 @@ static const struct eth_dev_ops txgbe_eth_dev_ops = {
 	.stats_reset                = txgbe_dev_stats_reset,
 	.xstats_reset               = txgbe_dev_xstats_reset,
 	.xstats_get_names           = txgbe_dev_xstats_get_names,
-	.xstats_get_names_by_id     = txgbe_dev_xstats_get_names_by_id,
 	.queue_stats_mapping_set    = txgbe_dev_queue_stats_mapping_set,
 	.fw_version_get             = txgbe_fw_version_get,
 	.dev_supported_ptypes_get   = txgbe_dev_supported_ptypes_get,

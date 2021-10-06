@@ -1,4 +1,4 @@
-DPDK_21 {
+DPDK_22 {
 	global:
 
 	rte_eth_add_first_rx_callback;
@@ -42,6 +42,7 @@ DPDK_21 {
 	rte_eth_dev_rss_reta_update;
 	rte_eth_dev_rx_intr_ctl;
 	rte_eth_dev_rx_intr_ctl_q;
+	rte_eth_dev_rx_intr_ctl_q_get_fd;
 	rte_eth_dev_rx_intr_disable;
 	rte_eth_dev_rx_intr_enable;
 	rte_eth_dev_rx_offload_name;
@@ -52,6 +53,7 @@ DPDK_21 {
 	rte_eth_dev_set_link_up;
 	rte_eth_dev_set_mc_addr_list;
 	rte_eth_dev_set_mtu;
+	rte_eth_dev_set_ptypes;
 	rte_eth_dev_set_rx_queue_stats_mapping;
 	rte_eth_dev_set_tx_queue_stats_mapping;
 	rte_eth_dev_set_vlan_ether_type;
@@ -71,7 +73,9 @@ DPDK_21 {
 	rte_eth_dev_vlan_filter;
 	rte_eth_devices;
 	rte_eth_find_next;
+	rte_eth_find_next_of;
 	rte_eth_find_next_owned_by;
+	rte_eth_find_next_sibling;
 	rte_eth_iterator_cleanup;
 	rte_eth_iterator_init;
 	rte_eth_iterator_next;
@@ -87,6 +91,7 @@ DPDK_21 {
 	rte_eth_promiscuous_get;
 	rte_eth_remove_rx_callback;
 	rte_eth_remove_tx_callback;
+	rte_eth_rx_burst_mode_get;
 	rte_eth_rx_queue_info_get;
 	rte_eth_rx_queue_setup;
 	rte_eth_set_queue_rate_limit;
@@ -104,6 +109,7 @@ DPDK_21 {
 	rte_eth_tx_buffer_drop_callback;
 	rte_eth_tx_buffer_init;
 	rte_eth_tx_buffer_set_err_callback;
+	rte_eth_tx_burst_mode_get;
 	rte_eth_tx_done_cleanup;
 	rte_eth_tx_queue_info_get;
 	rte_eth_tx_queue_setup;
@@ -154,26 +160,18 @@ EXPERIMENTAL {
 	rte_eth_dev_get_module_info;
 
 	# added in 18.11
-	rte_eth_dev_rx_intr_ctl_q_get_fd;
 	rte_flow_conv;
-
-	# added in 19.05
-	rte_eth_find_next_of;
-	rte_eth_find_next_sibling;
 
 	# added in 19.08
 	rte_eth_read_clock;
 
 	# added in 19.11
 	rte_eth_dev_hairpin_capability_get;
-	rte_eth_rx_burst_mode_get;
 	rte_eth_rx_hairpin_queue_setup;
-	rte_eth_tx_burst_mode_get;
 	rte_eth_tx_hairpin_queue_setup;
 	rte_flow_dynf_metadata_offs;
 	rte_flow_dynf_metadata_mask;
 	rte_flow_dynf_metadata_register;
-	rte_eth_dev_set_ptypes;
 
 	# added in 20.02
 	rte_flow_dev_dump;
@@ -249,6 +247,9 @@ EXPERIMENTAL {
 	rte_mtr_meter_policy_delete;
 	rte_mtr_meter_policy_update;
 	rte_mtr_meter_policy_validate;
+
+	# added in 21.11
+	rte_eth_rx_metadata_negotiate;
 };
 
 INTERNAL {

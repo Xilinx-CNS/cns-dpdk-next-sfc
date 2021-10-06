@@ -13,9 +13,11 @@ sources = files(
         'cn9k_worker.c',
         'cn9k_worker_deq.c',
         'cn9k_worker_deq_burst.c',
+        'cn9k_worker_deq_ca.c',
         'cn9k_worker_deq_tmo.c',
         'cn9k_worker_dual_deq.c',
         'cn9k_worker_dual_deq_burst.c',
+        'cn9k_worker_dual_deq_ca.c',
         'cn9k_worker_dual_deq_tmo.c',
         'cn9k_worker_tx_enq.c',
         'cn9k_worker_tx_enq_seg.c',
@@ -25,6 +27,7 @@ sources = files(
         'cn10k_worker.c',
         'cn10k_worker_deq.c',
         'cn10k_worker_deq_burst.c',
+        'cn10k_worker_deq_ca.c',
         'cn10k_worker_deq_tmo.c',
         'cn10k_worker_tx_enq.c',
         'cn10k_worker_tx_enq_seg.c',
@@ -43,4 +46,4 @@ foreach flag: extra_flags
     endif
 endforeach
 
-deps += ['bus_pci', 'common_cnxk', 'net_cnxk']
+deps += ['bus_pci', 'common_cnxk', 'net_cnxk', 'crypto_cnxk']

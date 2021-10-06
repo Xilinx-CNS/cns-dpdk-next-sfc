@@ -758,9 +758,9 @@ dpaa_dev_xstats_get(struct rte_eth_dev *dev, struct rte_eth_xstat *xstats,
 }
 
 static int
-dpaa_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-		      struct rte_eth_xstat_name *xstats_names,
-		      unsigned int limit)
+dpaa_xstats_get_all_names(__rte_unused struct rte_eth_dev *dev,
+			  struct rte_eth_xstat_name *xstats_names,
+			  unsigned int limit)
 {
 	unsigned int i, stat_cnt = RTE_DIM(dpaa_xstats_strings);
 
@@ -813,19 +813,19 @@ dpaa_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 }
 
 static int
-dpaa_xstats_get_names_by_id(
+dpaa_xstats_get_names(
 	struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names,
 	const uint64_t *ids,
+	struct rte_eth_xstat_name *xstats_names,
 	unsigned int limit)
 {
 	unsigned int i, stat_cnt = RTE_DIM(dpaa_xstats_strings);
 	struct rte_eth_xstat_name xstats_names_copy[stat_cnt];
 
 	if (!ids)
-		return dpaa_xstats_get_names(dev, xstats_names, limit);
+		return dpaa_xstats_get_all_names(dev, xstats_names, limit);
 
-	dpaa_xstats_get_names(dev, xstats_names_copy, limit);
+	dpaa_xstats_get_all_names(dev, xstats_names_copy, limit);
 
 	for (i = 0; i < limit; i++) {
 		if (ids[i] >= stat_cnt) {
@@ -1585,7 +1585,6 @@ static struct eth_dev_ops dpaa_devops = {
 	.stats_get		  = dpaa_eth_stats_get,
 	.xstats_get		  = dpaa_dev_xstats_get,
 	.xstats_get_by_id	  = dpaa_xstats_get_by_id,
-	.xstats_get_names_by_id	  = dpaa_xstats_get_names_by_id,
 	.xstats_get_names	  = dpaa_xstats_get_names,
 	.xstats_reset		  = dpaa_eth_stats_reset,
 	.stats_reset		  = dpaa_eth_stats_reset,
@@ -2094,14 +2093,8 @@ dpaa_dev_init(struct rte_eth_dev *eth_dev)
 	/* copy the primary mac address */
 	rte_ether_addr_copy(&fman_intf->mac_addr, &eth_dev->data->mac_addrs[0]);
 
-	RTE_LOG(INFO, PMD, "net: dpaa: %s: %02x:%02x:%02x:%02x:%02x:%02x\n",
-		dpaa_device->name,
-		fman_intf->mac_addr.addr_bytes[0],
-		fman_intf->mac_addr.addr_bytes[1],
-		fman_intf->mac_addr.addr_bytes[2],
-		fman_intf->mac_addr.addr_bytes[3],
-		fman_intf->mac_addr.addr_bytes[4],
-		fman_intf->mac_addr.addr_bytes[5]);
+	RTE_LOG(INFO, PMD, "net: dpaa: %s: " RTE_ETHER_ADDR_PRT_FMT "\n",
+		dpaa_device->name, RTE_ETHER_ADDR_BYTES(&fman_intf->mac_addr));
 
 	if (!fman_intf->is_shared_mac) {
 		/* Configure error packet handling */

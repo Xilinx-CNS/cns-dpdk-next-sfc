@@ -882,7 +882,8 @@ ulp_blob_msb_block_merge(struct ulp_blob *dst, struct ulp_blob *src,
 
 	for (i = 0; i < num;) {
 		if (((dst->write_idx % block_size)  + (num - i)) > block_size)
-			write_bytes = block_size - dst->write_idx;
+			write_bytes = block_size -
+				(dst->write_idx % block_size);
 		else
 			write_bytes = num - i;
 		for (k = 0; k < ULP_BITS_2_BYTE_NR(write_bytes); k++) {
@@ -964,7 +965,10 @@ ulp_blob_append(struct ulp_blob *dst, struct ulp_blob *src,
 		ulp_bs_put_msb(dst->data, dst->write_idx,
 			       ULP_BLOB_BYTE, bluff);
 		dst->write_idx += remaining;
+		src_offset += remaining;
 	}
+
+	src_buf += ULP_BITS_2_BYTE_NR(src_offset);
 
 	/* Push the byte aligned pieces */
 	for (k = 0; k < ULP_BITS_2_BYTE_NR(src_len); k++) {
@@ -984,6 +988,33 @@ ulp_blob_append(struct ulp_blob *dst, struct ulp_blob *src,
 		dst->write_idx += remaining;
 	}
 
+	return 0;
+}
+
+/*
+ * Perform the blob buffer copy.
+ * This api makes the src blob merged to the dst blob.
+ *
+ * dst [in] The destination blob, the blob to be merged.
+ * src [in] The src blob.
+ *
+ * returns 0 on success.
+ */
+int32_t
+ulp_blob_buffer_copy(struct ulp_blob *dst, struct ulp_blob *src)
+{
+	if ((dst->write_idx + src->write_idx) > dst->bitlen) {
+		BNXT_TF_DBG(ERR, "source buffer too large\n");
+		return -EINVAL;
+	}
+	if (ULP_BITS_IS_BYTE_NOT_ALIGNED(dst->write_idx) ||
+	    ULP_BITS_IS_BYTE_NOT_ALIGNED(src->write_idx)) {
+		BNXT_TF_DBG(ERR, "source buffer is not aligned\n");
+		return -EINVAL;
+	}
+	memcpy(&dst->data[ULP_BITS_2_BYTE_NR(dst->write_idx)],
+	       src->data, ULP_BITS_2_BYTE_NR(src->write_idx));
+	dst->write_idx += src->write_idx;
 	return 0;
 }
 
@@ -1010,44 +1041,6 @@ ulp_operand_read(uint8_t *operand,
 	}
 	memcpy(val, operand, bytes);
 	return bytes;
-}
-
-/*
- * copy the buffer in the encap format which is 2 bytes.
- * The MSB of the src is placed at the LSB of dst.
- *
- * dst [out] The destination buffer
- * src [in] The source buffer dst
- * size[in] size of the buffer.
- * align[in] The alignment is either 8 or 16.
- */
-void
-ulp_encap_buffer_copy(uint8_t *dst,
-		      const uint8_t *src,
-		      uint16_t size,
-		      uint16_t align)
-{
-	uint16_t	idx, tmp_size = 0;
-
-	do {
-		dst += tmp_size;
-		src += tmp_size;
-		idx = 0;
-		if (size > align) {
-			tmp_size = align;
-			size -= align;
-		} else {
-			tmp_size = size;
-			size = 0;
-		}
-		/* copy 2 bytes at a time. Write MSB to LSB */
-		while ((idx + sizeof(uint16_t)) <= tmp_size) {
-			memcpy(&dst[idx],
-			       &src[tmp_size - idx - sizeof(uint16_t)],
-			       sizeof(uint16_t));
-			idx += sizeof(uint16_t);
-		}
-	} while (size);
 }
 
 /*

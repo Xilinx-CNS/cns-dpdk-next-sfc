@@ -725,14 +725,9 @@ main(int argc, char **argv)
 				"rte_eth_promiscuous_enable: err=%s, port=%u\n",
 				rte_strerror(-ret), portid);
 
-		printf("Port %u, MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n\n",
+		printf("Port %u, MAC address: " RTE_ETHER_ADDR_PRT_FMT "\n\n",
 				(unsigned) portid,
-				lsi_ports_eth_addr[portid].addr_bytes[0],
-				lsi_ports_eth_addr[portid].addr_bytes[1],
-				lsi_ports_eth_addr[portid].addr_bytes[2],
-				lsi_ports_eth_addr[portid].addr_bytes[3],
-				lsi_ports_eth_addr[portid].addr_bytes[4],
-				lsi_ports_eth_addr[portid].addr_bytes[5]);
+			RTE_ETHER_ADDR_BYTES(&lsi_ports_eth_addr[portid]));
 
 		/* initialize port stats */
 		memset(&port_statistics, 0, sizeof(port_statistics));

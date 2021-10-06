@@ -1189,7 +1189,7 @@ hns3_imissed_stats_name_get(struct rte_eth_dev *dev,
 }
 
 /*
- * Retrieve names of extended statistics of an Ethernet device.
+ * Retrieve all names of extended statistics of an Ethernet device.
  *
  * There is an assumption that 'xstat_names' and 'xstats' arrays are matched
  * by array index:
@@ -1212,10 +1212,10 @@ hns3_imissed_stats_name_get(struct rte_eth_dev *dev,
  *   - A positive value lower or equal to size: success. The return value
  *     is the number of entries filled in the stats table.
  */
-int
-hns3_dev_xstats_get_names(struct rte_eth_dev *dev,
-			  struct rte_eth_xstat_name *xstats_names,
-			  __rte_unused unsigned int size)
+static int
+hns3_dev_xstats_get_all_names(struct rte_eth_dev *dev,
+			      struct rte_eth_xstat_name *xstats_names,
+			      __rte_unused unsigned int size)
 {
 	struct hns3_adapter *hns = dev->data->dev_private;
 	int cnt_stats = hns3_xstats_calc_num(dev);
@@ -1365,12 +1365,12 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
  *
  * @param dev
  *   Pointer to Ethernet device.
+ * @param ids
+ *   IDs array given by app to retrieve specific statistics
  * @param xstats_names
  *   An rte_eth_xstat_name array of at least *size* elements to
  *   be filled. If set to NULL, the function returns the required number
  *   of elements.
- * @param ids
- *   IDs array given by app to retrieve specific statistics
  * @param size
  *   The size of the xstats_names array (number of elements).
  * @return
@@ -1382,9 +1382,9 @@ hns3_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
  *     shall not be used by the caller.
  */
 int
-hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
-				struct rte_eth_xstat_name *xstats_names,
-				const uint64_t *ids, uint32_t size)
+hns3_dev_xstats_get_names(struct rte_eth_dev *dev, const uint64_t *ids,
+			  struct rte_eth_xstat_name *xstats_names,
+			  uint32_t size)
 {
 	const uint32_t cnt_stats = hns3_xstats_calc_num(dev);
 	struct hns3_adapter *hns = dev->data->dev_private;
@@ -1400,7 +1400,8 @@ hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 		if (size < cnt_stats)
 			return cnt_stats;
 
-		return hns3_dev_xstats_get_names(dev, xstats_names, cnt_stats);
+		return hns3_dev_xstats_get_all_names(dev, xstats_names,
+						     cnt_stats);
 	}
 
 	len = cnt_stats * sizeof(struct rte_eth_xstat_name);
@@ -1411,7 +1412,7 @@ hns3_dev_xstats_get_names_by_id(struct rte_eth_dev *dev,
 		return -ENOMEM;
 	}
 
-	(void)hns3_dev_xstats_get_names(dev, names_copy, cnt_stats);
+	(void)hns3_dev_xstats_get_all_names(dev, names_copy, cnt_stats);
 
 	for (i = 0; i < size; i++) {
 		if (ids[i] >= cnt_stats) {

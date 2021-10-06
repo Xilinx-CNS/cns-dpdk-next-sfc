@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include <stdio.h>
-#include <sys/queue.h>
 #include <rte_compat.h>
 #include <rte_bus.h>
 
@@ -58,12 +57,6 @@ enum rte_devtype {
 	RTE_DEVTYPE_VIRTUAL,
 };
 
-/* Backwards compatibility will be removed later */
-#define RTE_DEVTYPE_WHITELISTED_PCI \
-	RTE_DEPRECATED(RTE_DEVTYPE_WHITELISTED_PCI) RTE_DEVTYPE_ALLOWED
-#define RTE_DEVTYPE_BLACKLISTED_PCI \
-	RTE_DEPRECATED(RTE_DEVTYPE_BLACKLISTED_PCI) RTE_DEVTYPE_BLOCKED
-
 /**
  * Structure that stores a device given by the user with its arguments
  *
@@ -76,7 +69,7 @@ enum rte_devtype {
  */
 struct rte_devargs {
 	/** Next in list. */
-	TAILQ_ENTRY(rte_devargs) next;
+	RTE_TAILQ_ENTRY(rte_devargs) next;
 	/** Type of device. */
 	enum rte_devtype type;
 	/** Device policy. */

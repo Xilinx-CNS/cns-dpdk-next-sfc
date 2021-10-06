@@ -6,6 +6,7 @@
 #define _ICE_ETHDEV_H_
 
 #include <rte_kvargs.h>
+#include <rte_time.h>
 
 #include <ethdev_driver.h>
 
@@ -50,7 +51,7 @@
 #define ICE_PKG_FILE_SEARCH_PATH_UPDATES "/lib/firmware/updates/intel/ice/ddp/"
 #define ICE_MAX_PKG_FILENAME_SIZE   256
 
-#define MAX_ACL_ENTRIES    512
+#define MAX_ACL_NORMAL_ENTRIES    256
 
 /**
  * vlan_id is a 12 bit number.
@@ -143,11 +144,23 @@
 /* Max number of flexible descriptor rxdid */
 #define ICE_FLEX_DESC_RXDID_MAX_NUM 64
 
+/* Per-channel register definitions */
+#define GLTSYN_AUX_OUT(_chan, _idx)     (GLTSYN_AUX_OUT_0(_idx) + ((_chan) * 8))
+#define GLTSYN_CLKO(_chan, _idx)        (GLTSYN_CLKO_0(_idx) + ((_chan) * 8))
+#define GLTSYN_TGT_L(_chan, _idx)       (GLTSYN_TGT_L_0(_idx) + ((_chan) * 16))
+#define GLTSYN_TGT_H(_chan, _idx)       (GLTSYN_TGT_H_0(_idx) + ((_chan) * 16))
+
 /* DDP package type */
 enum ice_pkg_type {
 	ICE_PKG_TYPE_UNKNOWN,
 	ICE_PKG_TYPE_OS_DEFAULT,
 	ICE_PKG_TYPE_COMMS,
+};
+
+enum pps_type {
+	PPS_NONE,
+	PPS_PIN,
+	PPS_MAX,
 };
 
 struct ice_adapter;
@@ -408,7 +421,7 @@ struct ice_acl_conf {
 struct ice_acl_info {
 	struct ice_acl_conf conf;
 	struct rte_bitmap *slots;
-	uint64_t hw_entry_id[MAX_ACL_ENTRIES];
+	uint64_t hw_entry_id[MAX_ACL_NORMAL_ENTRIES];
 };
 
 struct ice_pf {
@@ -458,15 +471,19 @@ struct ice_pf {
 };
 
 #define ICE_MAX_QUEUE_NUM  2048
+#define ICE_MAX_PIN_NUM   4
 
 /**
  * Cache devargs parse result.
  */
 struct ice_devargs {
+	int rx_low_latency;
 	int safe_mode_support;
 	uint8_t proto_xtr_dflt;
 	int pipe_mode_support;
 	uint8_t proto_xtr[ICE_MAX_QUEUE_NUM];
+	uint8_t pin_idx;
+	uint8_t pps_out_ena;
 };
 
 /**
@@ -486,6 +503,11 @@ struct ice_adapter {
 	struct ice_devargs devargs;
 	enum ice_pkg_type active_pkg_type; /* loaded ddp package type */
 	uint16_t fdir_ref_cnt;
+	/* For PTP */
+	struct rte_timecounter systime_tc;
+	struct rte_timecounter rx_tstamp_tc;
+	struct rte_timecounter tx_tstamp_tc;
+	bool ptp_ena;
 #ifdef RTE_ARCH_X86
 	bool rx_use_avx2;
 	bool rx_use_avx512;

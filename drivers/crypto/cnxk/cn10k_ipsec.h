@@ -20,15 +20,13 @@ struct cn10k_ipsec_sa {
 	};
 	/** Pre-populated CPT inst words */
 	struct cnxk_cpt_inst_tmpl inst;
-	uint8_t partial_len;
-	uint8_t roundup_len;
-	uint8_t roundup_byte;
+	uint16_t max_extended_len;
+	uint16_t iv_offset;
+	uint8_t iv_length;
 };
 
 struct cn10k_sec_session {
 	struct cn10k_ipsec_sa sa;
-	void *userdata;
-	/**< Userdata registered by the application */
 } __rte_cache_aligned;
 
 void cn10k_sec_ops_override(void);

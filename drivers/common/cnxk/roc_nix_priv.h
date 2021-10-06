@@ -17,7 +17,8 @@
 
 /* Apply BP/DROP when CQ is 95% full */
 #define NIX_CQ_THRESH_LEVEL	(5 * 256 / 100)
-#define NIX_RQ_AURA_THRESH(x)	(((x) * 95) / 100)
+#define NIX_CQ_FULL_ERRATA_SKID (1024ull * 256)
+#define NIX_RQ_AURA_THRESH(x)	(((x)*95) / 100)
 
 /* IRQ triggered when NIX_LF_CINTX_CNT[QCOUNT] crosses this value */
 #define CQ_CQE_THRESH_DEFAULT	0x1ULL
@@ -90,6 +91,7 @@ struct nix_tm_shaper_profile {
 	struct nix_tm_tb commit;
 	struct nix_tm_tb peak;
 	int32_t pkt_len_adj;
+	int32_t pkt_mode_adj;
 	bool pkt_mode;
 	uint32_t id;
 	void (*free_fn)(void *profile);
@@ -256,11 +258,14 @@ struct nix_tm_shaper_data {
 static inline uint64_t
 nix_tm_weight_to_rr_quantum(uint64_t weight)
 {
-	uint64_t max = (roc_model_is_cn9k() ? NIX_CN9K_TM_RR_QUANTUM_MAX :
-						    NIX_TM_RR_QUANTUM_MAX);
+	uint64_t max = NIX_CN9K_TM_RR_QUANTUM_MAX;
 
-	weight &= (uint64_t)ROC_NIX_TM_MAX_SCHED_WT;
-	return (weight * max) / ROC_NIX_TM_MAX_SCHED_WT;
+	/* From CN10K onwards, we only configure RR weight */
+	if (!roc_model_is_cn9k())
+		return weight;
+
+	weight &= (uint64_t)max;
+	return (weight * max) / ROC_NIX_CN9K_TM_RR_WEIGHT_MAX;
 }
 
 static inline bool
@@ -346,7 +351,6 @@ int nix_tm_txsch_reg_config(struct nix *nix, enum roc_nix_tm_tree tree);
 int nix_tm_update_parent_info(struct nix *nix, enum roc_nix_tm_tree tree);
 int nix_tm_sq_sched_conf(struct nix *nix, struct nix_tm_node *node,
 			 bool rr_quantum_only);
-int nix_tm_prepare_rate_limited_tree(struct roc_nix *roc_nix);
 
 /*
  * TM priv utils.

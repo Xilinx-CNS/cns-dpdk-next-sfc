@@ -103,15 +103,15 @@ mlx5_vdpa_vhost_mem_regions_prepare(int vid, uint8_t *mode, uint64_t *mem_size,
 			size = mem->regions[i].guest_phys_addr -
 				(mem->regions[i - 1].guest_phys_addr +
 				 mem->regions[i - 1].size);
-			*gcd = rte_get_gcd(*gcd, size);
+			*gcd = rte_get_gcd64(*gcd, size);
 			klm_entries_num += KLM_NUM_MAX_ALIGN(size);
 		}
 		size = mem->regions[i].size;
-		*gcd = rte_get_gcd(*gcd, size);
+		*gcd = rte_get_gcd64(*gcd, size);
 		klm_entries_num += KLM_NUM_MAX_ALIGN(size);
 	}
 	if (*gcd > MLX5_MAX_KLM_BYTE_COUNT)
-		*gcd = rte_get_gcd(*gcd, MLX5_MAX_KLM_BYTE_COUNT);
+		*gcd = rte_get_gcd64(*gcd, MLX5_MAX_KLM_BYTE_COUNT);
 	if (!RTE_IS_POWER_OF_2(*gcd)) {
 		uint64_t candidate_gcd = rte_align64prevpow2(*gcd);
 
@@ -177,10 +177,10 @@ mlx5_vdpa_mem_register(struct mlx5_vdpa_priv *priv)
 	struct mlx5_devx_mkey_attr mkey_attr;
 	struct mlx5_vdpa_query_mr *entry = NULL;
 	struct rte_vhost_mem_region *reg = NULL;
-	uint8_t mode;
+	uint8_t mode = 0;
 	uint32_t entries_num = 0;
 	uint32_t i;
-	uint64_t gcd;
+	uint64_t gcd = 0;
 	uint64_t klm_size;
 	uint64_t mem_size;
 	uint64_t k;

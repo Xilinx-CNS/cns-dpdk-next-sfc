@@ -82,6 +82,13 @@ efx_family(
 
 #if EFSYS_OPT_PCI
 
+/* PCIe interface numbers for multi-host configurations. */
+typedef enum efx_pcie_interface_e {
+	EFX_PCIE_INTERFACE_CALLER = 1000,
+	EFX_PCIE_INTERFACE_HOST_PRIMARY,
+	EFX_PCIE_INTERFACE_NIC_EMBEDDED,
+} efx_pcie_interface_t;
+
 typedef struct efx_pci_ops_s {
 	/*
 	 * Function for reading PCIe configuration space.
@@ -383,6 +390,21 @@ LIBEFX_API
 extern	__checkReturn	boolean_t
 efx_mcdi_request_abort(
 	__in		efx_nic_t *enp);
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_client_handle(
+	__in		efx_nic_t *enp,
+	__in		efx_pcie_interface_t intf,
+	__in		uint16_t pf,
+	__in		uint16_t vf,
+	__out		uint32_t *handle);
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_mcdi_get_own_client_handle(
+	__in		efx_nic_t *enp,
+	__out		uint32_t *handle);
 
 LIBEFX_API
 extern			void
@@ -1422,6 +1444,14 @@ typedef enum efx_vi_window_shift_e {
 	EFX_VI_WINDOW_SHIFT_64K = 16,
 } efx_vi_window_shift_t;
 
+typedef enum efx_nic_dma_mapping_e {
+	EFX_NIC_DMA_MAPPING_UNKNOWN = 0,
+	EFX_NIC_DMA_MAPPING_FLAT,
+	EFX_NIC_DMA_MAPPING_REGIONED,
+
+	EFX_NIC_DMA_MAPPING_NTYPES
+} efx_nic_dma_mapping_t;
+
 typedef struct efx_nic_cfg_s {
 	uint32_t		enc_board_type;
 	uint32_t		enc_phy_type;
@@ -1504,6 +1534,7 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_bist_mask;
 #endif	/* EFSYS_OPT_BIST */
 #if EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10()
+	efx_pcie_interface_t	enc_intf;
 	uint32_t		enc_pf;
 	uint32_t		enc_vf;
 	uint32_t		enc_privilege_mask;
@@ -1601,6 +1632,8 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_filter_action_mark_max;
 	/* Port assigned to this PCI function */
 	uint32_t		enc_assigned_port;
+	/* NIC DMA mapping type */
+	efx_nic_dma_mapping_t	enc_dma_mapping;
 } efx_nic_cfg_t;
 
 #define	EFX_PCI_VF_INVALID 0xffff
@@ -3007,6 +3040,10 @@ typedef enum efx_rxq_type_e {
  * Request user mark field in the Rx prefix of a queue.
  */
 #define	EFX_RXQ_FLAG_USER_MARK		0x10
+/*
+ * Request user flag field in the Rx prefix of a queue.
+ */
+#define	EFX_RXQ_FLAG_USER_FLAG		0x20
 
 LIBEFX_API
 extern	__checkReturn	efx_rc_t
@@ -3389,6 +3426,8 @@ typedef uint8_t efx_filter_flags_t;
 #define	EFX_FILTER_MATCH_OUTER_VID		0x00000100
 /* Match by IP transport protocol */
 #define	EFX_FILTER_MATCH_IP_PROTO		0x00000200
+/* Match by ingress MPORT */
+#define	EFX_FILTER_MATCH_MPORT			0x00000400
 /* Match by VNI or VSID */
 #define	EFX_FILTER_MATCH_VNI_OR_VSID		0x00000800
 /* For encapsulated packets, match by inner frame local MAC address */
@@ -3451,6 +3490,7 @@ typedef struct efx_filter_spec_s {
 	efx_oword_t			efs_loc_host;
 	uint8_t				efs_vni_or_vsid[EFX_VNI_OR_VSID_LEN];
 	uint8_t				efs_ifrm_loc_mac[EFX_MAC_ADDR_LEN];
+	uint32_t			efs_ingress_mport;
 } efx_filter_spec_t;
 
 
@@ -4173,6 +4213,11 @@ typedef enum efx_mae_field_id_e {
 	EFX_MAE_FIELD_ENC_HAS_OVLAN,
 	EFX_MAE_FIELD_ENC_HAS_IVLAN,
 
+	/*
+	 * Fields which can be set by efx_mae_match_spec_field_set()
+	 * or by using dedicated field-specific helper APIs.
+	 */
+	EFX_MAE_FIELD_RECIRC_ID,
 	EFX_MAE_FIELD_NIDS
 } efx_mae_field_id_t;
 
@@ -4181,7 +4226,67 @@ typedef struct efx_mport_sel_s {
 	uint32_t sel;
 } efx_mport_sel_t;
 
+/*
+ * MPORT ID. Used to refer dynamically to a specific MPORT.
+ * The difference between MPORT selector and MPORT ID is that
+ * selector can specify an exact MPORT ID or it can specify a
+ * pattern by which an exact MPORT ID can be selected. For example,
+ * static MPORT selector can specify MPORT of a current PF, which
+ * will be translated to the dynamic MPORT ID based on which PF is
+ * using that MPORT selector.
+ */
+typedef struct efx_mport_id_s {
+	uint32_t id;
+} efx_mport_id_t;
+
+typedef enum efx_mport_type_e {
+	EFX_MPORT_TYPE_NET_PORT = 0,
+	EFX_MPORT_TYPE_ALIAS,
+	EFX_MPORT_TYPE_VNIC,
+} efx_mport_type_t;
+
+typedef enum efx_mport_vnic_client_type_e {
+	EFX_MPORT_VNIC_CLIENT_FUNCTION = 1,
+	EFX_MPORT_VNIC_CLIENT_PLUGIN,
+} efx_mport_vnic_client_type_t;
+
+typedef struct efx_mport_desc_s {
+	efx_mport_id_t			emd_id;
+	boolean_t			emd_can_receive_on;
+	boolean_t			emd_can_deliver_to;
+	boolean_t			emd_can_delete;
+	boolean_t			emd_zombie;
+	efx_mport_type_t		emd_type;
+	union {
+		struct {
+			uint32_t	ep_index;
+		} emd_net_port;
+		struct {
+			efx_mport_id_t	ea_target_mport_id;
+		} emd_alias;
+		struct {
+			efx_mport_vnic_client_type_t	ev_client_type;
+			efx_pcie_interface_t		ev_intf;
+			uint16_t			ev_pf;
+			uint16_t			ev_vf;
+			/* MCDI client handle for this VNIC. */
+			uint32_t			ev_handle;
+		} emd_vnic;
+	};
+} efx_mport_desc_t;
+
 #define	EFX_MPORT_NULL			(0U)
+
+/*
+ * Generate an invalid MPORT selector.
+ *
+ * The resulting MPORT selector is opaque to the caller. Requests
+ * that attempt to use it will be rejected.
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_invalid(
+	__out				efx_mport_sel_t *mportp);
 
 /*
  * Get MPORT selector of a physical port.
@@ -4209,6 +4314,42 @@ efx_mae_mport_by_pcie_function(
 	__in				uint32_t pf,
 	__in				uint32_t vf,
 	__out				efx_mport_sel_t *mportp);
+
+/*
+ * Get MPORT selector of a multi-host PCIe function.
+ *
+ * The resulting MPORT selector is opaque to the caller and can be
+ * passed as an argument to efx_mae_match_spec_mport_set()
+ * and efx_mae_action_set_populate_deliver().
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_by_pcie_mh_function(
+	__in				efx_pcie_interface_t intf,
+	__in				uint32_t pf,
+	__in				uint32_t vf,
+	__out				efx_mport_sel_t *mportp);
+
+/*
+ * Get MPORT selector by an MPORT ID
+ *
+ * The resulting MPORT selector is opaque to the caller and can be
+ * passed as an argument to efx_mae_match_spec_mport_set()
+ * and efx_mae_action_set_populate_deliver().
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_by_id(
+	__in				const efx_mport_id_t *mport_idp,
+	__out				efx_mport_sel_t *mportp);
+
+/* Get MPORT ID by an MPORT selector */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_id_by_selector(
+	__in				efx_nic_t *enp,
+	__in				const efx_mport_sel_t *mport_selectorp,
+	__out				efx_mport_id_t *mport_idp);
 
 /*
  * Fields which have BE postfix in their named constants are expected
@@ -4246,6 +4387,12 @@ efx_mae_match_spec_mport_set(
 	__in				efx_mae_match_spec_t *spec,
 	__in				const efx_mport_sel_t *valuep,
 	__in_opt			const efx_mport_sel_t *maskp);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_match_spec_recirc_id_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				uint8_t recirc_id);
 
 LIBEFX_API
 extern	__checkReturn			boolean_t
@@ -4380,6 +4527,17 @@ efx_mae_match_specs_class_cmp(
 typedef struct efx_mae_rule_id_s {
 	uint32_t id;
 } efx_mae_rule_id_t;
+
+/*
+ * Set the initial recirculation ID. It goes to action rule (AR) lookup.
+ *
+ * To match on this ID in an AR, use efx_mae_match_spec_recirc_id_set().
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_outer_rule_recirc_id_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				uint8_t recirc_id);
 
 LIBEFX_API
 extern	__checkReturn		efx_rc_t
@@ -4551,6 +4709,39 @@ efx_mae_action_rule_remove(
 	__in				efx_nic_t *enp,
 	__in				const efx_mae_rule_id_t *ar_idp);
 
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mcdi_mport_alloc_alias(
+	__in				efx_nic_t *enp,
+	__out				efx_mport_id_t *mportp,
+	__out_opt			uint32_t *labelp);
+
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_mport_free(
+	__in				efx_nic_t *enp,
+	__in				const efx_mport_id_t *mportp);
+
+typedef __checkReturn	efx_rc_t
+(efx_mae_read_mport_journal_cb)(
+	__in		void *cb_datap,
+	__in		efx_mport_desc_t *mportp,
+	__in		size_t mport_len);
+
+/*
+ * Read mport descriptions from the MAE journal (which describes added and
+ * removed mports) and pass them to a user-supplied callback. The user gets
+ * only one chance to process the data it's given. Once the callback function
+ * finishes, that particular mport description will be gone.
+ * The journal will be fully repopulated on PCI reset (efx_nic_reset function).
+ */
+LIBEFX_API
+extern	__checkReturn			efx_rc_t
+efx_mae_read_mport_journal(
+	__in				efx_nic_t *enp,
+	__in				efx_mae_read_mport_journal_cb *cbp,
+	__in				void *cb_datap);
+
 #endif /* EFSYS_OPT_MAE */
 
 #if EFSYS_OPT_VIRTIO
@@ -4694,6 +4885,42 @@ efx_virtio_verify_features(
 	__in		uint64_t features);
 
 #endif /* EFSYS_OPT_VIRTIO */
+
+LIBEFX_API
+extern	 __checkReturn	efx_rc_t
+efx_nic_dma_config_add(
+	__in		efx_nic_t *enp,
+	__in		efsys_dma_addr_t trgt_addr,
+	__in		size_t len,
+	__out_opt	efsys_dma_addr_t *nic_basep,
+	__out_opt	efsys_dma_addr_t *trgt_basep,
+	__out_opt	size_t *map_lenp);
+
+LIBEFX_API
+extern	 __checkReturn	efx_rc_t
+efx_nic_dma_reconfigure(
+	__in		efx_nic_t *enp);
+
+typedef enum efx_nic_dma_addr_type_e {
+	EFX_NIC_DMA_ADDR_MCDI_BUF,
+	EFX_NIC_DMA_ADDR_MAC_STATS_BUF,
+	EFX_NIC_DMA_ADDR_EVENT_RING,
+	EFX_NIC_DMA_ADDR_RX_RING,
+	EFX_NIC_DMA_ADDR_TX_RING,
+	EFX_NIC_DMA_ADDR_RX_BUF,
+	EFX_NIC_DMA_ADDR_TX_BUF,
+
+	EFX_NIC_DMA_ADDR_NTYPES
+} efx_nic_dma_addr_type_t;
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_nic_dma_map(
+	__in		efx_nic_t *enp,
+	__in		efx_nic_dma_addr_type_t addr_type,
+	__in		efsys_dma_addr_t tgt_addr,
+	__in		size_t len,
+	__out		efsys_dma_addr_t *nic_addrp);
 
 #ifdef	__cplusplus
 }

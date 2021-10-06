@@ -403,10 +403,13 @@ Actions:
    +----+-----------------------------------------+
    | 12 | RTE_FLOW_ACTION_TYPE_PORT_ID            |
    +----+-----------------------------------------+
+   | 13 | RTE_FLOW_ACTION_TYPE_ETHDEV             |
+   +----+-----------------------------------------+
 
 .. note::
 
-   ``RTE_FLOW_ACTION_TYPE_PORT_ID`` is only supported between PF and its VFs.
+   ``RTE_FLOW_ACTION_TYPE_PORT_ID`` and ``RTE_FLOW_ACTION_TYPE_ETHDEV``
+   are only supported between PF and its VFs.
 
 .. _table_octeontx2_supported_egress_action_types:
 

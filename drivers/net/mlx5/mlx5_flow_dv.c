@@ -2412,11 +2412,10 @@ flow_dv_validate_item_gtp_psc(const struct rte_flow_item *item,
 {
 	const struct rte_flow_item_gtp *gtp_spec;
 	const struct rte_flow_item_gtp *gtp_mask;
-	const struct rte_flow_item_gtp_psc *spec;
 	const struct rte_flow_item_gtp_psc *mask;
 	const struct rte_flow_item_gtp_psc nic_mask = {
-		.pdu_type = 0xFF,
-		.qfi = 0xFF,
+		.hdr.type = 0xF,
+		.hdr.qfi = 0x3F,
 	};
 
 	if (!gtp_item || !(last_item & MLX5_FLOW_LAYER_GTP))
@@ -2440,12 +2439,7 @@ flow_dv_validate_item_gtp_psc(const struct rte_flow_item *item,
 	/* GTP spec is here and E flag is requested to match zero. */
 	if (!item->spec)
 		return 0;
-	spec = item->spec;
 	mask = item->mask ? item->mask : &rte_flow_item_gtp_psc_mask;
-	if (spec->pdu_type > MLX5_GTP_EXT_MAX_PDU_TYPE)
-		return rte_flow_error_set
-			(error, ENOTSUP, RTE_FLOW_ERROR_TYPE_ITEM, item,
-			 "PDU type should be smaller than 16");
 	return mlx5_flow_item_acceptable(item, (const uint8_t *)mask,
 					 (const uint8_t *)&nic_mask,
 					 sizeof(struct rte_flow_item_gtp_psc),
@@ -5054,14 +5048,14 @@ flow_dv_validate_action_jump(struct rte_eth_dev *dev,
 }
 
 /*
- * Validate the port_id action.
+ * Validate the port ID or E-Switch port action.
  *
  * @param[in] dev
  *   Pointer to rte_eth_dev structure.
  * @param[in] action_flags
  *   Bit-fields that holds the actions detected until now.
  * @param[in] action
- *   Port_id RTE action structure.
+ *   PORT_ID or ESWITCH_PORT RTE action structure.
  * @param[in] attr
  *   Attributes of flow that includes this action.
  * @param[out] error
@@ -5078,6 +5072,7 @@ flow_dv_validate_action_port_id(struct rte_eth_dev *dev,
 				struct rte_flow_error *error)
 {
 	const struct rte_flow_action_port_id *port_id;
+	const struct rte_flow_action_ethdev *ethdev;
 	struct mlx5_priv *act_priv;
 	struct mlx5_priv *dev_priv;
 	uint16_t port;
@@ -5086,13 +5081,13 @@ flow_dv_validate_action_port_id(struct rte_eth_dev *dev,
 		return rte_flow_error_set(error, ENOTSUP,
 					  RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
 					  NULL,
-					  "port id action is valid in transfer"
+					  "port action is valid in transfer"
 					  " mode only");
 	if (!action || !action->conf)
 		return rte_flow_error_set(error, ENOTSUP,
 					  RTE_FLOW_ERROR_TYPE_ACTION_CONF,
 					  NULL,
-					  "port id action parameters must be"
+					  "port action parameters must be"
 					  " specified");
 	if (action_flags & (MLX5_FLOW_FATE_ACTIONS |
 			    MLX5_FLOW_FATE_ESWITCH_ACTIONS))
@@ -5106,13 +5101,26 @@ flow_dv_validate_action_port_id(struct rte_eth_dev *dev,
 					  RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
 					  NULL,
 					  "failed to obtain E-Switch info");
-	port_id = action->conf;
-	port = port_id->original ? dev->data->port_id : port_id->id;
+	switch (action->type) {
+	case RTE_FLOW_ACTION_TYPE_PORT_ID:
+		port_id = action->conf;
+		port = port_id->original ? dev->data->port_id : port_id->id;
+		break;
+	case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
+		ethdev = action->conf;
+		port = ethdev->port_id;
+		break;
+	default:
+		return rte_flow_error_set
+				(error, EINVAL,
+				 RTE_FLOW_ERROR_TYPE_ACTION, action,
+				 "unknown E-Switch action");
+	}
 	act_priv = mlx5_port_to_eswitch_info(port, false);
 	if (!act_priv)
 		return rte_flow_error_set
 				(error, rte_errno,
-				 RTE_FLOW_ERROR_TYPE_ACTION_CONF, port_id,
+				 RTE_FLOW_ERROR_TYPE_ACTION_CONF, action->conf,
 				 "failed to obtain E-Switch port id for port");
 	if (act_priv->domain_id != dev_priv->domain_id)
 		return rte_flow_error_set
@@ -5675,6 +5683,7 @@ flow_dv_validate_action_sample(uint64_t *action_flags,
 			++actions_n;
 			break;
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
+		case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
 			ret = flow_dv_validate_action_port_id(dev,
 							      sub_action_flags,
 							      act,
@@ -7302,6 +7311,7 @@ flow_dv_validate(struct rte_eth_dev *dev, const struct rte_flow_attr *attr,
 		case RTE_FLOW_ACTION_TYPE_VOID:
 			break;
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
+		case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
 			ret = flow_dv_validate_action_port_id(dev,
 							      action_flags,
 							      actions,
@@ -9267,6 +9277,8 @@ flow_dv_translate_item_geneve_opt(struct rte_eth_dev *dev, void *matcher,
 		MLX5_SET(fte_match_set_misc, misc_v, geneve_opt_len,
 			 geneve_opt_v->option_len + 1);
 	}
+	MLX5_SET(fte_match_set_misc, misc_m, geneve_tlv_option_0_exist, 1);
+	MLX5_SET(fte_match_set_misc, misc_v, geneve_tlv_option_0_exist, 1);
 	/* Set the data. */
 	if (geneve_opt_v->data) {
 		memcpy(&opt_data_key, geneve_opt_v->data,
@@ -9951,14 +9963,14 @@ flow_dv_translate_item_gtp_psc(void *matcher, void *key,
 		if (!gtp_psc_m)
 			gtp_psc_m = &rte_flow_item_gtp_psc_mask;
 		dw_0.w32 = 0;
-		dw_0.type_flags = MLX5_GTP_PDU_TYPE_SHIFT(gtp_psc_m->pdu_type);
-		dw_0.qfi = gtp_psc_m->qfi;
+		dw_0.type_flags = MLX5_GTP_PDU_TYPE_SHIFT(gtp_psc_m->hdr.type);
+		dw_0.qfi = gtp_psc_m->hdr.qfi;
 		MLX5_SET(fte_match_set_misc3, misc3_m, gtpu_first_ext_dw_0,
 			 rte_cpu_to_be_32(dw_0.w32));
 		dw_0.w32 = 0;
-		dw_0.type_flags = MLX5_GTP_PDU_TYPE_SHIFT(gtp_psc_v->pdu_type &
-							gtp_psc_m->pdu_type);
-		dw_0.qfi = gtp_psc_v->qfi & gtp_psc_m->qfi;
+		dw_0.type_flags = MLX5_GTP_PDU_TYPE_SHIFT(gtp_psc_v->hdr.type &
+							gtp_psc_m->hdr.type);
+		dw_0.qfi = gtp_psc_v->hdr.qfi & gtp_psc_m->hdr.qfi;
 		MLX5_SET(fte_match_set_misc3, misc3_v, gtpu_first_ext_dw_0,
 			 rte_cpu_to_be_32(dw_0.w32));
 	}
@@ -9976,12 +9988,13 @@ flow_dv_translate_item_gtp_psc(void *matcher, void *key,
  *   Flow matcher value.
  * @param[in] item
  *   Flow pattern to translate.
- * @param[in] samples
- *   Sample IDs to be used in the matching.
+ * @param[in] last_item
+ *   Last item flags.
  */
 static void
 flow_dv_translate_item_ecpri(struct rte_eth_dev *dev, void *matcher,
-			     void *key, const struct rte_flow_item *item)
+			     void *key, const struct rte_flow_item *item,
+			     uint64_t last_item)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
 	const struct rte_flow_item_ecpri *ecpri_m = item->mask;
@@ -9994,6 +10007,22 @@ flow_dv_translate_item_ecpri(struct rte_eth_dev *dev, void *matcher,
 	void *dw_m;
 	void *dw_v;
 
+	/*
+	 * In case of eCPRI over Ethernet, if EtherType is not specified,
+	 * match on eCPRI EtherType implicitly.
+	 */
+	if (last_item & MLX5_FLOW_LAYER_OUTER_L2) {
+		void *hdrs_m, *hdrs_v, *l2m, *l2v;
+
+		hdrs_m = MLX5_ADDR_OF(fte_match_param, matcher, outer_headers);
+		hdrs_v = MLX5_ADDR_OF(fte_match_param, key, outer_headers);
+		l2m = MLX5_ADDR_OF(fte_match_set_lyr_2_4, hdrs_m, ethertype);
+		l2v = MLX5_ADDR_OF(fte_match_set_lyr_2_4, hdrs_v, ethertype);
+		if (*(uint16_t *)l2m == 0 && *(uint16_t *)l2v == 0) {
+			*(uint16_t *)l2m = UINT16_MAX;
+			*(uint16_t *)l2v = RTE_BE16(RTE_ETHER_TYPE_ECPRI);
+		}
+	}
 	if (!ecpri_v)
 		return;
 	if (!ecpri_m)
@@ -10757,12 +10786,12 @@ flow_dv_tag_release(struct rte_eth_dev *dev,
 }
 
 /**
- * Translate port ID action to vport.
+ * Translate port ID or E-Switch port action to vport.
  *
  * @param[in] dev
  *   Pointer to rte_eth_dev structure.
  * @param[in] action
- *   Pointer to the port ID action.
+ *   Pointer to the port ID or E-Switch port action.
  * @param[out] dst_port_id
  *   The target port ID.
  * @param[out] error
@@ -10779,10 +10808,28 @@ flow_dv_translate_action_port_id(struct rte_eth_dev *dev,
 {
 	uint32_t port;
 	struct mlx5_priv *priv;
-	const struct rte_flow_action_port_id *conf =
-			(const struct rte_flow_action_port_id *)action->conf;
 
-	port = conf->original ? dev->data->port_id : conf->id;
+	switch (action->type) {
+	case RTE_FLOW_ACTION_TYPE_PORT_ID: {
+		const struct rte_flow_action_port_id *conf;
+
+		conf = (const struct rte_flow_action_port_id *)action->conf;
+		port = conf->original ? dev->data->port_id : conf->id;
+		break;
+	}
+	case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT: {
+		const struct rte_flow_action_ethdev *ethdev;
+
+		ethdev = (const struct rte_flow_action_ethdev *)action->conf;
+		port = ethdev->port_id;
+		break;
+	}
+	default:
+		return rte_flow_error_set(error, EINVAL,
+					  RTE_FLOW_ERROR_TYPE_ACTION, action,
+					  "unknown E-Switch action");
+	}
+
 	priv = mlx5_port_to_eswitch_info(port, false);
 	if (!priv)
 		return rte_flow_error_set(error, -rte_errno,
@@ -11621,6 +11668,7 @@ flow_dv_translate_action_sample(struct rte_eth_dev *dev,
 			break;
 		}
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
+		case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
 		{
 			struct mlx5_flow_dv_port_id_action_resource
 					port_id_resource;
@@ -12285,17 +12333,27 @@ flow_dv_aso_ct_dev_release(struct rte_eth_dev *dev, uint32_t idx)
 }
 
 static inline int
-flow_dv_aso_ct_release(struct rte_eth_dev *dev, uint32_t own_idx)
+flow_dv_aso_ct_release(struct rte_eth_dev *dev, uint32_t own_idx,
+		       struct rte_flow_error *error)
 {
 	uint16_t owner = (uint16_t)MLX5_INDIRECT_ACT_CT_GET_OWNER(own_idx);
 	uint32_t idx = MLX5_INDIRECT_ACT_CT_GET_IDX(own_idx);
 	struct rte_eth_dev *owndev = &rte_eth_devices[owner];
-	RTE_SET_USED(dev);
+	int ret;
 
 	MLX5_ASSERT(owner < RTE_MAX_ETHPORTS);
 	if (dev->data->dev_started != 1)
-		return -1;
-	return flow_dv_aso_ct_dev_release(owndev, idx);
+		return rte_flow_error_set(error, EAGAIN,
+					  RTE_FLOW_ERROR_TYPE_ACTION,
+					  NULL,
+					  "Indirect CT action cannot be destroyed when the port is stopped");
+	ret = flow_dv_aso_ct_dev_release(owndev, idx);
+	if (ret < 0)
+		return rte_flow_error_set(error, EAGAIN,
+					  RTE_FLOW_ERROR_TYPE_ACTION,
+					  NULL,
+					  "Current state prevents indirect CT action from being destroyed");
+	return ret;
 }
 
 /*
@@ -12691,6 +12749,7 @@ flow_dv_translate(struct rte_eth_dev *dev,
 		case RTE_FLOW_ACTION_TYPE_VOID:
 			break;
 		case RTE_FLOW_ACTION_TYPE_PORT_ID:
+		case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
 			if (flow_dv_translate_action_port_id(dev, action,
 							     &port_id, error))
 				return -rte_errno;
@@ -12811,10 +12870,13 @@ flow_dv_translate(struct rte_eth_dev *dev,
 				MLX5_FLOW_FATE_QUEUE;
 			break;
 		case MLX5_RTE_FLOW_ACTION_TYPE_AGE:
-			flow->age = (uint32_t)(uintptr_t)(action->conf);
-			age_act = flow_aso_age_get_by_idx(dev, flow->age);
-			__atomic_fetch_add(&age_act->refcnt, 1,
-					   __ATOMIC_RELAXED);
+			owner_idx = (uint32_t)(uintptr_t)action->conf;
+			age_act = flow_aso_age_get_by_idx(dev, owner_idx);
+			if (flow->age == 0) {
+				flow->age = owner_idx;
+				__atomic_fetch_add(&age_act->refcnt, 1,
+						   __ATOMIC_RELAXED);
+			}
 			age_act_pos = actions_n++;
 			action_flags |= MLX5_FLOW_ACTION_AGE;
 			break;
@@ -12824,9 +12886,9 @@ flow_dv_translate(struct rte_eth_dev *dev,
 			action_flags |= MLX5_FLOW_ACTION_AGE;
 			break;
 		case MLX5_RTE_FLOW_ACTION_TYPE_COUNT:
-			cnt_act = flow_dv_counter_get_by_idx(dev,
-					(uint32_t)(uintptr_t)action->conf,
-					NULL);
+			owner_idx = (uint32_t)(uintptr_t)action->conf;
+			cnt_act = flow_dv_counter_get_by_idx(dev, owner_idx,
+							     NULL);
 			MLX5_ASSERT(cnt_act != NULL);
 			/**
 			 * When creating meter drop flow in drop table, the
@@ -12837,10 +12899,12 @@ flow_dv_translate(struct rte_eth_dev *dev,
 				dev_flow->dv.actions[actions_n++] =
 							cnt_act->action;
 			} else {
-				flow->counter =
-					(uint32_t)(uintptr_t)(action->conf);
-				__atomic_fetch_add(&cnt_act->shared_info.refcnt,
-						1, __ATOMIC_RELAXED);
+				if (flow->counter == 0) {
+					flow->counter = owner_idx;
+					__atomic_fetch_add
+						(&cnt_act->shared_info.refcnt,
+						 1, __ATOMIC_RELAXED);
+				}
 				/* Save information first, will apply later. */
 				action_flags |= MLX5_FLOW_ACTION_COUNT;
 			}
@@ -13163,9 +13227,13 @@ flow_dv_translate(struct rte_eth_dev *dev,
 			else
 				dev_flow->dv.actions[actions_n] =
 							ct->dr_action_rply;
-			flow->indirect_type = MLX5_INDIRECT_ACTION_TYPE_CT;
-			flow->ct = owner_idx;
-			__atomic_fetch_add(&ct->refcnt, 1, __ATOMIC_RELAXED);
+			if (flow->ct == 0) {
+				flow->indirect_type =
+						MLX5_INDIRECT_ACTION_TYPE_CT;
+				flow->ct = owner_idx;
+				__atomic_fetch_add(&ct->refcnt, 1,
+						   __ATOMIC_RELAXED);
+			}
 			actions_n++;
 			action_flags |= MLX5_FLOW_ACTION_CT;
 			break;
@@ -13474,7 +13542,8 @@ flow_dv_translate(struct rte_eth_dev *dev,
 						"cannot create eCPRI parser");
 			}
 			flow_dv_translate_item_ecpri(dev, match_mask,
-						     match_value, items);
+						     match_value, items,
+						     last_item);
 			/* No other protocol should follow eCPRI layer. */
 			last_item = MLX5_FLOW_LAYER_ECPRI;
 			break;
@@ -14345,7 +14414,7 @@ flow_dv_destroy(struct rte_eth_dev *dev, struct rte_flow *flow)
 	}
 	/* Keep the current age handling by default. */
 	if (flow->indirect_type == MLX5_INDIRECT_ACTION_TYPE_CT && flow->ct)
-		flow_dv_aso_ct_release(dev, flow->ct);
+		flow_dv_aso_ct_release(dev, flow->ct, NULL);
 	else if (flow->age)
 		flow_dv_aso_age_release(dev, flow->age);
 	if (flow->geneve_tlv_option) {
@@ -14722,12 +14791,6 @@ __flow_dv_action_rss_release(struct rte_eth_dev *dev, uint32_t idx,
 		return rte_flow_error_set(error, EINVAL,
 					  RTE_FLOW_ERROR_TYPE_ACTION, NULL,
 					  "invalid shared action");
-	remaining = __flow_dv_action_rss_hrxqs_release(dev, shared_rss);
-	if (remaining)
-		return rte_flow_error_set(error, EBUSY,
-					  RTE_FLOW_ERROR_TYPE_ACTION,
-					  NULL,
-					  "shared rss hrxq has references");
 	if (!__atomic_compare_exchange_n(&shared_rss->refcnt, &old_refcnt,
 					 0, 0, __ATOMIC_ACQUIRE,
 					 __ATOMIC_RELAXED))
@@ -14735,6 +14798,12 @@ __flow_dv_action_rss_release(struct rte_eth_dev *dev, uint32_t idx,
 					  RTE_FLOW_ERROR_TYPE_ACTION,
 					  NULL,
 					  "shared rss has references");
+	remaining = __flow_dv_action_rss_hrxqs_release(dev, shared_rss);
+	if (remaining)
+		return rte_flow_error_set(error, EBUSY,
+					  RTE_FLOW_ERROR_TYPE_ACTION,
+					  NULL,
+					  "shared rss hrxq has references");
 	queue = shared_rss->ind_tbl->queues;
 	remaining = mlx5_ind_table_obj_release(dev, shared_rss->ind_tbl, true);
 	if (remaining)
@@ -14880,7 +14949,7 @@ flow_dv_action_destroy(struct rte_eth_dev *dev,
 				" released with references %d.", idx, ret);
 		return 0;
 	case MLX5_INDIRECT_ACTION_TYPE_CT:
-		ret = flow_dv_aso_ct_release(dev, idx);
+		ret = flow_dv_aso_ct_release(dev, idx, error);
 		if (ret < 0)
 			return ret;
 		if (ret > 0)
@@ -15099,7 +15168,7 @@ __flow_dv_destroy_sub_policy_rules(struct rte_eth_dev *dev,
 		    policy->act_cnt[i].fate_action == MLX5_FLOW_FATE_MTR)
 			next_fm = mlx5_flow_meter_find(priv,
 					policy->act_cnt[i].next_mtr_id, NULL);
-		TAILQ_FOREACH_SAFE(color_rule, &sub_policy->color_rules[i],
+		RTE_TAILQ_FOREACH_SAFE(color_rule, &sub_policy->color_rules[i],
 				   next_port, tmp) {
 			claim_zero(mlx5_flow_os_destroy_flow(color_rule->rule));
 			tbl = container_of(color_rule->matcher->tbl,
@@ -15442,6 +15511,7 @@ __flow_dv_create_domain_policy_acts(struct rte_eth_dev *dev,
 				break;
 			}
 			case RTE_FLOW_ACTION_TYPE_PORT_ID:
+			case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
 			{
 				struct mlx5_flow_dv_port_id_action_resource
 					port_id_resource;
@@ -17650,6 +17720,7 @@ flow_dv_validate_mtr_policy_acts(struct rte_eth_dev *dev,
 					  NULL, "too many actions");
 			switch (act->type) {
 			case RTE_FLOW_ACTION_TYPE_PORT_ID:
+			case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
 				if (!priv->config.dv_esw_en)
 					return -rte_mtr_error_set(error,
 					ENOTSUP,

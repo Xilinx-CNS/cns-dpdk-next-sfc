@@ -473,6 +473,7 @@ typedef enum efx_mae_field_cap_id_e {
 	EFX_MAE_FIELD_ID_HAS_IVLAN = MAE_FIELD_HAS_IVLAN,
 	EFX_MAE_FIELD_ID_ENC_HAS_OVLAN = MAE_FIELD_ENC_HAS_OVLAN,
 	EFX_MAE_FIELD_ID_ENC_HAS_IVLAN = MAE_FIELD_ENC_HAS_IVLAN,
+	EFX_MAE_FIELD_ID_RECIRC_ID = MAE_FIELD_RECIRC_ID,
 
 	EFX_MAE_FIELD_CAP_NIDS
 } efx_mae_field_cap_id_t;
@@ -519,10 +520,10 @@ static const efx_mae_mv_desc_t __efx_mae_action_rule_mv_desc_set[] = {
 	[EFX_MAE_FIELD_##_name] =					\
 	{								\
 		EFX_MAE_FIELD_ID_##_name,				\
-		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_LEN,		\
-		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_OFST,		\
-		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_MASK_LEN,		\
-		MAE_FIELD_MASK_VALUE_PAIRS_##_name##_MASK_OFST,		\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_##_name##_LEN,		\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_##_name##_OFST,		\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_##_name##_MASK_LEN,	\
+		MAE_FIELD_MASK_VALUE_PAIRS_V2_##_name##_MASK_OFST,	\
 		0, 0 /* no alternative field */,			\
 		_endianness						\
 	}
@@ -547,6 +548,7 @@ static const efx_mae_mv_desc_t __efx_mae_action_rule_mv_desc_set[] = {
 	EFX_MAE_MV_DESC(TCP_FLAGS_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(ENC_VNET_ID_BE, EFX_MAE_FIELD_BE),
 	EFX_MAE_MV_DESC(OUTER_RULE_ID, EFX_MAE_FIELD_LE),
+	EFX_MAE_MV_DESC(RECIRC_ID, EFX_MAE_FIELD_LE),
 
 #undef EFX_MAE_MV_DESC
 };
@@ -661,6 +663,31 @@ static const efx_mae_mv_bit_desc_t __efx_mae_action_rule_mv_bit_desc_set[] = {
 };
 
 	__checkReturn			efx_rc_t
+efx_mae_mport_invalid(
+	__out				efx_mport_sel_t *mportp)
+{
+	efx_dword_t dword;
+	efx_rc_t rc;
+
+	if (mportp == NULL) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	EFX_POPULATE_DWORD_1(dword,
+	    MAE_MPORT_SELECTOR_TYPE, MAE_MPORT_SELECTOR_TYPE_INVALID);
+
+	memset(mportp, 0, sizeof (*mportp));
+	mportp->sel = dword.ed_u32[0];
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
 efx_mae_mport_by_phy_port(
 	__in				uint32_t phy_port,
 	__out				efx_mport_sel_t *mportp)
@@ -702,32 +729,156 @@ efx_mae_mport_by_pcie_function(
 	efx_dword_t dword;
 	efx_rc_t rc;
 
-	EFX_STATIC_ASSERT(EFX_PCI_VF_INVALID ==
-	    MAE_MPORT_SELECTOR_FUNC_VF_ID_NULL);
+	rc = efx_mae_mport_by_pcie_mh_function(EFX_PCIE_INTERFACE_CALLER,
+					       pf, vf, mportp);
+	if (rc != 0)
+		goto fail1;
 
-	if (pf > EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_PF_ID)) {
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_intf_to_selector(
+	__in				efx_pcie_interface_t intf,
+	__out				uint32_t *selector_intfp)
+{
+	efx_rc_t rc;
+
+	switch (intf) {
+	case EFX_PCIE_INTERFACE_HOST_PRIMARY:
+		EFX_STATIC_ASSERT(MAE_MPORT_SELECTOR_HOST_PRIMARY <=
+		    EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_INTF_ID));
+		*selector_intfp = MAE_MPORT_SELECTOR_HOST_PRIMARY;
+		break;
+	case EFX_PCIE_INTERFACE_NIC_EMBEDDED:
+		EFX_STATIC_ASSERT(MAE_MPORT_SELECTOR_NIC_EMBEDDED <=
+		    EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_INTF_ID));
+		*selector_intfp = MAE_MPORT_SELECTOR_NIC_EMBEDDED;
+		break;
+	case EFX_PCIE_INTERFACE_CALLER:
+		EFX_STATIC_ASSERT(MAE_MPORT_SELECTOR_CALLER_INTF <=
+		    EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_INTF_ID));
+		*selector_intfp = MAE_MPORT_SELECTOR_CALLER_INTF;
+		break;
+	default:
 		rc = EINVAL;
 		goto fail1;
 	}
 
-	if (vf > EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_VF_ID)) {
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_mport_by_pcie_mh_function(
+	__in				efx_pcie_interface_t intf,
+	__in				uint32_t pf,
+	__in				uint32_t vf,
+	__out				efx_mport_sel_t *mportp)
+{
+	uint32_t selector_intf;
+	efx_dword_t dword;
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_PCI_VF_INVALID ==
+	    MAE_MPORT_SELECTOR_FUNC_VF_ID_NULL);
+
+	rc = efx_mae_intf_to_selector(intf, &selector_intf);
+	if (rc != 0)
+		goto fail1;
+
+	if (pf > EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_MH_PF_ID)) {
 		rc = EINVAL;
 		goto fail2;
 	}
 
-	EFX_POPULATE_DWORD_3(dword,
-	    MAE_MPORT_SELECTOR_TYPE, MAE_MPORT_SELECTOR_TYPE_FUNC,
-	    MAE_MPORT_SELECTOR_FUNC_PF_ID, pf,
+	if (vf > EFX_MASK32(MAE_MPORT_SELECTOR_FUNC_VF_ID)) {
+		rc = EINVAL;
+		goto fail3;
+	}
+
+
+	EFX_POPULATE_DWORD_4(dword,
+	    MAE_MPORT_SELECTOR_TYPE, MAE_MPORT_SELECTOR_TYPE_MH_FUNC,
+	    MAE_MPORT_SELECTOR_FUNC_INTF_ID, selector_intf,
+	    MAE_MPORT_SELECTOR_FUNC_MH_PF_ID, pf,
 	    MAE_MPORT_SELECTOR_FUNC_VF_ID, vf);
 
 	memset(mportp, 0, sizeof (*mportp));
-	/*
-	 * The constructed DWORD is little-endian,
-	 * but the resulting value is meant to be
-	 * passed to MCDIs, where it will undergo
-	 * host-order to little endian conversion.
-	 */
-	mportp->sel = EFX_DWORD_FIELD(dword, EFX_DWORD_0);
+	mportp->sel = dword.ed_u32[0];
+
+	return (0);
+
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mcdi_mae_mport_lookup(
+	__in				efx_nic_t *enp,
+	__in				const efx_mport_sel_t *mport_selectorp,
+	__out				efx_mport_id_t *mport_idp)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_MPORT_LOOKUP_IN_LEN,
+	    MC_CMD_MAE_MPORT_LOOKUP_OUT_LEN);
+	efx_rc_t rc;
+
+	req.emr_cmd = MC_CMD_MAE_MPORT_LOOKUP;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_MPORT_LOOKUP_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_MPORT_LOOKUP_OUT_LEN;
+
+	MCDI_IN_SET_DWORD(req, MAE_MPORT_LOOKUP_IN_MPORT_SELECTOR,
+	    mport_selectorp->sel);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail1;
+	}
+
+	mport_idp->id = MCDI_OUT_DWORD(req, MAE_MPORT_LOOKUP_OUT_MPORT_ID);
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_mport_id_by_selector(
+	__in				efx_nic_t *enp,
+	__in				const efx_mport_sel_t *mport_selectorp,
+	__out				efx_mport_id_t *mport_idp)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	rc = efx_mcdi_mae_mport_lookup(enp, mport_selectorp, mport_idp);
+	if (rc != 0)
+		goto fail2;
 
 	return (0);
 
@@ -736,6 +887,49 @@ fail2:
 fail1:
 	EFSYS_PROBE1(fail1, efx_rc_t, rc);
 	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_match_spec_recirc_id_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				uint8_t recirc_id)
+{
+	uint8_t full_mask = UINT8_MAX;
+	const uint8_t *vp;
+	const uint8_t *mp;
+	efx_rc_t rc;
+
+	vp = (const uint8_t *)&recirc_id;
+	mp = (const uint8_t *)&full_mask;
+
+	rc = efx_mae_match_spec_field_set(spec, EFX_MAE_FIELD_RECIRC_ID,
+					  sizeof (recirc_id), vp,
+					  sizeof (full_mask), mp);
+	if (rc != 0)
+		goto fail1;
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_mport_by_id(
+	__in				const efx_mport_id_t *mport_idp,
+	__out				efx_mport_sel_t *mportp)
+{
+	efx_dword_t dword;
+
+	EFX_POPULATE_DWORD_2(dword,
+	    MAE_MPORT_SELECTOR_TYPE, MAE_MPORT_SELECTOR_TYPE_MPORT_ID,
+	    MAE_MPORT_SELECTOR_MPORT_ID, mport_idp->id);
+
+	memset(mportp, 0, sizeof (*mportp));
+	mportp->sel = __LE_TO_CPU_32(dword.ed_u32[0]);
+
+	return (0);
 }
 
 	__checkReturn			efx_rc_t
@@ -1950,6 +2144,27 @@ fail1:
 	return (rc);
 }
 
+	__checkReturn			efx_rc_t
+efx_mae_outer_rule_recirc_id_set(
+	__in				efx_mae_match_spec_t *spec,
+	__in				uint8_t recirc_id)
+{
+	efx_rc_t rc;
+
+	if (spec->emms_type != EFX_MAE_RULE_OUTER) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	spec->emms_outer_rule_recirc_id = recirc_id;
+
+	return (0);
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
 	__checkReturn		efx_rc_t
 efx_mae_outer_rule_insert(
 	__in			efx_nic_t *enp,
@@ -2022,6 +2237,9 @@ efx_mae_outer_rule_insert(
 	offset = MC_CMD_MAE_OUTER_RULE_INSERT_IN_FIELD_MATCH_CRITERIA_OFST;
 	memcpy(payload + offset, spec->emms_mask_value_pairs.outer,
 	    MAE_ENC_FIELD_PAIRS_LEN);
+
+	MCDI_IN_SET_BYTE(req, MAE_OUTER_RULE_INSERT_IN_RECIRC_ID,
+	    spec->emms_outer_rule_recirc_id);
 
 	efx_mcdi_execute(enp, &req);
 
@@ -3029,6 +3247,320 @@ fail4:
 	EFSYS_PROBE(fail4);
 fail3:
 	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mcdi_mport_alloc_alias(
+	__in				efx_nic_t *enp,
+	__out				efx_mport_id_t *mportp,
+	__out_opt			uint32_t *labelp)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_MPORT_ALLOC_ALIAS_IN_LEN,
+	    MC_CMD_MAE_MPORT_ALLOC_ALIAS_OUT_LEN);
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_MPORT_ALLOC;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_MPORT_ALLOC_ALIAS_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_MPORT_ALLOC_ALIAS_OUT_LEN;
+
+	MCDI_IN_SET_DWORD(req, MAE_MPORT_ALLOC_IN_TYPE,
+			  MC_CMD_MAE_MPORT_ALLOC_IN_MPORT_TYPE_ALIAS);
+	MCDI_IN_SET_DWORD(req, MAE_MPORT_ALLOC_ALIAS_IN_DELIVER_MPORT,
+			  MAE_MPORT_SELECTOR_ASSIGNED);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	mportp->id = MCDI_OUT_DWORD(req, MAE_MPORT_ALLOC_OUT_MPORT_ID);
+	if (labelp != NULL)
+		*labelp = MCDI_OUT_DWORD(req, MAE_MPORT_ALLOC_ALIAS_OUT_LABEL);
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_mport_free(
+	__in				efx_nic_t *enp,
+	__in				const efx_mport_id_t *mportp)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_MPORT_FREE_IN_LEN,
+	    MC_CMD_MAE_MPORT_FREE_OUT_LEN);
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_MPORT_FREE;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_MPORT_FREE_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_MPORT_FREE_OUT_LEN;
+
+	MCDI_IN_SET_DWORD(req, MAE_MPORT_FREE_IN_MPORT_ID, mportp->id);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_read_mport_journal_single(
+	__in				uint8_t *entry_buf,
+	__out				efx_mport_desc_t *desc)
+{
+	uint32_t pcie_intf;
+	efx_rc_t rc;
+
+	memset(desc, 0, sizeof (*desc));
+
+	desc->emd_id.id = MCDI_STRUCT_DWORD(entry_buf,
+	    MAE_MPORT_DESC_V2_MPORT_ID);
+
+	desc->emd_can_receive_on = MCDI_STRUCT_DWORD_FIELD(entry_buf,
+	    MAE_MPORT_DESC_V2_FLAGS,
+	    MAE_MPORT_DESC_V2_CAN_RECEIVE_ON);
+
+	desc->emd_can_deliver_to = MCDI_STRUCT_DWORD_FIELD(entry_buf,
+	    MAE_MPORT_DESC_V2_FLAGS,
+	    MAE_MPORT_DESC_V2_CAN_DELIVER_TO);
+
+	desc->emd_can_delete = MCDI_STRUCT_DWORD_FIELD(entry_buf,
+	    MAE_MPORT_DESC_V2_FLAGS,
+	    MAE_MPORT_DESC_V2_CAN_DELETE);
+
+	desc->emd_zombie = MCDI_STRUCT_DWORD_FIELD(entry_buf,
+	    MAE_MPORT_DESC_V2_FLAGS,
+	    MAE_MPORT_DESC_V2_IS_ZOMBIE);
+
+	desc->emd_type = MCDI_STRUCT_DWORD(entry_buf,
+	    MAE_MPORT_DESC_V2_MPORT_TYPE);
+
+	/*
+	 * We can't check everything here. If some additional checks are
+	 * required, they should be performed by the callback function.
+	 */
+	switch (desc->emd_type) {
+	case EFX_MPORT_TYPE_NET_PORT:
+		desc->emd_net_port.ep_index =
+		    MCDI_STRUCT_DWORD(entry_buf,
+			MAE_MPORT_DESC_V2_NET_PORT_IDX);
+		break;
+	case EFX_MPORT_TYPE_ALIAS:
+		desc->emd_alias.ea_target_mport_id.id =
+		    MCDI_STRUCT_DWORD(entry_buf,
+			MAE_MPORT_DESC_V2_ALIAS_DELIVER_MPORT_ID);
+		break;
+	case EFX_MPORT_TYPE_VNIC:
+		desc->emd_vnic.ev_client_type =
+		    MCDI_STRUCT_DWORD(entry_buf,
+			MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE);
+		if (desc->emd_vnic.ev_client_type !=
+		    EFX_MPORT_VNIC_CLIENT_FUNCTION)
+			break;
+
+		pcie_intf = MCDI_STRUCT_DWORD(entry_buf,
+		    MAE_MPORT_DESC_V2_VNIC_FUNCTION_INTERFACE);
+		rc = efx_mcdi_intf_from_pcie(pcie_intf,
+		    &desc->emd_vnic.ev_intf);
+		if (rc != 0)
+			goto fail1;
+
+		desc->emd_vnic.ev_pf = MCDI_STRUCT_WORD(entry_buf,
+		    MAE_MPORT_DESC_V2_VNIC_FUNCTION_PF_IDX);
+		desc->emd_vnic.ev_vf = MCDI_STRUCT_WORD(entry_buf,
+		    MAE_MPORT_DESC_V2_VNIC_FUNCTION_VF_IDX);
+		desc->emd_vnic.ev_handle = MCDI_STRUCT_DWORD(entry_buf,
+		    MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE);
+		break;
+	default:
+		rc = EINVAL;
+		goto fail2;
+	}
+
+	return (0);
+
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+static	__checkReturn			efx_rc_t
+efx_mae_read_mport_journal_batch(
+	__in				efx_nic_t *enp,
+	__in				efx_mae_read_mport_journal_cb *cbp,
+	__in				void *cb_datap,
+	__out				uint32_t *morep)
+{
+	efx_mcdi_req_t req;
+	EFX_MCDI_DECLARE_BUF(payload,
+	    MC_CMD_MAE_MPORT_READ_JOURNAL_IN_LEN,
+	    MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_LENMAX_MCDI2);
+	uint32_t n_entries;
+	uint32_t entry_sz;
+	uint8_t *entry_buf;
+	unsigned int i;
+	efx_rc_t rc;
+
+	EFX_STATIC_ASSERT(EFX_MPORT_TYPE_NET_PORT ==
+	    MAE_MPORT_DESC_V2_MPORT_TYPE_NET_PORT);
+	EFX_STATIC_ASSERT(EFX_MPORT_TYPE_ALIAS ==
+	    MAE_MPORT_DESC_V2_MPORT_TYPE_ALIAS);
+	EFX_STATIC_ASSERT(EFX_MPORT_TYPE_VNIC ==
+	    MAE_MPORT_DESC_V2_MPORT_TYPE_VNIC);
+
+	EFX_STATIC_ASSERT(EFX_MPORT_VNIC_CLIENT_FUNCTION ==
+	    MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_FUNCTION);
+	EFX_STATIC_ASSERT(EFX_MPORT_VNIC_CLIENT_PLUGIN ==
+	    MAE_MPORT_DESC_V2_VNIC_CLIENT_TYPE_PLUGIN);
+
+	if (cbp == NULL) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	req.emr_cmd = MC_CMD_MAE_MPORT_READ_JOURNAL;
+	req.emr_in_buf = payload;
+	req.emr_in_length = MC_CMD_MAE_MPORT_READ_JOURNAL_IN_LEN;
+	req.emr_out_buf = payload;
+	req.emr_out_length = MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_LENMAX_MCDI2;
+
+	MCDI_IN_SET_DWORD(req, MAE_MPORT_READ_JOURNAL_IN_FLAGS, 0);
+
+	efx_mcdi_execute(enp, &req);
+
+	if (req.emr_rc != 0) {
+		rc = req.emr_rc;
+		goto fail2;
+	}
+
+	if (req.emr_out_length_used <
+	    MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_LENMIN) {
+		rc = EMSGSIZE;
+		goto fail3;
+	}
+
+	if (morep != NULL) {
+		*morep = MCDI_OUT_DWORD_FIELD(req,
+		    MAE_MPORT_READ_JOURNAL_OUT_FLAGS,
+		    MAE_MPORT_READ_JOURNAL_OUT_MORE);
+	}
+	n_entries = MCDI_OUT_DWORD(req,
+	    MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_COUNT);
+	entry_sz = MCDI_OUT_DWORD(req,
+	    MAE_MPORT_READ_JOURNAL_OUT_SIZEOF_MPORT_DESC);
+	entry_buf = MCDI_OUT2(req, uint8_t,
+	    MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_DATA);
+
+	if (entry_sz < MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE_OFST +
+	    MAE_MPORT_DESC_V2_VNIC_CLIENT_HANDLE_LEN) {
+		rc = EINVAL;
+		goto fail4;
+	}
+	if (n_entries * entry_sz / entry_sz != n_entries) {
+		rc = EINVAL;
+		goto fail5;
+	}
+	if (req.emr_out_length_used !=
+	    MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_LENMIN + n_entries * entry_sz) {
+		rc = EINVAL;
+		goto fail6;
+	}
+
+	for (i = 0; i < n_entries; i++) {
+		efx_mport_desc_t desc;
+
+		rc = efx_mae_read_mport_journal_single(entry_buf, &desc);
+		if (rc != 0)
+			continue;
+
+		(*cbp)(cb_datap, &desc, sizeof (desc));
+		entry_buf += entry_sz;
+	}
+
+	return (0);
+
+fail6:
+	EFSYS_PROBE(fail6);
+fail5:
+	EFSYS_PROBE(fail5);
+fail4:
+	EFSYS_PROBE(fail4);
+fail3:
+	EFSYS_PROBE(fail3);
+fail2:
+	EFSYS_PROBE(fail2);
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	__checkReturn			efx_rc_t
+efx_mae_read_mport_journal(
+	__in				efx_nic_t *enp,
+	__in				efx_mae_read_mport_journal_cb *cbp,
+	__in				void *cb_datap)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(enp);
+	uint32_t more = 0;
+	efx_rc_t rc;
+
+	if (encp->enc_mae_supported == B_FALSE) {
+		rc = ENOTSUP;
+		goto fail1;
+	}
+
+	do {
+		rc = efx_mae_read_mport_journal_batch(enp, cbp, cb_datap,
+		    &more);
+		if (rc != 0)
+			goto fail2;
+	} while (more != 0);
+
+	return (0);
+
 fail2:
 	EFSYS_PROBE(fail2);
 fail1:

@@ -1,13 +1,8 @@
-DPDK_21 {
+DPDK_22 {
 	global:
 
 	rte_pmd_softnic_run;
+	rte_pmd_softnic_manage;
 
 	local: *;
-};
-
-EXPERIMENTAL {
-	global:
-
-	rte_pmd_softnic_manage;
 };

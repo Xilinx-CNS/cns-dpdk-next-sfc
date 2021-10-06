@@ -214,7 +214,6 @@ rte_eth_iterator_init(struct rte_dev_iterator *iter, const char *devargs_str)
 	 *   - 0000:08:00.0,representor=[1-3]
 	 *   - pci:0000:06:00.0,representor=[0,5]
 	 *   - class=eth,mac=00:11:22:33:44:55
-	 * A new syntax is in development (not yet supported):
 	 *   - bus=X,paramX=x/class=Y,paramY=y/driver=Z,paramZ=z
 	 */
 
@@ -525,6 +524,7 @@ rte_eth_dev_allocate(const char *name)
 	eth_dev = eth_dev_get(port_id);
 	strlcpy(eth_dev->data->name, name, sizeof(eth_dev->data->name));
 	eth_dev->data->port_id = port_id;
+	eth_dev->data->backer_port_id = RTE_MAX_ETHPORTS;
 	eth_dev->data->mtu = RTE_ETHER_MTU;
 	pthread_mutex_init(&eth_dev->data->flow_ops_mutex, NULL);
 
@@ -2867,14 +2867,8 @@ eth_dev_get_xstats_count(uint16_t port_id)
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
-	if (dev->dev_ops->xstats_get_names_by_id != NULL) {
-		count = (*dev->dev_ops->xstats_get_names_by_id)(dev, NULL,
-				NULL, 0);
-		if (count < 0)
-			return eth_err(port_id, count);
-	}
 	if (dev->dev_ops->xstats_get_names != NULL) {
-		count = (*dev->dev_ops->xstats_get_names)(dev, NULL, 0);
+		count = (*dev->dev_ops->xstats_get_names)(dev, NULL, NULL, 0);
 		if (count < 0)
 			return eth_err(port_id, count);
 	} else
@@ -3012,7 +3006,7 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 	if (ids && !xstats_names)
 		return -EINVAL;
 
-	if (ids && dev->dev_ops->xstats_get_names_by_id != NULL && size > 0) {
+	if (ids && dev->dev_ops->xstats_get_names != NULL && size > 0) {
 		uint64_t ids_copy[size];
 
 		for (i = 0; i < size; i++) {
@@ -3028,9 +3022,16 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 			ids_copy[i] = ids[i] - basic_count;
 		}
 
-		if (no_basic_stat_requested)
-			return (*dev->dev_ops->xstats_get_names_by_id)(dev,
-					xstats_names, ids_copy, size);
+		if (no_basic_stat_requested) {
+			ret = (*dev->dev_ops->xstats_get_names)(dev,
+					ids_copy, xstats_names, size);
+			if (ret == 0 || ret != -ENOTSUP)
+				return ret;
+			/*
+			 * Driver does not support getting names by IDs.
+			 * Fallback to support on ethdev layer.
+			 */
+		}
 	}
 
 	/* Retrieve all stats */
@@ -3111,7 +3112,7 @@ rte_eth_xstats_get_names(uint16_t port_id,
 		 * to end of list.
 		 */
 		cnt_driver_entries = (*dev->dev_ops->xstats_get_names)(
-			dev,
+			dev, NULL,
 			xstats_names + cnt_used_entries,
 			size - cnt_used_entries);
 		if (cnt_driver_entries < 0)
@@ -5997,7 +5998,7 @@ parse_cleanup:
 }
 
 int
-rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
+rte_eth_representor_id_get(uint16_t port_id,
 			   enum rte_eth_representor_type type,
 			   int controller, int pf, int representor_port,
 			   uint16_t *repr_id)
@@ -6013,7 +6014,7 @@ rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
 		return -EINVAL;
 
 	/* Get PMD representor range info. */
-	ret = rte_eth_representor_info_get(ethdev->data->port_id, NULL);
+	ret = rte_eth_representor_info_get(port_id, NULL);
 	if (ret == -ENOTSUP && type == RTE_ETH_REPRESENTOR_VF &&
 	    controller == -1 && pf == -1) {
 		/* Direct mapping for legacy VF representor. */
@@ -6028,7 +6029,7 @@ rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
 	if (info == NULL)
 		return -ENOMEM;
 	info->nb_ranges_alloc = n;
-	ret = rte_eth_representor_info_get(ethdev->data->port_id, info);
+	ret = rte_eth_representor_info_get(port_id, info);
 	if (ret < 0)
 		goto out;
 
@@ -6047,7 +6048,7 @@ rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
 			continue;
 		if (info->ranges[i].id_end < info->ranges[i].id_base) {
 			RTE_LOG(WARNING, EAL, "Port %hu invalid representor ID Range %u - %u, entry %d\n",
-				ethdev->data->port_id, info->ranges[i].id_base,
+				port_id, info->ranges[i].id_base,
 				info->ranges[i].id_end, i);
 			continue;
 
@@ -6309,6 +6310,31 @@ rte_eth_representor_info_get(uint16_t port_id,
 
 	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->representor_info_get, -ENOTSUP);
 	return eth_err(port_id, (*dev->dev_ops->representor_info_get)(dev, info));
+}
+
+int
+rte_eth_rx_metadata_negotiate(uint16_t port_id, uint64_t *features)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+	dev = &rte_eth_devices[port_id];
+
+	if (dev->data->dev_configured != 0) {
+		RTE_ETHDEV_LOG(ERR,
+			"The port (id=%"PRIu16") is already configured\n",
+			port_id);
+		return -EBUSY;
+	}
+
+	if (features == NULL) {
+		RTE_ETHDEV_LOG(ERR, "Invalid features (NULL)\n");
+		return -EINVAL;
+	}
+
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_metadata_negotiate, -ENOTSUP);
+	return eth_err(port_id,
+		       (*dev->dev_ops->rx_metadata_negotiate)(dev, features));
 }
 
 RTE_LOG_REGISTER_DEFAULT(rte_eth_dev_logtype, INFO);

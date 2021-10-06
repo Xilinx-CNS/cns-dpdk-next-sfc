@@ -2280,12 +2280,16 @@ static void hinic_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
  *   Number of xstats names.
  */
 static int hinic_dev_xstats_get_names(struct rte_eth_dev *dev,
+			       const uint64_t *ids,
 			       struct rte_eth_xstat_name *xstats_names,
 			       __rte_unused unsigned int limit)
 {
 	struct hinic_nic_dev *nic_dev = HINIC_ETH_DEV_TO_PRIVATE_NIC_DEV(dev);
 	int count = 0;
 	u16 i = 0, q_num;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return hinic_xstats_calc_num(nic_dev);
@@ -2359,10 +2363,8 @@ static int hinic_set_mac_addr(struct rte_eth_dev *dev,
 
 	rte_ether_addr_copy(addr, &nic_dev->default_addr);
 
-	PMD_DRV_LOG(INFO, "Set new mac address %02x:%02x:%02x:%02x:%02x:%02x",
-		    addr->addr_bytes[0], addr->addr_bytes[1],
-		    addr->addr_bytes[2], addr->addr_bytes[3],
-		    addr->addr_bytes[4], addr->addr_bytes[5]);
+	PMD_DRV_LOG(INFO, "Set new mac address " RTE_ETHER_ADDR_PRT_FMT,
+		    RTE_ETHER_ADDR_BYTES(addr));
 
 	return 0;
 }

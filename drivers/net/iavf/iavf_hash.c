@@ -342,23 +342,30 @@ struct virtchnl_proto_hdrs ipv4_ecpri_tmplt = {
 
 /* IPv4 outer */
 #define IAVF_RSS_TYPE_OUTER_IPV4	(ETH_RSS_ETH | ETH_RSS_IPV4 | \
-					 ETH_RSS_FRAG_IPV4)
+					 ETH_RSS_FRAG_IPV4 | \
+					 ETH_RSS_IPV4_CHKSUM)
 #define IAVF_RSS_TYPE_OUTER_IPV4_UDP	(IAVF_RSS_TYPE_OUTER_IPV4 | \
-					 ETH_RSS_NONFRAG_IPV4_UDP)
+					 ETH_RSS_NONFRAG_IPV4_UDP | \
+					 ETH_RSS_L4_CHKSUM)
 #define IAVF_RSS_TYPE_OUTER_IPV4_TCP	(IAVF_RSS_TYPE_OUTER_IPV4 | \
-					 ETH_RSS_NONFRAG_IPV4_TCP)
+					 ETH_RSS_NONFRAG_IPV4_TCP | \
+					 ETH_RSS_L4_CHKSUM)
 #define IAVF_RSS_TYPE_OUTER_IPV4_SCTP	(IAVF_RSS_TYPE_OUTER_IPV4 | \
-					 ETH_RSS_NONFRAG_IPV4_SCTP)
+					 ETH_RSS_NONFRAG_IPV4_SCTP | \
+					 ETH_RSS_L4_CHKSUM)
 /* IPv6 outer */
 #define IAVF_RSS_TYPE_OUTER_IPV6	(ETH_RSS_ETH | ETH_RSS_IPV6)
 #define IAVF_RSS_TYPE_OUTER_IPV6_FRAG	(IAVF_RSS_TYPE_OUTER_IPV6 | \
 					 ETH_RSS_FRAG_IPV6)
 #define IAVF_RSS_TYPE_OUTER_IPV6_UDP	(IAVF_RSS_TYPE_OUTER_IPV6 | \
-					 ETH_RSS_NONFRAG_IPV6_UDP)
+					 ETH_RSS_NONFRAG_IPV6_UDP | \
+					 ETH_RSS_L4_CHKSUM)
 #define IAVF_RSS_TYPE_OUTER_IPV6_TCP	(IAVF_RSS_TYPE_OUTER_IPV6 | \
-					 ETH_RSS_NONFRAG_IPV6_TCP)
+					 ETH_RSS_NONFRAG_IPV6_TCP | \
+					 ETH_RSS_L4_CHKSUM)
 #define IAVF_RSS_TYPE_OUTER_IPV6_SCTP	(IAVF_RSS_TYPE_OUTER_IPV6 | \
-					 ETH_RSS_NONFRAG_IPV6_SCTP)
+					 ETH_RSS_NONFRAG_IPV6_SCTP | \
+					 ETH_RSS_L4_CHKSUM)
 /* VLAN IPV4 */
 #define IAVF_RSS_TYPE_VLAN_IPV4		(IAVF_RSS_TYPE_OUTER_IPV4 | \
 					 ETH_RSS_S_VLAN | ETH_RSS_C_VLAN)
@@ -623,38 +630,6 @@ iavf_rss_hash_set(struct iavf_adapter *ad, uint64_t rss_hf, bool add)
 		iavf_add_del_rss_cfg(ad, &rss_cfg, add);
 	}
 
-	if (rss_hf & ETH_RSS_FRAG_IPV4) {
-		struct virtchnl_proto_hdrs hdr = {
-			.tunnel_level = TUNNEL_LEVEL_OUTER,
-			.count = 3,
-			.proto_hdr = {
-				proto_hdr_eth,
-				proto_hdr_ipv4,
-				{
-					VIRTCHNL_PROTO_HDR_IPV4_FRAG,
-					FIELD_SELECTOR(VIRTCHNL_PROTO_HDR_IPV4_FRAG_PKID),
-					{BUFF_NOUSED},
-				},
-			},
-		};
-		rss_cfg.proto_hdrs = hdr;
-		iavf_add_del_rss_cfg(ad, &rss_cfg, add);
-	}
-
-	if (rss_hf & ETH_RSS_FRAG_IPV6) {
-		struct virtchnl_proto_hdrs hdr = {
-			.tunnel_level = TUNNEL_LEVEL_OUTER,
-			.count = 3,
-			.proto_hdr = {
-				proto_hdr_eth,
-				proto_hdr_ipv6,
-				proto_hdr_ipv6_frag,
-			},
-		};
-		rss_cfg.proto_hdrs = hdr;
-		iavf_add_del_rss_cfg(ad, &rss_cfg, add);
-	}
-
 	vf->rss_hf = rss_hf & IAVF_RSS_HF_ALL;
 	return 0;
 }
@@ -731,9 +706,9 @@ iavf_hash_parse_pattern(const struct rte_flow_item pattern[], uint64_t *phint,
 			psc = item->spec;
 			if (!psc)
 				break;
-			else if (psc->pdu_type == IAVF_GTPU_EH_UPLINK)
+			else if (psc->hdr.type == IAVF_GTPU_EH_UPLINK)
 				*phint |= IAVF_PHINT_GTPU_EH_UP;
-			else if (psc->pdu_type == IAVF_GTPU_EH_DWNLINK)
+			else if (psc->hdr.type == IAVF_GTPU_EH_DWNLINK)
 				*phint |= IAVF_PHINT_GTPU_EH_DWN;
 			break;
 		case RTE_FLOW_ITEM_TYPE_ECPRI:
@@ -832,6 +807,10 @@ iavf_refine_proto_hdrs_l234(struct virtchnl_proto_hdrs *proto_hdrs,
 			} else {
 				hdr->field_selector = 0;
 			}
+
+			if (rss_type & ETH_RSS_IPV4_CHKSUM)
+				REFINE_PROTO_FLD(ADD, IPV4_CHKSUM);
+
 			break;
 		case VIRTCHNL_PROTO_HDR_IPV4_FRAG:
 			if (rss_type &
@@ -844,6 +823,10 @@ iavf_refine_proto_hdrs_l234(struct virtchnl_proto_hdrs *proto_hdrs,
 			} else {
 				hdr->field_selector = 0;
 			}
+
+			if (rss_type & ETH_RSS_IPV4_CHKSUM)
+				REFINE_PROTO_FLD(ADD, IPV4_CHKSUM);
+
 			break;
 		case VIRTCHNL_PROTO_HDR_IPV6:
 			if (rss_type &
@@ -895,6 +878,9 @@ iavf_refine_proto_hdrs_l234(struct virtchnl_proto_hdrs *proto_hdrs,
 			} else {
 				hdr->field_selector = 0;
 			}
+
+			if (rss_type & ETH_RSS_L4_CHKSUM)
+				REFINE_PROTO_FLD(ADD, UDP_CHKSUM);
 			break;
 		case VIRTCHNL_PROTO_HDR_TCP:
 			if (rss_type &
@@ -911,6 +897,9 @@ iavf_refine_proto_hdrs_l234(struct virtchnl_proto_hdrs *proto_hdrs,
 			} else {
 				hdr->field_selector = 0;
 			}
+
+			if (rss_type & ETH_RSS_L4_CHKSUM)
+				REFINE_PROTO_FLD(ADD, TCP_CHKSUM);
 			break;
 		case VIRTCHNL_PROTO_HDR_SCTP:
 			if (rss_type &
@@ -927,6 +916,9 @@ iavf_refine_proto_hdrs_l234(struct virtchnl_proto_hdrs *proto_hdrs,
 			} else {
 				hdr->field_selector = 0;
 			}
+
+			if (rss_type & ETH_RSS_L4_CHKSUM)
+				REFINE_PROTO_FLD(ADD, SCTP_CHKSUM);
 			break;
 		case VIRTCHNL_PROTO_HDR_S_VLAN:
 			if (!(rss_type & ETH_RSS_S_VLAN))

@@ -258,6 +258,7 @@ static int i40e_dev_stats_get(struct rte_eth_dev *dev,
 static int i40e_dev_xstats_get(struct rte_eth_dev *dev,
 			       struct rte_eth_xstat *xstats, unsigned n);
 static int i40e_dev_xstats_get_names(struct rte_eth_dev *dev,
+				     const uint64_t *ids,
 				     struct rte_eth_xstat_name *xstats_names,
 				     unsigned limit);
 static int i40e_dev_stats_reset(struct rte_eth_dev *dev);
@@ -1760,12 +1761,14 @@ eth_i40e_dev_init(struct rte_eth_dev *dev, void *init_params __rte_unused)
 	return 0;
 
 err_init_fdir_filter_list:
-	rte_free(pf->tunnel.hash_table);
+	rte_hash_free(pf->tunnel.hash_table);
 	rte_free(pf->tunnel.hash_map);
 err_init_tunnel_filter_list:
-	rte_free(pf->ethertype.hash_table);
+	rte_hash_free(pf->ethertype.hash_table);
 	rte_free(pf->ethertype.hash_map);
 err_init_ethtype_filter_list:
+	rte_intr_callback_unregister(intr_handle,
+		i40e_dev_interrupt_handler, dev);
 	rte_free(dev->data->mac_addrs);
 	dev->data->mac_addrs = NULL;
 err_mac_alloc:
@@ -3565,11 +3568,15 @@ i40e_xstats_calc_num(void)
 }
 
 static int i40e_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+				     const uint64_t *ids,
 				     struct rte_eth_xstat_name *xstats_names,
 				     __rte_unused unsigned limit)
 {
 	unsigned count = 0;
 	unsigned i, prio;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return i40e_xstats_calc_num();
@@ -5436,7 +5443,7 @@ i40e_vsi_release(struct i40e_vsi *vsi)
 
 	/* VSI has child to attach, release child first */
 	if (vsi->veb) {
-		TAILQ_FOREACH_SAFE(vsi_list, &vsi->veb->head, list, temp) {
+		RTE_TAILQ_FOREACH_SAFE(vsi_list, &vsi->veb->head, list, temp) {
 			if (i40e_vsi_release(vsi_list->vsi) != I40E_SUCCESS)
 				return -1;
 		}
@@ -5444,7 +5451,8 @@ i40e_vsi_release(struct i40e_vsi *vsi)
 	}
 
 	if (vsi->floating_veb) {
-		TAILQ_FOREACH_SAFE(vsi_list, &vsi->floating_veb->head, list, temp) {
+		RTE_TAILQ_FOREACH_SAFE(vsi_list, &vsi->floating_veb->head,
+			list, temp) {
 			if (i40e_vsi_release(vsi_list->vsi) != I40E_SUCCESS)
 				return -1;
 		}
@@ -5452,7 +5460,7 @@ i40e_vsi_release(struct i40e_vsi *vsi)
 
 	/* Remove all macvlan filters of the VSI */
 	i40e_vsi_remove_all_macvlan_filter(vsi);
-	TAILQ_FOREACH_SAFE(f, &vsi->mac_list, next, temp)
+	RTE_TAILQ_FOREACH_SAFE(f, &vsi->mac_list, next, temp)
 		rte_free(f);
 
 	if (vsi->type != I40E_VSI_MAIN &&
@@ -6055,7 +6063,7 @@ i40e_vsi_config_vlan_filter(struct i40e_vsi *vsi, bool on)
 	i = 0;
 
 	/* Remove all existing mac */
-	TAILQ_FOREACH_SAFE(f, &vsi->mac_list, next, temp) {
+	RTE_TAILQ_FOREACH_SAFE(f, &vsi->mac_list, next, temp) {
 		mac_filter[i] = f->mac_info;
 		ret = i40e_vsi_delete_mac(vsi, &f->mac_info.mac_addr);
 		if (ret) {

@@ -276,7 +276,7 @@ struct rte_eth_stats {
 	/**< Total number of queue packets received that are dropped. */
 };
 
-/**
+/**@{@name Link speed capabilities
  * Device supported speeds bitmap flags
  */
 #define ETH_LINK_SPEED_AUTONEG  (0 <<  0)  /**< Autonegotiate (all speeds) */
@@ -296,8 +296,9 @@ struct rte_eth_stats {
 #define ETH_LINK_SPEED_56G      (1 << 13)  /**<  56 Gbps */
 #define ETH_LINK_SPEED_100G     (1 << 14)  /**< 100 Gbps */
 #define ETH_LINK_SPEED_200G     (1 << 15)  /**< 200 Gbps */
+/**@}*/
 
-/**
+/**@{@name Link speed
  * Ethernet numeric link speeds in Mbps
  */
 #define ETH_SPEED_NUM_NONE         0 /**< Not defined */
@@ -315,6 +316,7 @@ struct rte_eth_stats {
 #define ETH_SPEED_NUM_100G    100000 /**< 100 Gbps */
 #define ETH_SPEED_NUM_200G    200000 /**< 200 Gbps */
 #define ETH_SPEED_NUM_UNKNOWN UINT32_MAX /**< Unknown */
+/**@}*/
 
 /**
  * A structure used to retrieve link-level information of an Ethernet port.
@@ -327,7 +329,9 @@ struct rte_eth_link {
 	uint16_t link_status  : 1;  /**< ETH_LINK_[DOWN/UP] */
 } __rte_aligned(8);      /**< aligned for atomic64 read/write */
 
-/* Utility constants */
+/**@{@name Link negotiation
+ * Constants used in link management.
+ */
 #define ETH_LINK_HALF_DUPLEX 0 /**< Half-duplex connection (see link_duplex). */
 #define ETH_LINK_FULL_DUPLEX 1 /**< Full-duplex connection (see link_duplex). */
 #define ETH_LINK_DOWN        0 /**< Link is down (see link_status). */
@@ -335,6 +339,7 @@ struct rte_eth_link {
 #define ETH_LINK_FIXED       0 /**< No autonegotiation (see link_autoneg). */
 #define ETH_LINK_AUTONEG     1 /**< Autonegotiated (see link_autoneg). */
 #define RTE_ETH_LINK_MAX_STR_LEN 40 /**< Max length of default link string. */
+/**@}*/
 
 /**
  * A structure used to configure the ring threshold registers of an RX/TX
@@ -346,12 +351,13 @@ struct rte_eth_thresh {
 	uint8_t wthresh; /**< Ring writeback threshold. */
 };
 
-/**
- *  Simple flags are used for rte_eth_conf.rxmode.mq_mode.
+/**@{@name Multi-queue mode
+ * @see rte_eth_conf.rxmode.mq_mode.
  */
-#define ETH_MQ_RX_RSS_FLAG  0x1
-#define ETH_MQ_RX_DCB_FLAG  0x2
-#define ETH_MQ_RX_VMDQ_FLAG 0x4
+#define ETH_MQ_RX_RSS_FLAG  0x1 /**< Enable RSS. @see rte_eth_rss_conf */
+#define ETH_MQ_RX_DCB_FLAG  0x2 /**< Enable DCB. */
+#define ETH_MQ_RX_VMDQ_FLAG 0x4 /**< Enable VMDq. */
+/**@}*/
 
 /**
  *  A set of values to identify what method is to be used to route
@@ -537,6 +543,21 @@ struct rte_eth_rss_conf {
 #define ETH_RSS_PPPOE		   (1ULL << 31)
 #define ETH_RSS_ECPRI		   (1ULL << 32)
 #define ETH_RSS_MPLS		   (1ULL << 33)
+#define ETH_RSS_IPV4_CHKSUM	   (1ULL << 34)
+
+/**
+ * The ETH_RSS_L4_CHKSUM works on checksum field of any L4 header.
+ * It is similar to ETH_RSS_PORT that they don't specify the specific type of
+ * L4 header. This macro is defined to replace some specific L4 (TCP/UDP/SCTP)
+ * checksum type for constructing the use of RSS offload bits.
+ *
+ * Due to above reason, some old APIs (and configuration) don't support
+ * ETH_RSS_L4_CHKSUM. The rte_flow RSS API supports it.
+ *
+ * For the case that checksum is not used in an UDP header,
+ * it takes the reserved value 0 as input for the hash function.
+ */
+#define ETH_RSS_L4_CHKSUM          (1ULL << 35)
 
 /*
  * We use the following macros to combine with above ETH_RSS_* for
@@ -782,28 +803,30 @@ rte_eth_rss_hf_refine(uint64_t rss_hf)
 #define ETH_RSS_RETA_SIZE_512 512
 #define RTE_RETA_GROUP_SIZE   64
 
-/* Definitions used for VMDQ and DCB functionality */
+/**@{@name VMDq and DCB maximums */
 #define ETH_VMDQ_MAX_VLAN_FILTERS   64 /**< Maximum nb. of VMDQ vlan filters. */
 #define ETH_DCB_NUM_USER_PRIORITIES 8  /**< Maximum nb. of DCB priorities. */
 #define ETH_VMDQ_DCB_NUM_QUEUES     128 /**< Maximum nb. of VMDQ DCB queues. */
 #define ETH_DCB_NUM_QUEUES          128 /**< Maximum nb. of DCB queues. */
+/**@}*/
 
-/* DCB capability defines */
+/**@{@name DCB capabilities */
 #define ETH_DCB_PG_SUPPORT      0x00000001 /**< Priority Group(ETS) support. */
 #define ETH_DCB_PFC_SUPPORT     0x00000002 /**< Priority Flow Control support. */
+/**@}*/
 
-/* Definitions used for VLAN Offload functionality */
+/**@{@name VLAN offload bits */
 #define ETH_VLAN_STRIP_OFFLOAD   0x0001 /**< VLAN Strip  On/Off */
 #define ETH_VLAN_FILTER_OFFLOAD  0x0002 /**< VLAN Filter On/Off */
 #define ETH_VLAN_EXTEND_OFFLOAD  0x0004 /**< VLAN Extend On/Off */
 #define ETH_QINQ_STRIP_OFFLOAD   0x0008 /**< QINQ Strip On/Off */
 
-/* Definitions used for mask VLAN setting */
 #define ETH_VLAN_STRIP_MASK   0x0001 /**< VLAN Strip  setting mask */
 #define ETH_VLAN_FILTER_MASK  0x0002 /**< VLAN Filter  setting mask*/
 #define ETH_VLAN_EXTEND_MASK  0x0004 /**< VLAN Extend  setting mask*/
 #define ETH_QINQ_STRIP_MASK   0x0008 /**< QINQ Strip  setting mask */
 #define ETH_VLAN_ID_MAX       0x0FFF /**< VLAN ID is in lower 12 bits*/
+/**@}*/
 
 /* Definitions used for receive MAC address   */
 #define ETH_NUM_RECEIVE_MAC_ADDR  128 /**< Maximum nb. of receive mac addr. */
@@ -811,21 +834,28 @@ rte_eth_rss_hf_refine(uint64_t rss_hf)
 /* Definitions used for unicast hash  */
 #define ETH_VMDQ_NUM_UC_HASH_ARRAY  128 /**< Maximum nb. of UC hash array. */
 
-/* Definitions used for VMDQ pool rx mode setting */
+/**@{@name VMDq Rx mode
+ * @see rte_eth_vmdq_rx_conf.rx_mode
+ */
 #define ETH_VMDQ_ACCEPT_UNTAG   0x0001 /**< accept untagged packets. */
 #define ETH_VMDQ_ACCEPT_HASH_MC 0x0002 /**< accept packets in multicast table . */
 #define ETH_VMDQ_ACCEPT_HASH_UC 0x0004 /**< accept packets in unicast table. */
 #define ETH_VMDQ_ACCEPT_BROADCAST   0x0008 /**< accept broadcast packets. */
 #define ETH_VMDQ_ACCEPT_MULTICAST   0x0010 /**< multicast promiscuous. */
+/**@}*/
 
 /** Maximum nb. of vlan per mirror rule */
 #define ETH_MIRROR_MAX_VLANS       64
 
+/**@{@name Mirroring type
+ * @see rte_eth_mirror_conf.rule_type
+ */
 #define ETH_MIRROR_VIRTUAL_POOL_UP     0x01  /**< Virtual Pool uplink Mirroring. */
 #define ETH_MIRROR_UPLINK_PORT         0x02  /**< Uplink Port Mirroring. */
 #define ETH_MIRROR_DOWNLINK_PORT       0x04  /**< Downlink Port Mirroring. */
 #define ETH_MIRROR_VLAN                0x08  /**< VLAN Mirroring. */
 #define ETH_MIRROR_VIRTUAL_POOL_DOWN   0x10  /**< Virtual Pool downlink Mirroring. */
+/**@}*/
 
 /**
  * A structure used to configure VLAN traffic mirror of an Ethernet port.
@@ -1587,12 +1617,11 @@ struct rte_eth_dev_info {
 	void *reserved_ptrs[2];   /**< Reserved for future fields */
 };
 
-/**
- * RX/TX queue states
- */
-#define RTE_ETH_QUEUE_STATE_STOPPED 0
-#define RTE_ETH_QUEUE_STATE_STARTED 1
-#define RTE_ETH_QUEUE_STATE_HAIRPIN 2
+/**@{@name Rx/Tx queue states */
+#define RTE_ETH_QUEUE_STATE_STOPPED 0 /**< Queue stopped. */
+#define RTE_ETH_QUEUE_STATE_STARTED 1 /**< Queue started. */
+#define RTE_ETH_QUEUE_STATE_HAIRPIN 2 /**< Queue used for hairpin. */
+/**@}*/
 
 /**
  * Ethernet device RX queue information structure.
@@ -1744,10 +1773,7 @@ struct rte_eth_fec_capa {
 	} \
 } while (0)
 
-/**
- * l2 tunnel configuration.
- */
-
+/**@{@name L2 tunnel configuration */
 /**< l2 tunnel enable mask */
 #define ETH_L2_TUNNEL_ENABLE_MASK       0x00000001
 /**< l2 tunnel insertion mask */
@@ -1756,6 +1782,7 @@ struct rte_eth_fec_capa {
 #define ETH_L2_TUNNEL_STRIPPING_MASK    0x00000004
 /**< l2 tunnel forwarding mask */
 #define ETH_L2_TUNNEL_FORWARDING_MASK   0x00000008
+/**@}*/
 
 /**
  * Function type used for RX packet processing packet callbacks.
@@ -1837,6 +1864,10 @@ struct rte_eth_dev_owner {
 	char name[RTE_ETH_MAX_OWNER_NAME_LEN]; /**< The owner name. */
 };
 
+/**@{@name Device flags
+ * Flags internally saved in rte_eth_dev_data.dev_flags
+ * and reported in rte_eth_dev_info.dev_flags.
+ */
 /** PMD supports thread-safe flow operations */
 #define RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE  0x0001
 /** Device supports link state interrupt */
@@ -1854,6 +1885,7 @@ struct rte_eth_dev_owner {
  * PMDs filling the queue xstats themselves should not set this flag
  */
 #define RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS 0x0040
+/**@}*/
 
 /**
  * Iterates over valid ethdev ports owned by a specific owner.
@@ -1894,9 +1926,6 @@ uint16_t rte_eth_find_next(uint16_t port_id);
 	RTE_ETH_FOREACH_DEV_OWNED_BY(p, RTE_ETH_DEV_NO_OWNER)
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
- *
  * Iterates over ethdev ports of a specified device.
  *
  * @param port_id_start
@@ -1907,7 +1936,6 @@ uint16_t rte_eth_find_next(uint16_t port_id);
  *   Next port id of the device, possibly port_id_start,
  *   RTE_MAX_ETHPORTS if there is none.
  */
-__rte_experimental
 uint16_t
 rte_eth_find_next_of(uint16_t port_id_start,
 		const struct rte_device *parent);
@@ -1926,9 +1954,6 @@ rte_eth_find_next_of(uint16_t port_id_start,
 		port_id = rte_eth_find_next_of(port_id + 1, parent))
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
- *
  * Iterates over sibling ethdev ports (i.e. sharing the same rte_device).
  *
  * @param port_id_start
@@ -1939,7 +1964,6 @@ rte_eth_find_next_of(uint16_t port_id_start,
  *   Next sibling port id, possibly port_id_start or ref_port_id itself,
  *   RTE_MAX_ETHPORTS if there is none.
  */
-__rte_experimental
 uint16_t
 rte_eth_find_next_sibling(uint16_t port_id_start, uint16_t ref_port_id);
 
@@ -2190,7 +2214,7 @@ rte_eth_dev_is_removed(uint16_t port_id);
  *   The configuration structure also contains the pointer to the array
  *   of the receiving buffer segment descriptions, see rx_seg and rx_nseg
  *   fields, this extended configuration might be used by split offloads like
- *   RTE_ETH_RX_OFFLOAD_BUFFER_SPLIT. If mp_pool is not NULL,
+ *   RTE_ETH_RX_OFFLOAD_BUFFER_SPLIT. If mb_pool is not NULL,
  *   the extended configuration fields must be set to NULL and zero.
  * @param mb_pool
  *   The pointer to the memory pool from which to allocate *rte_mbuf* network
@@ -2872,21 +2896,23 @@ int rte_eth_xstats_get(uint16_t port_id, struct rte_eth_xstat *xstats,
  * @param port_id
  *   The port identifier of the Ethernet device.
  * @param xstats_names
- *   An rte_eth_xstat_name array of at least *size* elements to
- *   be filled. If set to NULL, the function returns the required number
- *   of elements.
- * @param ids
- *   IDs array given by app to retrieve specific statistics
+ *   Array to be filled in with names of requested device statistics.
+ *   Must not be NULL if @p ids are specified (not NULL).
  * @param size
- *   The size of the xstats_names array (number of elements).
+ *   Number of elements in @p xstats_names array (if not NULL) and in
+ *   @p ids array (if not NULL). Must be 0 if both array pointers are NULL.
+ * @param ids
+ *   IDs array given by app to retrieve specific statistics. May be NULL to
+ *   retrieve names of all available statistics or, if @p xstats_names is
+ *   NULL as well, just the number of available statistics.
  * @return
  *   - A positive value lower or equal to size: success. The return value
  *     is the number of entries filled in the stats table.
- *   - A positive value higher than size: error, the given statistics table
+ *   - A positive value higher than size: success. The given statistics table
  *     is too small. The return value corresponds to the size that should
  *     be given to succeed. The entries in the table are not valid and
  *     shall not be used by the caller.
- *   - A negative value on error (invalid port id).
+ *   - A negative value on error.
  */
 int
 rte_eth_xstats_get_names_by_id(uint16_t port_id,
@@ -2899,22 +2925,23 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
  * @param port_id
  *   The port identifier of the Ethernet device.
  * @param ids
- *   A pointer to an ids array passed by application. This tells which
- *   statistics values function should retrieve. This parameter
- *   can be set to NULL if size is 0. In this case function will retrieve
- *   all available statistics.
+ *   IDs array given by app to retrieve specific statistics. May be NULL to
+ *   retrieve all available statistics or, if @p values is NULL as well,
+ *   just the number of available statistics.
  * @param values
- *   A pointer to a table to be filled with device statistics values.
+ *   Array to be filled in with requested device statistics.
+ *   Must not be NULL if ids are specified (not NULL).
  * @param size
- *   The size of the ids array (number of elements).
+ *   Number of elements in @p values array (if not NULL) and in @p ids
+ *   array (if not NULL). Must be 0 if both array pointers are NULL.
  * @return
  *   - A positive value lower or equal to size: success. The return value
  *     is the number of entries filled in the stats table.
- *   - A positive value higher than size: error, the given statistics table
+ *   - A positive value higher than size: success: The given statistics table
  *     is too small. The return value corresponds to the size that should
  *     be given to succeed. The entries in the table are not valid and
  *     shall not be used by the caller.
- *   - A negative value on error (invalid port id).
+ *   - A negative value on error.
  */
 int rte_eth_xstats_get_by_id(uint16_t port_id, const uint64_t *ids,
 			     uint64_t *values, unsigned int size);
@@ -3123,9 +3150,6 @@ int rte_eth_dev_fw_version_get(uint16_t port_id,
 int rte_eth_dev_get_supported_ptypes(uint16_t port_id, uint32_t ptype_mask,
 				     uint32_t *ptypes, int num);
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
- *
  * Inform Ethernet device about reduced range of packet types to handle.
  *
  * Application can use this function to set only specific ptypes that it's
@@ -3155,7 +3179,6 @@ int rte_eth_dev_get_supported_ptypes(uint16_t port_id, uint32_t ptype_mask,
  *   - (-EINVAL) if *ptype_mask* is invalid (or) set_ptypes is NULL and
  *     num > 0.
  */
-__rte_experimental
 int rte_eth_dev_set_ptypes(uint16_t port_id, uint32_t ptype_mask,
 			   uint32_t *set_ptypes, unsigned int num);
 
@@ -3647,9 +3670,6 @@ int rte_eth_dev_rx_intr_ctl_q(uint16_t port_id, uint16_t queue_id,
 			      int epfd, int op, void *data);
 
 /**
- * @warning
- * @b EXPERIMENTAL: this API may change without prior notice.
- *
  * Get interrupt fd per Rx queue.
  *
  * @param port_id
@@ -3663,7 +3683,6 @@ int rte_eth_dev_rx_intr_ctl_q(uint16_t port_id, uint16_t queue_id,
  *           successful.
  *   - (-1) on error.
  */
-__rte_experimental
 int
 rte_eth_dev_rx_intr_ctl_q_get_fd(uint16_t port_id, uint16_t queue_id);
 
@@ -4361,7 +4380,6 @@ int rte_eth_tx_queue_info_get(uint16_t port_id, uint16_t queue_id,
  *   - -ENOTSUP: routine is not supported by the device PMD.
  *   - -EINVAL:  The queue_id is out of range.
  */
-__rte_experimental
 int rte_eth_rx_burst_mode_get(uint16_t port_id, uint16_t queue_id,
 	struct rte_eth_burst_mode *mode);
 
@@ -4383,7 +4401,6 @@ int rte_eth_rx_burst_mode_get(uint16_t port_id, uint16_t queue_id,
  *   - -ENOTSUP: routine is not supported by the device PMD.
  *   - -EINVAL:  The queue_id is out of range.
  */
-__rte_experimental
 int rte_eth_tx_burst_mode_get(uint16_t port_id, uint16_t queue_id,
 	struct rte_eth_burst_mode *mode);
 
@@ -4888,6 +4905,59 @@ __rte_experimental
 int rte_eth_representor_info_get(uint16_t port_id,
 				 struct rte_eth_representor_info *info);
 
+/** The NIC is able to deliver flag (if set) with packets to the PMD. */
+#define RTE_ETH_RX_METADATA_USER_FLAG (UINT64_C(1) << 0)
+
+/** The NIC is able to deliver mark ID with packets to the PMD. */
+#define RTE_ETH_RX_METADATA_USER_MARK (UINT64_C(1) << 1)
+
+/** The NIC is able to deliver tunnel ID with packets to the PMD. */
+#define RTE_ETH_RX_METADATA_TUNNEL_ID (UINT64_C(1) << 2)
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this API may change without prior notice
+ *
+ * Negotiate the NIC's ability to deliver specific kinds of metadata to the PMD.
+ *
+ * Invoke this API before the first rte_eth_dev_configure() invocation
+ * to let the PMD make preparations that are inconvenient to do later.
+ *
+ * The negotiation process is as follows:
+ *
+ * - the application requests features intending to use at least some of them;
+ * - the PMD responds with the guaranteed subset of the requested feature set;
+ * - the application can retry negotiation with another set of features;
+ * - the application can pass zero to clear the negotiation result;
+ * - the last negotiated result takes effect upon the ethdev start.
+ *
+ * @note
+ *   The PMD is supposed to first consider enabling the requested feature set
+ *   in its entirety. Only if it fails to do so, does it have the right to
+ *   respond with a smaller set of the originally requested features.
+ *
+ * @note
+ *   Return code (-ENOTSUP) does not necessarily mean that the requested
+ *   features are unsupported. In this case, the application should just
+ *   assume that these features can be used without prior negotiations.
+ *
+ * @param port_id
+ *   Port (ethdev) identifier
+ *
+ * @param[inout] features
+ *   Feature selection buffer
+ *
+ * @return
+ *   - (-EBUSY) if the port can't handle this in its current state;
+ *   - (-ENOTSUP) if the method itself is not supported by the PMD;
+ *   - (-ENODEV) if *port_id* is invalid;
+ *   - (-EINVAL) if *features* is NULL;
+ *   - (-EIO) if the device is removed;
+ *   - (0) on success
+ */
+__rte_experimental
+int rte_eth_rx_metadata_negotiate(uint16_t port_id, uint64_t *features);
+
 #include <rte_ethdev_core.h>
 
 /**
@@ -5074,9 +5144,13 @@ rte_eth_rx_descriptor_done(uint16_t port_id, uint16_t queue_id, uint16_t offset)
 	return (*dev->rx_descriptor_done)(dev->data->rx_queues[queue_id], offset);
 }
 
+/**@{@name Rx hardware descriptor states
+ * @see rte_eth_rx_descriptor_status
+ */
 #define RTE_ETH_RX_DESC_AVAIL    0 /**< Desc available for hw. */
 #define RTE_ETH_RX_DESC_DONE     1 /**< Desc done, filled by hw. */
 #define RTE_ETH_RX_DESC_UNAVAIL  2 /**< Desc used by driver or hw. */
+/**@}*/
 
 /**
  * Check the status of a Rx descriptor in the queue
@@ -5132,9 +5206,13 @@ rte_eth_rx_descriptor_status(uint16_t port_id, uint16_t queue_id,
 	return (*dev->rx_descriptor_status)(rxq, offset);
 }
 
+/**@{@name Tx hardware descriptor states
+ * @see rte_eth_tx_descriptor_status
+ */
 #define RTE_ETH_TX_DESC_FULL    0 /**< Desc filled for hw, waiting xmit. */
 #define RTE_ETH_TX_DESC_DONE    1 /**< Desc done, packet is transmitted. */
 #define RTE_ETH_TX_DESC_UNAVAIL 2 /**< Desc used by driver or hw. */
+/**@}*/
 
 /**
  * Check the status of a Tx descriptor in the queue.

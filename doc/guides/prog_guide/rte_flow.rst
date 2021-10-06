@@ -9,8 +9,8 @@ Overview
 --------
 
 This API provides a generic means to configure hardware to match specific
-ingress or egress traffic, alter its fate and query related counters
-according to any number of user-defined rules.
+traffic, alter its fate and query related counters according to any
+number of user-defined rules.
 
 It is named *rte_flow* after the prefix used for all its symbols, and is
 defined in ``rte_flow.h``.
@@ -146,13 +146,10 @@ Note that support for more than a single priority level is not guaranteed.
 Attribute: Traffic direction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Flow rule patterns apply to inbound and/or outbound traffic.
-
-In the context of this API, **ingress** and **egress** respectively stand
-for **inbound** and **outbound** based on the standpoint of the application
-creating a flow rule.
-
-There are no exceptions to this definition.
+Unless `Attribute: Transfer`_ is specified, flow rule patterns apply
+to inbound and / or outbound traffic. With this respect, **ingress**
+and **egress** respectively stand for **inbound** and **outbound**
+based on the standpoint of the application creating a flow rule.
 
 Several pattern items and actions are valid and can be used in both
 directions. At least one direction must be specified.
@@ -171,12 +168,14 @@ When supported, this effectively enables an application to reroute traffic
 not necessarily intended for it (e.g. coming from or addressed to different
 physical ports, VFs or applications) at the device level.
 
-It complements the behavior of some pattern items such as `Item: PHY_PORT`_
-and is meaningless without them.
-
-When transferring flow rules, **ingress** and **egress** attributes
-(`Attribute: Traffic direction`_) keep their original meaning, as if
-processing traffic emitted or received by the application.
+In **transfer** flows, the use of **ingress** and **egress** attributes
+(`Attribute: Traffic direction`_) in the sense of implicitly matching
+packets going to or going from the ethdev used to create flow rules
+is DEPRECATED as these attributes are ambiguous. The standpoint is
+shifted to the e-switch, and, over there, terms **ingress** / **egress**
+are not relevant since there're many different ports served by the
+e-switch. If the application needs to match traffic origination from some
+precise locations, it should use `Item: ETHDEV`_ and `Item: ESWITCH_PORT`_.
 
 Pattern item
 ~~~~~~~~~~~~
@@ -504,6 +503,8 @@ Usage example, matching non-TCPv4 packets only:
 Item: ``PF``
 ^^^^^^^^^^^^
 
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
+
 Matches traffic originating from (ingress) or going to (egress) the physical
 function of the current device.
 
@@ -530,6 +531,8 @@ the application and thus not associated with a DPDK port ID.
 
 Item: ``VF``
 ^^^^^^^^^^^^
+
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
 
 Matches traffic originating from (ingress) or going to (egress) a given
 virtual function of the current device.
@@ -561,6 +564,8 @@ separate entities, should be addressed through their own DPDK port IDs.
 
 Item: ``PHY_PORT``
 ^^^^^^^^^^^^^^^^^^
+
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
 
 Matches traffic originating from (ingress) or going to (egress) a physical
 port of the underlying device.
@@ -595,6 +600,8 @@ associated with a port_id should be retrieved by other means.
 
 Item: ``PORT_ID``
 ^^^^^^^^^^^^^^^^^
+
+This item is DEPRECATED. Consider: `Item: ETHDEV`_, `Item: ESWITCH_PORT`_.
 
 Matches traffic originating from (ingress) or going to (egress) a given DPDK
 port ID.
@@ -1425,6 +1432,63 @@ Matches a conntrack state after conntrack action.
 - ``flags``: conntrack packet state flags.
 - Default ``mask`` matches all state bits.
 
+Item: ``ETHDEV``
+^^^^^^^^^^^^^^^^
+
+Matches traffic at e-switch going from (sent by) the given ethdev port.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) >>>> [] ~~~~ (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the match engine;
+   *    >> shows the traffic flow in question hitting the match engine;
+   *    ~~ shows logical interconnects between the endpoints.
+
+Use this with attribute **transfer**. Attributes **ingress** and
+**egress** (`Attribute: Traffic direction`_) must not be used.
+
+- Default ``mask`` provides exact match behaviour.
+
+.. _table_rte_flow_item_ethdev:
+
+.. table:: ETHDEV
+
+   +----------+-------------+---------------------------+
+   | Field    | Subfield    | Value                     |
+   +==========+=============+===========================+
+   | ``spec`` | ``port_id`` | ethdev ID                 |
+   +----------+-------------+---------------------------+
+   | ``last`` | ``port_id`` | upper range value         |
+   +----------+-------------+---------------------------+
+   | ``mask`` | ``port_id`` | zeroed for wildcard match |
+   +----------+-------------+---------------------------+
+
+Item: ``ESWITCH_PORT``
+^^^^^^^^^^^^^^^^^^^^^^
+
+Matches traffic at e-switch going from the external port associated
+with the given ethdev, for example, traffic from net. port or guest.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) ~~~~ [] <<<< (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the match engine;
+   *    << shows the traffic flow in question hitting the match engine;
+   *    ~~ shows logical interconnects between the endpoints.
+
+Use this with attribute **transfer**. Attributes **ingress** and
+**egress** (`Attribute: Traffic direction`_) must not be used.
+
+This item is meant to use the same structure as `Item: ETHDEV`_.
+
 Actions
 ~~~~~~~
 
@@ -1856,6 +1920,8 @@ only matching traffic goes through.
 Action: ``PF``
 ^^^^^^^^^^^^^^
 
+This action is DEPRECATED. Consider: `Action: ETHDEV`_.
+
 Directs matching traffic to the physical function (PF) of the current
 device.
 
@@ -1875,6 +1941,8 @@ See `Item: PF`_.
 
 Action: ``VF``
 ^^^^^^^^^^^^^^
+
+This action is DEPRECATED. Consider: `Action: ETHDEV`_, `Action: ESWITCH_PORT`_.
 
 Directs matching traffic to a given virtual function of the current device.
 
@@ -1900,6 +1968,8 @@ See `Item: VF`_.
 Action: ``PHY_PORT``
 ^^^^^^^^^^^^^^^^^^^^
 
+This action is DEPRECATED. Consider: `Action: ESWITCH_PORT`_.
+
 Directs matching traffic to a given physical port index of the underlying
 device.
 
@@ -1919,6 +1989,8 @@ See `Item: PHY_PORT`_.
 
 Action: ``PORT_ID``
 ^^^^^^^^^^^^^^^^^^^
+This action is DEPRECATED. Consider: `Action: ETHDEV`_, `Action: ESWITCH_PORT`_.
+
 Directs matching traffic to a given DPDK port ID.
 
 See `Item: PORT_ID`_.
@@ -2998,6 +3070,61 @@ which is set in the packet meta-data (i.e. struct ``rte_mbuf::sched::color``)
    +=================+==============+
    | ``meter_color`` | Packet color |
    +-----------------+--------------+
+
+Action: ``ETHDEV``
+^^^^^^^^^^^^^^^^^^
+At e-switch level, directs matching packets to the given ethdev.
+
+These packets can originate from any of e-switch ports, not
+just the ones associated with the given ethdev. They come
+from the match engine in general, as per some criteria.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) <<<< [] ~~~~ (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the action engine;
+   *    << shows the traffic flow in question established by the action;
+   *    ~~ shows logical interconnects between the endpoints.
+
+See `Item: ETHDEV`_.
+
+.. _table_rte_flow_action_ethdev:
+
+.. table:: ETHDEV
+
+   +-------------+----------------+
+   | Field       | Value          |
+   +=============+================+
+   | ``port_id`` | ethdev port ID |
+   +-------------+----------------+
+
+Action: ``ESWITCH_PORT``
+^^^^^^^^^^^^^^^^^^^^^^^^
+At e-switch level, directs matching packets to the external port
+associated with the given ethdev, that is, to net. port or guest.
+
+These packets can originate from any of e-switch ports, not
+just the ones associated with the given ethdev. They come
+from the match engine in general, as per some criteria.
+
+::
+
+   *    (Ethdev) ~~~~~~~~~~~~ (Internal Port) ~~~~ [] >>>> (External Port)
+   *    :  SW                 :   Logical                    Net / Guest :
+   *    :                     :                                          :
+   *    | ---- PMD Layer ---- | ------------ E-Switch Layer ------------ |
+   *
+   *    [] shows the effective ("transfer") standpoint, the action engine;
+   *    >> shows the traffic flow in question established by the action;
+   *    ~~ shows logical interconnects between the endpoints.
+
+See `Item: ESWITCH_PORT`_.
+
+This action is meant to use the same structure as `Action: ETHDEV`_.
 
 Negative types
 ~~~~~~~~~~~~~~

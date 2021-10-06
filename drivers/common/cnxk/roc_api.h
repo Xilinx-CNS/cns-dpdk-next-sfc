@@ -121,8 +121,12 @@
 /* CPT microcode */
 #include "roc_ae.h"
 #include "roc_ae_fpm_tables.h"
+#include "roc_ie.h"
 #include "roc_ie_on.h"
 #include "roc_ie_ot.h"
 #include "roc_se.h"
+
+/* HASH computation */
+#include "roc_hash.h"
 
 #endif /* _ROC_API_H_ */

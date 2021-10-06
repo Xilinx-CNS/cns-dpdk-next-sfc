@@ -33,6 +33,7 @@
 #include "virtio_logs.h"
 #include "virtqueue.h"
 #include "virtio_rxtx.h"
+#include "virtio_rxtx_simple.h"
 #include "virtio_user/virtio_user_dev.h"
 
 static int  virtio_dev_configure(struct rte_eth_dev *dev);
@@ -59,6 +60,7 @@ static int virtio_dev_stats_get(struct rte_eth_dev *dev,
 static int virtio_dev_xstats_get(struct rte_eth_dev *dev,
 				 struct rte_eth_xstat *xstats, unsigned n);
 static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
+				       const uint64_t *ids,
 				       struct rte_eth_xstat_name *xstats_names,
 				       unsigned limit);
 static int virtio_dev_stats_reset(struct rte_eth_dev *dev);
@@ -212,7 +214,7 @@ virtio_send_command_packed(struct virtnet_ctl *cvq,
 			"vq->vq_avail_idx=%d\n"
 			"vq->vq_used_cons_idx=%d\n"
 			"vq->vq_packed.cached_flags=0x%x\n"
-			"vq->vq_packed.used_wrap_counter=%d\n",
+			"vq->vq_packed.used_wrap_counter=%d",
 			vq->vq_free_cnt,
 			vq->vq_avail_idx,
 			vq->vq_used_cons_idx,
@@ -514,12 +516,14 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 
 	memset(mz->addr, 0, mz->len);
 
-	vq->vq_ring_mem = mz->iova;
+	if (hw->use_va)
+		vq->vq_ring_mem = (uintptr_t)mz->addr;
+	else
+		vq->vq_ring_mem = mz->iova;
+
 	vq->vq_ring_virt_mem = mz->addr;
-	PMD_INIT_LOG(DEBUG, "vq->vq_ring_mem:      0x%" PRIx64,
-		     (uint64_t)mz->iova);
-	PMD_INIT_LOG(DEBUG, "vq->vq_ring_virt_mem: 0x%" PRIx64,
-		     (uint64_t)(uintptr_t)mz->addr);
+	PMD_INIT_LOG(DEBUG, "vq->vq_ring_mem: 0x%" PRIx64, vq->vq_ring_mem);
+	PMD_INIT_LOG(DEBUG, "vq->vq_ring_virt_mem: %p", vq->vq_ring_virt_mem);
 
 	virtio_init_vring(vq);
 
@@ -569,16 +573,27 @@ virtio_init_queue(struct rte_eth_dev *dev, uint16_t queue_idx)
 		txvq->port_id = dev->data->port_id;
 		txvq->mz = mz;
 		txvq->virtio_net_hdr_mz = hdr_mz;
-		txvq->virtio_net_hdr_mem = hdr_mz->iova;
+		if (hw->use_va)
+			txvq->virtio_net_hdr_mem = (uintptr_t)hdr_mz->addr;
+		else
+			txvq->virtio_net_hdr_mem = hdr_mz->iova;
 	} else if (queue_type == VTNET_CQ) {
 		cvq = &vq->cq;
 		cvq->mz = mz;
 		cvq->virtio_net_hdr_mz = hdr_mz;
-		cvq->virtio_net_hdr_mem = hdr_mz->iova;
+		if (hw->use_va)
+			cvq->virtio_net_hdr_mem = (uintptr_t)hdr_mz->addr;
+		else
+			cvq->virtio_net_hdr_mem = hdr_mz->iova;
 		memset(cvq->virtio_net_hdr_mz->addr, 0, rte_mem_page_size());
 
 		hw->cvq = cvq;
 	}
+
+	if (hw->use_va)
+		vq->mbuf_addr_offset = offsetof(struct rte_mbuf, buf_addr);
+	else
+		vq->mbuf_addr_offset = offsetof(struct rte_mbuf, buf_iova);
 
 	if (queue_type == VTNET_TQ) {
 		struct virtio_tx_region *txr;
@@ -631,6 +646,7 @@ free_mz:
 	rte_memzone_free(mz);
 free_vq:
 	rte_free(vq);
+	hw->vqs[queue_idx] = NULL;
 
 	return ret;
 }
@@ -1030,6 +1046,7 @@ virtio_update_stats(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 }
 
 static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
+				       const uint64_t *ids,
 				       struct rte_eth_xstat_name *xstats_names,
 				       __rte_unused unsigned limit)
 {
@@ -1039,6 +1056,9 @@ static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
 
 	unsigned nstats = dev->data->nb_tx_queues * VIRTIO_NB_TXQ_XSTATS +
 		dev->data->nb_rx_queues * VIRTIO_NB_RXQ_XSTATS;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL) {
 		/* Note: limit checked in rte_eth_xstats_names() */
@@ -1684,13 +1704,15 @@ virtio_configure_intr(struct rte_eth_dev *dev)
 		}
 	}
 
-	/* Re-register callback to update max_intr */
-	rte_intr_callback_unregister(dev->intr_handle,
-				     virtio_interrupt_handler,
-				     dev);
-	rte_intr_callback_register(dev->intr_handle,
-				   virtio_interrupt_handler,
-				   dev);
+	if (dev->data->dev_flags & RTE_ETH_DEV_INTR_LSC) {
+		/* Re-register callback to update max_intr */
+		rte_intr_callback_unregister(dev->intr_handle,
+					     virtio_interrupt_handler,
+					     dev);
+		rte_intr_callback_register(dev->intr_handle,
+					   virtio_interrupt_handler,
+					   dev);
+	}
 
 	/* DO NOT try to remove this! This function will enable msix, or QEMU
 	 * will encounter SIGSEGV when DRIVER_OK is sent.
@@ -1759,7 +1781,7 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 	rte_ether_addr_copy((struct rte_ether_addr *)hw->mac_addr,
 			&eth_dev->data->mac_addrs[0]);
 	PMD_INIT_LOG(DEBUG,
-		     "PORT MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+		     "PORT MAC: " RTE_ETHER_ADDR_PRT_FMT,
 		     hw->mac_addr[0], hw->mac_addr[1], hw->mac_addr[2],
 		     hw->mac_addr[3], hw->mac_addr[4], hw->mac_addr[5]);
 
@@ -1840,7 +1862,7 @@ virtio_init_device(struct rte_eth_dev *eth_dev, uint64_t req_features)
 				config->max_virtqueue_pairs);
 		PMD_INIT_LOG(DEBUG, "config->status=%d", config->status);
 		PMD_INIT_LOG(DEBUG,
-				"PORT MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+				"PORT MAC: " RTE_ETHER_ADDR_PRT_FMT,
 				config->mac[0], config->mac[1],
 				config->mac[2], config->mac[3],
 				config->mac[4], config->mac[5]);
@@ -2099,10 +2121,14 @@ virtio_dev_configure(struct rte_eth_dev *dev)
 			return ret;
 	}
 
-	if (rxmode->max_rx_pkt_len > hw->max_mtu + ether_hdr_len)
+	if ((rx_offloads & DEV_RX_OFFLOAD_JUMBO_FRAME) &&
+	    (rxmode->max_rx_pkt_len > hw->max_mtu + ether_hdr_len))
 		req_features &= ~(1ULL << VIRTIO_NET_F_MTU);
 
-	hw->max_rx_pkt_len = rxmode->max_rx_pkt_len;
+	if (rx_offloads & DEV_RX_OFFLOAD_JUMBO_FRAME)
+		hw->max_rx_pkt_len = rxmode->max_rx_pkt_len;
+	else
+		hw->max_rx_pkt_len = ether_hdr_len + dev->data->mtu;
 
 	if (rx_offloads & (DEV_RX_OFFLOAD_UDP_CKSUM |
 			   DEV_RX_OFFLOAD_TCP_CKSUM))
@@ -2393,6 +2419,35 @@ static void virtio_dev_free_mbufs(struct rte_eth_dev *dev)
 	PMD_INIT_LOG(DEBUG, "%d mbufs freed", mbuf_num);
 }
 
+static void
+virtio_tx_completed_cleanup(struct rte_eth_dev *dev)
+{
+	struct virtio_hw *hw = dev->data->dev_private;
+	struct virtqueue *vq;
+	int qidx;
+	void (*xmit_cleanup)(struct virtqueue *vq, uint16_t nb_used);
+
+	if (virtio_with_packed_queue(hw)) {
+		if (hw->use_vec_tx)
+			xmit_cleanup = &virtio_xmit_cleanup_inorder_packed;
+		else if (virtio_with_feature(hw, VIRTIO_F_IN_ORDER))
+			xmit_cleanup = &virtio_xmit_cleanup_inorder_packed;
+		else
+			xmit_cleanup = &virtio_xmit_cleanup_normal_packed;
+	} else {
+		if (hw->use_inorder_tx)
+			xmit_cleanup = &virtio_xmit_cleanup_inorder;
+		else
+			xmit_cleanup = &virtio_xmit_cleanup;
+	}
+
+	for (qidx = 0; qidx < hw->max_queue_pairs; qidx++) {
+		vq = hw->vqs[2 * qidx + VTNET_SQ_TQ_QUEUE_IDX];
+		if (vq != NULL)
+			xmit_cleanup(vq, virtqueue_nused(vq));
+	}
+}
+
 /*
  * Stop device: disable interrupt and mark link down
  */
@@ -2410,6 +2465,8 @@ virtio_dev_stop(struct rte_eth_dev *dev)
 	if (!hw->started)
 		goto out_unlock;
 	hw->started = 0;
+
+	virtio_tx_completed_cleanup(dev);
 
 	if (intr_conf->lsc || intr_conf->rxq) {
 		virtio_intr_disable(dev);
@@ -2535,6 +2592,34 @@ virtio_dev_info_get(struct rte_eth_dev *dev, struct rte_eth_dev_info *dev_info)
 		(1ULL << VIRTIO_NET_F_HOST_TSO6);
 	if ((host_features & tso_mask) == tso_mask)
 		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_TCP_TSO;
+
+	if (host_features & (1ULL << VIRTIO_F_RING_PACKED)) {
+		/*
+		 * According to 2.7 Packed Virtqueues,
+		 * 2.7.10.1 Structure Size and Alignment:
+		 * The Queue Size value does not have to be a power of 2.
+		 */
+		dev_info->rx_desc_lim.nb_max = UINT16_MAX;
+		dev_info->tx_desc_lim.nb_max = UINT16_MAX;
+	} else {
+		/*
+		 * According to 2.6 Split Virtqueues:
+		 * Queue Size value is always a power of 2. The maximum Queue
+		 * Size value is 32768.
+		 */
+		dev_info->rx_desc_lim.nb_max = 32768;
+		dev_info->tx_desc_lim.nb_max = 32768;
+	}
+	/*
+	 * Actual minimum is not the same for virtqueues of different kinds,
+	 * but to avoid tangling the code with separate branches, rely on
+	 * default thresholds since desc number must be at least of their size.
+	 */
+	dev_info->rx_desc_lim.nb_min = RTE_MAX(DEFAULT_RX_FREE_THRESH,
+					       RTE_VIRTIO_VPMD_RX_REARM_THRESH);
+	dev_info->tx_desc_lim.nb_min = DEFAULT_TX_FREE_THRESH;
+	dev_info->rx_desc_lim.nb_align = 1;
+	dev_info->tx_desc_lim.nb_align = 1;
 
 	return 0;
 }

@@ -1718,6 +1718,7 @@ qede_get_xstats_count(struct qede_dev *qdev) {
 
 static int
 qede_get_xstats_names(struct rte_eth_dev *dev,
+		      const uint64_t *ids,
 		      struct rte_eth_xstat_name *xstats_names,
 		      __rte_unused unsigned int limit)
 {
@@ -1725,6 +1726,9 @@ qede_get_xstats_names(struct rte_eth_dev *dev,
 	struct ecore_dev *edev = &qdev->edev;
 	const unsigned int stat_cnt = qede_get_xstats_count(qdev);
 	unsigned int i, qid, hw_fn, stat_idx = 0;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names == NULL)
 		return stat_cnt;
@@ -2750,13 +2754,8 @@ static int qede_common_dev_init(struct rte_eth_dev *eth_dev, bool is_vf)
 		qed_ops->sriov_configure(edev, pci_dev->max_vfs);
 	}
 
-	DP_INFO(edev, "MAC address : %02x:%02x:%02x:%02x:%02x:%02x\n",
-		adapter->primary_mac.addr_bytes[0],
-		adapter->primary_mac.addr_bytes[1],
-		adapter->primary_mac.addr_bytes[2],
-		adapter->primary_mac.addr_bytes[3],
-		adapter->primary_mac.addr_bytes[4],
-		adapter->primary_mac.addr_bytes[5]);
+	DP_INFO(edev, "MAC address : " RTE_ETHER_ADDR_PRT_FMT "\n",
+		RTE_ETHER_ADDR_BYTES(&adapter->primary_mac));
 
 	DP_INFO(edev, "Device initialized\n");
 

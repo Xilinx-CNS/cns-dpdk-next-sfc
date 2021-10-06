@@ -879,7 +879,7 @@ typedef uint16_t (*enqueue_pkt_burst_t)(void *qp,
 struct rte_cryptodev_callback;
 
 /** Structure to keep track of registered callbacks */
-TAILQ_HEAD(rte_cryptodev_cb_list, rte_cryptodev_callback);
+RTE_TAILQ_HEAD(rte_cryptodev_cb_list, rte_cryptodev_callback);
 
 /**
  * Structure used to hold information about the callbacks to be called for a
@@ -1367,6 +1367,17 @@ rte_cryptodev_sym_get_private_session_size(uint8_t dev_id);
 __rte_experimental
 unsigned int
 rte_cryptodev_asym_get_private_session_size(uint8_t dev_id);
+
+/**
+ * Validate if the crypto device index is valid attached crypto device.
+ *
+ * @param	dev_id	Crypto device index.
+ *
+ * @return
+ *   - If the device index is valid (1) or not (0).
+ */
+unsigned int
+rte_cryptodev_is_valid_dev(uint8_t dev_id);
 
 /**
  * Provide driver identifier.

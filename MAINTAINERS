@@ -102,6 +102,8 @@ F: meson_options.txt
 F: config/
 F: buildtools/chkincs/
 F: buildtools/call-sphinx-build.py
+F: buildtools/get-cpu-count.py
+F: buildtools/get-numa-count.py
 F: buildtools/list-dir-globs.py
 F: buildtools/pkg-config/
 F: buildtools/symlink-drivers-solibs.sh
@@ -798,7 +800,7 @@ F: doc/guides/nics/octeontx_ep.rst
 
 Mellanox mlx4
 M: Matan Azrad <matan@nvidia.com>
-M: Shahaf Shuler <shahafs@nvidia.com>
+M: Viacheslav Ovsiienko <viacheslavo@nvidia.com>
 T: git://dpdk.org/next/dpdk-next-net-mlx
 F: drivers/net/mlx4/
 F: doc/guides/nics/mlx4.rst
@@ -806,7 +808,6 @@ F: doc/guides/nics/features/mlx4.ini
 
 Mellanox mlx5
 M: Matan Azrad <matan@nvidia.com>
-M: Shahaf Shuler <shahafs@nvidia.com>
 M: Viacheslav Ovsiienko <viacheslavo@nvidia.com>
 T: git://dpdk.org/next/dpdk-next-net-mlx
 F: drivers/common/mlx5/
@@ -840,7 +841,7 @@ F: doc/guides/nics/nfb.rst
 F: doc/guides/nics/features/nfb.ini
 
 Netronome nfp
-M: Heinrich Kuhn <heinrich.kuhn@netronome.com>
+M: Heinrich Kuhn <heinrich.kuhn@corigine.com>
 F: drivers/net/nfp/
 F: doc/guides/nics/nfp.rst
 F: doc/guides/nics/features/nfp*.ini
@@ -1305,16 +1306,6 @@ F: doc/guides/rawdevs/ioat.rst
 F: examples/ioat/
 F: doc/guides/sample_app_ug/ioat.rst
 
-NXP DPAA2 QDMA
-M: Nipun Gupta <nipun.gupta@nxp.com>
-F: drivers/raw/dpaa2_qdma/
-F: doc/guides/rawdevs/dpaa2_qdma.rst
-
-DPAA2 CMDIF
-M: Nipun Gupta <nipun.gupta@nxp.com>
-F: drivers/raw/dpaa2_cmdif/
-F: doc/guides/rawdevs/dpaa2_cmdif.rst
-
 Marvell CNXK BPHY
 M: Jakub Palider <jpalider@marvell.com>
 M: Tomasz Duszynski <tduszynski@marvell.com>
@@ -1340,6 +1331,17 @@ F: drivers/raw/ntb/
 F: doc/guides/rawdevs/ntb.rst
 F: examples/ntb/
 F: doc/guides/sample_app_ug/ntb.rst
+
+NXP DPAA2 CMDIF
+M: Nipun Gupta <nipun.gupta@nxp.com>
+F: drivers/raw/dpaa2_cmdif/
+F: doc/guides/rawdevs/dpaa2_cmdif.rst
+
+NXP DPAA2 QDMA
+M: Nipun Gupta <nipun.gupta@nxp.com>
+F: drivers/raw/dpaa2_qdma/
+F: doc/guides/rawdevs/dpaa2_qdma.rst
+
 
 Packet processing
 -----------------
@@ -1493,7 +1495,7 @@ F: lib/member/
 F: doc/guides/prog_guide/member_lib.rst
 F: app/test/test_member*
 
-RIB/FIB - EXPERIMENTAL
+RIB/FIB
 M: Vladimir Medvedkin <vladimir.medvedkin@intel.com>
 F: lib/rib/
 F: app/test/test_rib*
@@ -1579,7 +1581,7 @@ M: Reshma Pattan <reshma.pattan@intel.com>
 F: lib/latencystats/
 F: app/test/test_latencystats.c
 
-Telemetry - EXPERIMENTAL
+Telemetry
 M: Ciara Power <ciara.power@intel.com>
 F: lib/telemetry/
 F: app/test/test_telemetry*

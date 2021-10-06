@@ -11,7 +11,6 @@
 
 #include <rte_crypto.h>
 #include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
 
 #include "test.h"
 #include "test_cryptodev.h"
@@ -1184,7 +1183,7 @@ build_blockcipher_test_suite(enum blockcipher_test_type test_type)
 		ts_setup = authonly_setup;
 		break;
 	default:
-		break;
+		return NULL;
 	}
 
 	ts = calloc(1, sizeof(struct unit_test_suite) +

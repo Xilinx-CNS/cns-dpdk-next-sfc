@@ -428,6 +428,25 @@ typedef struct efx_nic_ops_s {
 #define	EFX_RXQ_LIMIT_TARGET 512
 #endif
 
+typedef struct efx_nic_dma_region_s {
+	efsys_dma_addr_t	endr_nic_base;
+	efsys_dma_addr_t	endr_trgt_base;
+	unsigned int		endr_window_log2;
+	unsigned int		endr_align_log2;
+	boolean_t		endr_inuse;
+} efx_nic_dma_region_t;
+
+typedef struct efx_nic_dma_region_info_s {
+	unsigned int		endri_count;
+	efx_nic_dma_region_t	*endri_regions;
+} efx_nic_dma_region_info_t;
+
+typedef struct efx_nic_dma_s {
+	union {
+		/* No configuration in the case flat mapping type */
+		efx_nic_dma_region_info_t	endu_region_info;
+	} end_u;
+} efx_nic_dma_t;
 
 #if EFSYS_OPT_FILTER
 
@@ -859,6 +878,7 @@ struct efx_nic_s {
 	const efx_rx_ops_t	*en_erxop;
 	efx_fw_variant_t	efv;
 	char			en_drv_version[EFX_DRV_VER_MAX];
+	efx_nic_dma_t		en_dma;
 #if EFSYS_OPT_FILTER
 	efx_filter_t		en_filter;
 	const efx_filter_ops_t	*en_efop;
@@ -1530,6 +1550,12 @@ efx_mcdi_get_workarounds(
 #if EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10()
 
 LIBEFX_INTERNAL
+extern	__checkReturn		efx_rc_t
+efx_mcdi_intf_from_pcie(
+	__in			uint32_t pcie_intf,
+	__out			efx_pcie_interface_t *efx_intf);
+
+LIBEFX_INTERNAL
 extern	__checkReturn	efx_rc_t
 efx_mcdi_init_evq(
 	__in		efx_nic_t *enp,
@@ -1727,6 +1753,7 @@ struct efx_mae_match_spec_s {
 					    MAE_FIELD_MASK_VALUE_PAIRS_V2_LEN];
 		uint8_t			outer[MAE_ENC_FIELD_PAIRS_LEN];
 	} emms_mask_value_pairs;
+	uint8_t				emms_outer_rule_recirc_id;
 };
 
 typedef enum efx_mae_action_e {

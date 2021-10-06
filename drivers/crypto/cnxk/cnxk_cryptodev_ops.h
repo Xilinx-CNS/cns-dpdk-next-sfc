@@ -6,15 +6,24 @@
 #define _CNXK_CRYPTODEV_OPS_H_
 
 #include <rte_cryptodev.h>
+#include <rte_event_crypto_adapter.h>
 
 #include "roc_api.h"
 
 #define CNXK_CPT_MIN_HEADROOM_REQ 24
+#define CNXK_CPT_MIN_TAILROOM_REQ 102
 
 /* Default command timeout in seconds */
 #define DEFAULT_COMMAND_TIMEOUT 4
 
 #define MOD_INC(i, l) ((i) == (l - 1) ? (i) = 0 : (i)++)
+
+/* Macros to form words in CPT instruction */
+#define CNXK_CPT_INST_W2(tag, tt, grp, rvu_pf_func)                            \
+	((tag) | ((uint64_t)(tt) << 32) | ((uint64_t)(grp) << 34) |            \
+	 ((uint64_t)(rvu_pf_func) << 48))
+#define CNXK_CPT_INST_W3(qord, wqe_ptr)                                        \
+	(qord | ((uintptr_t)(wqe_ptr) >> 3) << 3)
 
 struct cpt_qp_meta_info {
 	struct rte_mempool *pool;
@@ -40,6 +49,7 @@ struct cpt_inflight_req {
 	struct rte_crypto_op *cop;
 	void *mdata;
 	uint8_t op_flags;
+	void *qp;
 } __rte_aligned(16);
 
 struct pending_queue {
@@ -55,6 +65,13 @@ struct pending_queue {
 	uint64_t time_out;
 };
 
+struct crypto_adpter_info {
+	bool enabled;
+	/**< Set if queue pair is added to crypto adapter */
+	struct rte_mempool *req_mp;
+	/**< CPT inflight request mempool */
+};
+
 struct cnxk_cpt_qp {
 	struct roc_cpt_lf lf;
 	/**< Crypto LF */
@@ -68,6 +85,8 @@ struct cnxk_cpt_qp {
 	/**< Metabuf info required to support operations on the queue pair */
 	struct roc_cpt_lmtline lmtline;
 	/**< Lmtline information */
+	struct crypto_adpter_info ca;
+	/**< Crypto adapter related info */
 };
 
 int cnxk_cpt_dev_config(struct rte_cryptodev *dev,
@@ -113,4 +132,23 @@ int cnxk_ae_session_cfg(struct rte_cryptodev *dev,
 			struct rte_crypto_asym_xform *xform,
 			struct rte_cryptodev_asym_session *sess,
 			struct rte_mempool *pool);
+
+static inline union rte_event_crypto_metadata *
+cnxk_event_crypto_mdata_get(struct rte_crypto_op *op)
+{
+	union rte_event_crypto_metadata *ec_mdata;
+
+	if (op->sess_type == RTE_CRYPTO_OP_WITH_SESSION)
+		ec_mdata = rte_cryptodev_sym_session_get_user_data(
+			op->sym->session);
+	else if (op->sess_type == RTE_CRYPTO_OP_SESSIONLESS &&
+		 op->private_data_offset)
+		ec_mdata = (union rte_event_crypto_metadata
+				    *)((uint8_t *)op + op->private_data_offset);
+	else
+		return NULL;
+
+	return ec_mdata;
+}
+
 #endif /* _CNXK_CRYPTODEV_OPS_H_ */

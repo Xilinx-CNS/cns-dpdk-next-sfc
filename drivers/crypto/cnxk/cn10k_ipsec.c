@@ -17,59 +17,6 @@
 
 #include "roc_api.h"
 
-static int
-ipsec_xform_aead_verify(struct rte_security_ipsec_xform *ipsec_xfrm,
-			struct rte_crypto_sym_xform *crypto_xfrm)
-{
-	if (ipsec_xfrm->direction == RTE_SECURITY_IPSEC_SA_DIR_EGRESS &&
-	    crypto_xfrm->aead.op != RTE_CRYPTO_AEAD_OP_ENCRYPT)
-		return -EINVAL;
-
-	if (ipsec_xfrm->direction == RTE_SECURITY_IPSEC_SA_DIR_INGRESS &&
-	    crypto_xfrm->aead.op != RTE_CRYPTO_AEAD_OP_DECRYPT)
-		return -EINVAL;
-
-	if (crypto_xfrm->aead.algo == RTE_CRYPTO_AEAD_AES_GCM) {
-		switch (crypto_xfrm->aead.key.length) {
-		case ROC_CPT_AES128_KEY_LEN:
-		case ROC_CPT_AES192_KEY_LEN:
-		case ROC_CPT_AES256_KEY_LEN:
-			break;
-		default:
-			return -EINVAL;
-		}
-		return 0;
-	}
-
-	return -ENOTSUP;
-}
-
-static int
-cn10k_ipsec_xform_verify(struct rte_security_ipsec_xform *ipsec_xfrm,
-			 struct rte_crypto_sym_xform *crypto_xfrm)
-{
-	if ((ipsec_xfrm->direction != RTE_SECURITY_IPSEC_SA_DIR_INGRESS) &&
-	    (ipsec_xfrm->direction != RTE_SECURITY_IPSEC_SA_DIR_EGRESS))
-		return -EINVAL;
-
-	if ((ipsec_xfrm->proto != RTE_SECURITY_IPSEC_SA_PROTO_ESP) &&
-	    (ipsec_xfrm->proto != RTE_SECURITY_IPSEC_SA_PROTO_AH))
-		return -EINVAL;
-
-	if ((ipsec_xfrm->mode != RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT) &&
-	    (ipsec_xfrm->mode != RTE_SECURITY_IPSEC_SA_MODE_TUNNEL))
-		return -EINVAL;
-
-	if ((ipsec_xfrm->tunnel.type != RTE_SECURITY_IPSEC_TUNNEL_IPV4) &&
-	    (ipsec_xfrm->tunnel.type != RTE_SECURITY_IPSEC_TUNNEL_IPV6))
-		return -EINVAL;
-
-	if (crypto_xfrm->type == RTE_CRYPTO_SYM_XFORM_AEAD)
-		return ipsec_xform_aead_verify(ipsec_xfrm, crypto_xfrm);
-
-	return -ENOTSUP;
-}
-
 static uint64_t
 ipsec_cpt_inst_w7_get(struct roc_cpt *roc_cpt, void *sa)
 {
@@ -110,14 +57,28 @@ cn10k_ipsec_outb_sa_create(struct roc_cpt *roc_cpt,
 
 	sa->inst.w7 = ipsec_cpt_inst_w7_get(roc_cpt, sa);
 
+#ifdef LA_IPSEC_DEBUG
+	/* Use IV from application in debug mode */
+	if (ipsec_xfrm->options.iv_gen_disable == 1) {
+		out_sa->w2.s.iv_src = ROC_IE_OT_SA_IV_SRC_FROM_SA;
+		if (crypto_xfrm->type == RTE_CRYPTO_SYM_XFORM_AEAD) {
+			sa->iv_offset = crypto_xfrm->aead.iv.offset;
+			sa->iv_length = crypto_xfrm->aead.iv.length;
+		}
+	}
+#else
+	if (ipsec_xfrm->options.iv_gen_disable != 0) {
+		plt_err("Application provided IV not supported");
+		return -ENOTSUP;
+	}
+#endif
+
 	/* Get Rlen calculation data */
 	ret = cnxk_ipsec_outb_rlens_get(&rlens, ipsec_xfrm, crypto_xfrm);
 	if (ret)
 		return ret;
 
-	sa->partial_len = rlens.partial_len;
-	sa->roundup_byte = rlens.roundup_byte;
-	sa->roundup_len = rlens.roundup_len;
+	sa->max_extended_len = rlens.max_extended_len;
 
 	/* pre-populate CPT INST word 4 */
 	inst_w4.u64 = 0;
@@ -186,7 +147,7 @@ cn10k_ipsec_session_create(void *dev,
 		return -EPERM;
 	}
 
-	ret = cn10k_ipsec_xform_verify(ipsec_xfrm, crypto_xfrm);
+	ret = cnxk_ipsec_xform_verify(ipsec_xfrm, crypto_xfrm);
 	if (ret)
 		return ret;
 
@@ -209,17 +170,12 @@ cn10k_sec_session_create(void *device, struct rte_security_session_conf *conf,
 	if (conf->action_type != RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL)
 		return -EINVAL;
 
-	if (rte_security_dynfield_register() < 0)
-		return -ENOTSUP;
-
 	if (rte_mempool_get(mempool, (void **)&priv)) {
 		plt_err("Could not allocate security session private data");
 		return -ENOMEM;
 	}
 
 	set_sec_session_private_data(sess, priv);
-
-	priv->userdata = conf->userdata;
 
 	if (conf->protocol != RTE_SECURITY_PROTOCOL_IPSEC) {
 		ret = -ENOTSUP;

@@ -754,6 +754,49 @@ static const struct rte_cryptodev_capabilities sec_caps_aes[] = {
 			}, }
 		}, }
 	},
+	{	/* AES CBC */
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,
+		{.sym = {
+			.xform_type = RTE_CRYPTO_SYM_XFORM_CIPHER,
+			{.cipher = {
+				.algo = RTE_CRYPTO_CIPHER_AES_CBC,
+				.block_size = 16,
+				.key_size = {
+					.min = 16,
+					.max = 32,
+					.increment = 8
+				},
+				.iv_size = {
+					.min = 16,
+					.max = 16,
+					.increment = 0
+				}
+			}, }
+		}, }
+	},
+};
+
+static const struct rte_cryptodev_capabilities sec_caps_sha1_sha2[] = {
+	{	/* SHA1 HMAC */
+		.op = RTE_CRYPTO_OP_TYPE_SYMMETRIC,
+		{.sym = {
+			.xform_type = RTE_CRYPTO_SYM_XFORM_AUTH,
+			{.auth = {
+				.algo = RTE_CRYPTO_AUTH_SHA1_HMAC,
+				.block_size = 64,
+				.key_size = {
+					.min = 20,
+					.max = 64,
+					.increment = 1
+				},
+				.digest_size = {
+					.min = 12,
+					.max = 12,
+					.increment = 0
+				},
+			}, }
+		}, }
+	},
 };
 
 static const struct rte_security_capability sec_caps_templ[] = {
@@ -764,10 +807,9 @@ static const struct rte_security_capability sec_caps_templ[] = {
 			.proto = RTE_SECURITY_IPSEC_SA_PROTO_ESP,
 			.mode = RTE_SECURITY_IPSEC_SA_MODE_TUNNEL,
 			.direction = RTE_SECURITY_IPSEC_SA_DIR_INGRESS,
-			.options = { 0 }
+			.options = { 0 },
 		},
 		.crypto_capabilities = NULL,
-		.ol_flags = RTE_SECURITY_TX_OLOAD_NEED_MDATA
 	},
 	{	/* IPsec Lookaside Protocol ESP Tunnel Egress */
 		.action = RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL,
@@ -776,10 +818,31 @@ static const struct rte_security_capability sec_caps_templ[] = {
 			.proto = RTE_SECURITY_IPSEC_SA_PROTO_ESP,
 			.mode = RTE_SECURITY_IPSEC_SA_MODE_TUNNEL,
 			.direction = RTE_SECURITY_IPSEC_SA_DIR_EGRESS,
-			.options = { 0 }
+			.options = { 0 },
 		},
 		.crypto_capabilities = NULL,
-		.ol_flags = RTE_SECURITY_TX_OLOAD_NEED_MDATA
+	},
+	{	/* IPsec Lookaside Protocol ESP Transport Ingress */
+		.action = RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL,
+		.protocol = RTE_SECURITY_PROTOCOL_IPSEC,
+		.ipsec = {
+			.proto = RTE_SECURITY_IPSEC_SA_PROTO_ESP,
+			.mode = RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT,
+			.direction = RTE_SECURITY_IPSEC_SA_DIR_INGRESS,
+			.options = { 0 },
+		},
+		.crypto_capabilities = NULL,
+	},
+	{	/* IPsec Lookaside Protocol ESP Transport Egress */
+		.action = RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL,
+		.protocol = RTE_SECURITY_PROTOCOL_IPSEC,
+		.ipsec = {
+			.proto = RTE_SECURITY_IPSEC_SA_PROTO_ESP,
+			.mode = RTE_SECURITY_IPSEC_SA_MODE_TRANSPORT,
+			.direction = RTE_SECURITY_IPSEC_SA_DIR_EGRESS,
+			.options = { 0 },
+		},
+		.crypto_capabilities = NULL,
 	},
 	{
 		.action = RTE_SECURITY_ACTION_TYPE_NONE
@@ -839,8 +902,37 @@ sec_crypto_caps_populate(struct rte_cryptodev_capabilities cnxk_caps[],
 	int cur_pos = 0;
 
 	SEC_CAPS_ADD(cnxk_caps, &cur_pos, hw_caps, aes);
+	SEC_CAPS_ADD(cnxk_caps, &cur_pos, hw_caps, sha1_sha2);
 
 	sec_caps_add(cnxk_caps, &cur_pos, caps_end, RTE_DIM(caps_end));
+}
+
+static void
+cnxk_sec_caps_update(struct rte_security_capability *sec_cap)
+{
+	sec_cap->ipsec.options.udp_encap = 1;
+}
+
+static void
+cn10k_sec_caps_update(struct rte_security_capability *sec_cap)
+{
+	if (sec_cap->ipsec.direction == RTE_SECURITY_IPSEC_SA_DIR_EGRESS) {
+#ifdef LA_IPSEC_DEBUG
+		sec_cap->ipsec.options.iv_gen_disable = 1;
+#endif
+	} else {
+		if (sec_cap->ipsec.mode == RTE_SECURITY_IPSEC_SA_MODE_TUNNEL)
+			sec_cap->ipsec.options.tunnel_hdr_verify =
+				RTE_SECURITY_IPSEC_TUNNEL_VERIFY_SRC_DST_ADDR;
+	}
+}
+
+static void
+cn9k_sec_caps_update(struct rte_security_capability *sec_cap)
+{
+	if (sec_cap->ipsec.direction == RTE_SECURITY_IPSEC_SA_DIR_EGRESS) {
+		sec_cap->ipsec.options.iv_gen_disable = 1;
+	}
 }
 
 void
@@ -854,8 +946,18 @@ cnxk_cpt_caps_populate(struct cnxk_cpt_vf *vf)
 	PLT_STATIC_ASSERT(RTE_DIM(sec_caps_templ) <= RTE_DIM(vf->sec_caps));
 	memcpy(vf->sec_caps, sec_caps_templ, sizeof(sec_caps_templ));
 
-	for (i = 0; i < RTE_DIM(sec_caps_templ) - 1; i++)
+	for (i = 0; i < RTE_DIM(sec_caps_templ) - 1; i++) {
 		vf->sec_caps[i].crypto_capabilities = vf->sec_crypto_caps;
+
+		cnxk_sec_caps_update(&vf->sec_caps[i]);
+
+		if (roc_model_is_cn10k())
+			cn10k_sec_caps_update(&vf->sec_caps[i]);
+
+		if (roc_model_is_cn9k())
+			cn9k_sec_caps_update(&vf->sec_caps[i]);
+
+	}
 }
 
 const struct rte_security_capability *

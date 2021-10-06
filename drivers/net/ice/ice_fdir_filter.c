@@ -651,8 +651,10 @@ ice_fdir_teardown(struct ice_pf *pf)
 
 	ice_tx_queue_release(pf->fdir.txq);
 	pf->fdir.txq = NULL;
+	rte_eth_dma_zone_free(eth_dev, "fdir_tx_ring", ICE_FDIR_QUEUE_ID);
 	ice_rx_queue_release(pf->fdir.rxq);
 	pf->fdir.rxq = NULL;
+	rte_eth_dma_zone_free(eth_dev, "fdir_rx_ring", ICE_FDIR_QUEUE_ID);
 	ice_fdir_prof_rm_all(pf);
 	ice_fdir_prof_free(hw);
 	ice_release_vsi(vsi);
@@ -2104,11 +2106,11 @@ ice_fdir_parse_pattern(__rte_unused struct ice_adapter *ad,
 			if (!(gtp_psc_spec && gtp_psc_mask))
 				break;
 
-			if (gtp_psc_mask->qfi == UINT8_MAX)
+			if (gtp_psc_mask->hdr.qfi == 0x3F)
 				input_set_o |= ICE_INSET_GTPU_QFI;
 
 			filter->input.gtpu_data.qfi =
-				gtp_psc_spec->qfi;
+				gtp_psc_spec->hdr.qfi;
 			break;
 		case RTE_FLOW_ITEM_TYPE_ESP:
 			if (l3 == RTE_FLOW_ITEM_TYPE_IPV4 &&
@@ -2192,7 +2194,7 @@ ice_fdir_parse(struct ice_adapter *ad,
 	       uint32_t array_len,
 	       const struct rte_flow_item pattern[],
 	       const struct rte_flow_action actions[],
-	       uint32_t priority __rte_unused,
+	       uint32_t priority,
 	       void **meta,
 	       struct rte_flow_error *error)
 {
@@ -2205,6 +2207,10 @@ ice_fdir_parse(struct ice_adapter *ad,
 	memset(filter, 0, sizeof(*filter));
 	item = ice_search_pattern_match_item(ad, pattern, array, array_len,
 					     error);
+
+	if (!ad->devargs.pipe_mode_support && priority >= 1)
+		return -rte_errno;
+
 	if (!item)
 		return -rte_errno;
 

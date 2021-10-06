@@ -2701,14 +2701,9 @@ initialize_ports(struct l2fwd_crypto_options *options)
 			return -1;
 		}
 
-		printf("Port %u, MAC address: %02X:%02X:%02X:%02X:%02X:%02X\n\n",
-				portid,
-				l2fwd_ports_eth_addr[portid].addr_bytes[0],
-				l2fwd_ports_eth_addr[portid].addr_bytes[1],
-				l2fwd_ports_eth_addr[portid].addr_bytes[2],
-				l2fwd_ports_eth_addr[portid].addr_bytes[3],
-				l2fwd_ports_eth_addr[portid].addr_bytes[4],
-				l2fwd_ports_eth_addr[portid].addr_bytes[5]);
+		printf("Port %u, MAC address: " RTE_ETHER_ADDR_PRT_FMT "\n\n",
+			portid,
+			RTE_ETHER_ADDR_BYTES(&l2fwd_ports_eth_addr[portid]));
 
 		/* initialize port stats */
 		memset(&port_statistics, 0, sizeof(port_statistics));

@@ -80,6 +80,7 @@ static int vmxnet3_dev_stats_get(struct rte_eth_dev *dev,
 				  struct rte_eth_stats *stats);
 static int vmxnet3_dev_stats_reset(struct rte_eth_dev *dev);
 static int vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
+					const uint64_t *ids,
 					struct rte_eth_xstat_name *xstats,
 					unsigned int n);
 static int vmxnet3_dev_xstats_get(struct rte_eth_dev *dev,
@@ -371,7 +372,7 @@ eth_vmxnet3_dev_init(struct rte_eth_dev *eth_dev)
 	rte_ether_addr_copy((struct rte_ether_addr *)hw->perm_addr,
 			&eth_dev->data->mac_addrs[0]);
 
-	PMD_INIT_LOG(DEBUG, "MAC Address : %02x:%02x:%02x:%02x:%02x:%02x",
+	PMD_INIT_LOG(DEBUG, "MAC Address : " RTE_ETHER_ADDR_PRT_FMT,
 		     hw->perm_addr[0], hw->perm_addr[1], hw->perm_addr[2],
 		     hw->perm_addr[3], hw->perm_addr[4], hw->perm_addr[5]);
 
@@ -575,7 +576,7 @@ vmxnet3_write_mac(struct vmxnet3_hw *hw, const uint8_t *addr)
 	uint32_t val;
 
 	PMD_INIT_LOG(DEBUG,
-		     "Writing MAC Address : %02x:%02x:%02x:%02x:%02x:%02x",
+		     "Writing MAC Address : " RTE_ETHER_ADDR_PRT_FMT,
 		     addr[0], addr[1], addr[2],
 		     addr[3], addr[4], addr[5]);
 
@@ -1201,6 +1202,7 @@ vmxnet3_hw_stats_save(struct vmxnet3_hw *hw)
 
 static int
 vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
+			     const uint64_t *ids,
 			     struct rte_eth_xstat_name *xstats_names,
 			     unsigned int n)
 {
@@ -1208,6 +1210,9 @@ vmxnet3_dev_xstats_get_names(struct rte_eth_dev *dev,
 	unsigned int nstats =
 		dev->data->nb_tx_queues * RTE_DIM(vmxnet3_txq_stat_strings) +
 		dev->data->nb_rx_queues * RTE_DIM(vmxnet3_rxq_stat_strings);
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (!xstats_names || n < nstats)
 		return nstats;

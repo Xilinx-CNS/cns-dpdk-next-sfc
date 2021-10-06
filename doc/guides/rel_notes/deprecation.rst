@@ -128,17 +128,6 @@ Deprecation Notices
   is deprecated and will be removed in DPDK 21.11. Shared counters should
   be managed using shared actions API (``rte_flow_shared_action_create`` etc).
 
-* ethdev: Definition of the flow API action ``RTE_FLOW_ACTION_TYPE_PORT_ID``
-  is ambiguous and needs clarification.
-  Structure ``rte_flow_action_port_id`` will be extended to specify
-  traffic direction to the represented entity or ethdev port itself
-  in DPDK 21.11.
-
-* ethdev: Flow API documentation is unclear if ethdev port used to create
-  a flow rule adds any implicit match criteria in the case of transfer rules.
-  The semantics will be clarified in DPDK 21.11 and it will require fixes in
-  drivers and applications which interpret it in a different way.
-
 * ethdev: The flow API matching pattern structures, ``struct rte_flow_item_*``,
   should start with relevant protocol header.
   Some matching pattern structures implements this by duplicating protocol header
@@ -163,14 +152,6 @@ Deprecation Notices
   replaced by the new flag ``PKT_RX_OUTER_IP_CKSUM_BAD``. The new name is more
   consistent with existing outer header checksum status flag naming, which
   should help in reducing confusion about its usage.
-
-* i40e: As there are both i40evf and iavf pmd, the functions of them are
-  duplicated. And now more and more advanced features are developed on iavf.
-  To keep consistent with kernel driver's name
-  (https://patchwork.ozlabs.org/patch/970154/), i40evf is no need to maintain.
-  Starting from 21.05, the default VF driver of i40e will be iavf, but i40evf
-  can still be used if users specify the devarg "driver=i40evf". I40evf will
-  be deleted in DPDK 21.11.
 
 * net: ``s_addr`` and ``d_addr`` fields of ``rte_ether_hdr`` structure
   will be renamed in DPDK 21.11 to avoid conflict with Windows Sockets headers.
@@ -223,17 +204,9 @@ Deprecation Notices
   session and the private data of session. An opaque pointer can be exposed
   directly to application which can be attached to the ``rte_crypto_op``.
 
-* cryptodev: The interface between library and drivers will be marked
-  as internal in DPDK 21.11.
-
 * security: Hide structure ``rte_security_session`` and expose an opaque
   pointer for the private data to the application which can be attached
   to the packet while enqueuing.
-
-* security: The IPsec configuration structure
-  ``struct rte_security_ipsec_xform`` will be updated with new members to allow
-  SA lifetime configuration. A new structure would be introduced to replace the
-  current member, ``esn_soft_limit``.
 
 * security: The structure ``rte_security_ipsec_xform`` will be extended with
   multiple fields: source and destination port of UDP encapsulation,
@@ -241,7 +214,7 @@ Deprecation Notices
 
 * security: The IPsec SA config options ``struct rte_security_ipsec_sa_options``
   will be updated with new fields to support new features like IPsec inner
-  checksum, tunnel header verification, TSO in case of protocol offload.
+  checksum, TSO in case of protocol offload.
 
 * ipsec: The structure ``rte_ipsec_sa_prm`` will be extended with a new field
   ``hdr_l3_len`` to configure tunnel L3 header length.
@@ -279,11 +252,9 @@ Deprecation Notices
   content. On Linux and FreeBSD, supported prior to DPDK 20.11,
   original structure will be kept until DPDK 21.11.
 
-* security: The functions ``rte_security_set_pkt_metadata`` and
-  ``rte_security_get_userdata`` will be made inline functions and additional
-  flags will be added in structure ``rte_security_ctx`` in DPDK 21.11.
+* ethdev: Items and actions ``PF``, ``VF``, ``PHY_PORT``, ``PORT_ID`` are
+  deprecated as hard-to-use / ambiguous and will be removed in DPDK 22.11.
 
-* cryptodev: The structure ``rte_crypto_op`` would be updated to reduce
-  reserved bytes to 2 (from 3), and use 1 byte to indicate warnings and other
-  information from the crypto/security operation. This field will be used to
-  communicate events such as soft expiry with IPsec in lookaside mode.
+* ethdev: The use of attributes ``ingress`` / ``egress`` in "transfer" flows
+  is deprecated as ambiguous with respect to the e-switch standpoint. Such
+  use of these attributes will become invalid starting from DPDK 22.11.

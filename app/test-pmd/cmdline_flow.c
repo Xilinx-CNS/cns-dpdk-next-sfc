@@ -306,6 +306,10 @@ enum index {
 	ITEM_POL_PORT,
 	ITEM_POL_METER,
 	ITEM_POL_POLICY,
+	ITEM_ETHDEV,
+	ITEM_ETHDEV_PORT_ID,
+	ITEM_ESWITCH_PORT,
+	ITEM_ESWITCH_PORT_ETHDEV_PORT_ID,
 
 	/* Validate/create actions. */
 	ACTIONS,
@@ -456,6 +460,10 @@ enum index {
 	ACTION_POL_G,
 	ACTION_POL_Y,
 	ACTION_POL_R,
+	ACTION_ETHDEV,
+	ACTION_ETHDEV_PORT_ID,
+	ACTION_ESWITCH_PORT,
+	ACTION_ESWITCH_PORT_ETHDEV_PORT_ID,
 };
 
 /** Maximum size for pattern in struct rte_flow_item_raw. */
@@ -1000,6 +1008,8 @@ static const enum index next_item[] = {
 	ITEM_GENEVE_OPT,
 	ITEM_INTEGRITY,
 	ITEM_CONNTRACK,
+	ITEM_ETHDEV,
+	ITEM_ESWITCH_PORT,
 	END_SET,
 	ZERO,
 };
@@ -1368,6 +1378,18 @@ static const enum index item_integrity_lv[] = {
 	ZERO,
 };
 
+static const enum index item_ethdev[] = {
+	ITEM_ETHDEV_PORT_ID,
+	ITEM_NEXT,
+	ZERO,
+};
+
+static const enum index item_eswitch_port[] = {
+	ITEM_ESWITCH_PORT_ETHDEV_PORT_ID,
+	ITEM_NEXT,
+	ZERO,
+};
+
 static const enum index next_action[] = {
 	ACTION_END,
 	ACTION_VOID,
@@ -1434,6 +1456,8 @@ static const enum index next_action[] = {
 	ACTION_MODIFY_FIELD,
 	ACTION_CONNTRACK,
 	ACTION_CONNTRACK_UPDATE,
+	ACTION_ETHDEV,
+	ACTION_ESWITCH_PORT,
 	ZERO,
 };
 
@@ -1711,6 +1735,18 @@ static const enum index action_modify_field_src[] = {
 static const enum index action_update_conntrack[] = {
 	ACTION_CONNTRACK_UPDATE_DIR,
 	ACTION_CONNTRACK_UPDATE_CTX,
+	ACTION_NEXT,
+	ZERO,
+};
+
+static const enum index action_ethdev[] = {
+	ACTION_ETHDEV_PORT_ID,
+	ACTION_NEXT,
+	ZERO,
+};
+
+static const enum index action_eswitch_port[] = {
+	ACTION_ESWITCH_PORT_ETHDEV_PORT_ID,
 	ACTION_NEXT,
 	ZERO,
 };
@@ -3315,16 +3351,16 @@ static const struct token token_list[] = {
 		.help = "QoS flow identifier",
 		.next = NEXT(item_gtp_psc, NEXT_ENTRY(COMMON_UNSIGNED),
 			     item_param),
-		.args = ARGS(ARGS_ENTRY_HTON(struct rte_flow_item_gtp_psc,
-					qfi)),
+		.args = ARGS(ARGS_ENTRY_BF(struct rte_flow_item_gtp_psc,
+					hdr.qfi, 6)),
 	},
 	[ITEM_GTP_PSC_PDU_T] = {
 		.name = "pdu_t",
 		.help = "PDU type",
 		.next = NEXT(item_gtp_psc, NEXT_ENTRY(COMMON_UNSIGNED),
 			     item_param),
-		.args = ARGS(ARGS_ENTRY_HTON(struct rte_flow_item_gtp_psc,
-					pdu_type)),
+		.args = ARGS(ARGS_ENTRY_BF(struct rte_flow_item_gtp_psc,
+					hdr.type, 4)),
 	},
 	[ITEM_PPPOES] = {
 		.name = "pppoes",
@@ -3607,6 +3643,36 @@ static const struct token token_list[] = {
 		.next = NEXT(NEXT_ENTRY(ITEM_NEXT), NEXT_ENTRY(COMMON_UNSIGNED),
 			     item_param),
 		.args = ARGS(ARGS_ENTRY(struct rte_flow_item_conntrack, flags)),
+	},
+	[ITEM_ETHDEV] = {
+		.name = "ethdev",
+		.help = "match traffic at e-switch going from (sent by) the given ethdev",
+		.priv = PRIV_ITEM(ETHDEV,
+				  sizeof(struct rte_flow_item_ethdev)),
+		.next = NEXT(item_ethdev),
+		.call = parse_vc,
+	},
+	[ITEM_ETHDEV_PORT_ID] = {
+		.name = "port_id",
+		.help = "ethdev port ID",
+		.next = NEXT(item_ethdev, NEXT_ENTRY(COMMON_UNSIGNED),
+			     item_param),
+		.args = ARGS(ARGS_ENTRY(struct rte_flow_item_ethdev, port_id)),
+	},
+	[ITEM_ESWITCH_PORT] = {
+		.name = "eswitch_port",
+		.help = "match traffic at e-switch going from the external port associated with the given ethdev",
+		.priv = PRIV_ITEM(ESWITCH_PORT,
+				  sizeof(struct rte_flow_item_ethdev)),
+		.next = NEXT(item_eswitch_port),
+		.call = parse_vc,
+	},
+	[ITEM_ESWITCH_PORT_ETHDEV_PORT_ID] = {
+		.name = "ethdev_port_id",
+		.help = "ethdev port ID",
+		.next = NEXT(item_eswitch_port, NEXT_ENTRY(COMMON_UNSIGNED),
+			     item_param),
+		.args = ARGS(ARGS_ENTRY(struct rte_flow_item_ethdev, port_id)),
 	},
 	/* Validate/create actions. */
 	[ACTIONS] = {
@@ -4771,6 +4837,36 @@ static const struct token token_list[] = {
 		.help = "update a conntrack object context",
 		.next = NEXT(action_update_conntrack),
 		.call = parse_vc_action_conntrack_update,
+	},
+	[ACTION_ETHDEV] = {
+		.name = "ethdev",
+		.help = "at e-switch level, direct matching packets to the given ethdev",
+		.priv = PRIV_ACTION(ETHDEV,
+				    sizeof(struct rte_flow_action_ethdev)),
+		.next = NEXT(action_ethdev),
+		.call = parse_vc,
+	},
+	[ACTION_ETHDEV_PORT_ID] = {
+		.name = "port_id",
+		.help = "ethdev port ID",
+		.next = NEXT(action_ethdev, NEXT_ENTRY(COMMON_UNSIGNED)),
+		.args = ARGS(ARGS_ENTRY(struct rte_flow_action_ethdev, port_id)),
+		.call = parse_vc_conf,
+	},
+	[ACTION_ESWITCH_PORT] = {
+		.name = "eswitch_port",
+		.help = "at e-switch level, direct matching packets to the external port associated with the given ethdev",
+		.priv = PRIV_ACTION(ESWITCH_PORT,
+				sizeof(struct rte_flow_action_ethdev)),
+		.next = NEXT(action_eswitch_port),
+		.call = parse_vc,
+	},
+	[ACTION_ESWITCH_PORT_ETHDEV_PORT_ID] = {
+		.name = "ethdev_port_id",
+		.help = "ethdev port ID",
+		.next = NEXT(action_eswitch_port, NEXT_ENTRY(COMMON_UNSIGNED)),
+		.args = ARGS(ARGS_ENTRY(struct rte_flow_action_ethdev, port_id)),
+		.call = parse_vc_conf,
 	},
 	/* Indirect action destroy arguments. */
 	[INDIRECT_ACTION_DESTROY_ID] = {
@@ -8343,6 +8439,10 @@ flow_item_default_mask(const struct rte_flow_item *item)
 	case RTE_FLOW_ITEM_TYPE_PFCP:
 		mask = &rte_flow_item_pfcp_mask;
 		break;
+	case RTE_FLOW_ITEM_TYPE_ETHDEV:
+	case RTE_FLOW_ITEM_TYPE_ESWITCH_PORT:
+		mask = &rte_flow_item_ethdev_mask;
+		break;
 	default:
 		break;
 	}
@@ -8600,20 +8700,13 @@ cmd_set_raw_parsed(const struct buffer *in)
 					*opt = item->spec;
 				struct {
 					uint8_t len;
-					uint8_t pdu_type;
-					uint8_t qfi;
+					uint8_t pdu_type:4;
+					uint8_t qfi:6;
 					uint8_t next;
 				} psc;
-
-				if (opt->pdu_type & 0x0F) {
-					/* Support the minimal option only. */
-					fprintf(stderr,
-						"Error - GTP PSC option with extra fields not supported\n");
-					goto error;
-				}
 				psc.len = sizeof(psc);
-				psc.pdu_type = opt->pdu_type;
-				psc.qfi = opt->qfi;
+				psc.pdu_type = opt->hdr.type;
+				psc.qfi = opt->hdr.qfi;
 				psc.next = 0;
 				*total_size += sizeof(psc);
 				rte_memcpy(data_tail - (*total_size),

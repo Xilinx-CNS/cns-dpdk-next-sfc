@@ -11,7 +11,6 @@
 #include <rte_rawdev_pmd.h>
 
 #include <roc_api.h>
-#include <roc_bphy_irq.h>
 
 #include "cnxk_bphy_irq.h"
 #include "rte_pmd_bphy.h"
@@ -52,6 +51,8 @@ bphy_rawdev_selftest(uint16_t dev_id)
 	queues = rte_rawdev_queue_count(dev_id);
 	if (queues == 0)
 		return -ENODEV;
+	if (queues != BPHY_QUEUE_CNT)
+		return -EINVAL;
 
 	ret = rte_rawdev_start(dev_id);
 	if (ret)
@@ -66,6 +67,14 @@ bphy_rawdev_selftest(uint16_t dev_id)
 		plt_err("Wrong number of descs reported\n");
 		goto err_desc;
 	}
+
+	ret = rte_pmd_bphy_npa_pf_func_get(dev_id);
+	if (ret == 0)
+		plt_warn("NPA pf_func is invalid");
+
+	ret = rte_pmd_bphy_sso_pf_func_get(dev_id);
+	if (ret == 0)
+		plt_warn("SSO pf_func is invalid");
 
 	ret = rte_pmd_bphy_intr_init(dev_id);
 	if (ret) {
@@ -190,6 +199,14 @@ cnxk_bphy_irq_enqueue_bufs(struct rte_rawdev *dev,
 	case CNXK_BPHY_IRQ_MSG_TYPE_MEM_GET:
 		bphy_dev->queues[queue].rsp = &bphy_dev->mem;
 		break;
+	case CNXK_BPHY_MSG_TYPE_NPA_PF_FUNC:
+		bphy_dev->queues[queue].rsp =
+			(void *)(size_t)roc_bphy_npa_pf_func_get();
+		break;
+	case CNXK_BPHY_MSG_TYPE_SSO_PF_FUNC:
+		bphy_dev->queues[queue].rsp =
+			(void *)(size_t)roc_bphy_sso_pf_func_get();
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -306,13 +323,12 @@ bphy_rawdev_remove(struct rte_pci_device *pci_dev)
 		return -EINVAL;
 	}
 
+	bphy_rawdev_get_name(name, pci_dev);
 	rawdev = rte_rawdev_pmd_get_named_dev(name);
 	if (rawdev == NULL) {
 		plt_err("invalid device name (%s)", name);
 		return -EINVAL;
 	}
-
-	bphy_rawdev_get_name(name, pci_dev);
 
 	return rte_rawdev_pmd_release(rawdev);
 }

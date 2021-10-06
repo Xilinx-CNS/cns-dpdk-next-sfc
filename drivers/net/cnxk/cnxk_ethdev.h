@@ -330,6 +330,9 @@ int cnxk_nix_tsc_convert(struct cnxk_eth_dev *dev);
 int cnxk_nix_read_clock(struct rte_eth_dev *eth_dev, uint64_t *clock);
 
 uint64_t cnxk_nix_rxq_mbuf_setup(struct cnxk_eth_dev *dev);
+int cnxk_nix_tm_ops_get(struct rte_eth_dev *eth_dev, void *ops);
+int cnxk_nix_tm_set_queue_rate_limit(struct rte_eth_dev *eth_dev,
+				     uint16_t queue_idx, uint16_t tx_rate);
 
 /* RSS */
 uint32_t cnxk_rss_ethdev_to_nix(struct cnxk_eth_dev *dev, uint64_t ethdev_rss,
@@ -349,6 +352,8 @@ int cnxk_nix_rss_hash_conf_get(struct rte_eth_dev *eth_dev,
 void cnxk_nix_toggle_flag_link_cfg(struct cnxk_eth_dev *dev, bool set);
 void cnxk_eth_dev_link_status_cb(struct roc_nix *nix,
 				 struct roc_nix_link_info *link);
+void cnxk_eth_dev_link_status_get_cb(struct roc_nix *nix,
+				     struct roc_nix_link_info *link);
 int cnxk_nix_link_update(struct rte_eth_dev *eth_dev, int wait_to_complete);
 int cnxk_nix_queue_stats_mapping(struct rte_eth_dev *dev, uint16_t queue_id,
 				 uint8_t stat_idx, uint8_t is_rx);
@@ -357,11 +362,9 @@ int cnxk_nix_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats);
 int cnxk_nix_xstats_get(struct rte_eth_dev *eth_dev,
 			struct rte_eth_xstat *xstats, unsigned int n);
 int cnxk_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
+			      const uint64_t *ids,
 			      struct rte_eth_xstat_name *xstats_names,
 			      unsigned int limit);
-int cnxk_nix_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
-				    struct rte_eth_xstat_name *xstats_names,
-				    const uint64_t *ids, unsigned int limit);
 int cnxk_nix_xstats_get_by_id(struct rte_eth_dev *eth_dev, const uint64_t *ids,
 			      uint64_t *values, unsigned int n);
 int cnxk_nix_xstats_reset(struct rte_eth_dev *eth_dev);

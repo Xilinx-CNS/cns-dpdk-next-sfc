@@ -17,10 +17,6 @@
 
 #include <rte_ethdev.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**< @internal Declaration of the hairpin peer queue information structure. */
 struct rte_hairpin_peer_info;
 
@@ -187,11 +183,28 @@ typedef int (*eth_xstats_get_t)(struct rte_eth_dev *dev,
 	struct rte_eth_xstat *stats, unsigned int n);
 /**< @internal Get extended stats of an Ethernet device. */
 
+/**
+ * @internal
+ * Get extended stats of an Ethernet device.
+ *
+ * @param dev
+ *   ethdev handle of port.
+ * @param ids
+ *   IDs array to retrieve specific statistics. Must not be NULL.
+ * @param values
+ *   A pointer to a table to be filled with device statistics values.
+ *   Must not be NULL.
+ * @param n
+ *   Element count in @p ids and @p values.
+ *
+ * @return
+ *   - A number of filled in stats.
+ *   - A negative value on error.
+ */
 typedef int (*eth_xstats_get_by_id_t)(struct rte_eth_dev *dev,
 				      const uint64_t *ids,
 				      uint64_t *values,
 				      unsigned int n);
-/**< @internal Get extended stats of an Ethernet device. */
 
 /**
  * @internal
@@ -214,14 +227,36 @@ typedef int (*eth_xstats_get_by_id_t)(struct rte_eth_dev *dev,
  */
 typedef int (*eth_xstats_reset_t)(struct rte_eth_dev *dev);
 
+/**
+ * @internal
+ * Get names of extended stats of an Ethernet device.
+ *
+ * If @p size is 0, get the number of available statistics.
+ *
+ * If @p ids is NULL, get names of all available statistics.
+ *
+ * Otherwise, get names of statistics specified by @p ids.
+ *
+ * @param dev
+ *   ethdev handle of port.
+ * @param ids
+ *   IDs array to retrieve specific statistics.
+ * @param xstats_names
+ *   An rte_eth_xstat_name array of at least @p size elements to be filled.
+ * @param size
+ *   Element count in @p ids and @p xstats_names.
+ *
+ * @return
+ *   - A number greater than @p size and equal to the number of extended
+ *     statistics if @p ids is NULL and @p size is too small to return
+ *     names of available statistics.
+ *   - A number of filled in stats.
+ *   - -ENOTSUP if non-NULL @p ids are not supported
+ *   - A negative value on error.
+ */
 typedef int (*eth_xstats_get_names_t)(struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names, unsigned int size);
-/**< @internal Get names of extended stats of an Ethernet device. */
-
-typedef int (*eth_xstats_get_names_by_id_t)(struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names, const uint64_t *ids,
+	const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 	unsigned int size);
-/**< @internal Get names of extended stats of an Ethernet device. */
 
 typedef int (*eth_queue_stats_mapping_set_t)(struct rte_eth_dev *dev,
 					     uint16_t queue_id,
@@ -790,6 +825,22 @@ typedef int (*eth_representor_info_get_t)(struct rte_eth_dev *dev,
 	struct rte_eth_representor_info *info);
 
 /**
+ * @internal
+ * Negotiate the NIC's ability to deliver specific kinds of metadata to the PMD.
+ *
+ * @param dev
+ *   Port (ethdev) handle
+ *
+ * @param[inout] features
+ *   Feature selection buffer
+ *
+ * @return
+ *   Negative errno value on error, zero otherwise
+ */
+typedef int (*eth_rx_metadata_negotiate_t)(struct rte_eth_dev *dev,
+				       uint64_t *features);
+
+/**
  * @internal A structure containing the functions exported by an Ethernet driver.
  */
 struct eth_dev_ops {
@@ -906,8 +957,6 @@ struct eth_dev_ops {
 
 	eth_xstats_get_by_id_t     xstats_get_by_id;
 	/**< Get extended device statistic values by ID. */
-	eth_xstats_get_names_by_id_t xstats_get_names_by_id;
-	/**< Get name of extended device statistics by ID. */
 
 	eth_tm_ops_get_t tm_ops_get;
 	/**< Get Traffic Management (TM) operations. */
@@ -949,6 +998,12 @@ struct eth_dev_ops {
 
 	eth_representor_info_get_t representor_info_get;
 	/**< Get representor info. */
+
+	/**
+	 * Negotiate the NIC's ability to deliver specific
+	 * kinds of metadata to the PMD.
+	 */
+	eth_rx_metadata_negotiate_t rx_metadata_negotiate;
 };
 
 /**
@@ -1248,8 +1303,8 @@ struct rte_eth_devargs {
  * For backward compatibility, if no representor info, direct
  * map legacy VF (no controller and pf).
  *
- * @param ethdev
- *  Handle of ethdev port.
+ * @param port_id
+ *  Port ID of the backing device.
  * @param type
  *  Representor type.
  * @param controller
@@ -1266,7 +1321,7 @@ struct rte_eth_devargs {
  */
 __rte_internal
 int
-rte_eth_representor_id_get(const struct rte_eth_dev *ethdev,
+rte_eth_representor_id_get(uint16_t port_id,
 			   enum rte_eth_representor_type type,
 			   int controller, int pf, int representor_port,
 			   uint16_t *repr_id);
@@ -1512,9 +1567,5 @@ struct rte_eth_tunnel_filter_conf {
 	uint32_t tenant_id;     /**< Tenant ID to match. VNI, GRE key... */
 	uint16_t queue_id;      /**< Queue assigned to if match. */
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _RTE_ETHDEV_DRIVER_H_ */

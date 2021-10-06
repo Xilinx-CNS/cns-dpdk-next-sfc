@@ -9,7 +9,7 @@ Allows the user input commands and read the Telemetry response.
 
 import socket
 import os
-import glob
+import sys
 import json
 import errno
 import readline
@@ -50,19 +50,23 @@ def get_app_name(pid):
 
 def handle_socket(path):
     """ Connect to socket and handle user input """
+    prompt = ''  # this evaluates to false in conditions
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
     global CMDS
-    print("Connecting to " + path)
+
+    if os.isatty(sys.stdin.fileno()):
+        prompt = '--> '
+        print("Connecting to " + path)
     try:
         sock.connect(path)
     except OSError:
         print("Error connecting to " + path)
         sock.close()
         return
-    json_reply = read_socket(sock, 1024)
+    json_reply = read_socket(sock, 1024, prompt)
     output_buf_len = json_reply["max_output_len"]
     app_name = get_app_name(json_reply["pid"])
-    if app_name:
+    if app_name and prompt:
         print('Connected to application: "%s"' % app_name)
 
     # get list of commands for readline completion
@@ -70,13 +74,17 @@ def handle_socket(path):
     CMDS = read_socket(sock, output_buf_len, False)["/"]
 
     # interactive prompt
-    text = input('--> ').strip()
-    while text != "quit":
-        if text.startswith('/'):
-            sock.send(text.encode())
-            read_socket(sock, output_buf_len)
-        text = input('--> ').strip()
-    sock.close()
+    try:
+        text = input(prompt).strip()
+        while text != "quit":
+            if text.startswith('/'):
+                sock.send(text.encode())
+                read_socket(sock, output_buf_len)
+            text = input(prompt).strip()
+    except EOFError:
+        pass
+    finally:
+        sock.close()
 
 
 def readline_complete(text, state):
@@ -102,8 +110,8 @@ readline.set_completer(readline_complete)
 readline.set_completer_delims(readline.get_completer_delims().replace('/', ''))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--file-prefix', \
-        help='Provide file-prefix for DPDK runtime directory', default='rte')
+parser.add_argument('-f', '--file-prefix', default='rte',
+                    help='Provide file-prefix for DPDK runtime directory')
 args = parser.parse_args()
-rdir = get_dpdk_runtime_dir(args.file_prefix)
-handle_socket(os.path.join(rdir, 'dpdk_telemetry.{}'.format(TELEMETRY_VERSION)))
+rd = get_dpdk_runtime_dir(args.file_prefix)
+handle_socket(os.path.join(rd, 'dpdk_telemetry.{}'.format(TELEMETRY_VERSION)))

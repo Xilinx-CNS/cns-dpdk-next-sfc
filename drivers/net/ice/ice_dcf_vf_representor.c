@@ -114,6 +114,11 @@ ice_dcf_vf_repr_hw(struct ice_dcf_vf_repr *repr)
 	struct ice_dcf_adapter *dcf_adapter =
 			repr->dcf_eth_dev->data->dev_private;
 
+	if (!dcf_adapter) {
+		PMD_DRV_LOG(ERR, "DCF for VF representor has been released\n");
+		return NULL;
+	}
+
 	return &dcf_adapter->real_hw;
 }
 
@@ -123,6 +128,9 @@ ice_dcf_vf_repr_dev_info_get(struct rte_eth_dev *dev,
 {
 	struct ice_dcf_vf_repr *repr = dev->data->dev_private;
 	struct ice_dcf_hw *dcf_hw = ice_dcf_vf_repr_hw(repr);
+
+	if (!dcf_hw)
+		return -EIO;
 
 	dev_info->device = dev->device;
 	dev_info->max_mac_addrs = 1;
@@ -418,6 +426,7 @@ ice_dcf_vf_repr_init(struct rte_eth_dev *vf_rep_eth_dev, void *init_param)
 
 	vf_rep_eth_dev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
 	vf_rep_eth_dev->data->representor_id = repr->vf_id;
+	vf_rep_eth_dev->data->backer_port_id = repr->dcf_eth_dev->data->port_id;
 
 	vf_rep_eth_dev->data->mac_addrs = &repr->mac_addr;
 

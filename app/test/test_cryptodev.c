@@ -16,7 +16,7 @@
 
 #include <rte_crypto.h>
 #include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
+#include <rte_ip.h>
 #include <rte_string_fns.h>
 
 #ifdef RTE_CRYPTO_SCHEDULER
@@ -42,6 +42,8 @@
 #include "test_cryptodev_hmac_test_vectors.h"
 #include "test_cryptodev_mixed_test_vectors.h"
 #ifdef RTE_LIB_SECURITY
+#include "test_cryptodev_security_ipsec.h"
+#include "test_cryptodev_security_ipsec_test_vectors.h"
 #include "test_cryptodev_security_pdcp_test_vectors.h"
 #include "test_cryptodev_security_pdcp_sdap_test_vectors.h"
 #include "test_cryptodev_security_pdcp_test_func.h"
@@ -123,6 +125,13 @@ test_AES_CBC_HMAC_SHA512_decrypt_perform(struct rte_cryptodev_sym_session *sess,
 		const uint8_t *cipher,
 		const uint8_t *digest,
 		const uint8_t *iv);
+
+static int
+security_proto_supported(enum rte_security_session_action_type action,
+	enum rte_security_session_protocol proto);
+
+static int
+dev_configure_and_start(uint64_t ff_disable);
 
 static struct rte_mbuf *
 setup_test_string(struct rte_mempool *mpool,
@@ -753,6 +762,47 @@ crypto_gen_testsuite_setup(void)
 }
 
 #ifdef RTE_LIB_SECURITY
+static int
+ipsec_proto_testsuite_setup(void)
+{
+	struct crypto_testsuite_params *ts_params = &testsuite_params;
+	struct crypto_unittest_params *ut_params = &unittest_params;
+	struct rte_cryptodev_info dev_info;
+	int ret = 0;
+
+	rte_cryptodev_info_get(ts_params->valid_devs[0], &dev_info);
+
+	if (!(dev_info.feature_flags & RTE_CRYPTODEV_FF_SECURITY)) {
+		RTE_LOG(INFO, USER1, "Feature flag requirements for IPsec Proto "
+				"testsuite not met\n");
+		return TEST_SKIPPED;
+	}
+
+	/* Reconfigure to enable security */
+	ret = dev_configure_and_start(0);
+	if (ret != TEST_SUCCESS)
+		return ret;
+
+	/* Set action type */
+	ut_params->type = RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL;
+
+	if (security_proto_supported(
+			RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL,
+			RTE_SECURITY_PROTOCOL_IPSEC) < 0) {
+		RTE_LOG(INFO, USER1, "Capability requirements for IPsec Proto "
+				"test not met\n");
+		ret = TEST_SKIPPED;
+	}
+
+	/*
+	 * Stop the device. Device would be started again by individual test
+	 * case setup routine.
+	 */
+	rte_cryptodev_stop(ts_params->valid_devs[0]);
+
+	return ret;
+}
+
 static int
 pdcp_proto_testsuite_setup(void)
 {
@@ -8769,6 +8819,50 @@ test_PDCP_SDAP_PROTO_encap_all(void)
 }
 
 static int
+test_PDCP_PROTO_short_mac(void)
+{
+	int i = 0, size = 0;
+	int err, all_err = TEST_SUCCESS;
+	const struct pdcp_short_mac_test *cur_test;
+
+	size = RTE_DIM(list_pdcp_smac_tests);
+
+	for (i = 0; i < size; i++) {
+		cur_test = &list_pdcp_smac_tests[i];
+		err = test_pdcp_proto(
+			i, 0, RTE_CRYPTO_CIPHER_OP_ENCRYPT,
+			RTE_CRYPTO_AUTH_OP_GENERATE, cur_test->data_in,
+			cur_test->in_len, cur_test->data_out,
+			cur_test->in_len + ((cur_test->auth_key) ? 4 : 0),
+			RTE_CRYPTO_CIPHER_NULL, NULL,
+			0, cur_test->param.auth_alg,
+			cur_test->auth_key, cur_test->param.auth_key_len,
+			0, cur_test->param.domain, 0, 0,
+			0, 0, 0);
+		if (err) {
+			printf("\t%d) %s: Short MAC test failed\n",
+					cur_test->test_idx,
+					cur_test->param.name);
+			err = TEST_FAILED;
+		} else {
+			printf("\t%d) %s: Short MAC test PASS\n",
+					cur_test->test_idx,
+					cur_test->param.name);
+			rte_hexdump(stdout, "MAC I",
+				    cur_test->data_out + cur_test->in_len + 2,
+				    2);
+			err = TEST_SUCCESS;
+		}
+		all_err += err;
+	}
+
+	printf("Success: %d, Failure: %d\n", size + all_err, -all_err);
+
+	return (all_err == TEST_SUCCESS) ? TEST_SUCCESS : TEST_FAILED;
+
+}
+
+static int
 test_PDCP_SDAP_PROTO_decap_all(void)
 {
 	int i = 0, size = 0;
@@ -8811,6 +8905,364 @@ test_PDCP_SDAP_PROTO_decap_all(void)
 }
 
 static int
+test_ipsec_proto_process(const struct ipsec_test_data td[],
+			 struct ipsec_test_data res_d[],
+			 int nb_td,
+			 bool silent,
+			 const struct ipsec_test_flags *flags)
+{
+	struct crypto_testsuite_params *ts_params = &testsuite_params;
+	struct crypto_unittest_params *ut_params = &unittest_params;
+	struct rte_security_capability_idx sec_cap_idx;
+	const struct rte_security_capability *sec_cap;
+	struct rte_security_ipsec_xform ipsec_xform;
+	uint8_t dev_id = ts_params->valid_devs[0];
+	enum rte_security_ipsec_sa_direction dir;
+	struct ipsec_test_data *res_d_tmp = NULL;
+	uint32_t src = RTE_IPV4(192, 168, 1, 0);
+	uint32_t dst = RTE_IPV4(192, 168, 1, 1);
+	int salt_len, i, ret = TEST_SUCCESS;
+	struct rte_security_ctx *ctx;
+	uint8_t *input_text;
+	uint32_t verify;
+
+	ut_params->type = RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL;
+	gbl_action_type = RTE_SECURITY_ACTION_TYPE_LOOKASIDE_PROTOCOL;
+
+	/* Use first test data to create session */
+
+	/* Copy IPsec xform */
+	memcpy(&ipsec_xform, &td[0].ipsec_xform, sizeof(ipsec_xform));
+
+	dir = ipsec_xform.direction;
+	verify = flags->tunnel_hdr_verify;
+
+	if ((dir == RTE_SECURITY_IPSEC_SA_DIR_INGRESS) && verify) {
+		if (verify == RTE_SECURITY_IPSEC_TUNNEL_VERIFY_SRC_DST_ADDR)
+			src += 1;
+		else if (verify == RTE_SECURITY_IPSEC_TUNNEL_VERIFY_DST_ADDR)
+			dst += 1;
+	}
+
+	memcpy(&ipsec_xform.tunnel.ipv4.src_ip, &src, sizeof(src));
+	memcpy(&ipsec_xform.tunnel.ipv4.dst_ip, &dst, sizeof(dst));
+
+	ctx = rte_cryptodev_get_sec_ctx(dev_id);
+
+	sec_cap_idx.action = ut_params->type;
+	sec_cap_idx.protocol = RTE_SECURITY_PROTOCOL_IPSEC;
+	sec_cap_idx.ipsec.proto = ipsec_xform.proto;
+	sec_cap_idx.ipsec.mode = ipsec_xform.mode;
+	sec_cap_idx.ipsec.direction = ipsec_xform.direction;
+
+	if (flags->udp_encap)
+		ipsec_xform.options.udp_encap = 1;
+
+	sec_cap = rte_security_capability_get(ctx, &sec_cap_idx);
+	if (sec_cap == NULL)
+		return TEST_SKIPPED;
+
+	/* Copy cipher session parameters */
+	if (td[0].aead) {
+		memcpy(&ut_params->aead_xform, &td[0].xform.aead,
+		       sizeof(ut_params->aead_xform));
+		ut_params->aead_xform.aead.key.data = td[0].key.data;
+		ut_params->aead_xform.aead.iv.offset = IV_OFFSET;
+
+		/* Verify crypto capabilities */
+		if (test_ipsec_crypto_caps_aead_verify(
+				sec_cap,
+				&ut_params->aead_xform) != 0) {
+			if (!silent)
+				RTE_LOG(INFO, USER1,
+					"Crypto capabilities not supported\n");
+			return TEST_SKIPPED;
+		}
+	} else {
+		/* Only AEAD supported now */
+		return TEST_SKIPPED;
+	}
+
+	if (test_ipsec_sec_caps_verify(&ipsec_xform, sec_cap, silent) != 0)
+		return TEST_SKIPPED;
+
+	salt_len = RTE_MIN(sizeof(ipsec_xform.salt), td[0].salt.len);
+	memcpy(&ipsec_xform.salt, td[0].salt.data, salt_len);
+
+	struct rte_security_session_conf sess_conf = {
+		.action_type = ut_params->type,
+		.protocol = RTE_SECURITY_PROTOCOL_IPSEC,
+		.ipsec = ipsec_xform,
+		.crypto_xform = &ut_params->aead_xform,
+	};
+
+	/* Create security session */
+	ut_params->sec_session = rte_security_session_create(ctx, &sess_conf,
+					ts_params->session_mpool,
+					ts_params->session_priv_mpool);
+
+	if (ut_params->sec_session == NULL)
+		return TEST_SKIPPED;
+
+	for (i = 0; i < nb_td; i++) {
+		/* Setup source mbuf payload */
+		ut_params->ibuf = rte_pktmbuf_alloc(ts_params->mbuf_pool);
+		memset(rte_pktmbuf_mtod(ut_params->ibuf, uint8_t *), 0,
+				rte_pktmbuf_tailroom(ut_params->ibuf));
+
+		input_text = (uint8_t *)rte_pktmbuf_append(ut_params->ibuf,
+				td[i].input_text.len);
+
+		memcpy(input_text, td[i].input_text.data,
+		       td[i].input_text.len);
+
+		/* Generate crypto op data structure */
+		ut_params->op = rte_crypto_op_alloc(ts_params->op_mpool,
+					RTE_CRYPTO_OP_TYPE_SYMMETRIC);
+		if (!ut_params->op) {
+			printf("TestCase %s line %d: %s\n",
+				__func__, __LINE__,
+				"failed to allocate crypto op");
+			ret = TEST_FAILED;
+			goto crypto_op_free;
+		}
+
+		/* Attach session to operation */
+		rte_security_attach_session(ut_params->op,
+					    ut_params->sec_session);
+
+		/* Set crypto operation mbufs */
+		ut_params->op->sym->m_src = ut_params->ibuf;
+		ut_params->op->sym->m_dst = NULL;
+
+		/* Copy IV in crypto operation when IV generation is disabled */
+		if (dir == RTE_SECURITY_IPSEC_SA_DIR_EGRESS &&
+		    ipsec_xform.options.iv_gen_disable == 1) {
+			uint8_t *iv = rte_crypto_op_ctod_offset(ut_params->op,
+								uint8_t *,
+								IV_OFFSET);
+			int len;
+
+			if (td[i].aead)
+				len = td[i].xform.aead.aead.iv.length;
+			else
+				len = td[i].xform.chain.cipher.cipher.iv.length;
+
+			memcpy(iv, td[i].iv.data, len);
+		}
+
+		/* Process crypto operation */
+		process_crypto_request(dev_id, ut_params->op);
+
+		ret = test_ipsec_status_check(ut_params->op, flags, dir, i + 1);
+		if (ret != TEST_SUCCESS)
+			goto crypto_op_free;
+
+		if (res_d != NULL)
+			res_d_tmp = &res_d[i];
+
+		ret = test_ipsec_post_process(ut_params->ibuf, &td[i],
+					      res_d_tmp, silent, flags);
+		if (ret != TEST_SUCCESS)
+			goto crypto_op_free;
+
+		rte_crypto_op_free(ut_params->op);
+		ut_params->op = NULL;
+
+		rte_pktmbuf_free(ut_params->ibuf);
+		ut_params->ibuf = NULL;
+	}
+
+crypto_op_free:
+	rte_crypto_op_free(ut_params->op);
+	ut_params->op = NULL;
+
+	rte_pktmbuf_free(ut_params->ibuf);
+	ut_params->ibuf = NULL;
+
+	if (ut_params->sec_session)
+		rte_security_session_destroy(ctx, ut_params->sec_session);
+	ut_params->sec_session = NULL;
+
+	return ret;
+}
+
+static int
+test_ipsec_proto_known_vec(const void *test_data)
+{
+	struct ipsec_test_data td_outb;
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	memcpy(&td_outb, test_data, sizeof(td_outb));
+
+	/* Disable IV gen to be able to test with known vectors */
+	td_outb.ipsec_xform.options.iv_gen_disable = 1;
+
+	return test_ipsec_proto_process(&td_outb, NULL, 1, false, &flags);
+}
+
+static int
+test_ipsec_proto_known_vec_inb(const void *td_outb)
+{
+	struct ipsec_test_flags flags;
+	struct ipsec_test_data td_inb;
+
+	memset(&flags, 0, sizeof(flags));
+
+	test_ipsec_td_in_from_out(td_outb, &td_inb);
+
+	return test_ipsec_proto_process(&td_inb, NULL, 1, false, &flags);
+}
+
+static int
+test_ipsec_proto_all(const struct ipsec_test_flags *flags)
+{
+	struct ipsec_test_data td_outb[IPSEC_TEST_PACKETS_MAX];
+	struct ipsec_test_data td_inb[IPSEC_TEST_PACKETS_MAX];
+	unsigned int i, nb_pkts = 1, pass_cnt = 0;
+	int ret;
+
+	if (flags->iv_gen ||
+	    flags->sa_expiry_pkts_soft ||
+	    flags->sa_expiry_pkts_hard)
+		nb_pkts = IPSEC_TEST_PACKETS_MAX;
+
+	for (i = 0; i < RTE_DIM(aead_list); i++) {
+		test_ipsec_td_prepare(&aead_list[i],
+				      NULL,
+				      flags,
+				      td_outb,
+				      nb_pkts);
+
+		ret = test_ipsec_proto_process(td_outb, td_inb, nb_pkts, true,
+					       flags);
+		if (ret == TEST_SKIPPED)
+			continue;
+
+		if (ret == TEST_FAILED)
+			return TEST_FAILED;
+
+		test_ipsec_td_update(td_inb, td_outb, nb_pkts, flags);
+
+		ret = test_ipsec_proto_process(td_inb, NULL, nb_pkts, true,
+					       flags);
+		if (ret == TEST_SKIPPED)
+			continue;
+
+		if (ret == TEST_FAILED)
+			return TEST_FAILED;
+
+		if (flags->display_alg)
+			test_ipsec_display_alg(&aead_list[i], NULL);
+
+		pass_cnt++;
+	}
+
+	if (pass_cnt > 0)
+		return TEST_SUCCESS;
+	else
+		return TEST_SKIPPED;
+}
+
+static int
+test_ipsec_proto_display_list(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.display_alg = true;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_iv_gen(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.iv_gen = true;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_sa_exp_pkts_soft(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.sa_expiry_pkts_soft = true;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_sa_exp_pkts_hard(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.sa_expiry_pkts_hard = true;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_err_icv_corrupt(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.icv_corrupt = true;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_udp_encap(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.udp_encap = true;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_tunnel_src_dst_addr_verify(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.tunnel_hdr_verify = RTE_SECURITY_IPSEC_TUNNEL_VERIFY_SRC_DST_ADDR;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
+test_ipsec_proto_tunnel_dst_addr_verify(const void *data __rte_unused)
+{
+	struct ipsec_test_flags flags;
+
+	memset(&flags, 0, sizeof(flags));
+
+	flags.tunnel_hdr_verify = RTE_SECURITY_IPSEC_TUNNEL_VERIFY_DST_ADDR;
+
+	return test_ipsec_proto_all(&flags);
+}
+
+static int
 test_PDCP_PROTO_all(void)
 {
 	struct crypto_testsuite_params *ts_params = &testsuite_params;
@@ -8843,6 +9295,7 @@ test_PDCP_PROTO_all(void)
 	status += test_PDCP_PROTO_SGL_oop_128B_32B();
 	status += test_PDCP_SDAP_PROTO_encap_all();
 	status += test_PDCP_SDAP_PROTO_decap_all();
+	status += test_PDCP_PROTO_short_mac();
 
 	if (status)
 		return TEST_FAILED;
@@ -13475,31 +13928,32 @@ test_scheduler_attach_worker_op(void)
 {
 	struct crypto_testsuite_params *ts_params = &testsuite_params;
 	uint8_t sched_id = ts_params->valid_devs[0];
-	uint32_t nb_devs, i, nb_devs_attached = 0;
+	uint32_t i, nb_devs_attached = 0;
 	int ret;
 	char vdev_name[32];
+	unsigned int count = rte_cryptodev_count();
 
-	/* create 2 AESNI_MB if necessary */
-	nb_devs = rte_cryptodev_device_count_by_driver(
-			rte_cryptodev_driver_id_get(
-			RTE_STR(CRYPTODEV_NAME_AESNI_MB_PMD)));
-	if (nb_devs < 2) {
-		for (i = nb_devs; i < 2; i++) {
-			snprintf(vdev_name, sizeof(vdev_name), "%s_%u",
-					RTE_STR(CRYPTODEV_NAME_AESNI_MB_PMD),
-					i);
-			ret = rte_vdev_init(vdev_name, NULL);
+	/* create 2 AESNI_MB vdevs on top of existing devices */
+	for (i = count; i < count + 2; i++) {
+		snprintf(vdev_name, sizeof(vdev_name), "%s_%u",
+				RTE_STR(CRYPTODEV_NAME_AESNI_MB_PMD),
+				i);
+		ret = rte_vdev_init(vdev_name, NULL);
 
-			TEST_ASSERT(ret == 0,
-				"Failed to create instance %u of"
-				" pmd : %s",
-				i, RTE_STR(CRYPTODEV_NAME_AESNI_MB_PMD));
+		TEST_ASSERT(ret == 0,
+			"Failed to create instance %u of"
+			" pmd : %s",
+			i, RTE_STR(CRYPTODEV_NAME_AESNI_MB_PMD));
+
+		if (ret < 0) {
+			RTE_LOG(ERR, USER1,
+				"Failed to create 2 AESNI MB PMDs.\n");
+			return TEST_SKIPPED;
 		}
 	}
 
 	/* attach 2 AESNI_MB cdevs */
-	for (i = 0; i < rte_cryptodev_count() && nb_devs_attached < 2;
-			i++) {
+	for (i = count; i < count + 2; i++) {
 		struct rte_cryptodev_info info;
 		unsigned int session_size;
 
@@ -13700,6 +14154,70 @@ static struct unit_test_suite end_testsuite = {
 };
 
 #ifdef RTE_LIB_SECURITY
+static struct unit_test_suite ipsec_proto_testsuite  = {
+	.suite_name = "IPsec Proto Unit Test Suite",
+	.setup = ipsec_proto_testsuite_setup,
+	.unit_test_cases = {
+		TEST_CASE_NAMED_WITH_DATA(
+			"Outbound known vector (ESP tunnel mode IPv4 AES-GCM 128)",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_known_vec, &pkt_aes_128_gcm),
+		TEST_CASE_NAMED_WITH_DATA(
+			"Outbound known vector (ESP tunnel mode IPv4 AES-GCM 192)",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_known_vec, &pkt_aes_192_gcm),
+		TEST_CASE_NAMED_WITH_DATA(
+			"Outbound known vector (ESP tunnel mode IPv4 AES-GCM 256)",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_known_vec, &pkt_aes_256_gcm),
+		TEST_CASE_NAMED_WITH_DATA(
+			"Inbound known vector (ESP tunnel mode IPv4 AES-GCM 128)",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_known_vec_inb, &pkt_aes_128_gcm),
+		TEST_CASE_NAMED_WITH_DATA(
+			"Inbound known vector (ESP tunnel mode IPv4 AES-GCM 192)",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_known_vec_inb, &pkt_aes_192_gcm),
+		TEST_CASE_NAMED_WITH_DATA(
+			"Inbound known vector (ESP tunnel mode IPv4 AES-GCM 256)",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_known_vec_inb, &pkt_aes_256_gcm),
+		TEST_CASE_NAMED_ST(
+			"Combined test alg list",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_display_list),
+		TEST_CASE_NAMED_ST(
+			"IV generation",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_iv_gen),
+		TEST_CASE_NAMED_ST(
+			"UDP encapsulation",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_udp_encap),
+		TEST_CASE_NAMED_ST(
+			"SA expiry packets soft",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_sa_exp_pkts_soft),
+		TEST_CASE_NAMED_ST(
+			"SA expiry packets hard",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_sa_exp_pkts_hard),
+		TEST_CASE_NAMED_ST(
+			"Negative test: ICV corruption",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_err_icv_corrupt),
+		TEST_CASE_NAMED_ST(
+			"Tunnel dst addr verification",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_tunnel_dst_addr_verify),
+		TEST_CASE_NAMED_ST(
+			"Tunnel src and dst addr verification",
+			ut_setup_security, ut_teardown,
+			test_ipsec_proto_tunnel_src_dst_addr_verify),
+		TEST_CASES_END() /**< NULL terminate unit test array */
+	}
+};
+
 static struct unit_test_suite pdcp_proto_testsuite  = {
 	.suite_name = "PDCP Proto Unit Test Suite",
 	.setup = pdcp_proto_testsuite_setup,
@@ -14278,7 +14796,6 @@ static struct unit_test_suite cryptodev_kasumi_testsuite  = {
 			test_kasumi_decryption_test_case_5),
 		TEST_CASE_ST(ut_setup, ut_teardown,
 			test_kasumi_decryption_test_case_1_oop),
-
 		TEST_CASE_ST(ut_setup, ut_teardown,
 			test_kasumi_cipher_auth_test_case_1),
 
@@ -14486,6 +15003,7 @@ run_cryptodev_testsuite(const char *pmd_name)
 		&cryptodev_negative_hmac_sha1_testsuite,
 		&cryptodev_gen_testsuite,
 #ifdef RTE_LIB_SECURITY
+		&ipsec_proto_testsuite,
 		&pdcp_proto_testsuite,
 		&docsis_proto_testsuite,
 #endif

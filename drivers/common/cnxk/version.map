@@ -37,15 +37,14 @@ INTERNAL {
 	roc_bphy_cgx_stop_rxtx;
 	roc_bphy_dev_fini;
 	roc_bphy_dev_init;
-	roc_bphy_handler_clear;
 	roc_bphy_intr_available;
+	roc_bphy_intr_clear;
 	roc_bphy_intr_fini;
 	roc_bphy_intr_handler;
 	roc_bphy_intr_init;
 	roc_bphy_intr_register;
-	roc_bphy_irq_handler_set;
-	roc_bphy_irq_stack_get;
-	roc_bphy_irq_stack_remove;
+	roc_bphy_npa_pf_func_get;
+	roc_bphy_sso_pf_func_get;
 	roc_clk_freq_get;
 	roc_cpt_afs_print;
 	roc_cpt_dev_clear;
@@ -64,6 +63,9 @@ INTERNAL {
 	roc_cpt_lmtline_init;
 	roc_cpt_rxc_time_cfg;
 	roc_error_msg_get;
+	roc_hash_sha1_gen;
+	roc_hash_sha256_gen;
+	roc_hash_sha512_gen;
 	roc_idev_cpt_get;
 	roc_idev_cpt_set;
 	roc_idev_lmt_base_addr_get;
@@ -109,6 +111,8 @@ INTERNAL {
 	roc_nix_mac_addr_set;
 	roc_nix_mac_link_cb_register;
 	roc_nix_mac_link_cb_unregister;
+	roc_nix_mac_link_info_get_cb_register;
+	roc_nix_mac_link_info_get_cb_unregister;
 	roc_nix_mac_link_event_start_stop;
 	roc_nix_mac_link_info_get;
 	roc_nix_mac_link_info_set;
@@ -165,13 +169,21 @@ INTERNAL {
 	roc_nix_xstats_names_get;
 	roc_nix_switch_hdr_set;
 	roc_nix_eeprom_info_get;
+	roc_nix_smq_flush;
 	roc_nix_tm_dump;
+	roc_nix_tm_err_to_rte_err;
 	roc_nix_tm_fini;
 	roc_nix_tm_free_resources;
+	roc_nix_tm_lvl_cnt_get;
+	roc_nix_tm_tree_type_get;
 	roc_nix_tm_hierarchy_disable;
 	roc_nix_tm_hierarchy_enable;
 	roc_nix_tm_init;
+	roc_nix_tm_is_user_hierarchy_enabled;
 	roc_nix_tm_leaf_cnt;
+	roc_nix_tm_lvl_have_link_access;
+	roc_nix_tm_lvl_is_leaf;
+	roc_nix_tm_max_prio;
 	roc_nix_tm_node_add;
 	roc_nix_tm_node_delete;
 	roc_nix_tm_node_get;
@@ -184,10 +196,12 @@ INTERNAL {
 	roc_nix_tm_node_stats_get;
 	roc_nix_tm_node_suspend_resume;
 	roc_nix_tm_prealloc_res;
+	roc_nix_tm_prepare_rate_limited_tree;
 	roc_nix_tm_rlimit_sq;
 	roc_nix_tm_root_has_sp;
 	roc_nix_tm_rsrc_count;
 	roc_nix_tm_rsrc_max;
+	roc_nix_tm_shaper_default_red_algo;
 	roc_nix_tm_shaper_profile_add;
 	roc_nix_tm_shaper_profile_delete;
 	roc_nix_tm_shaper_profile_get;
@@ -234,6 +248,7 @@ INTERNAL {
 	roc_npc_mcam_free_all_resources;
 	roc_npc_mcam_free_counter;
 	roc_npc_mcam_free_entry;
+	roc_npc_mcam_merge_base_steering_rule;
 	roc_npc_mcam_write_entry;
 	roc_npc_mcam_read_counter;
 	roc_npc_profile_name_get;
@@ -264,6 +279,7 @@ INTERNAL {
 	roc_tim_lf_disable;
 	roc_tim_lf_enable;
 	roc_tim_lf_free;
+	roc_se_ctx_swap;
 
 	local: *;
 };

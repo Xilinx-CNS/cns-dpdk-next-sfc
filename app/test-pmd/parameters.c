@@ -61,6 +61,10 @@ usage(char* progname)
 	       "(only if interactive is disabled).\n");
 	printf("  --stats-period=PERIOD: statistics will be shown "
 	       "every PERIOD seconds (only if interactive is disabled).\n");
+	printf("  --display-xstats xstat_name1[,...]: comma-separated list of "
+	       "extended statistics to show. Used with --stats-period "
+	       "specified or interactive commands that show Rx/Tx statistics "
+	       "(i.e. 'show port stats').\n");
 	printf("  --nb-cores=N: set the number of forwarding cores "
 	       "(1 <= N <= %d).\n", nb_lcores);
 	printf("  --nb-ports=N: set the number of forwarding ports "
@@ -127,6 +131,7 @@ usage(char* progname)
 	printf("  --disable-rss: disable rss.\n");
 	printf("  --port-topology=<paired|chained|loop>: set port topology (paired "
 	       "is default).\n");
+	printf("  --loopback-mode=N: set loopback mode for all ports\n");
 	printf("  --forward-mode=N: set forwarding mode (N: %s).\n",
 	       list_pkt_forwarding_modes());
 	printf("  --forward-mode=5tswap: set forwarding mode to "
@@ -143,6 +148,7 @@ usage(char* progname)
 	       "N.\n");
 	printf("  --burst=N: set the number of packets per burst to N.\n");
 	printf("  --flowgen-clones=N: set the number of single packet clones to send in flowgen mode. Should be less than burst value.\n");
+	printf("  --flowgen-flows=N: set the number of flows in flowgen mode to N (1 <= N <= INT32_MAX).\n");
 	printf("  --mbcache=N: set the cache of mbuf memory pool to N.\n");
 	printf("  --rxpt=N: set prefetch threshold register of RX rings to N.\n");
 	printf("  --rxht=N: set the host threshold register of RX rings to N.\n");
@@ -473,6 +479,72 @@ parse_event_printing_config(const char *optarg, int enable)
 }
 
 static int
+parse_xstats_list(const char *in_str, struct rte_eth_xstat_name **xstats,
+		  unsigned int *xstats_num)
+{
+	int max_names_nb, names_nb, nonempty_names_nb;
+	int name, nonempty_name;
+	int stringlen;
+	char **names;
+	char *str;
+	int ret;
+	int i;
+
+	names = NULL;
+	str = strdup(in_str);
+	if (str == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	stringlen = strlen(str);
+
+	for (i = 0, max_names_nb = 1; str[i] != '\0'; i++) {
+		if (str[i] == ',')
+			max_names_nb++;
+	}
+
+	names = calloc(max_names_nb, sizeof(*names));
+	if (names == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	names_nb = rte_strsplit(str, stringlen, names, max_names_nb, ',');
+	if (names_nb < 0) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	nonempty_names_nb = 0;
+	for (i = 0; i < names_nb; i++) {
+		if (names[i][0] == '\0')
+			continue;
+		nonempty_names_nb++;
+	}
+	*xstats = calloc(nonempty_names_nb, sizeof(**xstats));
+	if (*xstats == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	for (name = nonempty_name = 0; name < names_nb; name++) {
+		if (names[name][0] == '\0')
+			continue;
+		rte_strscpy((*xstats)[nonempty_name].name, names[name],
+			    sizeof((*xstats)[nonempty_name].name));
+		nonempty_name++;
+	}
+
+	*xstats_num = nonempty_names_nb;
+	ret = 0;
+
+out:
+	free(names);
+	free(str);
+	return ret;
+}
+
+static int
 parse_link_speed(int n)
 {
 	uint32_t speed = ETH_LINK_SPEED_FIXED;
@@ -512,6 +584,9 @@ parse_link_speed(int n)
 void
 launch_args_parse(int argc, char** argv)
 {
+#define PARAM_PROC_ID "proc-id"
+#define PARAM_NUM_PROCS "num-procs"
+
 	int n, opt;
 	char **argvopt;
 	int opt_idx;
@@ -535,6 +610,7 @@ launch_args_parse(int argc, char** argv)
 #endif
 		{ "tx-first",			0, 0, 0 },
 		{ "stats-period",		1, 0, 0 },
+		{ "display-xstats",		1, 0, 0 },
 		{ "nb-cores",			1, 0, 0 },
 		{ "nb-ports",			1, 0, 0 },
 		{ "coremask",			1, 0, 0 },
@@ -573,6 +649,7 @@ launch_args_parse(int argc, char** argv)
 		{ "enable-drop-en",            0, 0, 0 },
 		{ "disable-rss",                0, 0, 0 },
 		{ "port-topology",              1, 0, 0 },
+		{ "loopback-mode",		1, 0, 0 },
 		{ "forward-mode",               1, 0, 0 },
 		{ "rss-ip",			0, 0, 0 },
 		{ "rss-udp",			0, 0, 0 },
@@ -586,6 +663,7 @@ launch_args_parse(int argc, char** argv)
 		{ "hairpin-mode",		1, 0, 0 },
 		{ "burst",			1, 0, 0 },
 		{ "flowgen-clones",		1, 0, 0 },
+		{ "flowgen-flows",		1, 0, 0 },
 		{ "mbcache",			1, 0, 0 },
 		{ "txpt",			1, 0, 0 },
 		{ "txht",			1, 0, 0 },
@@ -631,6 +709,8 @@ launch_args_parse(int argc, char** argv)
 		{ "rx-mq-mode",                 1, 0, 0 },
 		{ "record-core-cycles",         0, 0, 0 },
 		{ "record-burst-stats",         0, 0, 0 },
+		{ PARAM_NUM_PROCS,              1, 0, 0 },
+		{ PARAM_PROC_ID,                1, 0, 0 },
 		{ 0, 0, 0, 0 },
 	};
 
@@ -691,6 +771,16 @@ launch_args_parse(int argc, char** argv)
 
 				stats_period = n;
 				break;
+			}
+			if (!strcmp(lgopts[opt_idx].name, "display-xstats")) {
+				char rc;
+
+				rc = parse_xstats_list(optarg, &xstats_display,
+						       &xstats_display_num);
+				if (rc != 0)
+					rte_exit(EXIT_FAILURE,
+						 "Failed to parse display-xstats argument: %d\n",
+						 rc);
 			}
 			if (!strcmp(lgopts[opt_idx].name,
 				    "eth-peers-configfile")) {
@@ -1006,6 +1096,22 @@ launch_args_parse(int argc, char** argv)
 						 " must be: paired, chained or loop\n",
 						 optarg);
 			}
+			if (!strcmp(lgopts[opt_idx].name, "loopback-mode")) {
+				char *end = NULL;
+				unsigned int mode;
+
+				errno = 0;
+				mode = strtoul(optarg, &end, 0);
+
+				if (errno != 0 || (optarg[0] == '\0') ||
+				    (end == NULL) || (*end != '\0')) {
+					rte_exit(EXIT_FAILURE,
+						"Loopback mode: %s invalid\n",
+						optarg);
+				}
+				RTE_ETH_FOREACH_DEV(pid)
+					ports[pid].dev_conf.lpbk_mode = mode;
+			}
 			if (!strcmp(lgopts[opt_idx].name, "forward-mode"))
 				set_pkt_forwarding_mode(optarg);
 			if (!strcmp(lgopts[opt_idx].name, "rss-ip"))
@@ -1121,6 +1227,14 @@ launch_args_parse(int argc, char** argv)
 				else
 					rte_exit(EXIT_FAILURE,
 						 "clones must be >= 0 and <= current burst\n");
+			}
+			if (!strcmp(lgopts[opt_idx].name, "flowgen-flows")) {
+				n = atoi(optarg);
+				if (n > 0)
+					nb_flows_flowgen = (int) n;
+				else
+					rte_exit(EXIT_FAILURE,
+						 "flows must be >= 1\n");
 			}
 			if (!strcmp(lgopts[opt_idx].name, "mbcache")) {
 				n = atoi(optarg);
@@ -1397,6 +1511,10 @@ launch_args_parse(int argc, char** argv)
 				record_core_cycles = 1;
 			if (!strcmp(lgopts[opt_idx].name, "record-burst-stats"))
 				record_burst_stats = 1;
+			if (!strcmp(lgopts[opt_idx].name, PARAM_NUM_PROCS))
+				num_procs = atoi(optarg);
+			if (!strcmp(lgopts[opt_idx].name, PARAM_PROC_ID))
+				proc_id = atoi(optarg);
 			break;
 		case 'h':
 			usage(argv[0]);

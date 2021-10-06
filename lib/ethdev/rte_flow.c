@@ -100,6 +100,8 @@ static const struct rte_flow_desc_data rte_flow_desc_item[] = {
 	MK_FLOW_ITEM(GENEVE_OPT, sizeof(struct rte_flow_item_geneve_opt)),
 	MK_FLOW_ITEM(INTEGRITY, sizeof(struct rte_flow_item_integrity)),
 	MK_FLOW_ITEM(CONNTRACK, sizeof(uint32_t)),
+	MK_FLOW_ITEM(ETHDEV, sizeof(struct rte_flow_item_ethdev)),
+	MK_FLOW_ITEM(ESWITCH_PORT, sizeof(struct rte_flow_item_ethdev)),
 };
 
 /** Generate flow_action[] entry. */
@@ -189,6 +191,8 @@ static const struct rte_flow_desc_data rte_flow_desc_action[] = {
 	 */
 	MK_FLOW_ACTION(INDIRECT, 0),
 	MK_FLOW_ACTION(CONNTRACK, sizeof(struct rte_flow_action_conntrack)),
+	MK_FLOW_ACTION(ETHDEV, sizeof(struct rte_flow_action_ethdev)),
+	MK_FLOW_ACTION(ESWITCH_PORT, sizeof(struct rte_flow_action_ethdev)),
 };
 
 int

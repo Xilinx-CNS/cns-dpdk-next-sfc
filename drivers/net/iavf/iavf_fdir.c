@@ -57,7 +57,7 @@
 	IAVF_INSET_IPV6_HOP_LIMIT)
 
 #define IAVF_FDIR_INSET_ETH_IPV6_FRAG_EXT (\
-	IAVF_INSET_IPV6_ID)
+	IAVF_FDIR_INSET_ETH_IPV6 | IAVF_INSET_IPV6_ID)
 
 #define IAVF_FDIR_INSET_ETH_IPV6_UDP (\
 	IAVF_INSET_IPV6_SRC | IAVF_INSET_IPV6_DST | \
@@ -664,6 +664,7 @@ iavf_fdir_add_fragment_hdr(struct virtchnl_proto_hdrs *hdrs, int layer)
 	/* adding dummy fragment header */
 	hdr1 = &hdrs->proto_hdr[layer];
 	VIRTCHNL_SET_PROTO_HDR_TYPE(hdr1, IPV4_FRAG);
+	hdr1->field_selector = 0;
 	hdrs->count = ++layer;
 }
 
@@ -1160,17 +1161,28 @@ iavf_fdir_parse_pattern(__rte_unused struct iavf_adapter *ad,
 
 			if (!gtp_psc_spec)
 				VIRTCHNL_SET_PROTO_HDR_TYPE(hdr, GTPU_EH);
-			else if ((gtp_psc_mask->qfi) && !(gtp_psc_mask->pdu_type))
+			else if ((gtp_psc_mask->hdr.qfi) &&
+				!(gtp_psc_mask->hdr.type))
 				VIRTCHNL_SET_PROTO_HDR_TYPE(hdr, GTPU_EH);
-			else if (gtp_psc_spec->pdu_type == IAVF_GTPU_EH_UPLINK)
+			else if (gtp_psc_spec->hdr.type == IAVF_GTPU_EH_UPLINK)
 				VIRTCHNL_SET_PROTO_HDR_TYPE(hdr, GTPU_EH_PDU_UP);
-			else if (gtp_psc_spec->pdu_type == IAVF_GTPU_EH_DWLINK)
+			else if (gtp_psc_spec->hdr.type == IAVF_GTPU_EH_DWLINK)
 				VIRTCHNL_SET_PROTO_HDR_TYPE(hdr, GTPU_EH_PDU_DWN);
 
 			if (gtp_psc_spec && gtp_psc_mask) {
-				if (gtp_psc_mask->qfi == UINT8_MAX) {
+				if (gtp_psc_mask->hdr.qfi == 0x3F) {
 					input_set |= IAVF_INSET_GTPU_QFI;
-					VIRTCHNL_ADD_PROTO_HDR_FIELD_BIT(hdr, GTPU_EH, QFI);
+					if (gtp_psc_spec->hdr.type ==
+								IAVF_GTPU_EH_UPLINK)
+						VIRTCHNL_ADD_PROTO_HDR_FIELD_BIT(hdr,
+										 GTPU_UP, QFI);
+					else if (gtp_psc_spec->hdr.type ==
+								IAVF_GTPU_EH_DWLINK)
+						VIRTCHNL_ADD_PROTO_HDR_FIELD_BIT(hdr,
+										 GTPU_DWN, QFI);
+					else
+						VIRTCHNL_ADD_PROTO_HDR_FIELD_BIT(hdr,
+										 GTPU_EH, QFI);
 				}
 
 				rte_memcpy(hdr->buffer, gtp_psc_spec,

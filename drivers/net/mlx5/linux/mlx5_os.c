@@ -1677,6 +1677,19 @@ err_secondary:
 	if (priv->representor) {
 		eth_dev->data->dev_flags |= RTE_ETH_DEV_REPRESENTOR;
 		eth_dev->data->representor_id = priv->representor_id;
+		MLX5_ETH_FOREACH_DEV(port_id, &priv->pci_dev->device) {
+			struct mlx5_priv *opriv =
+				rte_eth_devices[port_id].data->dev_private;
+			if (opriv &&
+			    opriv->master &&
+			    opriv->domain_id == priv->domain_id &&
+			    opriv->sh == priv->sh) {
+				eth_dev->data->backer_port_id = port_id;
+				break;
+			}
+		}
+		if (port_id >= RTE_MAX_ETHPORTS)
+			eth_dev->data->backer_port_id = eth_dev->data->port_id;
 	}
 	priv->mp_id.port_id = eth_dev->data->port_id;
 	strlcpy(priv->mp_id.name, MLX5_MP_NAME, RTE_MP_MAX_NAME_LEN);
@@ -1702,11 +1715,8 @@ err_secondary:
 		goto error;
 	}
 	DRV_LOG(INFO,
-		"port %u MAC address is %02x:%02x:%02x:%02x:%02x:%02x",
-		eth_dev->data->port_id,
-		mac.addr_bytes[0], mac.addr_bytes[1],
-		mac.addr_bytes[2], mac.addr_bytes[3],
-		mac.addr_bytes[4], mac.addr_bytes[5]);
+		"port %u MAC address is " RTE_ETHER_ADDR_PRT_FMT,
+		eth_dev->data->port_id, RTE_ETHER_ADDR_BYTES(&mac));
 #ifdef RTE_LIBRTE_MLX5_DEBUG
 	{
 		char ifname[MLX5_NAMESIZE];
@@ -2142,6 +2152,7 @@ mlx5_os_config_default(struct mlx5_dev_config *config)
 	config->dv_flow_en = 1;
 	config->decap_en = 1;
 	config->log_hp_size = MLX5_ARG_UNSET;
+	config->allow_duplicate_pattern = 1;
 }
 
 /**
@@ -2564,7 +2575,6 @@ mlx5_os_pci_probe_pf(struct rte_pci_device *pci_dev,
 		/* Default configuration. */
 		mlx5_os_config_default(&dev_config);
 		dev_config.vf = dev_config_vf;
-		dev_config.allow_duplicate_pattern = 1;
 		list[i].numa_node = pci_dev->device.numa_node;
 		list[i].eth_dev = mlx5_dev_spawn(&pci_dev->device,
 						 &list[i],
@@ -2700,9 +2710,20 @@ mlx5_os_pci_probe(struct rte_pci_device *pci_dev)
 
 	if (eth_da.nb_ports > 0) {
 		/* Iterate all port if devargs pf is range: "pf[0-1]vf[...]". */
-		for (p = 0; p < eth_da.nb_ports; p++)
+		for (p = 0; p < eth_da.nb_ports; p++) {
 			ret = mlx5_os_pci_probe_pf(pci_dev, &eth_da,
 						   eth_da.ports[p]);
+			if (ret)
+				break;
+		}
+		if (ret) {
+			DRV_LOG(ERR, "Probe of PCI device " PCI_PRI_FMT " "
+				"aborted due to proding failure of PF %u",
+				pci_dev->addr.domain, pci_dev->addr.bus,
+				pci_dev->addr.devid, pci_dev->addr.function,
+				eth_da.ports[p]);
+			mlx5_net_remove(&pci_dev->device);
+		}
 	} else {
 		ret = mlx5_os_pci_probe_pf(pci_dev, &eth_da, 0);
 	}

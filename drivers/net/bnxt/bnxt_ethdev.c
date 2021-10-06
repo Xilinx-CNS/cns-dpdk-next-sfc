@@ -482,6 +482,12 @@ static int bnxt_setup_one_vnic(struct bnxt *bp, uint16_t vnic_id)
 			rxq->vnic->fw_grp_ids[j] = INVALID_HW_RING_ID;
 		else
 			vnic->rx_queue_cnt++;
+
+		if (!rxq->rx_deferred_start) {
+			bp->eth_dev->data->rx_queue_state[j] =
+				RTE_ETH_QUEUE_STATE_STARTED;
+			rxq->rx_started = true;
+		}
 	}
 
 	PMD_DRV_LOG(DEBUG, "vnic->rx_queue_cnt = %d\n", vnic->rx_queue_cnt);
@@ -808,6 +814,16 @@ skip_cosq_cfg:
 		}
 	}
 
+	for (j = 0; j < bp->tx_nr_rings; j++) {
+		struct bnxt_tx_queue *txq = bp->tx_queues[j];
+
+		if (!txq->tx_deferred_start) {
+			bp->eth_dev->data->tx_queue_state[j] =
+				RTE_ETH_QUEUE_STATE_STARTED;
+			txq->tx_started = true;
+		}
+	}
+
 	rc = bnxt_hwrm_cfa_l2_set_rx_mask(bp, &bp->vnic_info[0], 0, NULL);
 	if (rc) {
 		PMD_DRV_LOG(ERR,
@@ -981,9 +997,13 @@ static int bnxt_dev_info_get_op(struct rte_eth_dev *eth_dev,
 	dev_info->rx_offload_capa = BNXT_DEV_RX_OFFLOAD_SUPPORT;
 	if (bp->flags & BNXT_FLAG_PTP_SUPPORTED)
 		dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_TIMESTAMP;
+	if (bp->vnic_cap_flags & BNXT_VNIC_CAP_VLAN_RX_STRIP)
+		dev_info->rx_offload_capa |= DEV_RX_OFFLOAD_VLAN_STRIP;
 	dev_info->tx_queue_offload_capa = DEV_TX_OFFLOAD_MBUF_FAST_FREE;
 	dev_info->tx_offload_capa = BNXT_DEV_TX_OFFLOAD_SUPPORT |
 				    dev_info->tx_queue_offload_capa;
+	if (bp->fw_cap & BNXT_FW_CAP_VLAN_TX_INSERT)
+		dev_info->tx_offload_capa |= DEV_TX_OFFLOAD_VLAN_INSERT;
 	dev_info->flow_type_rss_offloads = BNXT_ETH_RSS_SUPPORT;
 
 	dev_info->speed_capa = bnxt_get_speed_capabilities(bp);
@@ -2349,7 +2369,6 @@ bnxt_udp_tunnel_port_add_op(struct rte_eth_dev *eth_dev,
 		}
 		tunnel_type =
 			HWRM_TUNNEL_DST_PORT_ALLOC_INPUT_TUNNEL_TYPE_VXLAN;
-		bp->vxlan_port_cnt++;
 		break;
 	case RTE_TUNNEL_TYPE_GENEVE:
 		if (bp->geneve_port_cnt) {
@@ -2364,7 +2383,6 @@ bnxt_udp_tunnel_port_add_op(struct rte_eth_dev *eth_dev,
 		}
 		tunnel_type =
 			HWRM_TUNNEL_DST_PORT_ALLOC_INPUT_TUNNEL_TYPE_GENEVE;
-		bp->geneve_port_cnt++;
 		break;
 	default:
 		PMD_DRV_LOG(ERR, "Tunnel type is not supported\n");
@@ -2372,6 +2390,18 @@ bnxt_udp_tunnel_port_add_op(struct rte_eth_dev *eth_dev,
 	}
 	rc = bnxt_hwrm_tunnel_dst_port_alloc(bp, udp_tunnel->udp_port,
 					     tunnel_type);
+
+	if (rc != 0)
+		return rc;
+
+	if (tunnel_type ==
+	    HWRM_TUNNEL_DST_PORT_ALLOC_INPUT_TUNNEL_TYPE_VXLAN)
+		bp->vxlan_port_cnt++;
+
+	if (tunnel_type ==
+	    HWRM_TUNNEL_DST_PORT_ALLOC_INPUT_TUNNEL_TYPE_GENEVE)
+		bp->geneve_port_cnt++;
+
 	return rc;
 }
 
@@ -4433,11 +4463,11 @@ static int bnxt_fw_reset_all(struct bnxt *bp)
 	int rc = 0;
 
 	if (info->flags & BNXT_FLAG_ERROR_RECOVERY_HOST) {
-		/* Reset through master function driver */
+		/* Reset through primary function driver */
 		for (i = 0; i < info->reg_array_cnt; i++)
 			bnxt_write_fw_reset_reg(bp, i);
 		/* Wait for time specified by FW after triggering reset */
-		rte_delay_ms(info->master_func_wait_period_after_reset);
+		rte_delay_ms(info->primary_func_wait_period_after_reset);
 	} else if (info->flags & BNXT_FLAG_ERROR_RECOVERY_CO_CPU) {
 		/* Reset with the help of Kong processor */
 		rc = bnxt_hwrm_fw_reset(bp);
@@ -4454,8 +4484,8 @@ static void bnxt_fw_reset_cb(void *arg)
 	struct bnxt_error_recovery_info *info = bp->recovery_info;
 	int rc = 0;
 
-	/* Only Master function can do FW reset */
-	if (bnxt_is_master_func(bp) &&
+	/* Only Primary function can do FW reset */
+	if (bnxt_is_primary_func(bp) &&
 	    bnxt_is_recovery_enabled(bp)) {
 		rc = bnxt_fw_reset_all(bp);
 		if (rc) {
@@ -4483,8 +4513,8 @@ static void bnxt_fw_reset_cb(void *arg)
  * advertised by FW in HWRM_ERROR_RECOVERY_QCFG.
  * When the driver detects heartbeat stop or change in reset_counter,
  * it has to trigger a reset to recover from the error condition.
- * A “master PF” is the function who will have the privilege to
- * initiate the chimp reset. The master PF will be elected by the
+ * A “primary function” is the function who will have the privilege to
+ * initiate the chimp reset. The primary function will be elected by the
  * firmware and will be notified through async message.
  */
 static void bnxt_check_fw_health(void *arg)
@@ -4522,8 +4552,8 @@ reset:
 
 	PMD_DRV_LOG(ERR, "Detected FW dead condition\n");
 
-	if (bnxt_is_master_func(bp))
-		wait_msec = info->master_func_wait_period;
+	if (bnxt_is_primary_func(bp))
+		wait_msec = info->primary_func_wait_period;
 	else
 		wait_msec = info->normal_func_wait_period;
 
@@ -4992,7 +5022,7 @@ static int bnxt_setup_mac_addr(struct rte_eth_dev *eth_dev)
 		PMD_DRV_LOG(INFO, "VF MAC address not assigned by Host PF\n");
 		bnxt_eth_hw_addr_random(bp->mac_addr);
 		PMD_DRV_LOG(INFO,
-			    "Assign random MAC:%02X:%02X:%02X:%02X:%02X:%02X\n",
+			    "Assign random MAC:" RTE_ETHER_ADDR_PRT_FMT "\n",
 			    bp->mac_addr[0], bp->mac_addr[1], bp->mac_addr[2],
 			    bp->mac_addr[3], bp->mac_addr[4], bp->mac_addr[5]);
 
@@ -6146,7 +6176,7 @@ bnxt_uninit_resources(struct bnxt *bp, bool reconfig_dev)
 		bp->pf->vf_req_buf = NULL;
 	}
 
-	rc = bnxt_hwrm_func_driver_unregister(bp, 0);
+	rc = bnxt_hwrm_func_driver_unregister(bp);
 	bp->flags &= ~BNXT_FLAG_REGISTERED;
 	bnxt_free_ctx_mem(bp);
 	if (!reconfig_dev) {

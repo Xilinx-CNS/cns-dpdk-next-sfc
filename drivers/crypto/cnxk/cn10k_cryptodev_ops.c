@@ -3,7 +3,8 @@
  */
 
 #include <rte_cryptodev.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
+#include <rte_event_crypto_adapter.h>
 #include <rte_ip.h>
 
 #include "cn10k_cryptodev.h"
@@ -14,6 +15,8 @@
 #include "cnxk_cryptodev.h"
 #include "cnxk_cryptodev_ops.h"
 #include "cnxk_se.h"
+
+#include "roc_api.h"
 
 static inline struct cnxk_se_sess *
 cn10k_cpt_sym_temp_sess_create(struct cnxk_cpt_qp *qp, struct rte_crypto_op *op)
@@ -47,7 +50,7 @@ sess_put:
 
 static __rte_always_inline int __rte_hot
 cpt_sec_inst_fill(struct rte_crypto_op *op, struct cn10k_sec_session *sess,
-		  struct cpt_inflight_req *infl_req, struct cpt_inst_s *inst)
+		  struct cpt_inst_s *inst)
 {
 	struct rte_crypto_sym_op *sym_op = op->sym;
 	union roc_ot_ipsec_sa_word2 *w2;
@@ -67,12 +70,10 @@ cpt_sec_inst_fill(struct rte_crypto_op *op, struct cn10k_sec_session *sess,
 	sa = &sess->sa;
 	w2 = (union roc_ot_ipsec_sa_word2 *)&sa->in_sa.w2;
 
-	if (w2->s.dir == ROC_IE_OT_SA_DIR_OUTBOUND)
+	if (w2->s.dir == ROC_IE_SA_DIR_OUTBOUND)
 		ret = process_outb_sa(op, sa, inst);
-	else {
-		infl_req->op_flags |= CPT_OP_FLAGS_IPSEC_DIR_INBOUND;
+	else
 		ret = process_inb_sa(op, sa, inst);
-	}
 
 	return ret;
 }
@@ -83,7 +84,7 @@ cpt_sym_inst_fill(struct cnxk_cpt_qp *qp, struct rte_crypto_op *op,
 		  struct cpt_inst_s *inst)
 {
 	uint64_t cpt_op;
-	int ret = -1;
+	int ret;
 
 	cpt_op = sess->cpt_op;
 
@@ -121,8 +122,7 @@ cn10k_cpt_fill_inst(struct cnxk_cpt_qp *qp, struct rte_crypto_op *ops[],
 		if (op->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION) {
 			sec_sess = get_sec_session_private_data(
 				sym_op->sec_session);
-			ret = cpt_sec_inst_fill(op, sec_sess, infl_req,
-						&inst[0]);
+			ret = cpt_sec_inst_fill(op, sec_sess, &inst[0]);
 			if (unlikely(ret))
 				return 0;
 			w7 = sec_sess->sa.inst.w7;
@@ -257,32 +257,89 @@ update_pending:
 	return count + i;
 }
 
+uint16_t
+cn10k_cpt_crypto_adapter_enqueue(uintptr_t tag_op, struct rte_crypto_op *op)
+{
+	union rte_event_crypto_metadata *ec_mdata;
+	struct cpt_inflight_req *infl_req;
+	struct rte_event *rsp_info;
+	uint64_t lmt_base, lmt_arg;
+	struct cpt_inst_s *inst;
+	struct cnxk_cpt_qp *qp;
+	uint8_t cdev_id;
+	uint16_t lmt_id;
+	uint16_t qp_id;
+	int ret;
+
+	ec_mdata = cnxk_event_crypto_mdata_get(op);
+	if (!ec_mdata) {
+		rte_errno = EINVAL;
+		return 0;
+	}
+
+	cdev_id = ec_mdata->request_info.cdev_id;
+	qp_id = ec_mdata->request_info.queue_pair_id;
+	qp = rte_cryptodevs[cdev_id].data->queue_pairs[qp_id];
+	rsp_info = &ec_mdata->response_info;
+
+	if (unlikely(!qp->ca.enabled)) {
+		rte_errno = EINVAL;
+		return 0;
+	}
+
+	if (unlikely(rte_mempool_get(qp->ca.req_mp, (void **)&infl_req))) {
+		rte_errno = ENOMEM;
+		return 0;
+	}
+	infl_req->op_flags = 0;
+
+	lmt_base = qp->lmtline.lmt_base;
+	ROC_LMT_BASE_ID_GET(lmt_base, lmt_id);
+	inst = (struct cpt_inst_s *)lmt_base;
+
+	ret = cn10k_cpt_fill_inst(qp, &op, inst, infl_req);
+	if (unlikely(ret != 1)) {
+		plt_dp_err("Could not process op: %p", op);
+		rte_mempool_put(qp->ca.req_mp, infl_req);
+		return 0;
+	}
+
+	infl_req->cop = op;
+	infl_req->res.cn10k.compcode = CPT_COMP_NOT_DONE;
+	infl_req->qp = qp;
+	inst->w0.u64 = 0;
+	inst->res_addr = (uint64_t)&infl_req->res;
+	inst->w2.u64 = CNXK_CPT_INST_W2(
+		(RTE_EVENT_TYPE_CRYPTODEV << 28) | rsp_info->flow_id,
+		rsp_info->sched_type, rsp_info->queue_id, 0);
+	inst->w3.u64 = CNXK_CPT_INST_W3(1, infl_req);
+
+	if (roc_cpt_is_iq_full(&qp->lf)) {
+		rte_mempool_put(qp->ca.req_mp, infl_req);
+		rte_errno = EAGAIN;
+		return 0;
+	}
+
+	if (!rsp_info->sched_type)
+		roc_sso_hws_head_wait(tag_op);
+
+	lmt_arg = ROC_CN10K_CPT_LMT_ARG | (uint64_t)lmt_id;
+	roc_lmt_submit_steorl(lmt_arg, qp->lmtline.io_addr);
+
+	rte_io_wmb();
+
+	return 1;
+}
+
 static inline void
 cn10k_cpt_sec_post_process(struct rte_crypto_op *cop,
-			   struct cpt_inflight_req *infl_req)
+			   struct cpt_cn10k_res_s *res)
 {
-	struct rte_crypto_sym_op *sym_op = cop->sym;
-	struct rte_mbuf *m = sym_op->m_src;
-	struct rte_ipv6_hdr *ip6;
-	struct rte_ipv4_hdr *ip;
-	uint16_t m_len;
+	struct rte_mbuf *m = cop->sym->m_src;
+	const uint16_t m_len = res->rlen;
 
-	if (infl_req->op_flags & CPT_OP_FLAGS_IPSEC_DIR_INBOUND) {
-		ip = (struct rte_ipv4_hdr *)rte_pktmbuf_mtod(m, char *);
-
-		if (((ip->version_ihl & 0xf0) >> RTE_IPV4_IHL_MULTIPLIER) ==
-		    IPVERSION) {
-			m_len = rte_be_to_cpu_16(ip->total_length);
-		} else {
-			PLT_ASSERT(((ip->version_ihl & 0xf0) >>
-				    RTE_IPV4_IHL_MULTIPLIER) == 6);
-			ip6 = (struct rte_ipv6_hdr *)ip;
-			m_len = rte_be_to_cpu_16(ip6->payload_len) +
-				sizeof(struct rte_ipv6_hdr);
-		}
-		m->data_len = m_len;
-		m->pkt_len = m_len;
-	}
+	m->data_len = m_len;
+	m->pkt_len = m_len;
 }
 
 static inline void
@@ -291,12 +348,44 @@ cn10k_cpt_dequeue_post_process(struct cnxk_cpt_qp *qp,
 			       struct cpt_inflight_req *infl_req)
 {
 	struct cpt_cn10k_res_s *res = (struct cpt_cn10k_res_s *)&infl_req->res;
+	const uint8_t uc_compcode = res->uc_compcode;
+	const uint8_t compcode = res->compcode;
 	unsigned int sz;
 
-	if (likely(res->compcode == CPT_COMP_GOOD ||
-		   res->compcode == CPT_COMP_WARN)) {
-		if (unlikely(res->uc_compcode)) {
-			if (res->uc_compcode == ROC_SE_ERR_GC_ICV_MISCOMPARE)
+	cop->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
+
+	if (cop->type == RTE_CRYPTO_OP_TYPE_SYMMETRIC &&
+	    cop->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION) {
+		if (likely(compcode == CPT_COMP_WARN)) {
+			if (unlikely(uc_compcode != ROC_IE_OT_UCC_SUCCESS)) {
+				/* Success with additional info */
+				switch (uc_compcode) {
+				case ROC_IE_OT_UCC_SUCCESS_SA_SOFTEXP_FIRST:
+					cop->aux_flags =
+						RTE_CRYPTO_OP_AUX_FLAGS_IPSEC_SOFT_EXPIRY;
+					break;
+				default:
+					break;
+				}
+			}
+			cn10k_cpt_sec_post_process(cop, res);
+		} else {
+			cop->status = RTE_CRYPTO_OP_STATUS_ERROR;
+			plt_dp_info("HW completion code 0x%x", res->compcode);
+			if (compcode == CPT_COMP_GOOD) {
+				plt_dp_info(
+					"Request failed with microcode error");
+				plt_dp_info("MC completion code 0x%x",
+					    uc_compcode);
+			}
+		}
+
+		return;
+	}
+
+	if (likely(compcode == CPT_COMP_GOOD || compcode == CPT_COMP_WARN)) {
+		if (unlikely(uc_compcode)) {
+			if (uc_compcode == ROC_SE_ERR_GC_ICV_MISCOMPARE)
 				cop->status = RTE_CRYPTO_OP_STATUS_AUTH_FAILED;
 			else
 				cop->status = RTE_CRYPTO_OP_STATUS_ERROR;
@@ -307,13 +396,7 @@ cn10k_cpt_dequeue_post_process(struct cnxk_cpt_qp *qp,
 			goto temp_sess_free;
 		}
 
-		cop->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
 		if (cop->type == RTE_CRYPTO_OP_TYPE_SYMMETRIC) {
-			if (cop->sess_type == RTE_CRYPTO_OP_SECURITY_SESSION) {
-				cn10k_cpt_sec_post_process(cop, infl_req);
-				return;
-			}
-
 			/* Verify authentication data if required */
 			if (unlikely(infl_req->op_flags &
 				     CPT_OP_FLAGS_AUTH_VERIFY)) {
@@ -335,7 +418,7 @@ cn10k_cpt_dequeue_post_process(struct cnxk_cpt_qp *qp,
 		cop->status = RTE_CRYPTO_OP_STATUS_ERROR;
 		plt_dp_info("HW completion code 0x%x", res->compcode);
 
-		switch (res->compcode) {
+		switch (compcode) {
 		case CPT_COMP_INSTERR:
 			plt_dp_err("Request failed with instruction error");
 			break;
@@ -363,6 +446,26 @@ temp_sess_free:
 			cop->sym->session = NULL;
 		}
 	}
+}
+
+uintptr_t
+cn10k_cpt_crypto_adapter_dequeue(uintptr_t get_work1)
+{
+	struct cpt_inflight_req *infl_req;
+	struct rte_crypto_op *cop;
+	struct cnxk_cpt_qp *qp;
+
+	infl_req = (struct cpt_inflight_req *)(get_work1);
+	cop = infl_req->cop;
+	qp = infl_req->qp;
+
+	cn10k_cpt_dequeue_post_process(qp, infl_req->cop, infl_req);
+
+	if (unlikely(infl_req->op_flags & CPT_OP_FLAGS_METABUF))
+		rte_mempool_put(qp->meta_info.pool, infl_req->mdata);
+
+	rte_mempool_put(qp->ca.req_mp, infl_req);
+	return (uintptr_t)cop;
 }
 
 static uint16_t

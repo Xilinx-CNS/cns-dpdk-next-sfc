@@ -66,6 +66,16 @@ enum tf_ext_mem_chan_type {
 };
 
 /**
+ * WC TCAM number of slice per row that devices supported
+ */
+enum tf_wc_num_slice {
+	TF_WC_TCAM_1_SLICE_PER_ROW = 1,
+	TF_WC_TCAM_2_SLICE_PER_ROW = 2,
+	TF_WC_TCAM_4_SLICE_PER_ROW = 4,
+	TF_WC_TCAM_8_SLICE_PER_ROW = 8,
+};
+
+/**
  * EEM record AR helper
  *
  * Helper to handle the Action Record Pointer in the EEM Record Entry.
@@ -283,9 +293,9 @@ enum tf_tbl_type {
 	TF_TBL_TYPE_ACT_MODIFY_32B,
 	/** TH 64B Modify Record */
 	TF_TBL_TYPE_ACT_MODIFY_64B,
-	/** (Future) Meter Profiles */
+	/** Meter Profiles */
 	TF_TBL_TYPE_METER_PROF,
-	/** (Future) Meter Instance */
+	/** Meter Instance */
 	TF_TBL_TYPE_METER_INST,
 	/** Wh+/SR/Th Mirror Config */
 	TF_TBL_TYPE_MIRROR_CONFIG,
@@ -301,6 +311,8 @@ enum tf_tbl_type {
 	TF_TBL_TYPE_EM_FKB,
 	/** TH WC Flexible Key builder */
 	TF_TBL_TYPE_WC_FKB,
+	/** Meter Drop Counter */
+	TF_TBL_TYPE_METER_DROP_CNT,
 
 	/* External */
 
@@ -669,6 +681,13 @@ struct tf_open_session_parms {
 	void *bp;
 
 	/**
+	 * [in]
+	 *
+	 * The number of slices per row for WC TCAM entry.
+	 */
+	enum tf_wc_num_slice wc_num_slices;
+
+	/**
 	 * [out] shared_session_creator
 	 *
 	 * Indicates whether the application created the session if set.
@@ -732,8 +751,6 @@ int tf_open_session(struct tf *tfp,
 /**
  * General internal resource info
  *
- * TODO: remove tf_rm_new_entry structure and use this structure
- * internally.
  */
 struct tf_resource_info {
 	uint16_t start;
@@ -1625,79 +1642,6 @@ int tf_clear_tcam_shared_entries(struct tf *tfp,
 /**
  * tf_alloc_tbl_entry parameter definition
  */
-struct tf_search_tbl_entry_parms {
-	/**
-	 * [in] Receive or transmit direction
-	 */
-	enum tf_dir dir;
-	/**
-	 * [in] Type of the allocation
-	 */
-	enum tf_tbl_type type;
-	/**
-	 * [in] Table scope identifier (ignored unless TF_TBL_TYPE_EXT)
-	 */
-	uint32_t tbl_scope_id;
-	/**
-	 * [in] Result data to search for
-	 */
-	uint8_t *result;
-	/**
-	 * [in] Result data size in bytes
-	 */
-	uint16_t result_sz_in_bytes;
-	/**
-	 * [in] Allocate on miss.
-	 */
-	uint8_t alloc;
-	/**
-	 * [out] Set if matching entry found
-	 */
-	uint8_t hit;
-	/**
-	 * [out] Search result status (hit, miss, reject)
-	 */
-	enum tf_search_status search_status;
-	/**
-	 * [out] Current ref count after allocation
-	 */
-	uint16_t ref_cnt;
-	/**
-	 * [out] Idx of allocated entry or found entry
-	 */
-	uint32_t idx;
-};
-
-/**
- * search Table Entry (experimental)
- *
- * This function searches the shadow copy of an index table for a matching
- * entry.  The result data must match for hit to be set.  Only TruFlow core
- * data is accessed.  If shadow_copy is not enabled, an error is returned.
- *
- * Implementation:
- *
- * A hash is performed on the result data and mapped to a shadow copy entry
- * where the result is populated.  If the result matches the entry, hit is set,
- * ref_cnt is incremented (if alloc), and the search status indicates what
- * action the caller can take regarding setting the entry.
- *
- * search status should be used as follows:
- * - On MISS, the caller should set the result into the returned index.
- *
- * - On REJECT, the caller should reject the flow since there are no resources.
- *
- * - On Hit, the matching index is returned to the caller.  Additionally, the
- *   ref_cnt is updated.
- *
- * Also returns success or failure code.
- */
-int tf_search_tbl_entry(struct tf *tfp,
-			struct tf_search_tbl_entry_parms *parms);
-
-/**
- * tf_alloc_tbl_entry parameter definition
- */
 struct tf_alloc_tbl_entry_parms {
 	/**
 	 * [in] Receive or transmit direction
@@ -1711,30 +1655,9 @@ struct tf_alloc_tbl_entry_parms {
 	 * [in] Table scope identifier (ignored unless TF_TBL_TYPE_EXT)
 	 */
 	uint32_t tbl_scope_id;
+
 	/**
-	 * [in] Enable search for matching entry. If the table type is
-	 * internal the shadow copy will be searched before
-	 * alloc. Session must be configured with shadow copy enabled.
-	 */
-	uint8_t search_enable;
-	/**
-	 * [in] Result data to search for (if search_enable)
-	 */
-	uint8_t *result;
-	/**
-	 * [in] Result data size in bytes (if search_enable)
-	 */
-	uint16_t result_sz_in_bytes;
-	/**
-	 * [out] If search_enable, set if matching entry found
-	 */
-	uint8_t hit;
-	/**
-	 * [out] Current ref count after allocation (if search_enable)
-	 */
-	uint16_t ref_cnt;
-	/**
-	 * [out] Idx of allocated entry or found entry (if search_enable)
+	 * [out] Idx of allocated entry
 	 */
 	uint32_t idx;
 };
@@ -1748,12 +1671,7 @@ struct tf_alloc_tbl_entry_parms {
  * entry of the indicated type for this TruFlow session.
  *
  * Allocates an index table record. This function will attempt to
- * allocate an entry or search an index table for a matching entry if
- * search is enabled (only the shadow copy of the table is accessed).
- *
- * If search is not enabled, the first available free entry is
- * returned. If search is enabled and a matching entry to entry_data
- * is found hit is set to TRUE and success is returned.
+ * allocate an index table entry.
  *
  * External types:
  *
@@ -1762,8 +1680,8 @@ struct tf_alloc_tbl_entry_parms {
  * Allocates an external index table action record.
  *
  * NOTE:
- * Implementation of the internals of this function will be a stack with push
- * and pop.
+ * Implementation of the internals of the external function will be a stack with
+ * push and pop.
  *
  * Returns success or failure code.
  */
@@ -1790,11 +1708,6 @@ struct tf_free_tbl_entry_parms {
 	 * [in] Index to free
 	 */
 	uint32_t idx;
-	/**
-	 * [out] Reference count after free, only valid if session has been
-	 * created with shadow_copy.
-	 */
-	uint16_t ref_cnt;
 };
 
 /**
@@ -1804,20 +1717,15 @@ struct tf_free_tbl_entry_parms {
  *
  * Internal types:
  *
- * If session has shadow_copy enabled the shadow DB is searched and if
- * found the element ref_cnt is decremented. If ref_cnt goes to
- * zero then the element is returned to the session pool.
- *
- * If the session does not have a shadow DB the element is free'ed and
- * given back to the session pool.
+ * The element is freed and given back to the session pool.
  *
  * External types:
  *
- * Free's an external index table action record.
+ * Frees an external index table action record.
  *
  * NOTE:
- * Implementation of the internals of this function will be a stack with push
- * and pop.
+ * Implementation of the internals of the external table will be a stack with
+ * push and pop.
  *
  * Returns success or failure code.
  */
@@ -1861,9 +1769,8 @@ struct tf_set_tbl_entry_parms {
 /**
  * set index table entry
  *
- * Used to insert an application programmed index table entry into a
- * previous allocated table location.  A shadow copy of the table
- * is maintained (if enabled) (only for internal objects)
+ * Used to set an application programmed index table entry into a
+ * previous allocated table location.
  *
  * Returns success or failure code.
  */
@@ -2293,6 +2200,8 @@ enum tf_global_config_type {
 	TF_TUNNEL_ENCAP,  /**< Tunnel Encap Config(TECT) */
 	TF_ACTION_BLOCK,  /**< Action Block Config(ABCR) */
 	TF_COUNTER_CFG,   /**< Counter Configuration (CNTRS_CTRL) */
+	TF_METER_CFG,     /**< Meter Config(ACTP4_FMTCR) */
+	TF_METER_INTERVAL_CFG, /**< Meter Interval Config(FMTCR_INTERVAL)  */
 	TF_GLOBAL_CFG_TYPE_MAX
 };
 

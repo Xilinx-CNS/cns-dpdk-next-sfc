@@ -3,8 +3,8 @@
  * All rights reserved.
  */
 
-#ifndef _NFP_NET_LOGS_H_
-#define _NFP_NET_LOGS_H_
+#ifndef _NFP_LOGS_H_
+#define _NFP_LOGS_H_
 
 #include <rte_log.h>
 
@@ -30,18 +30,11 @@ extern int nfp_logtype_init;
 #define ASSERT(x) do { } while (0)
 #endif
 
-#define RTE_LIBRTE_NFP_NET_DEBUG_CPP
-
-#ifdef RTE_LIBRTE_NFP_NET_DEBUG_CPP
-#define PMD_CPP_LOG(level, fmt, args...) \
-	RTE_LOG(level, PMD, "%s(): " fmt "\n", __func__, ## args)
-#else
 #define PMD_CPP_LOG(level, fmt, args...) do { } while (0)
-#endif
 
 extern int nfp_logtype_driver;
 #define PMD_DRV_LOG(level, fmt, args...) \
 	rte_log(RTE_LOG_ ## level, nfp_logtype_driver, \
 		"%s(): " fmt "\n", __func__, ## args)
 
-#endif /* _NFP_NET_LOGS_H_ */
+#endif /* _NFP_LOGS_H_ */

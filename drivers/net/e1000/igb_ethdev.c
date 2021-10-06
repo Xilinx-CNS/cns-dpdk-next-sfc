@@ -93,10 +93,7 @@ static int eth_igb_xstats_get_by_id(struct rte_eth_dev *dev,
 		const uint64_t *ids,
 		uint64_t *values, unsigned int n);
 static int eth_igb_xstats_get_names(struct rte_eth_dev *dev,
-				    struct rte_eth_xstat_name *xstats_names,
-				    unsigned int size);
-static int eth_igb_xstats_get_names_by_id(struct rte_eth_dev *dev,
-		struct rte_eth_xstat_name *xstats_names, const uint64_t *ids,
+		const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 		unsigned int limit);
 static int eth_igb_stats_reset(struct rte_eth_dev *dev);
 static int eth_igb_xstats_reset(struct rte_eth_dev *dev);
@@ -166,6 +163,7 @@ static int eth_igbvf_stats_get(struct rte_eth_dev *dev,
 static int eth_igbvf_xstats_get(struct rte_eth_dev *dev,
 				struct rte_eth_xstat *xstats, unsigned n);
 static int eth_igbvf_xstats_get_names(struct rte_eth_dev *dev,
+				      const uint64_t *ids,
 				      struct rte_eth_xstat_name *xstats_names,
 				      unsigned limit);
 static int eth_igbvf_stats_reset(struct rte_eth_dev *dev);
@@ -343,7 +341,6 @@ static const struct eth_dev_ops eth_igb_ops = {
 	.stats_get            = eth_igb_stats_get,
 	.xstats_get           = eth_igb_xstats_get,
 	.xstats_get_by_id     = eth_igb_xstats_get_by_id,
-	.xstats_get_names_by_id = eth_igb_xstats_get_names_by_id,
 	.xstats_get_names     = eth_igb_xstats_get_names,
 	.stats_reset          = eth_igb_stats_reset,
 	.xstats_reset         = eth_igb_xstats_reset,
@@ -977,13 +974,8 @@ eth_igbvf_dev_init(struct rte_eth_dev *eth_dev)
 		rte_eth_random_addr(perm_addr->addr_bytes);
 		PMD_INIT_LOG(INFO, "\tVF MAC address not assigned by Host PF");
 		PMD_INIT_LOG(INFO, "\tAssign randomly generated MAC address "
-			     "%02x:%02x:%02x:%02x:%02x:%02x",
-			     perm_addr->addr_bytes[0],
-			     perm_addr->addr_bytes[1],
-			     perm_addr->addr_bytes[2],
-			     perm_addr->addr_bytes[3],
-			     perm_addr->addr_bytes[4],
-			     perm_addr->addr_bytes[5]);
+			     RTE_ETHER_ADDR_PRT_FMT,
+			     RTE_ETHER_ADDR_BYTES(perm_addr));
 	}
 
 	diag = e1000_rar_set(hw, perm_addr->addr_bytes, 0);
@@ -1868,27 +1860,8 @@ eth_igb_xstats_reset(struct rte_eth_dev *dev)
 	return 0;
 }
 
-static int eth_igb_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names,
-	__rte_unused unsigned int size)
-{
-	unsigned i;
-
-	if (xstats_names == NULL)
-		return IGB_NB_XSTATS;
-
-	/* Note: limit checked in rte_eth_xstats_names() */
-
-	for (i = 0; i < IGB_NB_XSTATS; i++) {
-		strlcpy(xstats_names[i].name, rte_igb_stats_strings[i].name,
-			sizeof(xstats_names[i].name));
-	}
-
-	return IGB_NB_XSTATS;
-}
-
-static int eth_igb_xstats_get_names_by_id(struct rte_eth_dev *dev,
-		struct rte_eth_xstat_name *xstats_names, const uint64_t *ids,
+static int eth_igb_xstats_get_names(struct rte_eth_dev *dev,
+		const uint64_t *ids, struct rte_eth_xstat_name *xstats_names,
 		unsigned int limit)
 {
 	unsigned int i;
@@ -1907,7 +1880,7 @@ static int eth_igb_xstats_get_names_by_id(struct rte_eth_dev *dev,
 	} else {
 		struct rte_eth_xstat_name xstats_names_copy[IGB_NB_XSTATS];
 
-		eth_igb_xstats_get_names_by_id(dev, xstats_names_copy, NULL,
+		eth_igb_xstats_get_names(dev, NULL, xstats_names_copy,
 				IGB_NB_XSTATS);
 
 		for (i = 0; i < limit; i++) {
@@ -2040,10 +2013,14 @@ igbvf_read_stats_registers(struct e1000_hw *hw, struct e1000_vf_stats *hw_stats)
 }
 
 static int eth_igbvf_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-				     struct rte_eth_xstat_name *xstats_names,
-				     __rte_unused unsigned limit)
+				      const uint64_t *ids,
+				      struct rte_eth_xstat_name *xstats_names,
+				      __rte_unused unsigned limit)
 {
 	unsigned i;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL)
 		for (i = 0; i < IGBVF_NB_XSTATS; i++) {

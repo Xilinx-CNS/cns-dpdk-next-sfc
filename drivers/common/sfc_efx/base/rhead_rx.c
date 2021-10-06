@@ -37,7 +37,7 @@ static const efx_rx_prefix_layout_t rhead_default_rx_prefix_layout = {
 		RHEAD_RX_PREFIX_FIELD(PARTIAL_TSTAMP, B_FALSE),
 		RHEAD_RX_PREFIX_FIELD(RSS_HASH, B_FALSE),
 		RHEAD_RX_PREFIX_FIELD(USER_MARK, B_FALSE),
-		RHEAD_RX_PREFIX_FIELD(INGRESS_VPORT, B_FALSE),
+		RHEAD_RX_PREFIX_FIELD(INGRESS_MPORT, B_FALSE),
 		RHEAD_RX_PREFIX_FIELD(CSUM_FRAME, B_TRUE),
 		RHEAD_RX_PREFIX_FIELD(VLAN_STRIP_TCI, B_TRUE),
 
@@ -634,6 +634,9 @@ rhead_rx_qcreate(
 
 	if (flags & EFX_RXQ_FLAG_USER_MARK)
 		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_USER_MARK;
+
+	if (flags & EFX_RXQ_FLAG_USER_FLAG)
+		fields_mask |= 1U << EFX_RX_PREFIX_FIELD_USER_FLAG;
 
 	/*
 	 * LENGTH is required in EF100 host interface, as receive events

@@ -3788,7 +3788,7 @@ This section lists supported pattern items and their attributes, if any.
 
   - ``pdu_type {unsigned}``: PDU type.
 
-  - ``qfi {unsigned}``: PPP, RQI and QoS flow identifier.
+  - ``qfi {unsigned}``: QoS flow identifier.
 
 - ``pppoes``, ``pppoed``: match PPPoE header.
 
@@ -3819,6 +3819,15 @@ This section lists supported pattern items and their attributes, if any.
      must be matched for integrity.
 
 - ``conntrack``: match conntrack state.
+
+- ``ethdev``: match traffic at e-switch going from (sent by) the given ethdev
+
+  - ``port_id {unsigned}``: ethdev port ID
+
+- ``eswitch_port``: match traffic at e-switch going from the external port
+  associated with the given ethdev
+
+  - ``ethdev_port_id {unsigned}``: ethdev port ID
 
 Actions list
 ^^^^^^^^^^^^
@@ -4094,6 +4103,15 @@ This section lists supported actions and their attributes, if any.
 - ``color``: Color the packet to reflect the meter color result
 
   - ``type {value}``: Set color type with specified value(green/yellow/red)
+
+- ``ethdev``: at e-switch level, direct matching packets to the given ethdev
+
+  - ``port_id {unsigned}``: ethdev port ID
+
+- ``eswitch_port``: at e-switch level, direct matching packets to the external
+  port associated with the given ethdev
+
+  - ``ethdev_port_id {unsigned}``: ethdev port ID
 
 Destroying flow rules
 ~~~~~~~~~~~~~~~~~~~~~

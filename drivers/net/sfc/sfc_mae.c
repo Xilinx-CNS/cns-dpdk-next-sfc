@@ -16,6 +16,7 @@
 #include "efx.h"
 
 #include "sfc.h"
+#include "sfc_flow_tunnel.h"
 #include "sfc_mae_counter.h"
 #include "sfc_log.h"
 #include "sfc_switch.h"
@@ -42,6 +43,139 @@ static void
 sfc_mae_counter_registry_fini(struct sfc_mae_counter_registry *registry)
 {
 	sfc_mae_counters_fini(&registry->counters);
+}
+
+static int
+sfc_mae_internal_rule_find_empty_slot(struct sfc_adapter *sa,
+				      struct sfc_mae_rule **rule)
+{
+	struct sfc_mae *mae = &sa->mae;
+	struct sfc_mae_internal_rules *internal_rules = &mae->internal_rules;
+	unsigned int entry;
+	int rc;
+
+	for (entry = 0; entry < SFC_MAE_NB_RULES_MAX; entry++) {
+		if (internal_rules->rules[entry].spec == NULL)
+			break;
+	}
+
+	if (entry == SFC_MAE_NB_RULES_MAX) {
+		rc = ENOSPC;
+		sfc_err(sa, "failed too many rules (%u rules used)", entry);
+		goto fail_too_many_rules;
+	}
+
+	*rule = &internal_rules->rules[entry];
+
+	return 0;
+
+fail_too_many_rules:
+	return rc;
+}
+
+int
+sfc_mae_rule_add_mport_match_deliver(struct sfc_adapter *sa,
+				     const efx_mport_sel_t *mport_match,
+				     const efx_mport_sel_t *mport_deliver,
+				     int prio, struct sfc_mae_rule **rulep)
+{
+	struct sfc_mae *mae = &sa->mae;
+	struct sfc_mae_rule *rule;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	if (prio > 0 && (unsigned int)prio >= mae->nb_action_rule_prios_max) {
+		rc = EINVAL;
+		sfc_err(sa, "failed: invalid priority %d (max %u)", prio,
+			mae->nb_action_rule_prios_max);
+		goto fail_invalid_prio;
+	}
+	if (prio < 0)
+		prio = mae->nb_action_rule_prios_max - 1;
+
+	rc = sfc_mae_internal_rule_find_empty_slot(sa, &rule);
+	if (rc != 0)
+		goto fail_find_empty_slot;
+
+	sfc_log_init(sa, "init MAE match spec");
+	rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_ACTION,
+				     (uint32_t)prio, &rule->spec);
+	if (rc != 0) {
+		sfc_err(sa, "failed to init MAE match spec");
+		goto fail_match_init;
+	}
+
+	rc = efx_mae_match_spec_mport_set(rule->spec, mport_match, NULL);
+	if (rc != 0) {
+		sfc_err(sa, "failed to get MAE match mport selector");
+		goto fail_mport_set;
+	}
+
+	rc = efx_mae_action_set_spec_init(sa->nic, &rule->actions);
+	if (rc != 0) {
+		sfc_err(sa, "failed to init MAE action set");
+		goto fail_action_init;
+	}
+
+	rc = efx_mae_action_set_populate_deliver(rule->actions,
+						 mport_deliver);
+	if (rc != 0) {
+		sfc_err(sa, "failed to populate deliver action");
+		goto fail_populate_deliver;
+	}
+
+	rc = efx_mae_action_set_alloc(sa->nic, rule->actions,
+				      &rule->action_set);
+	if (rc != 0) {
+		sfc_err(sa, "failed to allocate action set");
+		goto fail_action_set_alloc;
+	}
+
+	rc = efx_mae_action_rule_insert(sa->nic, rule->spec, NULL,
+					&rule->action_set,
+					&rule->rule_id);
+	if (rc != 0) {
+		sfc_err(sa, "failed to insert action rule");
+		goto fail_rule_insert;
+	}
+
+	*rulep = rule;
+
+	sfc_log_init(sa, "done");
+
+	return 0;
+
+fail_rule_insert:
+	efx_mae_action_set_free(sa->nic, &rule->action_set);
+
+fail_action_set_alloc:
+fail_populate_deliver:
+	efx_mae_action_set_spec_fini(sa->nic, rule->actions);
+
+fail_action_init:
+fail_mport_set:
+	efx_mae_match_spec_fini(sa->nic, rule->spec);
+
+fail_match_init:
+fail_find_empty_slot:
+fail_invalid_prio:
+	sfc_log_init(sa, "failed: %s", rte_strerror(rc));
+	return rc;
+}
+
+void
+sfc_mae_rule_del(struct sfc_adapter *sa, struct sfc_mae_rule *rule)
+{
+	if (rule == NULL || rule->spec == NULL)
+		return;
+
+	efx_mae_action_rule_remove(sa->nic, &rule->rule_id);
+	efx_mae_action_set_free(sa->nic, &rule->action_set);
+	efx_mae_action_set_spec_fini(sa->nic, rule->actions);
+	efx_mae_match_spec_fini(sa->nic, rule->spec);
+
+	rule->spec = NULL;
 }
 
 int
@@ -87,6 +221,14 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	if (rc != 0)
 		goto fail_mae_assign_entity_mport;
 
+#if 1
+	/*
+	 * Override entity mport with corresponding PHY port
+	 * to bring OVS offload alive.
+	 */
+	(void)efx_mae_mport_by_phy_port(encp->enc_assigned_port, &entity_mport);
+#endif
+
 	sfc_log_init(sa, "assign RTE switch domain");
 	rc = sfc_mae_assign_switch_domain(sa, &mae->switch_domain_id);
 	if (rc != 0)
@@ -95,10 +237,7 @@ sfc_mae_attach(struct sfc_adapter *sa)
 	sfc_log_init(sa, "assign RTE switch port");
 	switch_port_request.type = SFC_MAE_SWITCH_PORT_INDEPENDENT;
 	switch_port_request.entity_mportp = &entity_mport;
-	/*
-	 * As of now, the driver does not support representors, so
-	 * RTE ethdev MPORT simply matches that of the entity.
-	 */
+	/* RTE ethdev MPORT matches that of the entity for independent ports. */
 	switch_port_request.ethdev_mportp = &entity_mport;
 	switch_port_request.ethdev_port_id = sas->port_id;
 	rc = sfc_mae_assign_switch_port(mae->switch_domain_id,
@@ -268,6 +407,9 @@ sfc_mae_outer_rule_enable(struct sfc_adapter *sa,
 		}
 	}
 
+	if (match_spec_action == NULL)
+		goto skip_action_rule;
+
 	rc = efx_mae_match_spec_outer_rule_id_set(match_spec_action,
 						  &fw_rsrc->rule_id);
 	if (rc != 0) {
@@ -282,6 +424,7 @@ sfc_mae_outer_rule_enable(struct sfc_adapter *sa,
 		return rc;
 	}
 
+skip_action_rule:
 	if (fw_rsrc->refcnt == 0) {
 		sfc_dbg(sa, "enabled outer_rule=%p: OR_ID=0x%08x",
 			rule, fw_rsrc->rule_id.id);
@@ -602,6 +745,8 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 		       const struct rte_flow_action actions[],
 		       efx_mae_actions_t *spec,
 		       struct sfc_mae_encap_header *encap_header,
+		       uint64_t *ft_group_hit_counter,
+		       struct sfc_flow_tunnel *ft,
 		       unsigned int n_counters,
 		       struct sfc_mae_action_set **action_setp)
 {
@@ -628,6 +773,16 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 			return ENOMEM;
 		}
 
+		for (i = 0; i < n_counters; ++i) {
+			action_set->counters[i].rte_id_valid = B_FALSE;
+			action_set->counters[i].mae_id.id =
+				EFX_MAE_RSRC_ID_INVALID;
+
+			action_set->counters[i].ft_group_hit_counter =
+				ft_group_hit_counter;
+			action_set->counters[i].ft = ft;
+		}
+
 		for (action = actions, i = 0;
 		     action->type != RTE_FLOW_ACTION_TYPE_END && i < n_counters;
 		     ++action) {
@@ -638,8 +793,7 @@ sfc_mae_action_set_add(struct sfc_adapter *sa,
 
 			conf = action->conf;
 
-			action_set->counters[i].mae_id.id =
-				EFX_MAE_RSRC_ID_INVALID;
+			action_set->counters[i].rte_id_valid = B_TRUE;
 			action_set->counters[i].rte_id = conf->id;
 			i++;
 		}
@@ -804,6 +958,14 @@ sfc_mae_flow_cleanup(struct sfc_adapter *sa,
 		return;
 
 	spec_mae = &spec->mae;
+
+	if (spec_mae->ft != NULL) {
+		if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP)
+			spec_mae->ft->jump_rule_is_set = B_FALSE;
+
+		SFC_ASSERT(spec_mae->ft->refcnt != 0);
+		--(spec_mae->ft->refcnt);
+	}
 
 	SFC_ASSERT(spec_mae->rule_id.id == EFX_MAE_RSRC_ID_INVALID);
 
@@ -1036,6 +1198,36 @@ fail:
 }
 
 static int
+sfc_mae_rule_parse_item_mark(const struct rte_flow_item *item,
+			     struct sfc_flow_parse_ctx *ctx,
+			     struct rte_flow_error *error)
+{
+	const struct rte_flow_item_mark *spec = item->spec;
+	struct sfc_mae_parse_ctx *ctx_mae = ctx->mae;
+
+	if (spec == NULL) {
+		return rte_flow_error_set(error, EINVAL,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"NULL spec in item MARK");
+	}
+
+	/*
+	 * This item is used in tunnel offload support only.
+	 * It must go before any network header items. This
+	 * way, sfc_mae_rule_preparse_item_mark() must have
+	 * already parsed it. Only one item MARK is allowed.
+	 */
+	if (ctx_mae->ft_rule_type != SFC_FT_RULE_GROUP ||
+	    spec->id != (uint32_t)SFC_FT_ID_TO_MARK(ctx_mae->ft->id)) {
+		return rte_flow_error_set(error, EINVAL,
+					  RTE_FLOW_ERROR_TYPE_ITEM,
+					  item, "invalid item MARK");
+	}
+
+	return 0;
+}
+
+static int
 sfc_mae_rule_parse_item_port_id(const struct rte_flow_item *item,
 				struct sfc_flow_parse_ctx *ctx,
 				struct rte_flow_error *error)
@@ -1079,12 +1271,90 @@ sfc_mae_rule_parse_item_port_id(const struct rte_flow_item *item,
 					  "The port ID is too large");
 	}
 
-	rc = sfc_mae_switch_port_by_ethdev(ctx_mae->sa->mae.switch_domain_id,
-					   spec->id, &mport_sel);
+	rc = sfc_mae_switch_port_entity_by_ethdev
+		(ctx_mae->sa->mae.switch_domain_id, spec->id, &mport_sel);
 	if (rc != 0) {
 		return rte_flow_error_set(error, rc,
 				RTE_FLOW_ERROR_TYPE_ITEM, item,
 				"Can't find RTE ethdev by the port ID");
+	}
+
+	rc = efx_mae_match_spec_mport_set(ctx_mae->match_spec,
+					  &mport_sel, NULL);
+	if (rc != 0) {
+		return rte_flow_error_set(error, rc,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Failed to set MPORT for the port ID");
+	}
+
+	ctx_mae->match_mport_set = B_TRUE;
+
+	return 0;
+}
+
+static int
+sfc_mae_rule_parse_item_ethdev_based(const struct rte_flow_item *item,
+				     struct sfc_flow_parse_ctx *ctx,
+				     struct rte_flow_error *error)
+{
+	struct sfc_mae_parse_ctx *ctx_mae = ctx->mae;
+	const struct rte_flow_item_ethdev supp_mask = {
+		.port_id = 0xffff,
+	};
+	const void *def_mask = &rte_flow_item_ethdev_mask;
+	const struct rte_flow_item_ethdev *spec = NULL;
+	const struct rte_flow_item_ethdev *mask = NULL;
+	efx_mport_sel_t mport_sel;
+	int rc;
+
+	if (ctx_mae->match_mport_set) {
+		return rte_flow_error_set(error, ENOTSUP,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Can't handle multiple traffic source items");
+	}
+
+	rc = sfc_flow_parse_init(item,
+				 (const void **)&spec, (const void **)&mask,
+				 (const void *)&supp_mask, def_mask,
+				 sizeof(struct rte_flow_item_ethdev), error);
+	if (rc != 0)
+		return rc;
+
+	if (mask->port_id != supp_mask.port_id) {
+		return rte_flow_error_set(error, EINVAL,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Bad mask in the ethdev-based pattern item");
+	}
+
+	/* If "spec" is not set, could be any port ID */
+	if (spec == NULL)
+		return 0;
+
+	switch (item->type) {
+	case RTE_FLOW_ITEM_TYPE_ETHDEV:
+		rc = sfc_mae_switch_port_by_ethdev(
+				ctx_mae->sa->mae.switch_domain_id,
+				spec->port_id, &mport_sel);
+		if (rc != 0) {
+			return rte_flow_error_set(error, rc,
+					RTE_FLOW_ERROR_TYPE_ITEM, item,
+					"Can't find RTE ethdev by the port ID");
+		}
+		break;
+	case RTE_FLOW_ITEM_TYPE_ESWITCH_PORT:
+		rc = sfc_mae_switch_port_entity_by_ethdev(
+				ctx_mae->sa->mae.switch_domain_id,
+				spec->port_id, &mport_sel);
+		if (rc != 0) {
+			return rte_flow_error_set(error, rc,
+					RTE_FLOW_ERROR_TYPE_ITEM, item,
+					"Can't find RTE ethdev by the port ID");
+		}
+		break;
+	default:
+		return rte_flow_error_set(error, EINVAL,
+				RTE_FLOW_ERROR_TYPE_ITEM, item,
+				"Unsupported ethdev-based flow item");
 	}
 
 	rc = efx_mae_match_spec_mport_set(ctx_mae->match_spec,
@@ -1352,6 +1622,7 @@ sfc_mae_rule_parse_item_eth(const struct rte_flow_item *item,
 			    struct rte_flow_error *error)
 {
 	struct sfc_mae_parse_ctx *ctx_mae = ctx->mae;
+	struct rte_flow_item_eth override_mask;
 	struct rte_flow_item_eth supp_mask;
 	const uint8_t *spec = NULL;
 	const uint8_t *mask = NULL;
@@ -1368,6 +1639,22 @@ sfc_mae_rule_parse_item_eth(const struct rte_flow_item *item,
 				 sizeof(struct rte_flow_item_eth), error);
 	if (rc != 0)
 		return rc;
+
+	if (ctx_mae->ft_rule_type == SFC_FT_RULE_JUMP && mask != NULL) {
+		/*
+		 * The HW/FW hasn't got support for match on MAC addresses in
+		 * outer rules yet (this will change). Match on VLAN presence
+		 * isn't supported either. Ignore these match criteria.
+		 */
+		memcpy(&override_mask, mask, sizeof(override_mask));
+		memset(&override_mask.hdr.d_addr, 0,
+		       sizeof(override_mask.hdr.d_addr));
+		memset(&override_mask.hdr.s_addr, 0,
+		       sizeof(override_mask.hdr.s_addr));
+		override_mask.has_vlan = 0;
+
+		mask = (const uint8_t *)&override_mask;
+	}
 
 	if (spec != NULL) {
 		struct sfc_mae_pattern_data *pdata = &ctx_mae->pattern_data;
@@ -1920,14 +2207,21 @@ sfc_mae_rule_parse_item_tunnel(const struct rte_flow_item *item,
 	const uint8_t *mask = NULL;
 	int rc;
 
-	/*
-	 * We're about to start processing inner frame items.
-	 * Process pattern data that has been deferred so far
-	 * and reset pattern data storage.
-	 */
-	rc = sfc_mae_rule_process_pattern_data(ctx_mae, error);
-	if (rc != 0)
-		return rc;
+	if (ctx_mae->ft_rule_type == SFC_FT_RULE_GROUP) {
+		/*
+		 * As a workaround, pattern processing has started from
+		 * this (tunnel) item. No pattern data to process yet.
+		 */
+	} else {
+		/*
+		 * We're about to start processing inner frame items.
+		 * Process pattern data that has been deferred so far
+		 * and reset pattern data storage.
+		 */
+		rc = sfc_mae_rule_process_pattern_data(ctx_mae, error);
+		if (rc != 0)
+			return rc;
+	}
 
 	memset(&ctx_mae->pattern_data, 0, sizeof(ctx_mae->pattern_data));
 
@@ -1984,6 +2278,14 @@ sfc_mae_rule_parse_item_tunnel(const struct rte_flow_item *item,
 
 static const struct sfc_flow_item sfc_flow_items[] = {
 	{
+		.type = RTE_FLOW_ITEM_TYPE_MARK,
+		.name = "MARK",
+		.prev_layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.ctx_type = SFC_FLOW_PARSE_CTX_MAE,
+		.parse = sfc_mae_rule_parse_item_mark,
+	},
+	{
 		.type = RTE_FLOW_ITEM_TYPE_PORT_ID,
 		.name = "PORT_ID",
 		/*
@@ -1994,6 +2296,30 @@ static const struct sfc_flow_item sfc_flow_items[] = {
 		.layer = SFC_FLOW_ITEM_ANY_LAYER,
 		.ctx_type = SFC_FLOW_PARSE_CTX_MAE,
 		.parse = sfc_mae_rule_parse_item_port_id,
+	},
+	{
+		.type = RTE_FLOW_ITEM_TYPE_ETHDEV,
+		.name = "ETHDEV",
+		/*
+		 * In terms of RTE flow, this item is a META one,
+		 * and its position in the pattern is don't care.
+		 */
+		.prev_layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.ctx_type = SFC_FLOW_PARSE_CTX_MAE,
+		.parse = sfc_mae_rule_parse_item_ethdev_based,
+	},
+	{
+		.type = RTE_FLOW_ITEM_TYPE_ESWITCH_PORT,
+		.name = "ESWITCH_PORT",
+		/*
+		 * In terms of RTE flow, this item is a META one,
+		 * and its position in the pattern is don't care.
+		 */
+		.prev_layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.layer = SFC_FLOW_ITEM_ANY_LAYER,
+		.ctx_type = SFC_FLOW_PARSE_CTX_MAE,
+		.parse = sfc_mae_rule_parse_item_ethdev_based,
 	},
 	{
 		.type = RTE_FLOW_ITEM_TYPE_PHY_PORT,
@@ -2145,6 +2471,29 @@ sfc_mae_rule_process_outer(struct sfc_adapter *sa,
 	ctx->match_spec_outer = NULL;
 
 no_or_id:
+	switch (ctx->ft_rule_type) {
+	case SFC_FT_RULE_NONE:
+		break;
+	case SFC_FT_RULE_JUMP:
+		/* No action rule */
+		return 0;
+	case SFC_FT_RULE_GROUP:
+		/*
+		 * Match on recirculation ID rather than
+		 * on the outer rule allocation handle.
+		 */
+		rc = efx_mae_match_spec_recirc_id_set(ctx->match_spec_action,
+					SFC_FT_ID_TO_TUNNEL_MARK(ctx->ft->id));
+		if (rc != 0) {
+			return rte_flow_error_set(error, rc,
+					RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+					"tunnel offload: GROUP: AR: failed to request match on RECIRC_ID");
+		}
+		return 0;
+	default:
+		SFC_ASSERT(B_FALSE);
+	}
+
 	/*
 	 * In MAE, lookup sequence comprises outer parse, outer rule lookup,
 	 * inner parse (when some outer rule is hit) and action rule lookup.
@@ -2176,12 +2525,51 @@ no_or_id:
 }
 
 static int
+sfc_mae_rule_preparse_item_mark(const struct rte_flow_item_mark *spec,
+				struct sfc_mae_parse_ctx *ctx)
+{
+	struct sfc_flow_tunnel *ft;
+	uint32_t user_mark;
+
+	if (spec == NULL) {
+		sfc_err(ctx->sa, "tunnel offload: GROUP: NULL spec in item MARK");
+		return EINVAL;
+	}
+
+	ft = sfc_flow_tunnel_pick(ctx->sa, spec->id);
+	if (ft == NULL) {
+		sfc_err(ctx->sa, "tunnel offload: GROUP: invalid tunnel");
+		return EINVAL;
+	}
+
+	if (ft->refcnt == 0) {
+		sfc_err(ctx->sa, "tunnel offload: GROUP: tunnel=%u does not exist",
+			ft->id);
+		return ENOENT;
+	}
+
+	user_mark = SFC_FT_GET_USER_MARK(spec->id);
+	if (user_mark != 0) {
+		sfc_err(ctx->sa, "tunnel offload: GROUP: invalid item MARK");
+		return EINVAL;
+	}
+
+	sfc_dbg(ctx->sa, "tunnel offload: GROUP: detected");
+
+	ctx->ft_rule_type = SFC_FT_RULE_GROUP;
+	ctx->ft = ft;
+
+	return 0;
+}
+
+static int
 sfc_mae_rule_encap_parse_init(struct sfc_adapter *sa,
-			      const struct rte_flow_item pattern[],
 			      struct sfc_mae_parse_ctx *ctx,
 			      struct rte_flow_error *error)
 {
+	const struct rte_flow_item *pattern = ctx->pattern;
 	struct sfc_mae *mae = &sa->mae;
+	uint8_t recirc_id = 0;
 	int rc;
 
 	if (pattern == NULL) {
@@ -2193,6 +2581,16 @@ sfc_mae_rule_encap_parse_init(struct sfc_adapter *sa,
 
 	for (;;) {
 		switch (pattern->type) {
+		case RTE_FLOW_ITEM_TYPE_MARK:
+			rc = sfc_mae_rule_preparse_item_mark(pattern->spec,
+							     ctx);
+			if (rc != 0) {
+				return rte_flow_error_set(error, rc,
+						  RTE_FLOW_ERROR_TYPE_ITEM,
+						  pattern, "tunnel offload: GROUP: invalid item MARK");
+			}
+			++pattern;
+			continue;
 		case RTE_FLOW_ITEM_TYPE_VXLAN:
 			ctx->encap_type = EFX_TUNNEL_PROTOCOL_VXLAN;
 			ctx->tunnel_def_mask = &rte_flow_item_vxlan_mask;
@@ -2221,34 +2619,97 @@ sfc_mae_rule_encap_parse_init(struct sfc_adapter *sa,
 		break;
 	}
 
-	if (pattern->type == RTE_FLOW_ITEM_TYPE_END)
-		return 0;
+	switch (ctx->ft_rule_type) {
+	case SFC_FT_RULE_NONE:
+		if (pattern->type == RTE_FLOW_ITEM_TYPE_END)
+			return 0;
+		break;
+	case SFC_FT_RULE_JUMP:
+		if (pattern->type != RTE_FLOW_ITEM_TYPE_END) {
+			return rte_flow_error_set(error, ENOTSUP,
+						  RTE_FLOW_ERROR_TYPE_ITEM,
+						  pattern, "tunnel offload: JUMP: invalid item");
+		}
+		ctx->encap_type = ctx->ft->encap_type;
+		break;
+	case SFC_FT_RULE_GROUP:
+		if (pattern->type == RTE_FLOW_ITEM_TYPE_END) {
+			return rte_flow_error_set(error, EINVAL,
+						  RTE_FLOW_ERROR_TYPE_ITEM,
+						  NULL, "tunnel offload: GROUP: missing tunnel item");
+		} else if (ctx->encap_type != ctx->ft->encap_type) {
+			return rte_flow_error_set(error, EINVAL,
+						  RTE_FLOW_ERROR_TYPE_ITEM,
+						  pattern, "tunnel offload: GROUP: tunnel type mismatch");
+		}
+
+		/*
+		 * The HW/FW hasn't got support for the use of "ENC" fields in
+		 * action rules (except the VNET_ID one) yet. As a workaround,
+		 * start parsing the pattern from the tunnel item.
+		 */
+		ctx->pattern = pattern;
+		break;
+	default:
+		SFC_ASSERT(B_FALSE);
+		break;
+	}
 
 	if ((mae->encap_types_supported & (1U << ctx->encap_type)) == 0) {
 		return rte_flow_error_set(error, ENOTSUP,
-					  RTE_FLOW_ERROR_TYPE_ITEM,
-					  pattern, "Unsupported tunnel item");
+					  RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+					  "OR: unsupported tunnel type");
 	}
 
-	if (ctx->priority >= mae->nb_outer_rule_prios_max) {
-		return rte_flow_error_set(error, ENOTSUP,
-					  RTE_FLOW_ERROR_TYPE_ATTR_PRIORITY,
-					  NULL, "Unsupported priority level");
+	switch (ctx->ft_rule_type) {
+	case SFC_FT_RULE_JUMP:
+		recirc_id = SFC_FT_ID_TO_TUNNEL_MARK(ctx->ft->id);
+		/* FALLTHROUGH */
+	case SFC_FT_RULE_NONE:
+		if (ctx->priority >= mae->nb_outer_rule_prios_max) {
+			return rte_flow_error_set(error, ENOTSUP,
+					RTE_FLOW_ERROR_TYPE_ATTR_PRIORITY,
+					NULL, "OR: unsupported priority level");
+		}
+
+		rc = efx_mae_match_spec_init(sa->nic,
+					     EFX_MAE_RULE_OUTER, ctx->priority,
+					     &ctx->match_spec_outer);
+		if (rc != 0) {
+			return rte_flow_error_set(error, rc,
+				RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+				"OR: failed to initialise the match specification");
+		}
+
+		/*
+		 * Outermost items comprise a match
+		 * specification of type OUTER.
+		 */
+		ctx->match_spec = ctx->match_spec_outer;
+
+		/* Outermost items use "ENC" EFX MAE field IDs. */
+		ctx->field_ids_remap = field_ids_remap_to_encap;
+
+		rc = efx_mae_outer_rule_recirc_id_set(ctx->match_spec,
+						      recirc_id);
+		if (rc != 0) {
+			return rte_flow_error_set(error, rc,
+					RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+					"OR: failed to initialise RECIRC_ID");
+		}
+		break;
+	case SFC_FT_RULE_GROUP:
+		/* Outermost items -> "ENC" match fields in the action rule. */
+		ctx->field_ids_remap = field_ids_remap_to_encap;
+		ctx->match_spec = ctx->match_spec_action;
+
+		/* No own outer rule; match on JUMP OR's RECIRC_ID is used. */
+		ctx->encap_type = EFX_TUNNEL_PROTOCOL_NONE;
+		break;
+	default:
+		SFC_ASSERT(B_FALSE);
+		break;
 	}
-
-	rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_OUTER, ctx->priority,
-				     &ctx->match_spec_outer);
-	if (rc != 0) {
-		return rte_flow_error_set(error, rc,
-			RTE_FLOW_ERROR_TYPE_ITEM, pattern,
-			"Failed to initialise outer rule match specification");
-	}
-
-	/* Outermost items comprise a match specification of type OUTER. */
-	ctx->match_spec = ctx->match_spec_outer;
-
-	/* Outermost items use "ENC" EFX MAE field IDs. */
-	ctx->field_ids_remap = field_ids_remap_to_encap;
 
 	return 0;
 }
@@ -2271,21 +2732,55 @@ sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 			   struct rte_flow_error *error)
 {
 	struct sfc_mae_parse_ctx ctx_mae;
+	unsigned int priority_shift = 0;
 	struct sfc_flow_parse_ctx ctx;
 	int rc;
 
 	memset(&ctx_mae, 0, sizeof(ctx_mae));
+	ctx_mae.ft_rule_type = spec->ft_rule_type;
 	ctx_mae.priority = spec->priority;
+	ctx_mae.ft = spec->ft;
 	ctx_mae.sa = sa;
 
-	rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_ACTION,
-				     spec->priority,
-				     &ctx_mae.match_spec_action);
-	if (rc != 0) {
-		rc = rte_flow_error_set(error, rc,
-			RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
-			"Failed to initialise action rule match specification");
-		goto fail_init_match_spec_action;
+	switch (ctx_mae.ft_rule_type) {
+	case SFC_FT_RULE_JUMP:
+		/*
+		 * By design, this flow should be represented solely by the
+		 * outer rule. But the HW/FW hasn't got support for setting
+		 * Rx mark from RECIRC_ID on outer rule lookup yet. Neither
+		 * does it support outer rule counters. As a workaround, an
+		 * action rule of lower priority is used to do the job.
+		 */
+		priority_shift = 1;
+
+		/* FALLTHROUGH */
+	case SFC_FT_RULE_GROUP:
+		if (ctx_mae.priority != 0) {
+			/*
+			 * Because of the above workaround, deny the
+			 * use of priorities to JUMP and GROUP rules.
+			 */
+			rc = rte_flow_error_set(error, ENOTSUP,
+				RTE_FLOW_ERROR_TYPE_ATTR_PRIORITY, NULL,
+				"tunnel offload: priorities are not supported");
+			goto fail_priority_check;
+		}
+
+		/* FALLTHROUGH */
+	case SFC_FT_RULE_NONE:
+		rc = efx_mae_match_spec_init(sa->nic, EFX_MAE_RULE_ACTION,
+					     spec->priority + priority_shift,
+					     &ctx_mae.match_spec_action);
+		if (rc != 0) {
+			rc = rte_flow_error_set(error, rc,
+				RTE_FLOW_ERROR_TYPE_UNSPECIFIED, NULL,
+				"AR: failed to initialise the match specification");
+			goto fail_init_match_spec_action;
+		}
+		break;
+	default:
+		SFC_ASSERT(B_FALSE);
+		break;
 	}
 
 	/*
@@ -2298,16 +2793,24 @@ sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 	ctx_mae.encap_type = EFX_TUNNEL_PROTOCOL_NONE;
 	ctx_mae.match_spec = ctx_mae.match_spec_action;
 	ctx_mae.field_ids_remap = field_ids_no_remap;
+	ctx_mae.pattern = pattern;
 
 	ctx.type = SFC_FLOW_PARSE_CTX_MAE;
 	ctx.mae = &ctx_mae;
 
-	rc = sfc_mae_rule_encap_parse_init(sa, pattern, &ctx_mae, error);
+	rc = sfc_mae_rule_encap_parse_init(sa, &ctx_mae, error);
 	if (rc != 0)
 		goto fail_encap_parse_init;
 
+	/*
+	 * sfc_mae_rule_encap_parse_init() may have detected tunnel offload
+	 * GROUP rule. Remember its properties for later use.
+	 */
+	spec->ft_rule_type = ctx_mae.ft_rule_type;
+	spec->ft = ctx_mae.ft;
+
 	rc = sfc_flow_parse_pattern(sa, sfc_flow_items, RTE_DIM(sfc_flow_items),
-				    pattern, &ctx, error);
+				    ctx_mae.pattern, &ctx, error);
 	if (rc != 0)
 		goto fail_parse_pattern;
 
@@ -2319,7 +2822,8 @@ sfc_mae_rule_parse_pattern(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_process_outer;
 
-	if (!efx_mae_match_spec_is_valid(sa->nic, ctx_mae.match_spec_action)) {
+	if (ctx_mae.match_spec_action != NULL &&
+	    !efx_mae_match_spec_is_valid(sa->nic, ctx_mae.match_spec_action)) {
 		rc = rte_flow_error_set(error, ENOTSUP,
 					RTE_FLOW_ERROR_TYPE_ITEM, NULL,
 					"Inconsistent pattern");
@@ -2337,9 +2841,11 @@ fail_parse_pattern:
 	sfc_mae_rule_encap_parse_fini(sa, &ctx_mae);
 
 fail_encap_parse_init:
-	efx_mae_match_spec_fini(sa->nic, ctx_mae.match_spec_action);
+	if (ctx_mae.match_spec_action != NULL)
+		efx_mae_match_spec_fini(sa->nic, ctx_mae.match_spec_action);
 
 fail_init_match_spec_action:
+fail_priority_check:
 	return rc;
 }
 
@@ -2789,9 +3295,17 @@ sfc_mae_rule_parse_action_vxlan_encap(
 static int
 sfc_mae_rule_parse_action_mark(struct sfc_adapter *sa,
 			       const struct rte_flow_action_mark *conf,
+			       const struct sfc_flow_spec_mae *spec_mae,
 			       efx_mae_actions_t *spec)
 {
 	int rc;
+
+	if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+		/* Workaround. See sfc_flow_parse_rte_to_mae() */
+	} else if (conf->id > SFC_FT_USER_MARK_MASK) {
+		sfc_err(sa, "the mark value is too large");
+		return EINVAL;
+	}
 
 	rc = efx_mae_action_set_populate_mark(spec, conf->id);
 	if (rc != 0)
@@ -2922,11 +3436,63 @@ sfc_mae_rule_parse_action_port_id(struct sfc_adapter *sa,
 
 	port_id = (conf->original != 0) ? sas->port_id : conf->id;
 
-	rc = sfc_mae_switch_port_by_ethdev(mae->switch_domain_id,
-					   port_id, &mport);
+	rc = sfc_mae_switch_port_entity_by_ethdev(mae->switch_domain_id,
+						  port_id, &mport);
 	if (rc != 0) {
 		sfc_err(sa, "failed to find MAE switch port SW entry for RTE ethdev port %u: %s",
 			port_id, strerror(rc));
+		return rc;
+	}
+
+	rc = efx_mae_action_set_populate_deliver(spec, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to request action DELIVER with m-port selector 0x%08x: %s",
+			mport.sel, strerror(rc));
+	}
+
+	return rc;
+}
+
+static int
+sfc_mae_rule_parse_action_ethdev(struct sfc_adapter *sa,
+				 const struct rte_flow_action_ethdev *conf,
+				 efx_mae_actions_t *spec)
+{
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t mport;
+	int rc;
+
+	rc = sfc_mae_switch_port_by_ethdev(mae->switch_domain_id,
+					   conf->port_id, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to find MAE switch port SW entry for RTE ethdev port %u: %s",
+			conf->port_id, strerror(rc));
+		return rc;
+	}
+
+	rc = efx_mae_action_set_populate_deliver(spec, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to request action DELIVER with m-port selector 0x%08x: %s",
+			mport.sel, strerror(rc));
+	}
+
+	return rc;
+}
+
+static int
+sfc_mae_rule_parse_action_eswitch_port(struct sfc_adapter *sa,
+		const struct rte_flow_action_ethdev *conf,
+		efx_mae_actions_t *spec)
+{
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t mport;
+	int rc;
+
+	rc = sfc_mae_switch_port_entity_by_ethdev(mae->switch_domain_id,
+						  conf->port_id, &mport);
+	if (rc != 0) {
+		sfc_err(sa, "failed to find MAE switch port SW entry for RTE ethdev port %u: %s",
+			conf->port_id, strerror(rc));
 		return rc;
 	}
 
@@ -2952,17 +3518,21 @@ static const char * const action_names[] = {
 	[RTE_FLOW_ACTION_TYPE_PF] = "PF",
 	[RTE_FLOW_ACTION_TYPE_VF] = "VF",
 	[RTE_FLOW_ACTION_TYPE_PORT_ID] = "PORT_ID",
+	[RTE_FLOW_ACTION_TYPE_ETHDEV] = "ETHDEV",
+	[RTE_FLOW_ACTION_TYPE_ESWITCH_PORT] = "ESWITCH_PORT",
 	[RTE_FLOW_ACTION_TYPE_DROP] = "DROP",
 };
 
 static int
 sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 			  const struct rte_flow_action *action,
-			  const struct sfc_mae_outer_rule *outer_rule,
+			  const struct sfc_flow_spec_mae *spec_mae,
 			  struct sfc_mae_actions_bundle *bundle,
 			  efx_mae_actions_t *spec,
 			  struct rte_flow_error *error)
 {
+	const struct sfc_mae_outer_rule *outer_rule = spec_mae->outer_rule;
+	const uint64_t rx_metadata = sa->negotiated_rx_metadata;
 	bool custom_error = B_FALSE;
 	int rc = 0;
 
@@ -3012,12 +3582,30 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 	case RTE_FLOW_ACTION_TYPE_FLAG:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_FLAG,
 				       bundle->actions_mask);
-		rc = efx_mae_action_set_populate_flag(spec);
+		if ((rx_metadata & RTE_ETH_RX_METADATA_USER_FLAG) != 0) {
+			rc = efx_mae_action_set_populate_flag(spec);
+		} else {
+			rc = rte_flow_error_set(error, ENOTSUP,
+						RTE_FLOW_ERROR_TYPE_ACTION,
+						action,
+						"flag delivery has not been negotiated");
+			custom_error = B_TRUE;
+		}
 		break;
 	case RTE_FLOW_ACTION_TYPE_MARK:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_MARK,
 				       bundle->actions_mask);
-		rc = sfc_mae_rule_parse_action_mark(sa, action->conf, spec);
+		if ((rx_metadata & RTE_ETH_RX_METADATA_USER_MARK) != 0 ||
+		    spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+			rc = sfc_mae_rule_parse_action_mark(sa, action->conf,
+							    spec_mae, spec);
+		} else {
+			rc = rte_flow_error_set(error, ENOTSUP,
+						RTE_FLOW_ERROR_TYPE_ACTION,
+						action,
+						"mark delivery has not been negotiated");
+			custom_error = B_TRUE;
+		}
 		break;
 	case RTE_FLOW_ACTION_TYPE_PHY_PORT:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_PHY_PORT,
@@ -3039,11 +3627,28 @@ sfc_mae_rule_parse_action(struct sfc_adapter *sa,
 				       bundle->actions_mask);
 		rc = sfc_mae_rule_parse_action_port_id(sa, action->conf, spec);
 		break;
+	case RTE_FLOW_ACTION_TYPE_ETHDEV:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_ETHDEV,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_ethdev(sa, action->conf, spec);
+		break;
+	case RTE_FLOW_ACTION_TYPE_ESWITCH_PORT:
+		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_ESWITCH_PORT,
+				       bundle->actions_mask);
+		rc = sfc_mae_rule_parse_action_eswitch_port(sa, action->conf,
+							    spec);
+		break;
 	case RTE_FLOW_ACTION_TYPE_DROP:
 		SFC_BUILD_SET_OVERFLOW(RTE_FLOW_ACTION_TYPE_DROP,
 				       bundle->actions_mask);
 		rc = efx_mae_action_set_populate_drop(spec);
 		break;
+	case RTE_FLOW_ACTION_TYPE_JUMP:
+		if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+			/* Workaround. See sfc_flow_parse_rte_to_mae() */
+			break;
+		}
+		/* FALLTHROUGH */
 	default:
 		return rte_flow_error_set(error, ENOTSUP,
 				RTE_FLOW_ERROR_TYPE_ACTION, NULL,
@@ -3099,10 +3704,12 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 {
 	struct sfc_mae_encap_header *encap_header = NULL;
 	struct sfc_mae_actions_bundle bundle = {0};
+	struct sfc_flow_tunnel *counter_ft = NULL;
+	uint64_t *ft_group_hit_counter = NULL;
 	const struct rte_flow_action *action;
 	struct sfc_mae *mae = &sa->mae;
+	unsigned int n_count = 0;
 	efx_mae_actions_t *spec;
-	unsigned int n_count;
 	int rc;
 
 	rte_errno = 0;
@@ -3117,6 +3724,33 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_action_set_spec_init;
 
+	for (action = actions;
+	     action->type != RTE_FLOW_ACTION_TYPE_END; ++action) {
+		if (action->type == RTE_FLOW_ACTION_TYPE_COUNT)
+			++n_count;
+	}
+
+	if (spec_mae->ft_rule_type == SFC_FT_RULE_GROUP) {
+		/* JUMP rules don't decapsulate packets. GROUP rules do. */
+		rc = efx_mae_action_set_populate_decap(spec);
+		if (rc != 0)
+			goto fail_enforce_ft_decap;
+
+		if (n_count == 0 && sfc_mae_counter_stream_enabled(sa)) {
+			/*
+			 * The user opted not to use action COUNT in this rule,
+			 * but the counter should be enabled implicitly because
+			 * packets hitting this rule contribute to the tunnel's
+			 * total number of hits. See sfc_mae_counter_get().
+			 */
+			rc = efx_mae_action_set_populate_count(spec);
+			if (rc != 0)
+				goto fail_enforce_ft_count;
+
+			n_count = 1;
+		}
+	}
+
 	/* Cleanup after previous encap. header bounce buffer usage. */
 	sfc_mae_bounce_eh_invalidate(&mae->bounce_eh);
 
@@ -3126,7 +3760,7 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 		if (rc != 0)
 			goto fail_rule_parse_action;
 
-		rc = sfc_mae_rule_parse_action(sa, action, spec_mae->outer_rule,
+		rc = sfc_mae_rule_parse_action(sa, action, spec_mae,
 					       &bundle, spec, error);
 		if (rc != 0)
 			goto fail_rule_parse_action;
@@ -3140,11 +3774,36 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	if (rc != 0)
 		goto fail_process_encap_header;
 
-	n_count = efx_mae_action_set_get_nb_count(spec);
 	if (n_count > 1) {
 		rc = ENOTSUP;
 		sfc_err(sa, "too many count actions requested: %u", n_count);
 		goto fail_nb_count;
+	}
+
+	switch (spec_mae->ft_rule_type) {
+	case SFC_FT_RULE_NONE:
+		break;
+	case SFC_FT_RULE_JUMP:
+		/* Workaround. See sfc_flow_parse_rte_to_mae() */
+		rc = sfc_mae_rule_parse_action_pf_vf(sa, NULL, spec);
+		if (rc != 0)
+			goto fail_workaround_jump_delivery;
+
+		counter_ft = spec_mae->ft;
+		break;
+	case SFC_FT_RULE_GROUP:
+		/*
+		 * Packets that go to the rule's AR have FT mark set (from the
+		 * JUMP rule OR's RECIRC_ID). Remove this mark in matching
+		 * packets. The user may have provided their own action
+		 * MARK above, so don't check the return value here.
+		 */
+		(void)efx_mae_action_set_populate_mark(spec, 0);
+
+		ft_group_hit_counter = &spec_mae->ft->group_hit_counter;
+		break;
+	default:
+		SFC_ASSERT(B_FALSE);
 	}
 
 	spec_mae->action_set = sfc_mae_action_set_attach(sa, encap_header,
@@ -3155,7 +3814,8 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 		return 0;
 	}
 
-	rc = sfc_mae_action_set_add(sa, actions, spec, encap_header, n_count,
+	rc = sfc_mae_action_set_add(sa, actions, spec, encap_header,
+				    ft_group_hit_counter, counter_ft, n_count,
 				    &spec_mae->action_set);
 	if (rc != 0)
 		goto fail_action_set_add;
@@ -3163,6 +3823,7 @@ sfc_mae_rule_parse_actions(struct sfc_adapter *sa,
 	return 0;
 
 fail_action_set_add:
+fail_workaround_jump_delivery:
 fail_nb_count:
 	sfc_mae_encap_header_del(sa, encap_header);
 
@@ -3170,6 +3831,8 @@ fail_process_encap_header:
 fail_rule_parse_action:
 	efx_mae_action_set_spec_fini(sa->nic, spec);
 
+fail_enforce_ft_count:
+fail_enforce_ft_decap:
 fail_action_set_spec_init:
 	if (rc > 0 && rte_errno == 0) {
 		rc = rte_flow_error_set(error, rc,
@@ -3230,6 +3893,9 @@ sfc_mae_action_rule_class_verify(struct sfc_adapter *sa,
 {
 	const struct rte_flow *entry;
 
+	if (spec->match_spec == NULL)
+		return 0;
+
 	TAILQ_FOREACH_REVERSE(entry, &sa->flow_list, sfc_flow_list, entries) {
 		const struct sfc_flow_spec *entry_spec = &entry->spec;
 		const struct sfc_flow_spec_mae *es_mae = &entry_spec->mae;
@@ -3281,7 +3947,7 @@ sfc_mae_flow_verify(struct sfc_adapter *sa,
 
 	SFC_ASSERT(sfc_adapter_is_locked(sa));
 
-	if (sa->state != SFC_ADAPTER_STARTED)
+	if (sa->state != SFC_ETHDEV_STARTED)
 		return EAGAIN;
 
 	if (outer_rule != NULL) {
@@ -3301,17 +3967,26 @@ sfc_mae_flow_insert(struct sfc_adapter *sa,
 	struct sfc_flow_spec_mae *spec_mae = &spec->mae;
 	struct sfc_mae_outer_rule *outer_rule = spec_mae->outer_rule;
 	struct sfc_mae_action_set *action_set = spec_mae->action_set;
-	struct sfc_mae_fw_rsrc *fw_rsrc = &action_set->fw_rsrc;
+	struct sfc_mae_fw_rsrc *fw_rsrc;
 	int rc;
 
 	SFC_ASSERT(spec_mae->rule_id.id == EFX_MAE_RSRC_ID_INVALID);
-	SFC_ASSERT(action_set != NULL);
 
 	if (outer_rule != NULL) {
 		rc = sfc_mae_outer_rule_enable(sa, outer_rule,
 					       spec_mae->match_spec);
 		if (rc != 0)
 			goto fail_outer_rule_enable;
+	}
+
+	if (spec_mae->ft_rule_type == SFC_FT_RULE_JUMP) {
+		spec_mae->ft->reset_jump_hit_counter =
+			spec_mae->ft->group_hit_counter;
+	}
+
+	if (action_set == NULL) {
+		sfc_dbg(sa, "enabled flow=%p (no AR)", flow);
+		return 0;
 	}
 
 	rc = sfc_mae_action_set_enable(sa, action_set);
@@ -3326,6 +4001,8 @@ sfc_mae_flow_insert(struct sfc_adapter *sa,
 			goto fail_mae_counter_start;
 		}
 	}
+
+	fw_rsrc = &action_set->fw_rsrc;
 
 	rc = efx_mae_action_rule_insert(sa->nic, spec_mae->match_spec,
 					NULL, &fw_rsrc->aset_id,
@@ -3360,8 +4037,12 @@ sfc_mae_flow_remove(struct sfc_adapter *sa,
 	struct sfc_mae_outer_rule *outer_rule = spec_mae->outer_rule;
 	int rc;
 
+	if (action_set == NULL) {
+		sfc_dbg(sa, "disabled flow=%p (no AR)", flow);
+		goto skip_action_rule;
+	}
+
 	SFC_ASSERT(spec_mae->rule_id.id != EFX_MAE_RSRC_ID_INVALID);
-	SFC_ASSERT(action_set != NULL);
 
 	rc = efx_mae_action_rule_remove(sa->nic, &spec_mae->rule_id);
 	if (rc != 0) {
@@ -3374,6 +4055,7 @@ sfc_mae_flow_remove(struct sfc_adapter *sa,
 
 	sfc_mae_action_set_disable(sa, action_set);
 
+skip_action_rule:
 	if (outer_rule != NULL)
 		sfc_mae_outer_rule_disable(sa, outer_rule);
 
@@ -3392,7 +4074,7 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 	unsigned int i;
 	int rc;
 
-	if (action_set->n_counters == 0) {
+	if (action_set == NULL || action_set->n_counters == 0) {
 		return rte_flow_error_set(error, EINVAL,
 			RTE_FLOW_ERROR_TYPE_ACTION, action,
 			"Queried flow rule does not have count actions");
@@ -3401,7 +4083,8 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 	for (i = 0; i < action_set->n_counters; i++) {
 		/*
 		 * Get the first available counter of the flow rule if
-		 * counter ID is not specified.
+		 * counter ID is not specified, provided that this
+		 * counter is not an automatic (implicit) one.
 		 */
 		if (conf != NULL && action_set->counters[i].rte_id != conf->id)
 			continue;
@@ -3419,7 +4102,7 @@ sfc_mae_query_counter(struct sfc_adapter *sa,
 
 	return rte_flow_error_set(error, ENOENT,
 				  RTE_FLOW_ERROR_TYPE_ACTION, action,
-				  "No such flow rule action count ID");
+				  "no such flow rule action or such count ID");
 }
 
 int
@@ -3442,4 +4125,82 @@ sfc_mae_flow_query(struct rte_eth_dev *dev,
 			RTE_FLOW_ERROR_TYPE_ACTION, NULL,
 			"Query for action of this type is not supported");
 	}
+}
+
+int
+sfc_mae_switchdev_init(struct sfc_adapter *sa)
+{
+	const efx_nic_cfg_t *encp = efx_nic_cfg_get(sa->nic);
+	struct sfc_mae *mae = &sa->mae;
+	efx_mport_sel_t pf;
+	efx_mport_sel_t phy;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	if (!sa->switchdev) {
+		sfc_log_init(sa, "switchdev is not enabled - skip");
+		return 0;
+	}
+
+	if (mae->status != SFC_MAE_STATUS_SUPPORTED) {
+		rc = ENOTSUP;
+		sfc_err(sa, "failed to init switchdev - no MAE support");
+		goto fail_no_mae;
+	}
+
+	rc = efx_mae_mport_by_pcie_function(encp->enc_pf, EFX_PCI_VF_INVALID,
+					    &pf);
+	if (rc != 0) {
+		sfc_err(sa, "failed get PF mport");
+		goto fail_pf_get;
+	}
+
+	rc = efx_mae_mport_by_phy_port(encp->enc_assigned_port, &phy);
+	if (rc != 0) {
+		sfc_err(sa, "failed get PHY mport");
+		goto fail_phy_get;
+	}
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &pf, &phy,
+			SFC_MAE_RULE_PRIO_LOWEST,
+			&mae->switchdev_rule_pf_to_ext);
+	if (rc != 0) {
+		sfc_err(sa, "failed add MAE rule to forward from PF to PHY");
+		goto fail_pf_add;
+	}
+
+	rc = sfc_mae_rule_add_mport_match_deliver(sa, &phy, &pf,
+			SFC_MAE_RULE_PRIO_LOWEST,
+			&mae->switchdev_rule_ext_to_pf);
+	if (rc != 0) {
+		sfc_err(sa, "failed add MAE rule to forward from PHY to PF");
+		goto fail_phy_add;
+	}
+
+	sfc_log_init(sa, "done");
+
+	return 0;
+
+fail_phy_add:
+	sfc_mae_rule_del(sa, mae->switchdev_rule_pf_to_ext);
+
+fail_pf_add:
+fail_phy_get:
+fail_pf_get:
+fail_no_mae:
+	sfc_log_init(sa, "failed: %s", rte_strerror(rc));
+	return rc;
+}
+
+void
+sfc_mae_switchdev_fini(struct sfc_adapter *sa)
+{
+	struct sfc_mae *mae = &sa->mae;
+
+	if (!sa->switchdev)
+		return;
+
+	sfc_mae_rule_del(sa, mae->switchdev_rule_pf_to_ext);
+	sfc_mae_rule_del(sa, mae->switchdev_rule_ext_to_pf);
 }

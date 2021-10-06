@@ -430,6 +430,7 @@ of protocol operations. See Security library and PMD documentation for more deta
 
 * **[uses]       rte_eth_rxconf,rte_eth_rxmode**: ``offloads:DEV_RX_OFFLOAD_SECURITY``,
 * **[uses]       rte_eth_txconf,rte_eth_txmode**: ``offloads:DEV_TX_OFFLOAD_SECURITY``.
+* **[uses]       mbuf**: ``mbuf.l2_len``.
 * **[implements] rte_security_ops**: ``session_create``, ``session_update``,
   ``session_stats_get``, ``session_destroy``, ``set_pkt_metadata``, ``capabilities_get``.
 * **[provides] rte_eth_dev_info**: ``rx_offload_capa,rx_queue_offload_capa:DEV_RX_OFFLOAD_SECURITY``,
@@ -451,6 +452,7 @@ protocol operations. See security library and PMD documentation for more details
 
 * **[uses]       rte_eth_rxconf,rte_eth_rxmode**: ``offloads:DEV_RX_OFFLOAD_SECURITY``,
 * **[uses]       rte_eth_txconf,rte_eth_txmode**: ``offloads:DEV_TX_OFFLOAD_SECURITY``.
+* **[uses]       mbuf**: ``mbuf.l2_len``.
 * **[implements] rte_security_ops**: ``session_create``, ``session_update``,
   ``session_stats_get``, ``session_destroy``, ``set_pkt_metadata``, ``get_userdata``,
   ``capabilities_get``.
@@ -706,7 +708,7 @@ Extended stats
 Supports Extended Statistics, changes from driver to driver.
 
 * **[implements] eth_dev_ops**: ``xstats_get``, ``xstats_reset``, ``xstats_get_names``.
-* **[implements] eth_dev_ops**: ``xstats_get_by_id``, ``xstats_get_names_by_id``.
+* **[implements] eth_dev_ops**: ``xstats_get_by_id``.
 * **[related]    API**: ``rte_eth_xstats_get()``, ``rte_eth_xstats_reset()``,
   ``rte_eth_xstats_get_names``, ``rte_eth_xstats_get_by_id()``,
   ``rte_eth_xstats_get_names_by_id()``, ``rte_eth_xstats_get_id_by_name()``.

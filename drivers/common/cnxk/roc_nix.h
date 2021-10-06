@@ -244,6 +244,10 @@ typedef void (*link_status_t)(struct roc_nix *roc_nix,
 /* PTP info update callback */
 typedef int (*ptp_info_update_t)(struct roc_nix *roc_nix, bool enable);
 
+/* Link status get callback */
+typedef void (*link_info_get_t)(struct roc_nix *roc_nix,
+				struct roc_nix_link_info *link);
+
 struct roc_nix {
 	/* Input parameters */
 	struct plt_pci_device *pci_dev;
@@ -272,6 +276,28 @@ enum roc_nix_lso_tun_type {
 	ROC_NIX_LSO_TUN_V6V6,
 	ROC_NIX_LSO_TUN_MAX,
 };
+
+/* Restrict CN9K sched weight to have a minimum quantum */
+#define ROC_NIX_CN9K_TM_RR_WEIGHT_MAX 255u
+
+/* NIX TM Inlines */
+static inline uint64_t
+roc_nix_tm_max_sched_wt_get(void)
+{
+	if (roc_model_is_cn9k())
+		return ROC_NIX_CN9K_TM_RR_WEIGHT_MAX;
+	else
+		return NIX_TM_RR_WEIGHT_MAX;
+}
+
+static inline uint64_t
+roc_nix_tm_max_shaper_burst_get(void)
+{
+	if (roc_model_is_cn9k())
+		return NIX_CN9K_TM_MAX_SHAPER_BURST;
+	else
+		return NIX_TM_MAX_SHAPER_BURST;
+}
 
 /* Dev */
 int __roc_api roc_nix_dev_init(struct roc_nix *roc_nix);
@@ -320,7 +346,6 @@ int __roc_api roc_nix_register_cq_irqs(struct roc_nix *roc_nix);
 void __roc_api roc_nix_unregister_cq_irqs(struct roc_nix *roc_nix);
 
 /* Traffic Management */
-#define ROC_NIX_TM_MAX_SCHED_WT	       ((uint8_t)~0)
 #define ROC_NIX_TM_SHAPER_PROFILE_NONE UINT32_MAX
 #define ROC_NIX_TM_NODE_ID_INVALID     UINT32_MAX
 
@@ -464,6 +489,17 @@ int __roc_api roc_nix_tm_rsrc_count(struct roc_nix *roc_nix,
 int __roc_api roc_nix_tm_node_name_get(struct roc_nix *roc_nix,
 				       uint32_t node_id, char *buf,
 				       size_t buflen);
+int __roc_api roc_nix_smq_flush(struct roc_nix *roc_nix);
+int __roc_api roc_nix_tm_max_prio(struct roc_nix *roc_nix, int lvl);
+int __roc_api roc_nix_tm_lvl_is_leaf(struct roc_nix *roc_nix, int lvl);
+void __roc_api
+roc_nix_tm_shaper_default_red_algo(struct roc_nix_tm_node *node,
+				   struct roc_nix_tm_shaper_profile *profile);
+int __roc_api roc_nix_tm_lvl_cnt_get(struct roc_nix *roc_nix);
+int __roc_api roc_nix_tm_lvl_have_link_access(struct roc_nix *roc_nix, int lvl);
+int __roc_api roc_nix_tm_prepare_rate_limited_tree(struct roc_nix *roc_nix);
+bool __roc_api roc_nix_tm_is_user_hierarchy_enabled(struct roc_nix *nix);
+int __roc_api roc_nix_tm_tree_type_get(struct roc_nix *nix);
 
 /* MAC */
 int __roc_api roc_nix_mac_rxtx_start_stop(struct roc_nix *roc_nix, bool start);
@@ -488,6 +524,9 @@ int __roc_api roc_nix_mac_max_rx_len_set(struct roc_nix *roc_nix,
 int __roc_api roc_nix_mac_link_cb_register(struct roc_nix *roc_nix,
 					   link_status_t link_update);
 void __roc_api roc_nix_mac_link_cb_unregister(struct roc_nix *roc_nix);
+int __roc_api roc_nix_mac_link_info_get_cb_register(
+	struct roc_nix *roc_nix, link_info_get_t link_info_get);
+void __roc_api roc_nix_mac_link_info_get_cb_unregister(struct roc_nix *roc_nix);
 
 /* Ops */
 int __roc_api roc_nix_switch_hdr_set(struct roc_nix *roc_nix,

@@ -200,8 +200,8 @@ otx2_nix_xstats_get(struct rte_eth_dev *eth_dev,
 	return count;
 }
 
-int
-otx2_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
+static int
+otx2_nix_xstats_get_all_names(struct rte_eth_dev *eth_dev,
 			  struct rte_eth_xstat_name *xstats_names,
 			  unsigned int limit)
 {
@@ -239,9 +239,10 @@ otx2_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
 }
 
 int
-otx2_nix_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
-				struct rte_eth_xstat_name *xstats_names,
-				const uint64_t *ids, unsigned int limit)
+otx2_nix_xstats_get_names(struct rte_eth_dev *eth_dev,
+			  const uint64_t *ids,
+			  struct rte_eth_xstat_name *xstats_names,
+			  unsigned int limit)
 {
 	struct rte_eth_xstat_name xstats_names_copy[OTX2_NIX_NUM_XSTATS_REG];
 	uint16_t i;
@@ -255,7 +256,7 @@ otx2_nix_xstats_get_names_by_id(struct rte_eth_dev *eth_dev,
 	if (xstats_names == NULL)
 		return -ENOMEM;
 
-	otx2_nix_xstats_get_names(eth_dev, xstats_names_copy, limit);
+	otx2_nix_xstats_get_all_names(eth_dev, xstats_names_copy, limit);
 
 	for (i = 0; i < OTX2_NIX_NUM_XSTATS_REG; i++) {
 		if (ids[i] >= OTX2_NIX_NUM_XSTATS_REG) {

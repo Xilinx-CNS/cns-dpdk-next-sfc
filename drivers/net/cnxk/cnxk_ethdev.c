@@ -1258,7 +1258,6 @@ struct eth_dev_ops cnxk_eth_dev_ops = {
 	.xstats_get_names = cnxk_nix_xstats_get_names,
 	.xstats_reset = cnxk_nix_xstats_reset,
 	.xstats_get_by_id = cnxk_nix_xstats_get_by_id,
-	.xstats_get_names_by_id = cnxk_nix_xstats_get_names_by_id,
 	.fw_version_get = cnxk_nix_fw_version_get,
 	.rxq_info_get = cnxk_nix_rxq_info_get,
 	.txq_info_get = cnxk_nix_txq_info_get,
@@ -1276,6 +1275,8 @@ struct eth_dev_ops cnxk_eth_dev_ops = {
 	.rss_hash_update = cnxk_nix_rss_hash_update,
 	.rss_hash_conf_get = cnxk_nix_rss_hash_conf_get,
 	.set_mc_addr_list = cnxk_nix_mc_addr_list_configure,
+	.set_queue_rate_limit = cnxk_nix_tm_set_queue_rate_limit,
+	.tm_ops_get = cnxk_nix_tm_ops_get,
 };
 
 static int
@@ -1313,6 +1314,10 @@ cnxk_eth_dev_init(struct rte_eth_dev *eth_dev)
 
 	/* Register up msg callbacks */
 	roc_nix_mac_link_cb_register(nix, cnxk_eth_dev_link_status_cb);
+
+	/* Register up msg callbacks */
+	roc_nix_mac_link_info_get_cb_register(nix,
+					      cnxk_eth_dev_link_status_get_cb);
 
 	dev->eth_dev = eth_dev;
 	dev->configured = 0;
@@ -1414,6 +1419,11 @@ cnxk_eth_dev_uninit(struct rte_eth_dev *eth_dev, bool reset)
 
 	/* Disable link status events */
 	roc_nix_mac_link_event_start_stop(nix, false);
+
+	/* Unregister the link update op, this is required to stop VFs from
+	 * receiving link status updates on exit path.
+	 */
+	roc_nix_mac_link_cb_unregister(nix);
 
 	/* Free up SQs */
 	for (i = 0; i < eth_dev->data->nb_tx_queues; i++) {

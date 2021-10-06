@@ -67,7 +67,7 @@ struct bnxt_ulp_rte_act_info ulp_act_info[] = {
 	},
 	[RTE_FLOW_ACTION_TYPE_PORT_ID] = {
 	.act_type                = BNXT_ULP_ACT_TYPE_SUPPORTED,
-	.proto_act_func          = ulp_rte_port_id_act_handler
+	.proto_act_func          = ulp_rte_port_act_handler
 	},
 	[RTE_FLOW_ACTION_TYPE_METER] = {
 	.act_type                = BNXT_ULP_ACT_TYPE_NOT_SUPPORTED,
@@ -212,6 +212,29 @@ struct bnxt_ulp_rte_act_info ulp_act_info[] = {
 	[RTE_FLOW_ACTION_TYPE_SAMPLE] = {
 	.act_type                = BNXT_ULP_ACT_TYPE_SUPPORTED,
 	.proto_act_func          = ulp_rte_sample_act_handler
+	},
+	[RTE_FLOW_ACTION_TYPE_ETHDEV] = {
+	.act_type                = BNXT_ULP_ACT_TYPE_SUPPORTED,
+	.proto_act_func          = ulp_rte_port_act_handler
+	},
+	[RTE_FLOW_ACTION_TYPE_ESWITCH_PORT] = {
+	.act_type                = BNXT_ULP_ACT_TYPE_SUPPORTED,
+	.proto_act_func          = ulp_rte_port_act_handler
+	},
+};
+
+struct bnxt_ulp_rte_act_info ulp_vendor_act_info[] = {
+	[BNXT_RTE_FLOW_ACTION_TYPE_END - BNXT_RTE_FLOW_ACTION_TYPE_END] = {
+	.act_type                = BNXT_ULP_ACT_TYPE_END,
+	.proto_act_func          = NULL
+	},
+	[BNXT_RTE_FLOW_ACTION_TYPE_VXLAN_DECAP - BNXT_RTE_FLOW_ACTION_TYPE_END] = {
+	.act_type                = BNXT_ULP_ACT_TYPE_SUPPORTED,
+	.proto_act_func          = ulp_vendor_vxlan_decap_act_handler
+	},
+	[BNXT_RTE_FLOW_ACTION_TYPE_LAST - BNXT_RTE_FLOW_ACTION_TYPE_END] = {
+	.act_type                = BNXT_ULP_ACT_TYPE_NOT_SUPPORTED,
+	.proto_act_func          = NULL
 	}
 };
 
@@ -251,7 +274,7 @@ struct bnxt_ulp_rte_hdr_info ulp_hdr_info[] = {
 	},
 	[RTE_FLOW_ITEM_TYPE_PORT_ID] = {
 	.hdr_type                = BNXT_ULP_HDR_TYPE_SUPPORTED,
-	.proto_hdr_func          = ulp_rte_port_id_hdr_handler
+	.proto_hdr_func          = ulp_rte_port_hdr_handler
 	},
 	[RTE_FLOW_ITEM_TYPE_RAW] = {
 	.hdr_type                = BNXT_ULP_HDR_TYPE_NOT_SUPPORTED,
@@ -412,5 +435,29 @@ struct bnxt_ulp_rte_hdr_info ulp_hdr_info[] = {
 	[RTE_FLOW_ITEM_TYPE_HIGIG2] = {
 	.hdr_type                = BNXT_ULP_HDR_TYPE_NOT_SUPPORTED,
 	.proto_hdr_func          = NULL
+	},
+	[RTE_FLOW_ITEM_TYPE_ETHDEV] = {
+	.hdr_type                = BNXT_ULP_HDR_TYPE_SUPPORTED,
+	.proto_hdr_func          = ulp_rte_port_hdr_handler
+	},
+	[RTE_FLOW_ITEM_TYPE_ESWITCH_PORT] = {
+	.hdr_type                = BNXT_ULP_HDR_TYPE_SUPPORTED,
+	.proto_hdr_func          = ulp_rte_port_hdr_handler
 	}
+};
+
+struct bnxt_ulp_rte_hdr_info ulp_vendor_hdr_info[] = {
+	[BNXT_RTE_FLOW_ITEM_TYPE_END - BNXT_RTE_FLOW_ITEM_TYPE_END] = {
+	.hdr_type                = BNXT_ULP_HDR_TYPE_END,
+	.proto_hdr_func          = NULL
+	},
+	[BNXT_RTE_FLOW_ITEM_TYPE_VXLAN_DECAP - BNXT_RTE_FLOW_ITEM_TYPE_END] = {
+	.hdr_type                = BNXT_ULP_HDR_TYPE_SUPPORTED,
+	.proto_hdr_func          = ulp_rte_vendor_vxlan_decap_hdr_handler
+	},
+	[BNXT_RTE_FLOW_ITEM_TYPE_LAST - BNXT_RTE_FLOW_ITEM_TYPE_END] = {
+	.hdr_type                = BNXT_ULP_HDR_TYPE_NOT_SUPPORTED,
+	.proto_hdr_func          = NULL
+	},
+
 };

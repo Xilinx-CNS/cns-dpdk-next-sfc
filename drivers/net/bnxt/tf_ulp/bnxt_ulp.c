@@ -384,6 +384,7 @@ ulp_ctx_shared_session_open(struct bnxt *bp,
 	size_t copy_nbytes;
 	uint32_t ulp_dev_id = BNXT_ULP_DEVICE_ID_LAST;
 	int32_t	rc = 0;
+	uint8_t app_id;
 
 	/* only perform this if shared session is enabled. */
 	if (!bnxt_ulp_cntxt_shared_session_enabled(bp->ulp_ctx))
@@ -422,6 +423,12 @@ ulp_ctx_shared_session_open(struct bnxt *bp,
 	if (rc)
 		return rc;
 
+	rc = bnxt_ulp_cntxt_app_id_get(bp->ulp_ctx, &app_id);
+	if (rc) {
+		BNXT_TF_DBG(ERR, "Unable to get the app id from ulp.\n");
+		return -EINVAL;
+	}
+
 	rc = bnxt_ulp_cntxt_dev_id_get(bp->ulp_ctx, &ulp_dev_id);
 	if (rc) {
 		BNXT_TF_DBG(ERR, "Unable to get device id from ulp.\n");
@@ -445,6 +452,10 @@ ulp_ctx_shared_session_open(struct bnxt *bp,
 
 	parms.shadow_copy = true;
 	parms.bp = bp;
+	if (app_id == 0 || app_id == 3)
+		parms.wc_num_slices = TF_WC_TCAM_2_SLICE_PER_ROW;
+	else
+		parms.wc_num_slices = TF_WC_TCAM_1_SLICE_PER_ROW;
 
 	/*
 	 * Open the session here, but the collect the resources during the
@@ -516,6 +527,7 @@ ulp_ctx_session_open(struct bnxt *bp,
 	struct tf_open_session_parms	params;
 	struct tf_session_resources	*resources;
 	uint32_t ulp_dev_id = BNXT_ULP_DEVICE_ID_LAST;
+	uint8_t app_id;
 
 	memset(&params, 0, sizeof(params));
 
@@ -528,6 +540,12 @@ ulp_ctx_session_open(struct bnxt *bp,
 	}
 
 	params.shadow_copy = true;
+
+	rc = bnxt_ulp_cntxt_app_id_get(bp->ulp_ctx, &app_id);
+	if (rc) {
+		BNXT_TF_DBG(ERR, "Unable to get the app id from ulp.\n");
+		return -EINVAL;
+	}
 
 	rc = bnxt_ulp_cntxt_dev_id_get(bp->ulp_ctx, &ulp_dev_id);
 	if (rc) {
@@ -556,6 +574,11 @@ ulp_ctx_session_open(struct bnxt *bp,
 		return rc;
 
 	params.bp = bp;
+	if (app_id == 0 || app_id == 3)
+		params.wc_num_slices = TF_WC_TCAM_2_SLICE_PER_ROW;
+	else
+		params.wc_num_slices = TF_WC_TCAM_1_SLICE_PER_ROW;
+
 	rc = tf_open_session(&bp->tfp, &params);
 	if (rc) {
 		BNXT_TF_DBG(ERR, "Failed to open TF session - %s, rc = %d\n",
@@ -675,6 +698,11 @@ ulp_eem_tbl_scope_init(struct bnxt *bp)
 			    rc);
 		return rc;
 	}
+#ifdef RTE_LIBRTE_BNXT_TRUFLOW_DEBUG
+	BNXT_TF_DBG(DEBUG, "TableScope=0x%0x %d\n",
+		    params.tbl_scope_id,
+		    params.tbl_scope_id);
+#endif
 	rc = bnxt_ulp_cntxt_tbl_scope_id_set(bp->ulp_ctx, params.tbl_scope_id);
 	if (rc) {
 		BNXT_TF_DBG(ERR, "Unable to set table scope id\n");
@@ -807,17 +835,13 @@ ulp_ctx_init(struct bnxt *bp,
 		BNXT_TF_DBG(ERR, "Unable to set app_id for ULP init.\n");
 		goto error_deinit;
 	}
+	BNXT_TF_DBG(DEBUG, "Ulp initialized with app id %d\n", bp->app_id);
 
 	rc = bnxt_ulp_cntxt_app_caps_init(bp->ulp_ctx, bp->app_id, devid);
 	if (rc) {
 		BNXT_TF_DBG(ERR, "Unable to set caps for app(%x)/dev(%x)\n",
 			    bp->app_id, devid);
 		goto error_deinit;
-	}
-
-	if (devid == BNXT_ULP_DEVICE_ID_THOR) {
-		ulp_data->ulp_flags &= ~BNXT_ULP_VF_REP_ENABLED;
-		BNXT_TF_DBG(ERR, "Enabled non-VFR mode\n");
 	}
 
 	/*
@@ -834,8 +858,6 @@ ulp_ctx_init(struct bnxt *bp,
 	rc = ulp_ctx_session_open(bp, session);
 	if (rc)
 		goto error_deinit;
-
-	ulp_tun_tbl_init(ulp_data->tun_tbl);
 
 	bnxt_ulp_cntxt_tfp_set(bp->ulp_ctx, &bp->tfp);
 	return rc;
@@ -879,7 +901,7 @@ ulp_dparms_init(struct bnxt *bp, struct bnxt_ulp_context *ulp_ctx)
 	dparms->ext_flow_db_num_entries = bp->max_num_kflows * 1024;
 	/* GFID =  2 * num_flows */
 	dparms->mark_db_gfid_entries = dparms->ext_flow_db_num_entries * 2;
-	BNXT_TF_DBG(DEBUG, "Set the number of flows = %"PRIu64"\n",
+	BNXT_TF_DBG(DEBUG, "Set the number of flows = %" PRIu64 "\n",
 		    dparms->ext_flow_db_num_entries);
 
 	return 0;
@@ -1378,7 +1400,7 @@ bnxt_ulp_port_init(struct bnxt *bp)
 	}
 
 	if (!BNXT_TRUFLOW_EN(bp)) {
-		BNXT_TF_DBG(DEBUG,
+		BNXT_TF_DBG(ERR,
 			    "Skip ulp init for port: %d, truflow is not enabled\n",
 			    bp->eth_dev->data->port_id);
 		return rc;
@@ -1509,7 +1531,7 @@ bnxt_ulp_port_deinit(struct bnxt *bp)
 	}
 
 	if (!BNXT_TRUFLOW_EN(bp)) {
-		BNXT_TF_DBG(DEBUG,
+		BNXT_TF_DBG(ERR,
 			    "Skip ULP deinit for port:%d, truflow is not enabled\n",
 			    bp->eth_dev->data->port_id);
 		return;
@@ -2018,7 +2040,7 @@ bnxt_ulp_cntxt_list_del(struct bnxt_ulp_context *ulp_ctx)
 	struct ulp_context_list_entry	*entry, *temp;
 
 	rte_spinlock_lock(&bnxt_ulp_ctxt_lock);
-	TAILQ_FOREACH_SAFE(entry, &ulp_cntx_list, next, temp) {
+	RTE_TAILQ_FOREACH_SAFE(entry, &ulp_cntx_list, next, temp) {
 		if (entry->ulp_ctx == ulp_ctx) {
 			TAILQ_REMOVE(&ulp_cntx_list, entry, next);
 			rte_free(entry);
@@ -2046,4 +2068,14 @@ void
 bnxt_ulp_cntxt_entry_release(void)
 {
 	rte_spinlock_unlock(&bnxt_ulp_ctxt_lock);
+}
+
+/* Function to get the app tunnel details from the ulp context. */
+struct bnxt_flow_app_tun_ent *
+bnxt_ulp_cntxt_ptr2_app_tun_list_get(struct bnxt_ulp_context *ulp)
+{
+	if (!ulp || !ulp->cfg_data)
+		return NULL;
+
+	return ulp->cfg_data->app_tun;
 }

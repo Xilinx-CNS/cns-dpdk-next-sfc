@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
  *   Copyright (c) 2016 Freescale Semiconductor, Inc. All rights reserved.
- *   Copyright 2017-2019 NXP
+ *   Copyright 2017-2021 NXP
  *
  */
 
@@ -12,7 +12,7 @@
 
 #include <rte_byteorder.h>
 #include <rte_common.h>
-#include <rte_cryptodev_pmd.h>
+#include <cryptodev_pmd.h>
 #include <rte_crypto.h>
 #include <rte_cryptodev.h>
 #ifdef RTE_LIB_SECURITY
@@ -263,14 +263,31 @@ dpaa_sec_prep_pdcp_cdb(dpaa_sec_session *ses)
 		p_authdata = &authdata;
 	}
 
-	if (rta_inline_pdcp_query(authdata.algtype,
-				cipherdata.algtype,
-				ses->pdcp.sn_size,
-				ses->pdcp.hfn_ovd)) {
-		cipherdata.key =
-			(size_t)rte_dpaa_mem_vtop((void *)
-					(size_t)cipherdata.key);
-		cipherdata.key_type = RTA_DATA_PTR;
+	if (ses->pdcp.sdap_enabled) {
+		int nb_keys_to_inline =
+				rta_inline_pdcp_sdap_query(authdata.algtype,
+					cipherdata.algtype,
+					ses->pdcp.sn_size,
+					ses->pdcp.hfn_ovd);
+		if (nb_keys_to_inline >= 1) {
+			cipherdata.key = (size_t)rte_dpaa_mem_vtop((void *)
+						(size_t)cipherdata.key);
+			cipherdata.key_type = RTA_DATA_PTR;
+		}
+		if (nb_keys_to_inline >= 2) {
+			authdata.key = (size_t)rte_dpaa_mem_vtop((void *)
+						(size_t)authdata.key);
+			authdata.key_type = RTA_DATA_PTR;
+		}
+	} else {
+		if (rta_inline_pdcp_query(authdata.algtype,
+					cipherdata.algtype,
+					ses->pdcp.sn_size,
+					ses->pdcp.hfn_ovd)) {
+			cipherdata.key = (size_t)rte_dpaa_mem_vtop((void *)
+						(size_t)cipherdata.key);
+			cipherdata.key_type = RTA_DATA_PTR;
+		}
 	}
 
 	if (ses->pdcp.domain == RTE_SECURITY_PDCP_MODE_CONTROL) {
@@ -294,6 +311,9 @@ dpaa_sec_prep_pdcp_cdb(dpaa_sec_session *ses)
 					ses->pdcp.hfn_threshold,
 					&cipherdata, &authdata,
 					0);
+	} else if (ses->pdcp.domain == RTE_SECURITY_PDCP_MODE_SHORT_MAC) {
+		shared_desc_len = cnstr_shdsc_pdcp_short_mac(cdb->sh_desc,
+						     1, swap, &authdata);
 	} else {
 		if (ses->dir == DIR_ENC) {
 			if (ses->pdcp.sdap_enabled)
@@ -454,6 +474,7 @@ dpaa_sec_prep_cdb(dpaa_sec_session *ses)
 		switch (ses->cipher_alg) {
 		case RTE_CRYPTO_CIPHER_AES_CBC:
 		case RTE_CRYPTO_CIPHER_3DES_CBC:
+		case RTE_CRYPTO_CIPHER_DES_CBC:
 		case RTE_CRYPTO_CIPHER_AES_CTR:
 		case RTE_CRYPTO_CIPHER_3DES_CTR:
 			shared_desc_len = cnstr_shdsc_blkcipher(
@@ -488,6 +509,18 @@ dpaa_sec_prep_cdb(dpaa_sec_session *ses)
 		alginfo_a.algtype = ses->auth_key.alg;
 		alginfo_a.algmode = ses->auth_key.algmode;
 		switch (ses->auth_alg) {
+		case RTE_CRYPTO_AUTH_MD5:
+		case RTE_CRYPTO_AUTH_SHA1:
+		case RTE_CRYPTO_AUTH_SHA224:
+		case RTE_CRYPTO_AUTH_SHA256:
+		case RTE_CRYPTO_AUTH_SHA384:
+		case RTE_CRYPTO_AUTH_SHA512:
+			shared_desc_len = cnstr_shdsc_hash(
+						cdb->sh_desc, true,
+						swap, SHR_NEVER, &alginfo_a,
+						!ses->dir,
+						ses->digest_length);
+			break;
 		case RTE_CRYPTO_AUTH_MD5_HMAC:
 		case RTE_CRYPTO_AUTH_SHA1_HMAC:
 		case RTE_CRYPTO_AUTH_SHA224_HMAC:
@@ -510,6 +543,15 @@ dpaa_sec_prep_cdb(dpaa_sec_session *ses)
 		case RTE_CRYPTO_AUTH_ZUC_EIA3:
 			shared_desc_len = cnstr_shdsc_zuca(
 						cdb->sh_desc, true, swap,
+						&alginfo_a,
+						!ses->dir,
+						ses->digest_length);
+			break;
+		case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		case RTE_CRYPTO_AUTH_AES_CMAC:
+			shared_desc_len = cnstr_shdsc_aes_mac(
+						cdb->sh_desc,
+						true, swap, SHR_NEVER,
 						&alginfo_a,
 						!ses->dir,
 						ses->digest_length);
@@ -2043,6 +2085,10 @@ dpaa_sec_cipher_init(struct rte_cryptodev *dev __rte_unused,
 		session->cipher_key.alg = OP_ALG_ALGSEL_AES;
 		session->cipher_key.algmode = OP_ALG_AAI_CBC;
 		break;
+	case RTE_CRYPTO_CIPHER_DES_CBC:
+		session->cipher_key.alg = OP_ALG_ALGSEL_DES;
+		session->cipher_key.algmode = OP_ALG_AAI_CBC;
+		break;
 	case RTE_CRYPTO_CIPHER_3DES_CBC:
 		session->cipher_key.alg = OP_ALG_ALGSEL_3DES;
 		session->cipher_key.algmode = OP_ALG_AAI_CBC;
@@ -2075,42 +2121,69 @@ dpaa_sec_auth_init(struct rte_cryptodev *dev __rte_unused,
 {
 	session->ctxt = DPAA_SEC_AUTH;
 	session->auth_alg = xform->auth.algo;
-	session->auth_key.data = rte_zmalloc(NULL, xform->auth.key.length,
-					     RTE_CACHE_LINE_SIZE);
-	if (session->auth_key.data == NULL && xform->auth.key.length > 0) {
-		DPAA_SEC_ERR("No Memory for auth key");
-		return -ENOMEM;
-	}
 	session->auth_key.length = xform->auth.key.length;
+	if (xform->auth.key.length) {
+		session->auth_key.data =
+				rte_zmalloc(NULL, xform->auth.key.length,
+					     RTE_CACHE_LINE_SIZE);
+		if (session->auth_key.data == NULL) {
+			DPAA_SEC_ERR("No Memory for auth key");
+			return -ENOMEM;
+		}
+		memcpy(session->auth_key.data, xform->auth.key.data,
+				xform->auth.key.length);
+
+	}
 	session->digest_length = xform->auth.digest_length;
 	if (session->cipher_alg == RTE_CRYPTO_CIPHER_NULL) {
 		session->iv.offset = xform->auth.iv.offset;
 		session->iv.length = xform->auth.iv.length;
 	}
 
-	memcpy(session->auth_key.data, xform->auth.key.data,
-	       xform->auth.key.length);
-
 	switch (xform->auth.algo) {
+	case RTE_CRYPTO_AUTH_SHA1:
+		session->auth_key.alg = OP_ALG_ALGSEL_SHA1;
+		session->auth_key.algmode = OP_ALG_AAI_HASH;
+		break;
 	case RTE_CRYPTO_AUTH_SHA1_HMAC:
 		session->auth_key.alg = OP_ALG_ALGSEL_SHA1;
 		session->auth_key.algmode = OP_ALG_AAI_HMAC;
+		break;
+	case RTE_CRYPTO_AUTH_MD5:
+		session->auth_key.alg = OP_ALG_ALGSEL_MD5;
+		session->auth_key.algmode = OP_ALG_AAI_HASH;
 		break;
 	case RTE_CRYPTO_AUTH_MD5_HMAC:
 		session->auth_key.alg = OP_ALG_ALGSEL_MD5;
 		session->auth_key.algmode = OP_ALG_AAI_HMAC;
 		break;
+	case RTE_CRYPTO_AUTH_SHA224:
+		session->auth_key.alg = OP_ALG_ALGSEL_SHA224;
+		session->auth_key.algmode = OP_ALG_AAI_HASH;
+		break;
 	case RTE_CRYPTO_AUTH_SHA224_HMAC:
 		session->auth_key.alg = OP_ALG_ALGSEL_SHA224;
 		session->auth_key.algmode = OP_ALG_AAI_HMAC;
+		break;
+	case RTE_CRYPTO_AUTH_SHA256:
+		session->auth_key.alg = OP_ALG_ALGSEL_SHA256;
+		session->auth_key.algmode = OP_ALG_AAI_HASH;
 		break;
 	case RTE_CRYPTO_AUTH_SHA256_HMAC:
 		session->auth_key.alg = OP_ALG_ALGSEL_SHA256;
 		session->auth_key.algmode = OP_ALG_AAI_HMAC;
 		break;
+	case RTE_CRYPTO_AUTH_SHA384:
+		session->auth_key.alg = OP_ALG_ALGSEL_SHA384;
+		session->auth_key.algmode = OP_ALG_AAI_HASH;
+		break;
 	case RTE_CRYPTO_AUTH_SHA384_HMAC:
 		session->auth_key.alg = OP_ALG_ALGSEL_SHA384;
 		session->auth_key.algmode = OP_ALG_AAI_HMAC;
+		break;
+	case RTE_CRYPTO_AUTH_SHA512:
+		session->auth_key.alg = OP_ALG_ALGSEL_SHA512;
+		session->auth_key.algmode = OP_ALG_AAI_HASH;
 		break;
 	case RTE_CRYPTO_AUTH_SHA512_HMAC:
 		session->auth_key.alg = OP_ALG_ALGSEL_SHA512;
@@ -2123,6 +2196,14 @@ dpaa_sec_auth_init(struct rte_cryptodev *dev __rte_unused,
 	case RTE_CRYPTO_AUTH_ZUC_EIA3:
 		session->auth_key.alg = OP_ALG_ALGSEL_ZUCA;
 		session->auth_key.algmode = OP_ALG_AAI_F9;
+		break;
+	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		session->auth_key.alg = OP_ALG_ALGSEL_AES;
+		session->auth_key.algmode = OP_ALG_AAI_XCBC_MAC;
+		break;
+	case RTE_CRYPTO_AUTH_AES_CMAC:
+		session->auth_key.alg = OP_ALG_ALGSEL_AES;
+		session->auth_key.algmode = OP_ALG_AAI_CMAC;
 		break;
 	default:
 		DPAA_SEC_ERR("Crypto: Unsupported Auth specified %u",
@@ -2205,6 +2286,14 @@ dpaa_sec_chain_init(struct rte_cryptodev *dev __rte_unused,
 		session->auth_key.alg = OP_ALG_ALGSEL_SHA512;
 		session->auth_key.algmode = OP_ALG_AAI_HMAC;
 		break;
+	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		session->auth_key.alg = OP_ALG_ALGSEL_AES;
+		session->auth_key.algmode = OP_ALG_AAI_XCBC_MAC;
+		break;
+	case RTE_CRYPTO_AUTH_AES_CMAC:
+		session->auth_key.alg = OP_ALG_ALGSEL_AES;
+		session->auth_key.algmode = OP_ALG_AAI_CMAC;
+		break;
 	default:
 		DPAA_SEC_ERR("Crypto: Unsupported Auth specified %u",
 			      auth_xform->algo);
@@ -2216,6 +2305,10 @@ dpaa_sec_chain_init(struct rte_cryptodev *dev __rte_unused,
 	switch (cipher_xform->algo) {
 	case RTE_CRYPTO_CIPHER_AES_CBC:
 		session->cipher_key.alg = OP_ALG_ALGSEL_AES;
+		session->cipher_key.algmode = OP_ALG_AAI_CBC;
+		break;
+	case RTE_CRYPTO_CIPHER_DES_CBC:
+		session->cipher_key.alg = OP_ALG_ALGSEL_DES;
 		session->cipher_key.algmode = OP_ALG_AAI_CBC;
 		break;
 	case RTE_CRYPTO_CIPHER_3DES_CBC:
@@ -2636,12 +2729,16 @@ dpaa_sec_ipsec_proto_init(struct rte_crypto_cipher_xform *cipher_xform,
 		break;
 	case RTE_CRYPTO_AUTH_AES_CMAC:
 		session->auth_key.alg = OP_PCL_IPSEC_AES_CMAC_96;
+		session->auth_key.algmode = OP_ALG_AAI_CMAC;
 		break;
 	case RTE_CRYPTO_AUTH_NULL:
 		session->auth_key.alg = OP_PCL_IPSEC_HMAC_NULL;
 		break;
-	case RTE_CRYPTO_AUTH_SHA224_HMAC:
 	case RTE_CRYPTO_AUTH_AES_XCBC_MAC:
+		session->auth_key.alg = OP_PCL_IPSEC_AES_XCBC_MAC_96;
+		session->auth_key.algmode = OP_ALG_AAI_XCBC_MAC;
+		break;
+	case RTE_CRYPTO_AUTH_SHA224_HMAC:
 	case RTE_CRYPTO_AUTH_SNOW3G_UIA2:
 	case RTE_CRYPTO_AUTH_SHA1:
 	case RTE_CRYPTO_AUTH_SHA256:
@@ -2665,6 +2762,10 @@ dpaa_sec_ipsec_proto_init(struct rte_crypto_cipher_xform *cipher_xform,
 	switch (session->cipher_alg) {
 	case RTE_CRYPTO_CIPHER_AES_CBC:
 		session->cipher_key.alg = OP_PCL_IPSEC_AES_CBC;
+		session->cipher_key.algmode = OP_ALG_AAI_CBC;
+		break;
+	case RTE_CRYPTO_CIPHER_DES_CBC:
+		session->cipher_key.alg = OP_PCL_IPSEC_DES;
 		session->cipher_key.algmode = OP_ALG_AAI_CBC;
 		break;
 	case RTE_CRYPTO_CIPHER_3DES_CBC:

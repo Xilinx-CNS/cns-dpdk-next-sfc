@@ -100,9 +100,24 @@ struct mlx5_flow_expand_node {
 	 * RSS types bit-field associated with this node
 	 * (see ETH_RSS_* definitions).
 	 */
-	uint8_t optional;
-	/**< optional expand field. Default 0 to expand, 1 not go deeper. */
+	uint64_t node_flags;
+	/**<
+	 *  Bit-fields that define how the node is used in the expansion.
+	 * (see MLX5_EXPANSION_NODE_* definitions).
+	 */
 };
+
+/* Optional expand field. The expansion alg will not go deeper. */
+#define MLX5_EXPANSION_NODE_OPTIONAL (UINT64_C(1) << 0)
+
+/* The node is not added implicitly as expansion to the flow pattern.
+ * If the node type does not match the flow pattern item type, the
+ * expansion alg will go deeper to its next items.
+ * In the current implementation, the list of next nodes indexes can
+ * have up to one node with this flag set and it has to be the last
+ * node index (before the list terminator).
+ */
+#define MLX5_EXPANSION_NODE_EXPLICIT (UINT64_C(1) << 1)
 
 /** Object returned by mlx5_flow_expand_rss(). */
 struct mlx5_flow_expand_rss {
@@ -244,6 +259,26 @@ mlx5_flow_expand_rss_item_complete(const struct rte_flow_item *item)
 	return ret;
 }
 
+static const int *
+mlx5_flow_expand_rss_skip_explicit(const struct mlx5_flow_expand_node graph[],
+		const int *next_node)
+{
+	const struct mlx5_flow_expand_node *node = NULL;
+	const int *next = next_node;
+
+	while (next && *next) {
+		/*
+		 * Skip the nodes with the MLX5_EXPANSION_NODE_EXPLICIT
+		 * flag set, because they were not found in the flow pattern.
+		 */
+		node = &graph[*next];
+		if (!(node->node_flags & MLX5_EXPANSION_NODE_EXPLICIT))
+			break;
+		next = node->next;
+	}
+	return next;
+}
+
 #define MLX5_RSS_EXP_ELT_N 16
 
 /**
@@ -308,10 +343,17 @@ mlx5_flow_expand_rss(struct mlx5_flow_expand_rss *buf, size_t size,
 			continue;
 		}
 		last_item = item;
-		for (i = 0; node->next && node->next[i]; ++i) {
+		i = 0;
+		while (node->next && node->next[i]) {
 			next = &graph[node->next[i]];
 			if (next->type == item->type)
 				break;
+			if (next->node_flags & MLX5_EXPANSION_NODE_EXPLICIT) {
+				node = next;
+				i = 0;
+			} else {
+				++i;
+			}
 		}
 		if (next)
 			node = next;
@@ -369,7 +411,8 @@ mlx5_flow_expand_rss(struct mlx5_flow_expand_rss *buf, size_t size,
 		}
 	}
 	memset(flow_items, 0, sizeof(flow_items));
-	next_node = node->next;
+	next_node = mlx5_flow_expand_rss_skip_explicit(graph,
+			node->next);
 	stack[stack_pos] = next_node;
 	node = next_node ? &graph[*next_node] : NULL;
 	while (node) {
@@ -404,8 +447,10 @@ mlx5_flow_expand_rss(struct mlx5_flow_expand_rss *buf, size_t size,
 			addr = (void *)(((uintptr_t)addr) + n);
 		}
 		/* Go deeper. */
-		if (!node->optional && node->next) {
-			next_node = node->next;
+		if (!(node->node_flags & MLX5_EXPANSION_NODE_OPTIONAL) &&
+				node->next) {
+			next_node = mlx5_flow_expand_rss_skip_explicit(graph,
+					node->next);
 			if (stack_pos++ == MLX5_RSS_EXP_ELT_N) {
 				rte_errno = E2BIG;
 				return -rte_errno;
@@ -413,15 +458,27 @@ mlx5_flow_expand_rss(struct mlx5_flow_expand_rss *buf, size_t size,
 			stack[stack_pos] = next_node;
 		} else if (*(next_node + 1)) {
 			/* Follow up with the next possibility. */
+			next_node = mlx5_flow_expand_rss_skip_explicit(graph,
+					++next_node);
+		} else if (!stack_pos) {
+			/*
+			 * Completing the traverse over the different paths.
+			 * The next_node is advanced to the terminator.
+			 */
 			++next_node;
 		} else {
 			/* Move to the next path. */
-			if (stack_pos)
+			while (stack_pos) {
 				next_node = stack[--stack_pos];
-			next_node++;
+				next_node++;
+				if (*next_node)
+					break;
+			}
+			next_node = mlx5_flow_expand_rss_skip_explicit(graph,
+					next_node);
 			stack[stack_pos] = next_node;
 		}
-		node = *next_node ? &graph[*next_node] : NULL;
+		node = next_node && *next_node ? &graph[*next_node] : NULL;
 	};
 	return lsize;
 }
@@ -429,10 +486,7 @@ mlx5_flow_expand_rss(struct mlx5_flow_expand_rss *buf, size_t size,
 enum mlx5_expansion {
 	MLX5_EXPANSION_ROOT,
 	MLX5_EXPANSION_ROOT_OUTER,
-	MLX5_EXPANSION_ROOT_ETH_VLAN,
-	MLX5_EXPANSION_ROOT_OUTER_ETH_VLAN,
 	MLX5_EXPANSION_OUTER_ETH,
-	MLX5_EXPANSION_OUTER_ETH_VLAN,
 	MLX5_EXPANSION_OUTER_VLAN,
 	MLX5_EXPANSION_OUTER_IPV4,
 	MLX5_EXPANSION_OUTER_IPV4_UDP,
@@ -447,7 +501,6 @@ enum mlx5_expansion {
 	MLX5_EXPANSION_GRE_KEY,
 	MLX5_EXPANSION_MPLS,
 	MLX5_EXPANSION_ETH,
-	MLX5_EXPANSION_ETH_VLAN,
 	MLX5_EXPANSION_VLAN,
 	MLX5_EXPANSION_IPV4,
 	MLX5_EXPANSION_IPV4_UDP,
@@ -473,22 +526,7 @@ static const struct mlx5_flow_expand_node mlx5_support_expansion[] = {
 						  MLX5_EXPANSION_OUTER_IPV6),
 		.type = RTE_FLOW_ITEM_TYPE_END,
 	},
-	[MLX5_EXPANSION_ROOT_ETH_VLAN] = {
-		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_ETH_VLAN),
-		.type = RTE_FLOW_ITEM_TYPE_END,
-	},
-	[MLX5_EXPANSION_ROOT_OUTER_ETH_VLAN] = {
-		.next = MLX5_FLOW_EXPAND_RSS_NEXT
-						(MLX5_EXPANSION_OUTER_ETH_VLAN),
-		.type = RTE_FLOW_ITEM_TYPE_END,
-	},
 	[MLX5_EXPANSION_OUTER_ETH] = {
-		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_OUTER_IPV4,
-						  MLX5_EXPANSION_OUTER_IPV6),
-		.type = RTE_FLOW_ITEM_TYPE_ETH,
-		.rss_types = 0,
-	},
-	[MLX5_EXPANSION_OUTER_ETH_VLAN] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_OUTER_VLAN),
 		.type = RTE_FLOW_ITEM_TYPE_ETH,
 		.rss_types = 0,
@@ -497,6 +535,7 @@ static const struct mlx5_flow_expand_node mlx5_support_expansion[] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_OUTER_IPV4,
 						  MLX5_EXPANSION_OUTER_IPV6),
 		.type = RTE_FLOW_ITEM_TYPE_VLAN,
+		.node_flags = MLX5_EXPANSION_NODE_EXPLICIT,
 	},
 	[MLX5_EXPANSION_OUTER_IPV4] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT
@@ -570,7 +609,7 @@ static const struct mlx5_flow_expand_node mlx5_support_expansion[] = {
 						  MLX5_EXPANSION_IPV6,
 						  MLX5_EXPANSION_MPLS),
 		.type = RTE_FLOW_ITEM_TYPE_GRE_KEY,
-		.optional = 1,
+		.node_flags = MLX5_EXPANSION_NODE_OPTIONAL,
 	},
 	[MLX5_EXPANSION_NVGRE] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_ETH),
@@ -581,14 +620,9 @@ static const struct mlx5_flow_expand_node mlx5_support_expansion[] = {
 						  MLX5_EXPANSION_IPV6,
 						  MLX5_EXPANSION_ETH),
 		.type = RTE_FLOW_ITEM_TYPE_MPLS,
-		.optional = 1,
+		.node_flags = MLX5_EXPANSION_NODE_OPTIONAL,
 	},
 	[MLX5_EXPANSION_ETH] = {
-		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_IPV4,
-						  MLX5_EXPANSION_IPV6),
-		.type = RTE_FLOW_ITEM_TYPE_ETH,
-	},
-	[MLX5_EXPANSION_ETH_VLAN] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_VLAN),
 		.type = RTE_FLOW_ITEM_TYPE_ETH,
 	},
@@ -596,6 +630,7 @@ static const struct mlx5_flow_expand_node mlx5_support_expansion[] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_IPV4,
 						  MLX5_EXPANSION_IPV6),
 		.type = RTE_FLOW_ITEM_TYPE_VLAN,
+		.node_flags = MLX5_EXPANSION_NODE_EXPLICIT,
 	},
 	[MLX5_EXPANSION_IPV4] = {
 		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_IPV4_UDP,
@@ -632,10 +667,10 @@ static const struct mlx5_flow_expand_node mlx5_support_expansion[] = {
 		.type = RTE_FLOW_ITEM_TYPE_IPV6_FRAG_EXT,
 	},
 	[MLX5_EXPANSION_GTP] = {
-			.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_IPV4,
-							  MLX5_EXPANSION_IPV6),
-			.type = RTE_FLOW_ITEM_TYPE_GTP
-	}
+		.next = MLX5_FLOW_EXPAND_RSS_NEXT(MLX5_EXPANSION_IPV4,
+						  MLX5_EXPANSION_IPV6),
+		.type = RTE_FLOW_ITEM_TYPE_GTP,
+	},
 };
 
 static struct rte_flow_action_handle *
@@ -3774,20 +3809,8 @@ flow_get_shared_rss_action(struct rte_eth_dev *dev,
 }
 
 static unsigned int
-find_graph_root(const struct rte_flow_item pattern[], uint32_t rss_level)
+find_graph_root(uint32_t rss_level)
 {
-	const struct rte_flow_item *item;
-	unsigned int has_vlan = 0;
-
-	for (item = pattern; item->type != RTE_FLOW_ITEM_TYPE_END; item++) {
-		if (item->type == RTE_FLOW_ITEM_TYPE_VLAN) {
-			has_vlan = 1;
-			break;
-		}
-	}
-	if (has_vlan)
-		return rss_level < 2 ? MLX5_EXPANSION_ROOT_ETH_VLAN :
-				       MLX5_EXPANSION_ROOT_OUTER_ETH_VLAN;
 	return rss_level < 2 ? MLX5_EXPANSION_ROOT :
 			       MLX5_EXPANSION_ROOT_OUTER;
 }
@@ -6281,7 +6304,7 @@ flow_list_create(struct rte_eth_dev *dev, enum mlx5_flow_type type,
 	int indir_actions_n = MLX5_MAX_INDIRECT_ACTIONS;
 	union {
 		struct mlx5_flow_expand_rss buf;
-		uint8_t buffer[2048];
+		uint8_t buffer[4096];
 	} expand_buffer;
 	union {
 		struct rte_flow_action actions[MLX5_MAX_SPLIT_ACTIONS];
@@ -6372,7 +6395,7 @@ flow_list_create(struct rte_eth_dev *dev, enum mlx5_flow_type type,
 	if (rss && rss->types) {
 		unsigned int graph_root;
 
-		graph_root = find_graph_root(items, rss->level);
+		graph_root = find_graph_root(rss->level);
 		ret = mlx5_flow_expand_rss(buf, sizeof(expand_buffer.buffer),
 					   items, rss->types,
 					   mlx5_support_expansion, graph_root);

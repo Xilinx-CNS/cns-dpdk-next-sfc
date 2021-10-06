@@ -10,6 +10,7 @@
 #include <stdbool.h>
 
 #include <rte_mbuf.h>
+#include <rte_mbuf_dyn.h>
 #include <rte_io.h>
 #include <rte_net.h>
 
@@ -309,6 +310,19 @@ sfc_ef100_tx_reap(struct sfc_ef100_txq *txq)
 	sfc_ef100_tx_reap_num_descs(txq, sfc_ef100_tx_process_events(txq));
 }
 
+static void
+sfc_ef100_tx_qdesc_prefix_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
+{
+	efx_mport_id_t *mport_id =
+		RTE_MBUF_DYNFIELD(m, sfc_dp_mport_offset, efx_mport_id_t *);
+
+	EFX_POPULATE_OWORD_3(*tx_desc,
+			ESF_GZ_TX_PREFIX_EGRESS_MPORT,
+			mport_id->id,
+			ESF_GZ_TX_PREFIX_EGRESS_MPORT_EN, 1,
+			ESF_GZ_TX_DESC_TYPE, ESE_GZ_TX_DESC_TYPE_PREFIX);
+}
+
 static uint8_t
 sfc_ef100_tx_qdesc_cso_inner_l3(uint64_t tx_tunnel)
 {
@@ -370,6 +384,7 @@ sfc_ef100_tx_qdesc_send_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
 				m->l2_len + m->l3_len) >> 1;
 	}
 
+	/* TODO map send address */
 	EFX_POPULATE_OWORD_10(*tx_desc,
 			ESF_GZ_TX_SEND_ADDR, rte_mbuf_data_iova(m),
 			ESF_GZ_TX_SEND_LEN, rte_pktmbuf_data_len(m),
@@ -525,6 +540,11 @@ sfc_ef100_tx_pkt_descs_max(const struct rte_mbuf *m)
 				 SFC_MBUF_SEG_LEN_MAX));
 	}
 
+	if (m->ol_flags & sfc_dp_mport_override) {
+		/* Tx override prefix descriptor will be used */
+		extra_descs++;
+	}
+
 	/*
 	 * Any segment of scattered packet cannot be bigger than maximum
 	 * segment length. Make sure that subsequent segments do not need
@@ -576,6 +596,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 		id = (*added)++ & txq->ptr_mask;
 		if (rte_pktmbuf_data_len(m_seg) <= remaining_hdr_len) {
 			/* The segment is fully header segment */
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(
 				rte_mbuf_data_iova(m_seg),
 				rte_pktmbuf_data_len(m_seg),
@@ -586,6 +607,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 			 * The segment must be split into header and
 			 * payload segments
 			 */
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(
 				rte_mbuf_data_iova(m_seg),
 				remaining_hdr_len,
@@ -593,6 +615,7 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 			SFC_ASSERT(txq->sw_ring[id].mbuf == NULL);
 
 			id = (*added)++ & txq->ptr_mask;
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(
 				rte_mbuf_data_iova(m_seg) + remaining_hdr_len,
 				rte_pktmbuf_data_len(m_seg) - remaining_hdr_len,
@@ -671,6 +694,12 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 				break;
 		}
 
+		if (m_seg->ol_flags & sfc_dp_mport_override) {
+			id = added++ & txq->ptr_mask;
+			sfc_ef100_tx_qdesc_prefix_create(m_seg,
+							 &txq->txq_hw_ring[id]);
+		}
+
 		if (m_seg->ol_flags & PKT_TX_TCP_SEG) {
 			m_seg = sfc_ef100_xmit_tso_pkt(txq, m_seg, &added);
 		} else {
@@ -702,6 +731,7 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 					 SFC_EF100_TX_SEG_DESC_LEN_MAX);
 
 			id = added++ & txq->ptr_mask;
+			/* TODO map send address */
 			sfc_ef100_tx_qdesc_seg_create(rte_mbuf_data_iova(m_seg),
 					rte_pktmbuf_data_len(m_seg),
 					&txq->txq_hw_ring[id]);
@@ -710,6 +740,9 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		}
 
 		dma_desc_space -= (added - pkt_start);
+
+		sfc_pkts_bytes_add(&txq->dp.dpq.stats, 1,
+				   rte_pktmbuf_pkt_len(*pktp));
 	}
 
 	if (likely(added != txq->added)) {
@@ -940,7 +973,8 @@ struct sfc_dp_tx sfc_ef100_tx = {
 		.type		= SFC_DP_TX,
 		.hw_fw_caps	= SFC_DP_HW_FW_CAP_EF100,
 	},
-	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS,
+	.features		= SFC_DP_TX_FEAT_MULTI_PROCESS |
+				  SFC_DP_TX_FEAT_STATS,
 	.dev_offload_capa	= 0,
 	.queue_offload_capa	= DEV_TX_OFFLOAD_VLAN_INSERT |
 				  DEV_TX_OFFLOAD_IPV4_CKSUM |

@@ -167,15 +167,12 @@ ixgbe_dev_xstats_get_by_id(struct rte_eth_dev *dev, const uint64_t *ids,
 static int ixgbe_dev_stats_reset(struct rte_eth_dev *dev);
 static int ixgbe_dev_xstats_reset(struct rte_eth_dev *dev);
 static int ixgbe_dev_xstats_get_names(struct rte_eth_dev *dev,
+	const uint64_t *ids,
 	struct rte_eth_xstat_name *xstats_names,
 	unsigned int size);
 static int ixgbevf_dev_xstats_get_names(struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names, unsigned limit);
-static int ixgbe_dev_xstats_get_names_by_id(
-	struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names,
 	const uint64_t *ids,
-	unsigned int limit);
+	struct rte_eth_xstat_name *xstats_names, unsigned limit);
 static int ixgbe_dev_queue_stats_mapping_set(struct rte_eth_dev *eth_dev,
 					     uint16_t queue_id,
 					     uint8_t stat_idx,
@@ -499,7 +496,6 @@ static const struct eth_dev_ops ixgbe_eth_dev_ops = {
 	.stats_reset          = ixgbe_dev_stats_reset,
 	.xstats_reset         = ixgbe_dev_xstats_reset,
 	.xstats_get_names     = ixgbe_dev_xstats_get_names,
-	.xstats_get_names_by_id = ixgbe_dev_xstats_get_names_by_id,
 	.queue_stats_mapping_set = ixgbe_dev_queue_stats_mapping_set,
 	.fw_version_get       = ixgbe_fw_version_get,
 	.dev_infos_get        = ixgbe_dev_info_get,
@@ -1218,6 +1214,8 @@ eth_ixgbe_dev_init(struct rte_eth_dev *eth_dev, void *init_params __rte_unused)
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate %d bytes needed to store MAC addresses",
 			     RTE_ETHER_ADDR_LEN * IXGBE_VMDQ_NUM_UC_MAC);
+		rte_free(eth_dev->data->mac_addrs);
+		eth_dev->data->mac_addrs = NULL;
 		return -ENOMEM;
 	}
 
@@ -1393,6 +1391,7 @@ static int ixgbe_fdir_filter_init(struct rte_eth_dev *eth_dev)
 	if (!fdir_info->hash_map) {
 		PMD_INIT_LOG(ERR,
 			     "Failed to allocate memory for fdir hash map!");
+		rte_hash_free(fdir_info->hash_handle);
 		return -ENOMEM;
 	}
 	fdir_info->mask_added = FALSE;
@@ -1429,6 +1428,7 @@ static int ixgbe_l2_tn_filter_init(struct rte_eth_dev *eth_dev)
 	if (!l2_tn_info->hash_map) {
 		PMD_INIT_LOG(ERR,
 			"Failed to allocate memory for L2 TN hash map!");
+		rte_hash_free(l2_tn_info->hash_handle);
 		return -ENOMEM;
 	}
 	l2_tn_info->e_tag_en = FALSE;
@@ -1650,13 +1650,8 @@ eth_ixgbevf_dev_init(struct rte_eth_dev *eth_dev)
 		}
 		PMD_INIT_LOG(INFO, "\tVF MAC address not assigned by Host PF");
 		PMD_INIT_LOG(INFO, "\tAssign randomly generated MAC address "
-			     "%02x:%02x:%02x:%02x:%02x:%02x",
-			     perm_addr->addr_bytes[0],
-			     perm_addr->addr_bytes[1],
-			     perm_addr->addr_bytes[2],
-			     perm_addr->addr_bytes[3],
-			     perm_addr->addr_bytes[4],
-			     perm_addr->addr_bytes[5]);
+			     RTE_ETHER_ADDR_PRT_FMT,
+				 RTE_ETHER_ADDR_BYTES(perm_addr));
 	}
 
 	/* Copy the permanent MAC address */
@@ -1670,6 +1665,8 @@ eth_ixgbevf_dev_init(struct rte_eth_dev *eth_dev)
 
 	default:
 		PMD_INIT_LOG(ERR, "VF Initialization Failure: %d", diag);
+		rte_free(eth_dev->data->mac_addrs);
+		eth_dev->data->mac_addrs = NULL;
 		return -EIO;
 	}
 
@@ -3380,64 +3377,10 @@ ixgbe_xstats_calc_num(void) {
 		(IXGBE_NB_TXQ_PRIO_STATS * IXGBE_NB_TXQ_PRIO_VALUES);
 }
 
-static int ixgbe_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names, __rte_unused unsigned int size)
-{
-	const unsigned cnt_stats = ixgbe_xstats_calc_num();
-	unsigned stat, i, count;
-
-	if (xstats_names != NULL) {
-		count = 0;
-
-		/* Note: limit >= cnt_stats checked upstream
-		 * in rte_eth_xstats_names()
-		 */
-
-		/* Extended stats from ixgbe_hw_stats */
-		for (i = 0; i < IXGBE_NB_HW_STATS; i++) {
-			strlcpy(xstats_names[count].name,
-				rte_ixgbe_stats_strings[i].name,
-				sizeof(xstats_names[count].name));
-			count++;
-		}
-
-		/* MACsec Stats */
-		for (i = 0; i < IXGBE_NB_MACSEC_STATS; i++) {
-			strlcpy(xstats_names[count].name,
-				rte_ixgbe_macsec_strings[i].name,
-				sizeof(xstats_names[count].name));
-			count++;
-		}
-
-		/* RX Priority Stats */
-		for (stat = 0; stat < IXGBE_NB_RXQ_PRIO_STATS; stat++) {
-			for (i = 0; i < IXGBE_NB_RXQ_PRIO_VALUES; i++) {
-				snprintf(xstats_names[count].name,
-					sizeof(xstats_names[count].name),
-					"rx_priority%u_%s", i,
-					rte_ixgbe_rxq_strings[stat].name);
-				count++;
-			}
-		}
-
-		/* TX Priority Stats */
-		for (stat = 0; stat < IXGBE_NB_TXQ_PRIO_STATS; stat++) {
-			for (i = 0; i < IXGBE_NB_TXQ_PRIO_VALUES; i++) {
-				snprintf(xstats_names[count].name,
-					sizeof(xstats_names[count].name),
-					"tx_priority%u_%s", i,
-					rte_ixgbe_txq_strings[stat].name);
-				count++;
-			}
-		}
-	}
-	return cnt_stats;
-}
-
-static int ixgbe_dev_xstats_get_names_by_id(
+static int ixgbe_dev_xstats_get_names(
 	struct rte_eth_dev *dev,
-	struct rte_eth_xstat_name *xstats_names,
 	const uint64_t *ids,
+	struct rte_eth_xstat_name *xstats_names,
 	unsigned int limit)
 {
 	if (!ids) {
@@ -3496,8 +3439,7 @@ static int ixgbe_dev_xstats_get_names_by_id(
 	uint16_t size = ixgbe_xstats_calc_num();
 	struct rte_eth_xstat_name xstats_names_copy[size];
 
-	ixgbe_dev_xstats_get_names_by_id(dev, xstats_names_copy, NULL,
-			size);
+	ixgbe_dev_xstats_get_names(dev, NULL, xstats_names_copy, size);
 
 	for (i = 0; i < limit; i++) {
 		if (ids[i] >= size) {
@@ -3511,12 +3453,16 @@ static int ixgbe_dev_xstats_get_names_by_id(
 }
 
 static int ixgbevf_dev_xstats_get_names(__rte_unused struct rte_eth_dev *dev,
+	const uint64_t *ids,
 	struct rte_eth_xstat_name *xstats_names, unsigned limit)
 {
 	unsigned i;
 
 	if (limit < IXGBEVF_NB_XSTATS && xstats_names != NULL)
 		return -ENOMEM;
+
+	if (ids != NULL)
+		return -ENOTSUP;
 
 	if (xstats_names != NULL)
 		for (i = 0; i < IXGBEVF_NB_XSTATS; i++)
@@ -3798,6 +3744,7 @@ ixgbevf_dev_stats_reset(struct rte_eth_dev *dev)
 	hw_stats->vfgorc = 0;
 	hw_stats->vfgptc = 0;
 	hw_stats->vfgotc = 0;
+	hw_stats->vfmprc = 0;
 
 	return 0;
 }
@@ -5364,8 +5311,10 @@ ixgbevf_dev_start(struct rte_eth_dev *dev)
 		 * now only one vector is used for Rx queue
 		 */
 		intr_vector = 1;
-		if (rte_intr_efd_enable(intr_handle, intr_vector))
+		if (rte_intr_efd_enable(intr_handle, intr_vector)) {
+			ixgbe_dev_clear_queues(dev);
 			return -1;
+		}
 	}
 
 	if (rte_intr_dp_is_en(intr_handle) && !intr_handle->intr_vec) {
@@ -5375,6 +5324,7 @@ ixgbevf_dev_start(struct rte_eth_dev *dev)
 		if (intr_handle->intr_vec == NULL) {
 			PMD_INIT_LOG(ERR, "Failed to allocate %d rx_queues"
 				     " intr_vec", dev->data->nb_rx_queues);
+			ixgbe_dev_clear_queues(dev);
 			return -ENOMEM;
 		}
 	}
@@ -6301,14 +6251,8 @@ ixgbevf_add_mac_addr(struct rte_eth_dev *dev, struct rte_ether_addr *mac_addr,
 	diag = ixgbevf_set_uc_addr_vf(hw, 2, mac_addr->addr_bytes);
 	if (diag != 0)
 		PMD_DRV_LOG(ERR, "Unable to add MAC address "
-			    "%02x:%02x:%02x:%02x:%02x:%02x - diag=%d",
-			    mac_addr->addr_bytes[0],
-			    mac_addr->addr_bytes[1],
-			    mac_addr->addr_bytes[2],
-			    mac_addr->addr_bytes[3],
-			    mac_addr->addr_bytes[4],
-			    mac_addr->addr_bytes[5],
-			    diag);
+			    RTE_ETHER_ADDR_PRT_FMT " - diag=%d",
+			    RTE_ETHER_ADDR_BYTES(mac_addr), diag);
 	return diag;
 }
 
@@ -6350,14 +6294,8 @@ ixgbevf_remove_mac_addr(struct rte_eth_dev *dev, uint32_t index)
 		if (diag != 0)
 			PMD_DRV_LOG(ERR,
 				    "Adding again MAC address "
-				    "%02x:%02x:%02x:%02x:%02x:%02x failed "
-				    "diag=%d",
-				    mac_addr->addr_bytes[0],
-				    mac_addr->addr_bytes[1],
-				    mac_addr->addr_bytes[2],
-				    mac_addr->addr_bytes[3],
-				    mac_addr->addr_bytes[4],
-				    mac_addr->addr_bytes[5],
+				     RTE_ETHER_ADDR_PRT_FMT " failed "
+				    "diag=%d", RTE_ETHER_ADDR_BYTES(mac_addr),
 				    diag);
 	}
 }

@@ -270,6 +270,7 @@ ice_program_hw_rx_queue(struct ice_rx_queue *rxq)
 	struct rte_eth_rxmode *rxmode = &dev_data->dev_conf.rxmode;
 	uint32_t rxdid = ICE_RXDID_COMMS_OVS;
 	uint32_t regval;
+	struct ice_adapter *ad = rxq->vsi->adapter;
 
 	/* Set buffer size as the head split is disabled. */
 	buf_size = (uint16_t)(rte_pktmbuf_data_room_size(rxq->mp) -
@@ -298,6 +299,18 @@ ice_program_hw_rx_queue(struct ice_rx_queue *rxq)
 				    "as jumbo frame is disabled",
 				    (uint32_t)RTE_ETHER_MIN_LEN,
 				    (uint32_t)ICE_ETH_MAX_LEN);
+			return -EINVAL;
+		}
+	}
+
+	if (rxq->offloads & DEV_RX_OFFLOAD_TIMESTAMP) {
+		/* Register mbuf field and flag for Rx timestamp */
+		err = rte_mbuf_dyn_rx_timestamp_register(
+				&ice_timestamp_dynfield_offset,
+				&ice_timestamp_dynflag);
+		if (err) {
+			PMD_DRV_LOG(ERR,
+				"Cannot register mbuf field/flag for timestamp");
 			return -EINVAL;
 		}
 	}
@@ -353,6 +366,9 @@ ice_program_hw_rx_queue(struct ice_rx_queue *rxq)
 	 */
 	regval |= (0x03 << QRXFLXP_CNTXT_RXDID_PRIO_S) &
 		QRXFLXP_CNTXT_RXDID_PRIO_M;
+
+	if (ad->ptp_ena || rxq->offloads & DEV_RX_OFFLOAD_TIMESTAMP)
+		regval |= QRXFLXP_CNTXT_TS_M;
 
 	ICE_WRITE_REG(hw, QRXFLXP_CNTXT(rxq->reg_idx), regval);
 
@@ -689,6 +705,7 @@ ice_tx_queue_start(struct rte_eth_dev *dev, uint16_t tx_queue_id)
 	tx_ctx.tso_ena = 1; /* tso enable */
 	tx_ctx.tso_qnum = txq->reg_idx; /* index for tso state structure */
 	tx_ctx.legacy_int = 1; /* Legacy or Advanced Host Interface */
+	tx_ctx.tsyn_ena = 1;
 
 	ice_set_ctx(hw, (uint8_t *)&tx_ctx, txq_elem->txqs[0].txq_ctx,
 		    ice_tlan_ctx_info);
@@ -1546,6 +1563,10 @@ ice_rx_scan_hw_ring(struct ice_rx_queue *rxq)
 	int32_t i, j, nb_rx = 0;
 	uint64_t pkt_flags = 0;
 	uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+	struct ice_vsi *vsi = rxq->vsi;
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	uint64_t ts_ns;
+	struct ice_adapter *ad = rxq->vsi->adapter;
 
 	rxdp = &rxq->rx_ring[rxq->rx_tail];
 	rxep = &rxq->sw_ring[rxq->rx_tail];
@@ -1588,6 +1609,25 @@ ice_rx_scan_hw_ring(struct ice_rx_queue *rxq)
 				rte_le_to_cpu_16(rxdp[j].wb.ptype_flex_flags0)];
 			ice_rxd_to_vlan_tci(mb, &rxdp[j]);
 			rxq->rxd_to_pkt_fields(rxq, mb, &rxdp[j]);
+
+			if (rxq->offloads & DEV_RX_OFFLOAD_TIMESTAMP) {
+				ts_ns = ice_tstamp_convert_32b_64b(hw,
+					rte_le_to_cpu_32(rxdp[j].wb.flex_ts.ts_high));
+				if (ice_timestamp_dynflag > 0) {
+					*RTE_MBUF_DYNFIELD(mb,
+						ice_timestamp_dynfield_offset,
+						rte_mbuf_timestamp_t *) = ts_ns;
+					mb->ol_flags |= ice_timestamp_dynflag;
+				}
+			}
+
+			if (ad->ptp_ena && ((mb->packet_type &
+			    RTE_PTYPE_L2_MASK) == RTE_PTYPE_L2_ETHER_TIMESYNC)) {
+				rxq->time_high =
+				   rte_le_to_cpu_32(rxdp[j].wb.flex_ts.ts_high);
+				mb->timesync = rxq->queue_id;
+				pkt_flags |= PKT_RX_IEEE1588_PTP;
+			}
 
 			mb->ol_flags |= pkt_flags;
 		}
@@ -1772,6 +1812,10 @@ ice_recv_scattered_pkts(void *rx_queue,
 	uint64_t dma_addr;
 	uint64_t pkt_flags;
 	uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+	struct ice_vsi *vsi = rxq->vsi;
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	uint64_t ts_ns;
+	struct ice_adapter *ad = rxq->vsi->adapter;
 
 	while (nb_rx < nb_pkts) {
 		rxdp = &rx_ring[rx_id];
@@ -1882,6 +1926,26 @@ ice_recv_scattered_pkts(void *rx_queue,
 		ice_rxd_to_vlan_tci(first_seg, &rxd);
 		rxq->rxd_to_pkt_fields(rxq, first_seg, &rxd);
 		pkt_flags = ice_rxd_error_to_pkt_flags(rx_stat_err0);
+
+		if (rxq->offloads & DEV_RX_OFFLOAD_TIMESTAMP) {
+			ts_ns = ice_tstamp_convert_32b_64b(hw,
+				rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high));
+			if (ice_timestamp_dynflag > 0) {
+				*RTE_MBUF_DYNFIELD(first_seg,
+					ice_timestamp_dynfield_offset,
+					rte_mbuf_timestamp_t *) = ts_ns;
+				first_seg->ol_flags |= ice_timestamp_dynflag;
+			}
+		}
+
+		if (ad->ptp_ena && ((first_seg->packet_type & RTE_PTYPE_L2_MASK)
+		    == RTE_PTYPE_L2_ETHER_TIMESYNC)) {
+			rxq->time_high =
+			   rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high);
+			first_seg->timesync = rxq->queue_id;
+			pkt_flags |= PKT_RX_IEEE1588_PTP;
+		}
+
 		first_seg->ol_flags |= pkt_flags;
 		/* Prefetch data of first segment, if configured to do so. */
 		rte_prefetch0(RTE_PTR_ADD(first_seg->buf_addr,
@@ -2237,6 +2301,10 @@ ice_recv_pkts(void *rx_queue,
 	uint64_t dma_addr;
 	uint64_t pkt_flags;
 	uint32_t *ptype_tbl = rxq->vsi->adapter->ptype_tbl;
+	struct ice_vsi *vsi = rxq->vsi;
+	struct ice_hw *hw = ICE_VSI_TO_HW(vsi);
+	uint64_t ts_ns;
+	struct ice_adapter *ad = rxq->vsi->adapter;
 
 	while (nb_rx < nb_pkts) {
 		rxdp = &rx_ring[rx_id];
@@ -2288,6 +2356,26 @@ ice_recv_pkts(void *rx_queue,
 		ice_rxd_to_vlan_tci(rxm, &rxd);
 		rxq->rxd_to_pkt_fields(rxq, rxm, &rxd);
 		pkt_flags = ice_rxd_error_to_pkt_flags(rx_stat_err0);
+
+		if (rxq->offloads & DEV_RX_OFFLOAD_TIMESTAMP) {
+			ts_ns = ice_tstamp_convert_32b_64b(hw,
+				rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high));
+			if (ice_timestamp_dynflag > 0) {
+				*RTE_MBUF_DYNFIELD(rxm,
+					ice_timestamp_dynfield_offset,
+					rte_mbuf_timestamp_t *) = ts_ns;
+				rxm->ol_flags |= ice_timestamp_dynflag;
+			}
+		}
+
+		if (ad->ptp_ena && ((rxm->packet_type & RTE_PTYPE_L2_MASK) ==
+		    RTE_PTYPE_L2_ETHER_TIMESYNC)) {
+			rxq->time_high =
+			   rte_le_to_cpu_32(rxd.wb.flex_ts.ts_high);
+			rxm->timesync = rxq->queue_id;
+			pkt_flags |= PKT_RX_IEEE1588_PTP;
+		}
+
 		rxm->ol_flags |= pkt_flags;
 		/* copy old mbuf to rx_pkts */
 		rx_pkts[nb_rx++] = rxm;
@@ -2499,7 +2587,8 @@ ice_calc_context_desc(uint64_t flags)
 	static uint64_t mask = PKT_TX_TCP_SEG |
 		PKT_TX_QINQ |
 		PKT_TX_OUTER_IP_CKSUM |
-		PKT_TX_TUNNEL_MASK;
+		PKT_TX_TUNNEL_MASK |
+		PKT_TX_IEEE1588_TMST;
 
 	return (flags & mask) ? 1 : 0;
 }
@@ -2667,6 +2756,10 @@ ice_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 			if (ol_flags & PKT_TX_TCP_SEG)
 				cd_type_cmd_tso_mss |=
 					ice_set_tso_ctx(tx_pkt, tx_offload);
+			else if (ol_flags & PKT_TX_IEEE1588_TMST)
+				cd_type_cmd_tso_mss |=
+					((uint64_t)ICE_TX_CTX_DESC_TSYN <<
+					ICE_TXD_CTX_QW1_CMD_S);
 
 			ctx_txd->tunneling_params =
 				rte_cpu_to_le_32(cd_tunneling_params);
@@ -3068,6 +3161,8 @@ ice_set_rx_function(struct rte_eth_dev *dev)
 		ad->rx_use_avx512 = false;
 		ad->rx_use_avx2 = false;
 		rx_check_ret = ice_rx_vec_dev_check(dev);
+		if (ad->ptp_ena)
+			rx_check_ret = -1;
 		if (rx_check_ret >= 0 && ad->rx_bulk_alloc_allowed &&
 		    rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_128) {
 			ad->rx_vec_allowed = true;

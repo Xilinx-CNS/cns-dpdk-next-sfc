@@ -1942,12 +1942,10 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 			const struct rte_eth_rxconf *rx_conf,
 			struct rte_mempool *mp)
 {
-	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_adapter *ad =
 		I40E_DEV_PRIVATE_TO_ADAPTER(dev->data->dev_private);
 	struct i40e_vsi *vsi;
 	struct i40e_pf *pf = NULL;
-	struct i40e_vf *vf = NULL;
 	struct i40e_rx_queue *rxq;
 	const struct rte_memzone *rz;
 	uint32_t ring_size;
@@ -1958,22 +1956,14 @@ i40e_dev_rx_queue_setup(struct rte_eth_dev *dev,
 
 	offloads = rx_conf->offloads | dev->data->dev_conf.rxmode.offloads;
 
-	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
-		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
-		vsi = &vf->vsi;
-		if (!vsi)
-			return -EINVAL;
-		reg_idx = queue_idx;
-	} else {
-		pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
-		if (!vsi)
-			return -EINVAL;
-		q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
-		if (q_offset < 0)
-			return -EINVAL;
-		reg_idx = vsi->base_queue + q_offset;
-	}
+	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+	vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
+	if (!vsi)
+		return -EINVAL;
+	q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
+	if (q_offset < 0)
+		return -EINVAL;
+	reg_idx = vsi->base_queue + q_offset;
 
 	if (nb_desc % I40E_ALIGN_RING_DESC != 0 ||
 	    (nb_desc > I40E_MAX_RING_DESC) ||
@@ -2282,10 +2272,8 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 			unsigned int socket_id,
 			const struct rte_eth_txconf *tx_conf)
 {
-	struct i40e_hw *hw = I40E_DEV_PRIVATE_TO_HW(dev->data->dev_private);
 	struct i40e_vsi *vsi;
 	struct i40e_pf *pf = NULL;
-	struct i40e_vf *vf = NULL;
 	struct i40e_tx_queue *txq;
 	const struct rte_memzone *tz;
 	uint32_t ring_size;
@@ -2296,20 +2284,14 @@ i40e_dev_tx_queue_setup(struct rte_eth_dev *dev,
 
 	offloads = tx_conf->offloads | dev->data->dev_conf.txmode.offloads;
 
-	if (hw->mac.type == I40E_MAC_VF || hw->mac.type == I40E_MAC_X722_VF) {
-		vf = I40EVF_DEV_PRIVATE_TO_VF(dev->data->dev_private);
-		vsi = &vf->vsi;
-		reg_idx = queue_idx;
-	} else {
-		pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
-		vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
-		if (!vsi)
-			return -EINVAL;
-		q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
-		if (q_offset < 0)
-			return -EINVAL;
-		reg_idx = vsi->base_queue + q_offset;
-	}
+	pf = I40E_DEV_PRIVATE_TO_PF(dev->data->dev_private);
+	vsi = i40e_pf_get_vsi_by_qindex(pf, queue_idx);
+	if (!vsi)
+		return -EINVAL;
+	q_offset = i40e_get_queue_offset_by_qindex(pf, queue_idx);
+	if (q_offset < 0)
+		return -EINVAL;
+	reg_idx = vsi->base_queue + q_offset;
 
 	if (nb_desc % I40E_ALIGN_RING_DESC != 0 ||
 	    (nb_desc > I40E_MAX_RING_DESC) ||
@@ -2590,6 +2572,10 @@ i40e_reset_rx_queue(struct i40e_rx_queue *rxq)
 #endif /* RTE_LIBRTE_I40E_RX_ALLOW_BULK_ALLOC */
 	rxq->rx_tail = 0;
 	rxq->nb_rx_hold = 0;
+
+	if (rxq->pkt_first_seg != NULL)
+		rte_pktmbuf_free(rxq->pkt_first_seg);
+
 	rxq->pkt_first_seg = NULL;
 	rxq->pkt_last_seg = NULL;
 
@@ -3224,10 +3210,10 @@ i40e_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 	qinfo->conf.offloads = txq->offloads;
 }
 
+#ifdef RTE_ARCH_X86
 static inline bool
 get_avx_supported(bool request_avx512)
 {
-#ifdef RTE_ARCH_X86
 	if (request_avx512) {
 		if (rte_vect_get_max_simd_bitwidth() >= RTE_VECT_SIMD_512 &&
 		rte_cpu_get_flag_enabled(RTE_CPUFLAG_AVX512F) == 1 &&
@@ -3251,12 +3237,10 @@ get_avx_supported(bool request_avx512)
 		return false;
 #endif
 	}
-#else
-	RTE_SET_USED(request_avx512);
-#endif /* RTE_ARCH_X86 */
 
 	return false;
 }
+#endif /* RTE_ARCH_X86 */
 
 
 void __rte_cold

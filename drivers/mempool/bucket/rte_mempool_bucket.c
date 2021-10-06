@@ -43,6 +43,8 @@ struct bucket_data {
 	unsigned int total_elt_size;
 	unsigned int obj_per_bucket;
 	unsigned int bucket_stack_thresh;
+	unsigned int bucket_page_shift;
+	unsigned int bucket_hdr_mask;
 	uintptr_t bucket_page_mask;
 	struct rte_ring *shared_bucket_ring;
 	struct bucket_stack *buckets[RTE_MAX_LCORE];
@@ -98,6 +100,16 @@ bucket_stack_pop(struct bucket_stack *stack)
 	return bucket_stack_pop_unsafe(stack);
 }
 
+static struct bucket_header *
+bucket_get_header(__rte_unused const struct bucket_data *bd, uint8_t *bkt)
+{
+	uintptr_t addr = (uintptr_t)bkt;
+	uintptr_t hdr_i = (addr >> bd->bucket_page_shift) &
+			  (uintptr_t)bd->bucket_hdr_mask;
+
+	return (struct bucket_header *)(addr + RTE_CACHE_LINE_SIZE * hdr_i);
+}
+
 static int
 bucket_enqueue_single(struct bucket_data *bd, void *obj)
 {
@@ -107,7 +119,7 @@ bucket_enqueue_single(struct bucket_data *bd, void *obj)
 	unsigned int lcore_id = rte_lcore_id();
 
 	addr &= bd->bucket_page_mask;
-	hdr = (struct bucket_header *)addr;
+	hdr = bucket_get_header(bd, (uint8_t *)addr);
 
 	if (likely(hdr->lcore_id == lcore_id)) {
 		if (hdr->fill_cnt < bd->obj_per_bucket - 1) {
@@ -115,7 +127,7 @@ bucket_enqueue_single(struct bucket_data *bd, void *obj)
 		} else {
 			hdr->fill_cnt = 0;
 			/* Stack is big enough to put all buckets */
-			bucket_stack_push(bd->buckets[lcore_id], hdr);
+			bucket_stack_push(bd->buckets[lcore_id], (void *)addr);
 		}
 	} else if (hdr->lcore_id != LCORE_ID_ANY) {
 		struct rte_ring *adopt_ring =
@@ -128,7 +140,7 @@ bucket_enqueue_single(struct bucket_data *bd, void *obj)
 		hdr->fill_cnt++;
 	} else {
 		hdr->fill_cnt = 0;
-		rc = rte_ring_enqueue(bd->shared_bucket_ring, hdr);
+		rc = rte_ring_enqueue(bd->shared_bucket_ring, (void *)addr);
 		/* Ring is big enough to put all buckets */
 		RTE_ASSERT(rc == 0);
 	}
@@ -189,7 +201,7 @@ bucket_dequeue_orphans(struct bucket_data *bd, void **obj_table,
 		struct bucket_header *hdr;
 
 		objptr = bucket_stack_pop(bd->buckets[rte_lcore_id()]);
-		hdr = (struct bucket_header *)objptr;
+		hdr = bucket_get_header(bd, objptr);
 
 		if (objptr == NULL) {
 			rc = rte_ring_dequeue(bd->shared_bucket_ring,
@@ -198,7 +210,7 @@ bucket_dequeue_orphans(struct bucket_data *bd, void **obj_table,
 				rte_errno = ENOBUFS;
 				return -rte_errno;
 			}
-			hdr = (struct bucket_header *)objptr;
+			hdr = bucket_get_header(bd, objptr);
 			hdr->lcore_id = rte_lcore_id();
 		}
 		hdr->fill_cnt = 0;
@@ -225,20 +237,21 @@ bucket_dequeue_buckets(struct bucket_data *bd, void **obj_table,
 {
 	struct bucket_stack *cur_stack = bd->buckets[rte_lcore_id()];
 	unsigned int n_buckets_from_stack = RTE_MIN(n_buckets, cur_stack->top);
+	void *bkt;
 	void **obj_table_base = obj_table;
 
 	n_buckets -= n_buckets_from_stack;
 	while (n_buckets_from_stack-- > 0) {
-		void *obj = bucket_stack_pop_unsafe(cur_stack);
+		bkt = bucket_stack_pop_unsafe(cur_stack);
 
-		obj_table = bucket_fill_obj_table(bd, &obj, obj_table,
+		obj_table = bucket_fill_obj_table(bd, &bkt, obj_table,
 						  bd->obj_per_bucket);
 	}
 	while (n_buckets-- > 0) {
 		struct bucket_header *hdr;
 
 		if (unlikely(rte_ring_dequeue(bd->shared_bucket_ring,
-					      (void **)&hdr) != 0)) {
+					      &bkt) != 0)) {
 			/*
 			 * Return the already-dequeued buffers
 			 * back to the mempool
@@ -248,9 +261,9 @@ bucket_dequeue_buckets(struct bucket_data *bd, void **obj_table,
 			rte_errno = ENOBUFS;
 			return -rte_errno;
 		}
+		hdr = bucket_get_header(bd, bkt);
 		hdr->lcore_id = rte_lcore_id();
-		obj_table = bucket_fill_obj_table(bd, (void **)&hdr,
-						  obj_table,
+		obj_table = bucket_fill_obj_table(bd, &bkt, obj_table,
 						  bd->obj_per_bucket);
 	}
 
@@ -314,6 +327,7 @@ bucket_dequeue_contig_blocks(struct rte_mempool *mp, void **first_obj_table,
 	const uint32_t header_size = bd->header_size;
 	struct bucket_stack *cur_stack = bd->buckets[rte_lcore_id()];
 	unsigned int n_buckets_from_stack = RTE_MIN(n, cur_stack->top);
+	uint8_t *bkt;
 	struct bucket_header *hdr;
 	void **first_objp = first_obj_table;
 
@@ -321,8 +335,8 @@ bucket_dequeue_contig_blocks(struct rte_mempool *mp, void **first_obj_table,
 
 	n -= n_buckets_from_stack;
 	while (n_buckets_from_stack-- > 0) {
-		hdr = bucket_stack_pop_unsafe(cur_stack);
-		*first_objp++ = (uint8_t *)hdr + header_size;
+		bkt = bucket_stack_pop_unsafe(cur_stack);
+		*first_objp++ = bkt + header_size;
 	}
 	if (n > 0) {
 		if (unlikely(rte_ring_dequeue_bulk(bd->shared_bucket_ring,
@@ -337,9 +351,10 @@ bucket_dequeue_contig_blocks(struct rte_mempool *mp, void **first_obj_table,
 			return -rte_errno;
 		}
 		while (n-- > 0) {
-			hdr = (struct bucket_header *)*first_objp;
+			bkt = *first_objp;
+			hdr = bucket_get_header(bd, bkt);
 			hdr->lcore_id = rte_lcore_id();
-			*first_objp++ = (uint8_t *)hdr + header_size;
+			*first_objp++ = bkt + header_size;
 		}
 	}
 
@@ -382,7 +397,7 @@ count_underfilled_buckets(struct rte_mempool *mp,
 	for (iter = (uint8_t *)memhdr->addr + align;
 	     iter < (uint8_t *)memhdr->addr + memhdr->len;
 	     iter += bucket_page_sz) {
-		struct bucket_header *hdr = (struct bucket_header *)iter;
+		struct bucket_header *hdr = bucket_get_header(bd, iter);
 
 		*pcount += hdr->fill_cnt;
 	}
@@ -454,16 +469,23 @@ bucket_uninit_per_lcore(unsigned int lcore_id, void *arg)
 static int
 bucket_alloc(struct rte_mempool *mp)
 {
+	unsigned int nchan;
 	int rg_flags = 0;
 	int rc = 0;
 	char rg_name[RTE_RING_NAMESIZE];
 	struct bucket_data *bd;
 	unsigned int bucket_header_size;
+	unsigned int bucket_page_sz;
 	size_t pg_sz;
 
 	rc = rte_mempool_get_page_size(mp, &pg_sz);
 	if (rc < 0)
 		return rc;
+
+	nchan = rte_memory_get_nchannel();
+	if (nchan == 0)
+		nchan = 4;
+	nchan = rte_align32pow2(nchan);
 
 	bd = rte_zmalloc_socket("bucket_pool", sizeof(*bd),
 				RTE_CACHE_LINE_SIZE, mp->socket_id);
@@ -472,10 +494,7 @@ bucket_alloc(struct rte_mempool *mp)
 		goto no_mem_for_data;
 	}
 	bd->pool = mp;
-	if (mp->flags & MEMPOOL_F_NO_CACHE_ALIGN)
-		bucket_header_size = sizeof(struct bucket_header);
-	else
-		bucket_header_size = RTE_CACHE_LINE_SIZE;
+	bucket_header_size = RTE_CACHE_LINE_SIZE * nchan;
 	RTE_BUILD_BUG_ON(sizeof(struct bucket_header) > RTE_CACHE_LINE_SIZE);
 	bd->header_size = mp->header_size + bucket_header_size;
 	bd->total_elt_size = mp->header_size + mp->elt_size + mp->trailer_size;
@@ -483,7 +502,10 @@ bucket_alloc(struct rte_mempool *mp)
 			(size_t)(RTE_DRIVER_MEMPOOL_BUCKET_SIZE_KB * 1024));
 	bd->obj_per_bucket = (bd->bucket_mem_size - bucket_header_size) /
 		bd->total_elt_size;
-	bd->bucket_page_mask = ~(rte_align64pow2(bd->bucket_mem_size) - 1);
+	bucket_page_sz = rte_align32pow2(bd->bucket_mem_size);
+	bd->bucket_page_shift = rte_bsf32(bucket_page_sz);
+	bd->bucket_hdr_mask = nchan - 1;
+	bd->bucket_page_mask = ~((uintptr_t)bucket_page_sz - 1);
 	/* eventually this should be a tunable parameter */
 	bd->bucket_stack_thresh = (mp->size / bd->obj_per_bucket) * 4 / 3;
 
@@ -612,7 +634,7 @@ bucket_populate(struct rte_mempool *mp, unsigned int max_objs,
 	for (iter = (uint8_t *)vaddr + align, n_objs = 0;
 	     iter < (uint8_t *)vaddr + len && n_objs < max_objs;
 	     iter += bucket_page_sz) {
-		struct bucket_header *hdr = (struct bucket_header *)iter;
+		struct bucket_header *hdr = bucket_get_header(bd, iter);
 		unsigned int chunk_len = bd->bucket_mem_size;
 
 		if ((size_t)(iter - (uint8_t *)vaddr) + chunk_len > len)

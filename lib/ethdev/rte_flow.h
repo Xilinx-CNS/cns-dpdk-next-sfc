@@ -34,6 +34,7 @@
 #include <rte_mbuf.h>
 #include <rte_mbuf_dyn.h>
 #include <rte_meter.h>
+#include <rte_gtp.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,7 +67,10 @@ extern "C" {
  * Note that support for more than a single group and priority level is not
  * guaranteed.
  *
- * Flow rules can apply to inbound and/or outbound traffic (ingress/egress).
+ * At vNIC / ethdev level, flow rules can apply to inbound and / or outbound
+ * traffic (ingress / egress), with respect to the vNIC / ethdev in question.
+ * At e-switch level, flow rules apply to all traffic seen by the e-switch
+ * unless suitable meta items are used to set concrete traffic source(s).
  *
  * Several pattern items and actions are valid and can be used in both
  * directions. Those valid for only one direction are described as such.
@@ -79,8 +83,32 @@ extern "C" {
 struct rte_flow_attr {
 	uint32_t group; /**< Priority group. */
 	uint32_t priority; /**< Rule priority level within group. */
-	uint32_t ingress:1; /**< Rule applies to ingress traffic. */
-	uint32_t egress:1; /**< Rule applies to egress traffic. */
+	/**
+	 * The rule in question applies to ingress traffic (non-"transfer").
+	 *
+	 * @deprecated
+	 * It has been possible to combine this attribute with "transfer".
+	 * Doing so has been assumed to restrict the scope of matching
+	 * to traffic going from within the e-switch toward the ethdev
+	 * the flow rule being created through. This behaviour is now
+	 * deprecated. During the transition period, one may still
+	 * rely on it, but PMDs and applications are encouraged to
+	 * gradually move away from this approach.
+	 */
+	uint32_t ingress:1;
+	/**
+	 * The rule in question applies to egress traffic (non-"transfer").
+	 *
+	 * @deprecated
+	 * It has been possible to combine this attribute with "transfer".
+	 * Doing so has been assumed to restrict the scope of matching
+	 * to traffic sent by the application by virtue of the ethdev
+	 * the flow rule being created through. This behaviour is now
+	 * deprecated. During the transition period, one may still
+	 * rely on it, but PMDs and applications are encouraged to
+	 * gradually move away from this approach.
+	 */
+	uint32_t egress:1;
 	/**
 	 * Instead of simply matching the properties of traffic as it would
 	 * appear on a given DPDK port ID, enabling this attribute transfers
@@ -92,12 +120,8 @@ struct rte_flow_attr {
 	 * from or addressed to different physical ports, VFs or
 	 * applications) at the device level.
 	 *
-	 * It complements the behavior of some pattern items such as
-	 * RTE_FLOW_ITEM_TYPE_PHY_PORT and is meaningless without them.
-	 *
-	 * When transferring flow rules, ingress and egress attributes keep
-	 * their original meaning, as if processing traffic emitted or
-	 * received by the application.
+	 * In order to match traffic originating from specific source(s), the
+	 * application should use pattern items ETHDEV and ESWITCH_PORT.
 	 */
 	uint32_t transfer:1;
 	uint32_t reserved:29; /**< Reserved, must be zero. */
@@ -159,6 +183,10 @@ enum rte_flow_item_type {
 	RTE_FLOW_ITEM_TYPE_ANY,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+	 * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+	 *
 	 * [META]
 	 *
 	 * Matches traffic originating from (ingress) or going to (egress)
@@ -169,6 +197,10 @@ enum rte_flow_item_type {
 	RTE_FLOW_ITEM_TYPE_PF,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+	 * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+	 *
 	 * [META]
 	 *
 	 * Matches traffic originating from (ingress) or going to (egress) a
@@ -179,6 +211,10 @@ enum rte_flow_item_type {
 	RTE_FLOW_ITEM_TYPE_VF,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+	 * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+	 *
 	 * [META]
 	 *
 	 * Matches traffic originating from (ingress) or going to (egress) a
@@ -189,6 +225,10 @@ enum rte_flow_item_type {
 	RTE_FLOW_ITEM_TYPE_PHY_PORT,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+	 * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+	 *
 	 * [META]
 	 *
 	 * Matches traffic originating from (ingress) or going to (egress) a
@@ -573,6 +613,25 @@ enum rte_flow_item_type {
 	 * @see struct rte_flow_item_conntrack.
 	 */
 	RTE_FLOW_ITEM_TYPE_CONNTRACK,
+
+	/**
+	 * [META]
+	 *
+	 * Matches traffic at e-switch going from (sent by) the given ethdev.
+	 *
+	 * @see struct rte_flow_item_ethdev
+	 */
+	RTE_FLOW_ITEM_TYPE_ETHDEV,
+
+	/**
+	 * [META]
+	 *
+	 * Matches traffic at e-switch going from the external port associated
+	 * with the given ethdev, for example, traffic from net. port or guest.
+	 *
+	 * @see struct rte_flow_item_ethdev
+	 */
+	RTE_FLOW_ITEM_TYPE_ESWITCH_PORT,
 };
 
 /**
@@ -620,6 +679,10 @@ static const struct rte_flow_item_any rte_flow_item_any_mask = {
 #endif
 
 /**
+ * @deprecated
+ * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+ * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+ *
  * RTE_FLOW_ITEM_TYPE_VF
  *
  * Matches traffic originating from (ingress) or going to (egress) a given
@@ -649,6 +712,10 @@ static const struct rte_flow_item_vf rte_flow_item_vf_mask = {
 #endif
 
 /**
+ * @deprecated
+ * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+ * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+ *
  * RTE_FLOW_ITEM_TYPE_PHY_PORT
  *
  * Matches traffic originating from (ingress) or going to (egress) a
@@ -680,6 +747,10 @@ static const struct rte_flow_item_phy_port rte_flow_item_phy_port_mask = {
 #endif
 
 /**
+ * @deprecated
+ * @see RTE_FLOW_ITEM_TYPE_ETHDEV
+ * @see RTE_FLOW_ITEM_TYPE_ESWITCH_PORT
+ *
  * RTE_FLOW_ITEM_TYPE_PORT_ID
  *
  * Matches traffic originating from (ingress) or going to (egress) a given
@@ -1444,15 +1515,14 @@ static const struct rte_flow_item_meta rte_flow_item_meta_mask = {
  * Matches a GTP PDU extension header with type 0x85.
  */
 struct rte_flow_item_gtp_psc {
-	uint8_t pdu_type; /**< PDU type. */
-	uint8_t qfi; /**< PPP, RQI, QoS flow identifier. */
+	struct rte_gtp_psc_generic_hdr hdr; /**< gtp psc generic hdr. */
 };
 
 /** Default mask for RTE_FLOW_ITEM_TYPE_GTP_PSC. */
 #ifndef __cplusplus
 static const struct rte_flow_item_gtp_psc
 rte_flow_item_gtp_psc_mask = {
-	.qfi = 0xff,
+	.hdr.qfi = 0x3f,
 };
 #endif
 
@@ -1800,6 +1870,24 @@ static const struct rte_flow_item_conntrack rte_flow_item_conntrack_mask = {
 #endif
 
 /**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * Provides an ethdev port ID for use with items which are as follows:
+ * RTE_FLOW_ITEM_TYPE_ETHDEV, RTE_FLOW_ITEM_TYPE_ESWITCH_PORT.
+ */
+struct rte_flow_item_ethdev {
+	uint16_t port_id; /**< ethdev port ID */
+};
+
+/** Default mask for RTE_FLOW_ITEM_TYPE_ETHDEV */
+#ifndef __cplusplus
+static const struct rte_flow_item_ethdev rte_flow_item_ethdev_mask = {
+	.port_id = 0xffff,
+};
+#endif
+
+/**
  * Matching pattern item definition.
  *
  * A pattern is formed by stacking items starting from the lowest protocol
@@ -1904,6 +1992,10 @@ enum rte_flow_action_type {
 	 * PKT_RX_FDIR_ID mbuf flags.
 	 *
 	 * See struct rte_flow_action_mark.
+	 *
+	 * One should negotiate mark delivery from the NIC to the PMD.
+	 * @see rte_eth_rx_metadata_negotiate()
+	 * @see RTE_ETH_RX_METADATA_USER_MARK
 	 */
 	RTE_FLOW_ACTION_TYPE_MARK,
 
@@ -1912,6 +2004,10 @@ enum rte_flow_action_type {
 	 * sets the PKT_RX_FDIR mbuf flag.
 	 *
 	 * No associated configuration structure.
+	 *
+	 * One should negotiate flag delivery from the NIC to the PMD.
+	 * @see rte_eth_rx_metadata_negotiate()
+	 * @see RTE_ETH_RX_METADATA_USER_FLAG
 	 */
 	RTE_FLOW_ACTION_TYPE_FLAG,
 
@@ -1952,6 +2048,9 @@ enum rte_flow_action_type {
 	RTE_FLOW_ACTION_TYPE_RSS,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ACTION_TYPE_ETHDEV
+	 *
 	 * Directs matching traffic to the physical function (PF) of the
 	 * current device.
 	 *
@@ -1960,6 +2059,10 @@ enum rte_flow_action_type {
 	RTE_FLOW_ACTION_TYPE_PF,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ACTION_TYPE_ETHDEV
+	 * @see RTE_FLOW_ACTION_TYPE_ESWITCH_PORT
+	 *
 	 * Directs matching traffic to a given virtual function of the
 	 * current device.
 	 *
@@ -1968,6 +2071,9 @@ enum rte_flow_action_type {
 	RTE_FLOW_ACTION_TYPE_VF,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ACTION_TYPE_ESWITCH_PORT
+	 *
 	 * Directs packets to a given physical port index of the underlying
 	 * device.
 	 *
@@ -1976,6 +2082,10 @@ enum rte_flow_action_type {
 	RTE_FLOW_ACTION_TYPE_PHY_PORT,
 
 	/**
+	 * @deprecated
+	 * @see RTE_FLOW_ACTION_TYPE_ETHDEV
+	 * @see RTE_FLOW_ACTION_TYPE_ESWITCH_PORT
+	 *
 	 * Directs matching traffic to a given DPDK port ID.
 	 *
 	 * See struct rte_flow_action_port_id.
@@ -2409,6 +2519,21 @@ enum rte_flow_action_type {
 	 * See struct rte_flow_action_meter_color.
 	 */
 	RTE_FLOW_ACTION_TYPE_METER_COLOR,
+
+	/**
+	 * At e-switch level, directs matching packets to the given ethdev.
+	 *
+	 * @see struct rte_flow_action_ethdev
+	 */
+	RTE_FLOW_ACTION_TYPE_ETHDEV,
+
+	/**
+	 * At e-switch level, directs matching packets to the external port
+	 * associated with the given ethdev, that is, to net. port or guest.
+	 *
+	 * @see struct rte_flow_action_ethdev
+	 */
+	RTE_FLOW_ACTION_TYPE_ESWITCH_PORT,
 };
 
 /**
@@ -2601,6 +2726,10 @@ struct rte_flow_action_rss {
 };
 
 /**
+ * @deprecated
+ * @see RTE_FLOW_ACTION_TYPE_ETHDEV
+ * @see RTE_FLOW_ACTION_TYPE_ESWITCH_PORT
+ *
  * RTE_FLOW_ACTION_TYPE_VF
  *
  * Directs matching traffic to a given virtual function of the current
@@ -2619,6 +2748,9 @@ struct rte_flow_action_vf {
 };
 
 /**
+ * @deprecated
+ * @see RTE_FLOW_ACTION_TYPE_ESWITCH_PORT
+ *
  * RTE_FLOW_ACTION_TYPE_PHY_PORT
  *
  * Directs packets to a given physical port index of the underlying
@@ -2633,6 +2765,10 @@ struct rte_flow_action_phy_port {
 };
 
 /**
+ * @deprecated
+ * @see RTE_FLOW_ACTION_TYPE_ETHDEV
+ * @see RTE_FLOW_ACTION_TYPE_ESWITCH_PORT
+ *
  * RTE_FLOW_ACTION_TYPE_PORT_ID
  *
  * Directs matching traffic to a given DPDK port ID.
@@ -3166,6 +3302,17 @@ struct rte_flow_modify_conntrack {
  */
 struct rte_flow_action_meter_color {
 	enum rte_color color; /**< Packet color. */
+};
+
+/**
+ * @warning
+ * @b EXPERIMENTAL: this structure may change without prior notice
+ *
+ * Provides an ethdev port ID for use with actions which are as follows:
+ * RTE_FLOW_ACTION_TYPE_ETHDEV, RTE_FLOW_ACTION_TYPE_ESWITCH_PORT.
+ */
+struct rte_flow_action_ethdev {
+	uint16_t port_id; /**< ethdev port ID */
 };
 
 /**
@@ -4222,6 +4369,10 @@ rte_flow_tunnel_match(uint16_t port_id,
 
 /**
  * Populate the current packet processing state, if exists, for the given mbuf.
+ *
+ * One should negotiate tunnel metadata delivery from the NIC to the HW.
+ * @see rte_eth_rx_metadata_negotiate()
+ * @see RTE_ETH_RX_METADATA_TUNNEL_ID
  *
  * @param port_id
  *   Port identifier of Ethernet device.
