@@ -1,3 +1,2 @@
 librte_event_cnxk.so.22 librte-event-cnxk22 #MINVER#
-#MISSING: 21.08# DPDK_22@DPDK_22 21.08
  INTERNAL@INTERNAL 21.08
