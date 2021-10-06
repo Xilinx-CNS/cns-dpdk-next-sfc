@@ -10,7 +10,6 @@ Build-Depends: chrpath,
                doxygen <!nodoc>,
                graphviz <!nodoc>,
                inkscape <!nodoc>,
-               libbpf-dev,
                libbsd-dev,
                libelf-dev,
                libfdt-dev,
@@ -237,8 +236,7 @@ Section: libdevel
 Architecture: amd64 arm64 armhf i386 ppc64el
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends},
-Depends: libbpf-dev,
-         libbsd-dev,
+Depends: ibbsd-dev,
          libibverbs-dev,
          libipsec-mb-dev [amd64],
          libisal-dev [amd64],
