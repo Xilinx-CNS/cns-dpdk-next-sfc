@@ -1227,11 +1227,6 @@ mlx5_alloc_shared_dev_ctx(const struct mlx5_dev_spawn_data *spawn,
 	mlx5_os_set_reg_mr_cb(&sh->share_cache.reg_mr_cb,
 			      &sh->share_cache.dereg_mr_cb);
 	mlx5_os_dev_shared_handler_install(sh);
-	sh->cnt_id_tbl = mlx5_l3t_create(MLX5_L3T_TYPE_DWORD);
-	if (!sh->cnt_id_tbl) {
-		err = rte_errno;
-		goto error;
-	}
 	if (LIST_EMPTY(&mlx5_dev_ctx_list)) {
 		err = mlx5_flow_os_init_workspace_once();
 		if (err)
@@ -1255,8 +1250,6 @@ error:
 	pthread_mutex_destroy(&sh->txpp.mutex);
 	pthread_mutex_unlock(&mlx5_dev_ctx_list_mutex);
 	MLX5_ASSERT(sh);
-	if (sh->cnt_id_tbl)
-		mlx5_l3t_destroy(sh->cnt_id_tbl);
 	if (sh->share_cache.cache.table)
 		mlx5_mr_btree_free(&sh->share_cache.cache);
 	if (sh->tis)
@@ -1332,10 +1325,6 @@ mlx5_free_shared_dev_ctx(struct mlx5_dev_ctx_shared *sh)
 		mlx5_aso_flow_mtrs_mng_close(sh);
 	mlx5_flow_ipool_destroy(sh);
 	mlx5_os_dev_shared_handler_uninstall(sh);
-	if (sh->cnt_id_tbl) {
-		mlx5_l3t_destroy(sh->cnt_id_tbl);
-		sh->cnt_id_tbl = NULL;
-	}
 	if (sh->tx_uar) {
 		mlx5_glue->devx_free_uar(sh->tx_uar);
 		sh->tx_uar = NULL;
