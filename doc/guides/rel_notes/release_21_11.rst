@@ -105,6 +105,12 @@ New Features
   * Added support for Inline IPsec for CN9K event mode and CN10K
     poll mode and event mode.
 
+* **Updated Solarflare network PMD.**
+
+  Updated the Solarflare ``sfc_efx`` driver with changes including:
+
+  * Added port representors support on SN1000 SmartNICs
+
 * **Updated Marvell cnxk crypto PMD.**
 
   * Added AES-CBC SHA1-HMAC support in lookaside protocol (IPsec) for CN10K.
