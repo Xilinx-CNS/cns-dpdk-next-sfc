@@ -105,6 +105,10 @@ New Features
   * Added support for Inline IPsec for CN9K event mode and CN10K
     poll mode and event mode.
 
+* **Updated Mellanox mlx5 driver.**
+
+  * Added NIC offloads for the PMD on Windows (TSO, VLAN strip, Keep CRC).
+
 * **Updated Solarflare network PMD.**
 
   Updated the Solarflare ``sfc_efx`` driver with changes including:
