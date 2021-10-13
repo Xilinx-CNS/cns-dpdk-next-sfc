@@ -25,6 +25,7 @@
 #include "sfc_log.h"
 #include "sfc_dp_rx.h"
 #include "sfc_mae_counter.h"
+#include "sfc_switch.h"
 
 struct sfc_flow_ops_by_spec {
 	sfc_flow_parse_cb_t	*parse;
@@ -2871,6 +2872,25 @@ sfc_flow_isolate(struct rte_eth_dev *dev, int enable,
 	return ret;
 }
 
+static int
+sfc_flow_pick_transfer_proxy(struct rte_eth_dev *dev,
+			     uint16_t *transfer_proxy_port,
+			     struct rte_flow_error *error)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	int ret;
+
+	ret = sfc_mae_get_switch_domain_admin(sa->mae.switch_domain_id,
+					      transfer_proxy_port);
+	if (ret != 0) {
+		return rte_flow_error_set(error, ret,
+					  RTE_FLOW_ERROR_TYPE_UNSPECIFIED,
+					  NULL, NULL);
+	}
+
+	return 0;
+}
+
 const struct rte_flow_ops sfc_flow_ops = {
 	.validate = sfc_flow_validate,
 	.create = sfc_flow_create,
@@ -2878,6 +2898,7 @@ const struct rte_flow_ops sfc_flow_ops = {
 	.flush = sfc_flow_flush,
 	.query = sfc_flow_query,
 	.isolate = sfc_flow_isolate,
+	.pick_transfer_proxy = sfc_flow_pick_transfer_proxy,
 };
 
 void
