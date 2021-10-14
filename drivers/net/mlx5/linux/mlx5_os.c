@@ -2770,6 +2770,15 @@ mlx5_os_net_probe(struct rte_device *dev)
 		return mlx5_os_auxiliary_probe(dev);
 }
 
+/**
+ * Cleanup resources when the last device is closed.
+ */
+void
+mlx5_os_net_cleanup(void)
+{
+	mlx5_pmd_socket_uninit();
+}
+
 static int
 mlx5_config_doorbell_mapping_env(const struct mlx5_dev_config *config)
 {

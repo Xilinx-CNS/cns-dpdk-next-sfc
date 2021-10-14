@@ -1223,4 +1223,12 @@ mlx5_os_get_pdn(void *pd, uint32_t *pdn)
 	return 0;
 }
 
+/**
+ * Cleanup resources when the last device is closed.
+ */
+void
+mlx5_os_net_cleanup(void)
+{
+}
+
 const struct mlx5_flow_driver_ops mlx5_flow_verbs_drv_ops = {0};
