@@ -693,7 +693,14 @@ mlx5_vdpa_dev_probe(struct rte_device *dev)
 	if (attr.num_lag_ports == 0)
 		priv->num_lag_ports = 1;
 	priv->ctx = ctx;
-	priv->var = mlx5_glue->dv_alloc_var(ctx, 0);
+	for (retry = 0; retry < 7; retry++) {
+		priv->var = mlx5_glue->dv_alloc_var(ctx, 0);
+		if (priv->var != NULL)
+			break;
+		DRV_LOG(WARNING, "Failed to allocate VAR, retry %d.\n", retry);
+		/* Wait Qemu release VAR during vdpa restart, 0.1 sec based. */
+		usleep(100000U << retry);
+	}
 	if (!priv->var) {
 		DRV_LOG(ERR, "Failed to allocate VAR %u.", errno);
 		goto error;
