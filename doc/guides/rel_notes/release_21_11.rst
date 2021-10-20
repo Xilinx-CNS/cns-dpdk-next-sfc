@@ -196,6 +196,7 @@ New Features
 
   * Added port representors support on SN1000 SmartNICs
   * Added flow API transfer proxy support
+  * Added support for flow counters without service cores
 
 * **Updated Marvell cnxk crypto PMD.**
 

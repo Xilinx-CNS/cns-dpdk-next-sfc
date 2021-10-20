@@ -45,9 +45,6 @@ sfc_mae_counter_rxq_required(struct sfc_adapter *sa)
 	if (encp->enc_mae_supported == B_FALSE)
 		return false;
 
-	if (sfc_mae_counter_get_service_lcore(sa) == RTE_MAX_LCORE)
-		return false;
-
 	return true;
 }
 
@@ -402,6 +399,23 @@ sfc_mae_counter_routine(void *arg)
 	return 0;
 }
 
+static void *
+sfc_mae_counter_thread(void *data)
+{
+	struct sfc_adapter *sa = data;
+	struct sfc_mae_counter_registry *counter_registry =
+		&sa->mae.counter_registry;
+
+	/*
+	 * Check run condition without atomic since it is not a problem
+	 * if we run a bit more before we notice stop request
+	 */
+	while (counter_registry->polling.thread.run)
+		sfc_mae_counter_routine(data);
+
+	return NULL;
+}
+
 static void
 sfc_mae_counter_service_unregister(struct sfc_adapter *sa)
 {
@@ -410,15 +424,15 @@ sfc_mae_counter_service_unregister(struct sfc_adapter *sa)
 	const unsigned int wait_ms = 10000;
 	unsigned int i;
 
-	rte_service_runstate_set(registry->service_id, 0);
-	rte_service_component_runstate_set(registry->service_id, 0);
+	rte_service_runstate_set(registry->polling.service.id, 0);
+	rte_service_component_runstate_set(registry->polling.service.id, 0);
 
 	/*
 	 * Wait for the counter routine to finish the last iteration.
 	 * Give up on timeout.
 	 */
 	for (i = 0; i < wait_ms; i++) {
-		if (rte_service_may_be_active(registry->service_id) == 0)
+		if (rte_service_may_be_active(registry->polling.service.id) == 0)
 			break;
 
 		rte_delay_ms(1);
@@ -426,16 +440,28 @@ sfc_mae_counter_service_unregister(struct sfc_adapter *sa)
 	if (i == wait_ms)
 		sfc_warn(sa, "failed to wait for counter service to stop");
 
-	rte_service_map_lcore_set(registry->service_id,
-				  registry->service_core_id, 0);
+	rte_service_map_lcore_set(registry->polling.service.id,
+				  registry->polling.service.core_id, 0);
 
-	rte_service_component_unregister(registry->service_id);
+	rte_service_component_unregister(registry->polling.service.id);
 }
 
 static struct sfc_rxq_info *
 sfc_counter_rxq_info_get(struct sfc_adapter *sa)
 {
 	return &sfc_sa2shared(sa)->rxq_info[sa->counter_rxq.sw_index];
+}
+
+static void
+sfc_mae_counter_registry_prepare(struct sfc_mae_counter_registry *registry,
+				 struct sfc_adapter *sa,
+				 uint32_t counter_stream_flags)
+{
+	registry->rx_pkt_burst = sa->eth_dev->rx_pkt_burst;
+	registry->rx_dp = sfc_counter_rxq_info_get(sa)->dp;
+	registry->pushed_n_buffers = 0;
+	registry->use_credits = counter_stream_flags &
+		EFX_MAE_COUNTERS_STREAM_OUT_USES_CREDITS;
 }
 
 static int
@@ -458,11 +484,8 @@ sfc_mae_counter_service_register(struct sfc_adapter *sa,
 	service.socket_id = sa->socket_id;
 	service.callback = sfc_mae_counter_routine;
 	service.callback_userdata = sa;
-	counter_registry->rx_pkt_burst = sa->eth_dev->rx_pkt_burst;
-	counter_registry->rx_dp = sfc_counter_rxq_info_get(sa)->dp;
-	counter_registry->pushed_n_buffers = 0;
-	counter_registry->use_credits = counter_stream_flags &
-		EFX_MAE_COUNTERS_STREAM_OUT_USES_CREDITS;
+	sfc_mae_counter_registry_prepare(counter_registry, sa,
+					 counter_stream_flags);
 
 	cid = sfc_get_service_lcore(sa->socket_id);
 	if (cid == RTE_MAX_LCORE && sa->socket_id != SOCKET_ID_ANY) {
@@ -520,8 +543,9 @@ sfc_mae_counter_service_register(struct sfc_adapter *sa,
 		goto fail_runstate_set;
 	}
 
-	counter_registry->service_core_id = cid;
-	counter_registry->service_id = sid;
+	counter_registry->polling_mode = SFC_MAE_COUNTER_POLLING_SERVICE;
+	counter_registry->polling.service.core_id = cid;
+	counter_registry->polling.service.id = sid;
 
 	sfc_log_init(sa, "done");
 
@@ -540,6 +564,47 @@ fail_register:
 fail_start_core:
 fail_get_service_lcore:
 	sfc_log_init(sa, "failed: %s", rte_strerror(rc));
+
+	return rc;
+}
+
+static void
+sfc_mae_counter_thread_stop(struct sfc_adapter *sa)
+{
+	struct sfc_mae_counter_registry *counter_registry =
+		&sa->mae.counter_registry;
+	int rc;
+
+	/* Ensure that flag is set before attempting to join thread */
+	__atomic_store_n(&counter_registry->polling.thread.run, false,
+			 __ATOMIC_RELEASE);
+
+	rc = pthread_join(counter_registry->polling.thread.id, NULL);
+	if (rc != 0)
+		sfc_err(sa, "failed to join the MAE counter polling thread");
+
+	counter_registry->polling_mode = SFC_MAE_COUNTER_POLLING_OFF;
+}
+
+static int
+sfc_mae_counter_thread_spawn(struct sfc_adapter *sa,
+			     uint32_t counter_stream_flags)
+{
+	struct sfc_mae_counter_registry *counter_registry =
+		&sa->mae.counter_registry;
+	int rc;
+
+	sfc_log_init(sa, "entry");
+
+	sfc_mae_counter_registry_prepare(counter_registry, sa,
+					 counter_stream_flags);
+
+	counter_registry->polling_mode = SFC_MAE_COUNTER_POLLING_THREAD;
+	counter_registry->polling.thread.run = true;
+
+	rc = rte_ctrl_thread_create(&sa->mae.counter_registry.polling.thread.id,
+				    "mae_counter_thread", NULL,
+				    sfc_mae_counter_thread, sa);
 
 	return rc;
 }
@@ -754,7 +819,15 @@ sfc_mae_counter_stop(struct sfc_adapter *sa)
 		return;
 	}
 
-	sfc_mae_counter_service_unregister(sa);
+	SFC_ASSERT(mae->counter_registry.polling_mode !=
+			SFC_MAE_COUNTER_POLLING_OFF);
+
+	if (mae->counter_registry.polling_mode ==
+			SFC_MAE_COUNTER_POLLING_SERVICE)
+		sfc_mae_counter_service_unregister(sa);
+	else
+		sfc_mae_counter_thread_stop(sa);
+
 	efx_mae_counters_stream_stop(sa->nic, sa->counter_rxq.sw_index, NULL);
 
 	mae->counter_rxq_running = false;
@@ -787,15 +860,22 @@ sfc_mae_counter_start(struct sfc_adapter *sa)
 
 	sfc_log_init(sa, "stream start flags: 0x%x", flags);
 
-	rc = sfc_mae_counter_service_register(sa, flags);
-	if (rc != 0)
-		goto fail_service_register;
+	if (sfc_mae_counter_get_service_lcore(sa) != RTE_MAX_LCORE) {
+		rc = sfc_mae_counter_service_register(sa, flags);
+		if (rc != 0)
+			goto fail_service_register;
+	} else {
+		rc = sfc_mae_counter_thread_spawn(sa, flags);
+		if (rc != 0)
+			goto fail_thread_spawn;
+	}
 
 	mae->counter_rxq_running = true;
 
 	return 0;
 
 fail_service_register:
+fail_thread_spawn:
 	efx_mae_counters_stream_stop(sa->nic, sa->counter_rxq.sw_index, NULL);
 
 fail_counter_stream:
