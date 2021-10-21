@@ -222,6 +222,7 @@ New Features
   * Added multi-queue and RSS.
   * Added SRIOV.
   * Added flow control.
+  * Added IEEE 1588.
 
 * **Updated Marvell cnxk crypto PMD.**
 
