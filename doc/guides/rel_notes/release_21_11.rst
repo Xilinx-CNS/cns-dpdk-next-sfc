@@ -75,6 +75,12 @@ New Features
     operations.
   * Added multi-process support.
 
+* **Added ethdev shared Rx queue support.**
+
+  * Added new device capability flag and Rx domain field to switch info.
+  * Added share group and share queue ID to Rx queue configuration.
+  * Added testpmd support and dedicate forwarding engine.
+
 * **Added support to get all MAC addresses of a device.**
 
   Added ``rte_eth_macaddrs_get`` to allow user to retrieve all Ethernet
