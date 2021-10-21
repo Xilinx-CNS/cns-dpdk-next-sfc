@@ -114,6 +114,10 @@ New Features
 
   Added an ethdev API which can help users get device configuration.
 
+* **Added L2TPv2 and PPP protocol support in rte_flow.**
+
+  Added flow pattern items and header formats of L2TPv2 and PPP protocol.
+
 * **Updated AF_XDP PMD.**
 
   * Disabled secondary process support.
