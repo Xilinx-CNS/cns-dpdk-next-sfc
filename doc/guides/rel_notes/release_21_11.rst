@@ -217,6 +217,7 @@ New Features
 * **Updated Wangxun ngbe driver.**
 
   * Added offloads and packet type on RxTx.
+  * Added VLAN filters.
 
 * **Updated Marvell cnxk crypto PMD.**
 
