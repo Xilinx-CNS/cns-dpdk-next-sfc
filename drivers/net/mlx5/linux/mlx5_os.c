@@ -878,7 +878,6 @@ mlx5_representor_match(struct mlx5_dev_spawn_data *spawn,
 	return false;
 }
 
-
 /**
  * Spawn an Ethernet device from Verbs information.
  *
@@ -1668,6 +1667,7 @@ err_secondary:
 	 */
 	MLX5_ASSERT(spawn->ifindex);
 	priv->if_index = spawn->ifindex;
+	priv->lag_affinity_idx = sh->refcnt - 1;
 	eth_dev->data->dev_private = priv;
 	priv->dev_data = eth_dev->data;
 	eth_dev->data->mac_addrs = priv->mac;

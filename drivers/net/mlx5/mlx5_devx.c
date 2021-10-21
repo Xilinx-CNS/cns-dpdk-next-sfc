@@ -889,6 +889,37 @@ mlx5_devx_drop_action_destroy(struct rte_eth_dev *dev)
 }
 
 /**
+ * Select TXQ TIS number.
+ *
+ * @param dev
+ *   Pointer to Ethernet device.
+ * @param queue_idx
+ *   Queue index in DPDK Tx queue array.
+ *
+ * @return
+ *   > 0 on success, a negative errno value otherwise.
+ */
+static uint32_t
+mlx5_get_txq_tis_num(struct rte_eth_dev *dev, uint16_t queue_idx)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	int tis_idx;
+
+	if (priv->sh->bond.n_port && priv->sh->lag.affinity_mode ==
+			MLX5_LAG_MODE_TIS) {
+		tis_idx = (priv->lag_affinity_idx + queue_idx) %
+			priv->sh->bond.n_port;
+		DRV_LOG(INFO, "port %d txq %d gets affinity %d and maps to PF %d.",
+			dev->data->port_id, queue_idx, tis_idx + 1,
+			priv->sh->lag.tx_remap_affinity[tis_idx]);
+	} else {
+		tis_idx = 0;
+	}
+	MLX5_ASSERT(priv->sh->tis[tis_idx]);
+	return priv->sh->tis[tis_idx]->id;
+}
+
+/**
  * Create the Tx hairpin queue object.
  *
  * @param dev
@@ -935,7 +966,8 @@ mlx5_txq_obj_hairpin_new(struct rte_eth_dev *dev, uint16_t idx)
 	attr.wq_attr.log_hairpin_num_packets =
 			attr.wq_attr.log_hairpin_data_sz -
 			MLX5_HAIRPIN_QUEUE_STRIDE;
-	attr.tis_num = priv->sh->tis->id;
+
+	attr.tis_num = mlx5_get_txq_tis_num(dev, idx);
 	tmpl->sq = mlx5_devx_cmd_create_sq(priv->sh->ctx, &attr);
 	if (!tmpl->sq) {
 		DRV_LOG(ERR,
@@ -992,14 +1024,15 @@ mlx5_txq_create_devx_sq_resources(struct rte_eth_dev *dev, uint16_t idx,
 		.allow_swp = !!priv->config.swp,
 		.cqn = txq_obj->cq_obj.cq->id,
 		.tis_lst_sz = 1,
-		.tis_num = priv->sh->tis->id,
 		.wq_attr = (struct mlx5_devx_wq_attr){
 			.pd = priv->sh->pdn,
 			.uar_page =
 				 mlx5_os_get_devx_uar_page_id(priv->sh->tx_uar),
 		},
 		.ts_format = mlx5_ts_format_conv(priv->sh->sq_ts_format),
+		.tis_num = mlx5_get_txq_tis_num(dev, idx),
 	};
+
 	/* Create Send Queue object with DevX. */
 	return mlx5_devx_sq_create(priv->sh->ctx, &txq_obj->sq_obj, log_desc_n,
 				   &sq_attr, priv->sh->numa_node);
