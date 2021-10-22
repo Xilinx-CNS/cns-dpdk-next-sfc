@@ -446,6 +446,9 @@ ABI Changes
 * bbdev: Added capability related to more comprehensive CRC options,
   shifting values of the ``enum rte_bbdev_op_ldpcdec_flag_bitmasks``.
 
+* ethdev: All enums & macros updated to have ``RTE_ETH`` prefix and structures
+  updated to have ``rte_eth`` prefix. DPDK components updated to use new names.
+
 
 Known Issues
 ------------
