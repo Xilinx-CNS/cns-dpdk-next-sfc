@@ -199,6 +199,12 @@ New Features
   * Added port representors support on SN1000 SmartNICs
   * Added flow API transfer proxy support
 
+* **Added initial RSS support to Virtio PMD.**
+
+  Initial support for RSS receive mode has been added to the Virtio PMD,
+  with the capability for the application to configure the hash key, the
+  RETA and the hash types. Virtio hash reporting is yet to be added.
+
 * **Updated Marvell cnxk crypto PMD.**
 
   * Added AES-CBC SHA1-HMAC support in lookaside protocol (IPsec) for CN10K.
