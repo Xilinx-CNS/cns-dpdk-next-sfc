@@ -482,6 +482,10 @@ API Changes
 * eventdev: Moved memory used by timer adapters to hugepage. This will prevent
   TLB misses if any and aligns to memory structure of other subsystems.
 
+* vhost: ``rte_vdpa_register_device``, ``rte_vdpa_unregister_device``,
+  ``rte_vhost_host_notifier_ctrl`` and ``rte_vdpa_relay_vring_used`` vDPA
+  driver interface are marked as internal.
+
 
 ABI Changes
 -----------
