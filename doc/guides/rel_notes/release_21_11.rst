@@ -575,6 +575,8 @@ ABI Changes
 
 * eventdev: Re-arranged fields in ``rte_event_timer`` to remove holes.
 
+* vhost: rename ``struct vhost_device_ops`` to ``struct rte_vhost_device_ops``.
+
 
 Known Issues
 ------------
