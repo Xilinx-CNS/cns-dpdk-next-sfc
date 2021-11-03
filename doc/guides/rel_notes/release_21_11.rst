@@ -301,6 +301,11 @@ New Features
 
   * Added support for new ROF file format.
 
+* **Added new vDPA PMD based on Xilinx devices.**
+
+  Added a new Xilinx vDPA  (``sfc_vdpa``) PMD.
+  See the :doc:`../vdpadevs/sfc` guide for more details on this driver.
+
 * **Updated IPsec library.**
 
   * Added support for more AEAD algorithms AES_CCM, CHACHA20_POLY1305
