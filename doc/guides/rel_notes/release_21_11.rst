@@ -158,6 +158,7 @@ New Features
   * Added wildcard match support for ingress flows.
   * Added support for inner IP header for GRE tunnel flows.
   * Removed devargs for stats accumulation.
+  * Added TruFlow and AFM SRAM partitioning support.
 
 * **Updated Cisco enic driver.**
 
