@@ -226,6 +226,10 @@ sfc_tx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	info.tso_max_payload_len = encp->enc_tx_tso_max_payload_length;
 	info.tso_max_nb_outgoing_frames = encp->enc_tx_tso_max_nframes;
 
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	info.dma = &sas->dma;
+#endif
+
 	rc = sa->priv.dp_tx->qcreate(sa->eth_dev->data->port_id, sw_index,
 				     &RTE_ETH_DEV_TO_PCI(sa->eth_dev)->addr,
 				     socket_id, &info, &txq_info->dp);

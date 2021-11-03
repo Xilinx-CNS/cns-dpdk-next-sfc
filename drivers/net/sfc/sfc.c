@@ -53,88 +53,111 @@ sfc_repr_available(const struct sfc_adapter_shared *sas)
 	return sas->nb_repr_rxq > 0 && sas->nb_repr_txq > 0;
 }
 
-/* Memory event callback name used to register/unregister */
-#define SFC_MEM_EVENT_CB	"sfc_mem_event_cb"
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
 
-static int
-sfc_dma_add_memseg(struct sfc_adapter *sa, const struct rte_memseg *ms)
+struct sfc_mp_register_data {
+	struct sfc_adapter		*sa;
+	int				rc;
+};
+
+static void
+sfc_mp_chunk_register_dma(struct rte_mempool *mp __rte_unused, void *opaque,
+			  struct rte_mempool_memhdr *memhdr,
+			  unsigned mem_idx __rte_unused)
 {
+	struct sfc_mp_register_data *register_data = opaque;
+	struct sfc_adapter *sa = register_data->sa;
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
 	efsys_dma_addr_t nic_base;
 	efsys_dma_addr_t trgt_base;
 	size_t map_len;
+	efx_rc_t efx_rc;
 	int rc;
 
-	if (ms->iova == RTE_BAD_IOVA)
-		return 0;
+	register_data->rc = 0;
 
-	rc = efx_nic_dma_config_add(sa->nic, ms->iova, ms->len,
-				    &nic_base, &trgt_base, &map_len);
+	if (memhdr->iova == RTE_BAD_IOVA)
+		return;
+
+	/*
+	 * Check if the memory chunk is mapped already. In that case, there's
+	 * nothing left to do.
+	 */
+	rc = sfc_nic_dma_map(&sas->dma, memhdr->iova, memhdr->len, &nic_base);
+	if (rc == 0)
+		return;
+
+	efx_rc = efx_nic_dma_config_add(sa->nic, memhdr->iova, memhdr->len,
+					&nic_base, &trgt_base, &map_len);
+	if (efx_rc != 0) {
+		sfc_err(sa, "cannot handle memory buffer VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
+			memhdr->addr, (uint64_t)memhdr->iova, memhdr->len,
+			rte_strerror(efx_rc));
+		register_data->rc = efx_rc;
+		return;
+	}
+
+	sfc_info(sa, "registered memory buffer VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 " -> NIC_BASE=%" PRIx64 " TRGT_BASE=%" PRIx64 " MAP_LEN=%" PRIx64,
+		 memhdr->addr, (uint64_t)memhdr->iova, memhdr->len,
+		 (uint64_t)nic_base, (uint64_t)trgt_base, (uint64_t)map_len);
+
+	rc = sfc_nic_dma_add_region(&sas->dma, nic_base, trgt_base, map_len);
 	if (rc != 0) {
-		sfc_err(sa, "cannot handle memory segment VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
-			ms->addr, (uint64_t)ms->iova, (uint64_t)ms->len,
-			rte_strerror(rc));
-		return rc;
+		sfc_err(sa, "failed to add regioned DMA mapping");
+		register_data->rc = rc;
 	}
+}
 
-	sfc_info(sa, "registered memory segment VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 " -> NIC_BASE=%" PRIx64 " TRGT_BASE=%" PRIx64 " MAP_LEN=%" PRIx64,
-		ms->addr, (uint64_t)ms->iova, (uint64_t)ms->len,
-		(uint64_t)nic_base, (uint64_t)trgt_base, (uint64_t)map_len);
+static void
+sfc_mempool_event_cb(enum rte_mempool_event event, struct rte_mempool *mp,
+		     void *user_data)
+{
+	struct sfc_adapter *sa = user_data;
+	struct sfc_mp_register_data register_data = {
+		.sa = sa,
+		.rc = 0,
+	};
+	uint32_t iters;
+	efx_rc_t rc;
 
-	if (nic_base != trgt_base) {
-		sfc_panic(sa, "unsupported non-trivial regioned DMA mapping: %llx vs %llx\n",
-			  (unsigned long long)nic_base,
-			  (unsigned long long)trgt_base);
-	}
+	if (event != RTE_MEMPOOL_EVENT_READY)
+		return;
+
+	if (mp->flags & RTE_MEMPOOL_F_NON_IO)
+		return;
+
+	iters = rte_mempool_mem_iter(mp, sfc_mp_chunk_register_dma,
+				     &register_data);
+	if (iters != mp->nb_mem_chunks)
+		sfc_err(sa, "failed to iterate over memory chunks, DMA errors may occur");
+	if (register_data.rc != 0)
+		sfc_err(sa, "failed to map some memory chunks, DMA errors may occur");
 
 	if (sa->state == SFC_ETHDEV_STARTED) {
+		/*
+		 * It's safe to reconfigure the DMA mapping even if no changes
+		 * have been made during memory chunks iteration. In that case,
+		 * this operation will not change anything either.
+		 */
 		rc = efx_nic_dma_reconfigure(sa->nic);
 		if (rc != 0) {
 			sfc_err(sa, "cannot reconfigure NIC DMA: %s",
 				rte_strerror(rc));
-			return rc;
-		}
-	}
-
-	return 0;
-}
-
-static void
-sfc_mem_event_cb(enum rte_mem_event type, const void *addr, size_t len,
-		 void *arg)
-{
-	struct sfc_adapter *sa = arg;
-	struct rte_memseg_list *msl;
-	struct rte_memseg *ms;
-	size_t cur_len;
-	int ret;
-
-	/* For now interested in allocation events only */
-	if (type != RTE_MEM_EVENT_ALLOC)
-		return;
-
-	msl = rte_mem_virt2memseg_list(addr);
-
-	for (cur_len = 0; cur_len < len; cur_len += ms->len) {
-		const void *va = RTE_PTR_ADD(addr, cur_len);
-
-		ms = rte_mem_virt2memseg(va, msl);
-
-		ret = sfc_dma_add_memseg(sa, ms);
-		if (ret != 0) {
-			sfc_err(sa, "failed to handle memory alloc event - schedule restart");
-			sfc_schedule_restart(sa);
-			break;
+			return;
 		}
 	}
 }
 
 static int
-sfc_dmamap_seg(const struct rte_memseg_list *msl __rte_unused,
-	       const struct rte_memseg *ms, void *arg)
+sfc_dma_attach_flat(struct sfc_adapter *sa)
 {
-	struct sfc_adapter *sa = arg;
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
 
-	return sfc_dma_add_memseg(sa, ms) == 0 ? 0 : -1;
+	/*
+	 * Add a trivially-mapped region that covers the whole address
+	 * space to ensure compatibility.
+	 */
+	return sfc_nic_dma_add_region(&sas->dma, 0, 0, ~0LL);
 }
 
 static int
@@ -142,30 +165,47 @@ sfc_dma_attach_regioned(struct sfc_adapter *sa)
 {
 	int rc;
 
-	/* Register memory event callback first */
-	rc = rte_mem_event_callback_register(SFC_MEM_EVENT_CB,
-					     sfc_mem_event_cb, sa);
-	if (rc != 0 && rte_errno != ENOTSUP) {
-		sfc_err(sa, "failed to register memory event callback");
+	rc = rte_mempool_event_callback_register(sfc_mempool_event_cb, sa);
+	if (rc != 0) {
+		sfc_err(sa, "failed to register mempool event callback");
 		rc = EFAULT;
-		goto fail_mem_event_callback_register;
-	}
-
-	/* Walk over the list of already allocated memory segments */
-	if (rte_memseg_walk(sfc_dmamap_seg, sa) != 0) {
-		sfc_err(sa, "failed to handle all memory segments");
-		rc = EFAULT;
-		goto fail_memseg_walk;
+		goto fail_mempool_event_callback_register;
 	}
 
 	return 0;
 
-fail_memseg_walk:
-	rte_mem_event_callback_unregister(SFC_MEM_EVENT_CB, sa);
-
-fail_mem_event_callback_register:
+fail_mempool_event_callback_register:
 	return rc;
 }
+
+static void
+sfc_dma_detach_regioned(struct sfc_adapter *sa)
+{
+	rte_mempool_event_callback_unregister(sfc_mempool_event_cb, sa);
+}
+
+#else
+
+static int
+sfc_dma_attach_flat(struct sfc_adapter *sa __rte_unused)
+{
+	/* Nothing to do */
+	return 0;
+}
+
+static int
+sfc_dma_attach_regioned(struct sfc_adapter *sa __rte_unused)
+{
+	return ENOTSUP;
+}
+
+static void
+sfc_dma_detach_regioned(struct sfc_adapter *sa __rte_unused)
+{
+	/* Nothing to do */
+}
+
+#endif
 
 static int
 sfc_dma_attach(struct sfc_adapter *sa)
@@ -177,8 +217,7 @@ sfc_dma_attach(struct sfc_adapter *sa)
 
 	switch (encp->enc_dma_mapping) {
 	case EFX_NIC_DMA_MAPPING_FLAT:
-		/* Nothing special required */
-		rc = 0;
+		rc = sfc_dma_attach_flat(sa);
 		break;
 	case EFX_NIC_DMA_MAPPING_REGIONED:
 		rc = sfc_dma_attach_regioned(sa);
@@ -190,12 +229,6 @@ sfc_dma_attach(struct sfc_adapter *sa)
 
 	sfc_log_init(sa, "done: %s", rte_strerror(rc));
 	return rc;
-}
-
-static void
-sfc_dma_detach_regioned(struct sfc_adapter *sa)
-{
-	rte_mem_event_callback_unregister(SFC_MEM_EVENT_CB, sa);
 }
 
 static void
@@ -220,12 +253,20 @@ sfc_dma_detach(struct sfc_adapter *sa)
 }
 
 int
-sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
+sfc_dma_alloc(struct sfc_adapter *sa, const char *name, uint16_t id,
 	      efx_nic_dma_addr_type_t addr_type, size_t len, int socket_id,
 	      efsys_mem_t *esmp)
 {
 	const struct rte_memzone *mz;
+	efsys_dma_addr_t nic_base;
+	efsys_dma_addr_t trgt_base;
+	efx_rc_t efx_rc;
+	size_t map_len;
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	struct sfc_adapter_shared *sas = sfc_sa2shared(sa);
 	int rc;
+#endif
 
 	sfc_log_init(sa, "name=%s id=%u len=%zu socket_id=%d",
 		     name, id, len, socket_id);
@@ -243,11 +284,64 @@ sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
 		return EFAULT;
 	}
 
-	rc = efx_nic_dma_map(sa->nic, addr_type, mz->iova, len,
-			     &esmp->esm_addr);
-	if (rc != 0) {
-		(void)rte_memzone_free(mz);
-		return rc;
+	/*
+	 * Check if the memzone can be mapped already without changing the DMA
+	 * configuration.
+	 * libefx is used instead of the driver cache since it can take the type
+	 * of the buffer into account and make a better decision when it comes
+	 * to buffers that are mapped by the FW itself.
+	 * For generality's sake, not all region processing code is hidden
+	 * behind the RTE_PMD_NET_SFC_NIC_DMA_MAP define.
+	 */
+	efx_rc = efx_nic_dma_map(sa->nic, addr_type, mz->iova, len,
+				 &esmp->esm_addr);
+	if (efx_rc != 0) {
+		if (efx_rc != ENOENT) {
+			sfc_err(sa, "failed to map memory buffer VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
+				mz->addr, (uint64_t)mz->iova, len,
+				rte_strerror(efx_rc));
+			(void)rte_memzone_free(mz);
+			return efx_rc;
+		}
+
+		efx_rc = efx_nic_dma_config_add(sa->nic, mz->iova, len,
+						&nic_base, &trgt_base, &map_len);
+		if (efx_rc != 0) {
+			sfc_err(sa, "cannot handle memory buffer VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
+				mz->addr, (uint64_t)mz->iova, len,
+				rte_strerror(efx_rc));
+			(void)rte_memzone_free(mz);
+			return EFAULT;
+		}
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+		rc = sfc_nic_dma_add_region(&sas->dma, nic_base, trgt_base,
+					    map_len);
+		if (rc != 0) {
+			sfc_err(sa, "failed to add DMA region VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
+				mz->addr, (uint64_t)mz->iova, len,
+				rte_strerror(efx_rc));
+			(void)rte_memzone_free(mz);
+			return rc;
+		}
+#endif
+
+		efx_rc = efx_nic_dma_reconfigure(sa->nic);
+		if (efx_rc != 0) {
+			sfc_err(sa, "failed to reconfigure DMA");
+			(void)rte_memzone_free(mz);
+			return efx_rc;
+		}
+
+		efx_rc = efx_nic_dma_map(sa->nic, addr_type, mz->iova, len,
+					 &esmp->esm_addr);
+		if (efx_rc != 0) {
+			sfc_err(sa, "failed to map memory buffer VA=%p IOVA=%" PRIx64 " length=0x%" PRIx64 ": %s",
+				mz->addr, (uint64_t)mz->iova, len,
+				rte_strerror(efx_rc));
+			(void)rte_memzone_free(mz);
+			return efx_rc;
+		}
 	}
 
 	esmp->esm_mz = mz;

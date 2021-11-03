@@ -1248,6 +1248,10 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	info.vi_window_shift = encp->enc_vi_window_shift;
 	info.fcw_offset = sa->fcw_offset;
 
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	info.dma = &sas->dma;
+#endif
+
 	rc = sa->priv.dp_rx->qcreate(sa->eth_dev->data->port_id, sw_index,
 				     &RTE_ETH_DEV_TO_PCI(sa->eth_dev)->addr,
 				     socket_id, &info, &rxq_info->dp);

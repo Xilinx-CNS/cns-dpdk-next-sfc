@@ -17,6 +17,7 @@
 
 #include "sfc_log.h"
 #include "sfc_stats.h"
+#include "sfc_nic_dma.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -89,6 +89,9 @@ struct sfc_ef100_rxq {
 	struct rte_mempool		*refill_mb_pool;
 	efx_qword_t			*rxq_hw_ring;
 	volatile void			*doorbell;
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	const struct sfc_nic_dma_info	*dma;
+#endif
 
 	/* Datapath receive queue anchor */
 	struct sfc_dp_rxq		dp;
@@ -131,6 +134,28 @@ sfc_ef100_rx_qpush(struct sfc_ef100_rxq *rxq, unsigned int added)
 			   added);
 }
 
+static int
+sfc_ef100_rx_map(const struct sfc_ef100_rxq *rxq, rte_iova_t iova, size_t len,
+		 rte_iova_t *dma_addr)
+{
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	int rc;
+
+	rc = sfc_nic_dma_map(rxq->dma, iova, len, dma_addr);
+	if (rc != 0)
+		sfc_ef100_rx_err(rxq, "failed to map DMA address on Rx");
+
+	return rc;
+#else
+	RTE_SET_USED(rxq);
+	RTE_SET_USED(len);
+
+	*dma_addr = iova;
+
+	return 0;
+#endif
+}
+
 static void
 sfc_ef100_rx_qrefill(struct sfc_ef100_rxq *rxq)
 {
@@ -170,12 +195,12 @@ sfc_ef100_rx_qrefill(struct sfc_ef100_rxq *rxq)
 			break;
 		}
 
-		for (i = 0, id = added & ptr_mask;
-		     i < RTE_DIM(objs);
-		     ++i, ++id) {
+		id = added & ptr_mask;
+		for (i = 0; i < RTE_DIM(objs); ++i) {
 			struct rte_mbuf *m = objs[i];
 			struct sfc_ef100_rx_sw_desc *rxd;
-			rte_iova_t phys_addr;
+			rte_iova_t dma_addr;
+			int rc;
 
 			__rte_mbuf_raw_sanity_check(m);
 
@@ -189,13 +214,20 @@ sfc_ef100_rx_qrefill(struct sfc_ef100_rxq *rxq)
 			 * structure members.
 			 */
 
-			/* TODO map Rx buffer address */
-			phys_addr = rte_mbuf_data_iova_default(m);
+			rc = sfc_ef100_rx_map(rxq,
+					      rte_mbuf_data_iova_default(m),
+					      rte_pktmbuf_data_len(m),
+					      &dma_addr);
+			if (unlikely(rc != 0)) {
+				rte_mempool_put(rxq->refill_mb_pool, m);
+				continue;
+			}
 			EFX_POPULATE_QWORD_1(rxq->rxq_hw_ring[id],
-			    ESF_GZ_RX_BUF_ADDR, phys_addr);
+			    ESF_GZ_RX_BUF_ADDR, dma_addr);
+			id++;
 		}
 
-		added += RTE_DIM(objs);
+		added += id - (added & ptr_mask);
 	} while (--bulks > 0);
 
 	SFC_ASSERT(rxq->added != added);
@@ -794,6 +826,10 @@ sfc_ef100_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 	rxq->evq_prime = (volatile uint8_t *)info->mem_bar +
 			 info->fcw_offset +
 			 ER_GZ_EVQ_INT_PRIME_OFST;
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	rxq->dma = info->dma;
+#endif
 
 	sfc_ef100_rx_debug(rxq, "RxQ doorbell is %p", rxq->doorbell);
 

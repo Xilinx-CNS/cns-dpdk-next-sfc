@@ -80,6 +80,11 @@ struct sfc_dp_tx_qcreate_info {
 	uint32_t		tso_max_payload_len;
 	/** Maximum number of frames to be generated per TSOv3 transaction */
 	uint32_t		tso_max_nb_outgoing_frames;
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	/** Pointer to NIC's DMA mapping configuration */
+	const struct sfc_nic_dma_info	*dma;
+#endif
 };
 
 /**

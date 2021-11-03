@@ -35,6 +35,7 @@
 #include "sfc_repr_proxy.h"
 #include "sfc_service.h"
 #include "sfc_ethdev_state.h"
+#include "sfc_nic_dma.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,6 +146,10 @@ struct sfc_adapter_shared {
 	bool				counters_rxq_allocated;
 	unsigned int			nb_repr_rxq;
 	unsigned int			nb_repr_txq;
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	struct sfc_nic_dma_info		dma;
+#endif
 };
 
 /* Adapter process private data */
@@ -392,7 +397,7 @@ sfc_get_system_msecs(void)
 	return rte_get_timer_cycles() * MS_PER_S / rte_get_timer_hz();
 }
 
-int sfc_dma_alloc(const struct sfc_adapter *sa, const char *name, uint16_t id,
+int sfc_dma_alloc(struct sfc_adapter *sa, const char *name, uint16_t id,
 		  efx_nic_dma_addr_type_t addr_type, size_t len, int socket_id,
 		  efsys_mem_t *esmp);
 void sfc_dma_free(const struct sfc_adapter *sa, efsys_mem_t *esmp);

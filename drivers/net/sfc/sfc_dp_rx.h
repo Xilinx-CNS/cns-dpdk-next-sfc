@@ -95,6 +95,11 @@ struct sfc_dp_rx_qcreate_info {
 
 	/** Mask to extract user bits from Rx prefix mark field */
 	uint32_t		user_mark_mask;
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	/** Pointer to NIC's DMA mapping configuration */
+	const struct sfc_nic_dma_info	*dma;
+#endif
 };
 
 /**

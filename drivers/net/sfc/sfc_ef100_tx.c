@@ -85,6 +85,10 @@ struct sfc_ef100_txq {
 	uint32_t			tso_max_payload_len;
 	uint32_t			tso_max_nb_outgoing_frames;
 
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	const struct sfc_nic_dma_info	*dma;
+#endif
+
 	/* Datapath transmit queue anchor */
 	struct sfc_dp_txq		dp;
 };
@@ -342,8 +346,31 @@ sfc_ef100_tx_qdesc_cso_inner_l3(uint64_t tx_tunnel)
 	return inner_l3;
 }
 
-static void
-sfc_ef100_tx_qdesc_send_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
+static int
+sfc_ef100_tx_map(const struct sfc_ef100_txq *txq, rte_iova_t iova, size_t len,
+		 rte_iova_t *dma_addr)
+{
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	int rc;
+
+	rc = sfc_nic_dma_map(txq->dma, iova, len, dma_addr);
+	if (rc != 0)
+		sfc_ef100_tx_err(txq, "failed to map DMA address on Tx");
+
+	return rc;
+#else
+	RTE_SET_USED(txq);
+	RTE_SET_USED(len);
+
+	*dma_addr = iova;
+
+	return 0;
+#endif
+}
+
+static int
+sfc_ef100_tx_qdesc_send_create(const struct sfc_ef100_txq *txq,
+			       const struct rte_mbuf *m, efx_oword_t *tx_desc)
 {
 	bool outer_l3;
 	bool outer_l4;
@@ -351,6 +378,8 @@ sfc_ef100_tx_qdesc_send_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
 	uint8_t partial_en;
 	uint16_t part_cksum_w;
 	uint16_t l4_offset_w;
+	rte_iova_t dma_addr;
+	int rc;
 
 	if ((m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) == 0) {
 		outer_l3 = (m->ol_flags & RTE_MBUF_F_TX_IP_CKSUM);
@@ -384,9 +413,14 @@ sfc_ef100_tx_qdesc_send_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
 				m->l2_len + m->l3_len) >> 1;
 	}
 
-	/* TODO map send address */
+	rc = sfc_ef100_tx_map(txq, rte_mbuf_data_iova_default(m),
+			      rte_pktmbuf_data_len(m),
+			      &dma_addr);
+	if (unlikely(rc != 0))
+		return rc;
+
 	EFX_POPULATE_OWORD_10(*tx_desc,
-			ESF_GZ_TX_SEND_ADDR, rte_mbuf_data_iova(m),
+			ESF_GZ_TX_SEND_ADDR, dma_addr,
 			ESF_GZ_TX_SEND_LEN, rte_pktmbuf_data_len(m),
 			ESF_GZ_TX_SEND_NUM_SEGS, m->nb_segs,
 			ESF_GZ_TX_SEND_CSO_PARTIAL_START_W, l4_offset_w,
@@ -406,6 +440,8 @@ sfc_ef100_tx_qdesc_send_create(const struct rte_mbuf *m, efx_oword_t *tx_desc)
 
 		EFX_OR_OWORD(*tx_desc, tx_desc_extra_fields);
 	}
+
+	return 0;
 }
 
 static void
@@ -571,6 +607,8 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 	size_t tcph_off;
 	size_t header_len;
 	size_t remaining_hdr_len;
+	rte_iova_t dma_addr;
+	int rc;
 
 	if (m->ol_flags & RTE_MBUF_F_TX_TUNNEL_MASK) {
 		outer_iph_off = m->outer_l2_len;
@@ -596,9 +634,13 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 		id = (*added)++ & txq->ptr_mask;
 		if (rte_pktmbuf_data_len(m_seg) <= remaining_hdr_len) {
 			/* The segment is fully header segment */
-			/* TODO map send address */
+			rc = sfc_ef100_tx_map(txq, rte_mbuf_data_iova(m_seg),
+					      rte_pktmbuf_data_len(m_seg),
+					      &dma_addr);
+			if (unlikely(rc != 0))
+				return NULL;
 			sfc_ef100_tx_qdesc_seg_create(
-				rte_mbuf_data_iova(m_seg),
+				dma_addr,
 				rte_pktmbuf_data_len(m_seg),
 				&txq->txq_hw_ring[id]);
 			remaining_hdr_len -= rte_pktmbuf_data_len(m_seg);
@@ -607,17 +649,25 @@ sfc_ef100_xmit_tso_pkt(struct sfc_ef100_txq * const txq,
 			 * The segment must be split into header and
 			 * payload segments
 			 */
-			/* TODO map send address */
+			rc = sfc_ef100_tx_map(txq, rte_mbuf_data_iova(m_seg),
+					      remaining_hdr_len, &dma_addr);
+			if (unlikely(rc != 0))
+				return NULL;
 			sfc_ef100_tx_qdesc_seg_create(
-				rte_mbuf_data_iova(m_seg),
+				dma_addr,
 				remaining_hdr_len,
 				&txq->txq_hw_ring[id]);
 			SFC_ASSERT(txq->sw_ring[id].mbuf == NULL);
 
 			id = (*added)++ & txq->ptr_mask;
-			/* TODO map send address */
+			rc = sfc_ef100_tx_map(txq,
+					      rte_mbuf_data_iova(m_seg) + remaining_hdr_len,
+					      rte_pktmbuf_data_len(m_seg) - remaining_hdr_len,
+					      &dma_addr);
+			if (unlikely(rc != 0))
+				return NULL;
 			sfc_ef100_tx_qdesc_seg_create(
-				rte_mbuf_data_iova(m_seg) + remaining_hdr_len,
+				dma_addr,
 				rte_pktmbuf_data_len(m_seg) - remaining_hdr_len,
 				&txq->txq_hw_ring[id]);
 			remaining_hdr_len = 0;
@@ -652,6 +702,8 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 	bool reap_done;
 	struct rte_mbuf **pktp;
 	struct rte_mbuf **pktp_end;
+	rte_iova_t dma_addr;
+	int rc;
 
 	if (unlikely(txq->flags &
 		     (SFC_EF100_TXQ_NOT_RUNNING | SFC_EF100_TXQ_EXCEPTION)))
@@ -703,9 +755,12 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 		if (m_seg->ol_flags & RTE_MBUF_F_TX_TCP_SEG) {
 			m_seg = sfc_ef100_xmit_tso_pkt(txq, m_seg, &added);
 		} else {
-			id = added++ & txq->ptr_mask;
-			sfc_ef100_tx_qdesc_send_create(m_seg,
-						       &txq->txq_hw_ring[id]);
+			id = added & txq->ptr_mask;
+			rc = sfc_ef100_tx_qdesc_send_create(txq, m_seg,
+							&txq->txq_hw_ring[id]);
+			if (unlikely(rc != 0))
+				continue;
+			added++;
 
 			/*
 			 * rte_pktmbuf_free() is commonly used in DPDK for
@@ -731,8 +786,14 @@ sfc_ef100_xmit_pkts(void *tx_queue, struct rte_mbuf **tx_pkts, uint16_t nb_pkts)
 					 SFC_EF100_TX_SEG_DESC_LEN_MAX);
 
 			id = added++ & txq->ptr_mask;
-			/* TODO map send address */
-			sfc_ef100_tx_qdesc_seg_create(rte_mbuf_data_iova(m_seg),
+			rc = sfc_ef100_tx_map(txq, rte_mbuf_data_iova(m_seg),
+					      rte_pktmbuf_data_len(m_seg),
+					      &dma_addr);
+			if (unlikely(rc != 0)) {
+				m_seg = m_seg->next;
+				continue;
+			}
+			sfc_ef100_tx_qdesc_seg_create(dma_addr,
 					rte_pktmbuf_data_len(m_seg),
 					&txq->txq_hw_ring[id]);
 			txq->sw_ring[id].mbuf = m_seg;
@@ -841,6 +902,10 @@ sfc_ef100_tx_qcreate(uint16_t port_id, uint16_t queue_id,
 	txq->tso_max_nb_payload_descs = info->tso_max_nb_payload_descs;
 	txq->tso_max_payload_len = info->tso_max_payload_len;
 	txq->tso_max_nb_outgoing_frames = info->tso_max_nb_outgoing_frames;
+
+#ifdef RTE_PMD_NET_SFC_NIC_DMA_MAP
+	txq->dma = info->dma;
+#endif
 
 	sfc_ef100_tx_debug(txq, "TxQ doorbell is %p", txq->doorbell);
 
