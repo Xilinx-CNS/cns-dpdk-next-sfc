@@ -113,6 +113,7 @@ Features
 - Connection tracking.
 - Sub-Function representors.
 - Sub-Function.
+- Shared Rx queue.
 
 
 Limitations
@@ -464,6 +465,11 @@ Limitations
 
   - In order to achieve best insertion rate, application should manage the flows per lcore.
   - Better to disable memory reclaim by setting ``reclaim_mem_mode`` to 0 to accelerate the flow object allocation and release with cache.
+
+ Shared Rx queue:
+
+  - Counters of received packets and bytes number of devices in same share group are same.
+  - Counters of received packets and bytes number of queues in same group and queue ID are same.
 
 - HW hashed bonding
 
