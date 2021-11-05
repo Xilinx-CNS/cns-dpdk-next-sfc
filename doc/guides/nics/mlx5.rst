@@ -114,6 +114,7 @@ Features
 - Sub-Function representors.
 - Sub-Function.
 - Shared Rx queue.
+- Rx queue delay drop.
 
 
 Limitations
@@ -607,6 +608,16 @@ Driver options
     ConnectX-6 Lx, BlueField and BlueField-2.
   - POWER8 and ARMv8 with ConnectX-4 Lx, ConnectX-5, ConnectX-6, ConnectX-6 Dx,
     ConnectX-6 Lx, BlueField and BlueField-2.
+
+- ``delay_drop`` parameter [int]
+
+  Bitmask value for the Rx queue delay drop attribute. Bit 0 is used for the
+  standard Rx queue and bit 1 is used for the hairpin Rx queue. By default, the
+  delay drop is disabled for all Rx queues. It will be ignored if the port does
+  not support the attribute even if it is enabled explicitly.
+
+  The packets being received will not be dropped immediately when the WQEs are
+  exhausted in a Rx queue with delay drop enabled.
 
 - ``mprq_en`` parameter [int]
 

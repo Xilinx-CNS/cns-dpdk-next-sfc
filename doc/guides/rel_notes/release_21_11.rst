@@ -203,6 +203,7 @@ New Features
   * Added implicit mempool registration to avoid data path hiccups (opt-out).
   * Added NIC offloads for the PMD on Windows (TSO, VLAN strip, CRC keep).
   * Added socket direct mode bonding support.
+  * Added delay drop support for Rx queue.
 
 * **Updated Solarflare network PMD.**
 
