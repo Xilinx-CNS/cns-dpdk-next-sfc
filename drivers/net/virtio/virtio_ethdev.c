@@ -1116,40 +1116,37 @@ static int virtio_dev_xstats_get_names(struct rte_eth_dev *dev,
 	unsigned count = 0;
 	unsigned t;
 
-	unsigned nstats = dev->data->nb_tx_queues * VIRTIO_NB_TXQ_XSTATS +
-		dev->data->nb_rx_queues * VIRTIO_NB_RXQ_XSTATS;
+	/* Note: limit checked in rte_eth_xstats_names() */
 
-	if (xstats_names != NULL) {
-		/* Note: limit checked in rte_eth_xstats_names() */
-
-		for (i = 0; i < dev->data->nb_rx_queues; i++) {
-			struct virtnet_rx *rxvq = dev->data->rx_queues[i];
-			if (rxvq == NULL)
-				continue;
-			for (t = 0; t < VIRTIO_NB_RXQ_XSTATS; t++) {
+	for (i = 0; i < dev->data->nb_rx_queues; i++) {
+		struct virtnet_rx *rxvq = dev->data->rx_queues[i];
+		if (rxvq == NULL)
+			continue;
+		for (t = 0; t < VIRTIO_NB_RXQ_XSTATS; t++) {
+			if (xstats_names != NULL)
 				snprintf(xstats_names[count].name,
 					sizeof(xstats_names[count].name),
 					"rx_q%u_%s", i,
 					rte_virtio_rxq_stat_strings[t].name);
-				count++;
-			}
+			count++;
 		}
+	}
 
-		for (i = 0; i < dev->data->nb_tx_queues; i++) {
-			struct virtnet_tx *txvq = dev->data->tx_queues[i];
-			if (txvq == NULL)
-				continue;
-			for (t = 0; t < VIRTIO_NB_TXQ_XSTATS; t++) {
+	for (i = 0; i < dev->data->nb_tx_queues; i++) {
+		struct virtnet_tx *txvq = dev->data->tx_queues[i];
+		if (txvq == NULL)
+			continue;
+		for (t = 0; t < VIRTIO_NB_TXQ_XSTATS; t++) {
+			if (xstats_names != NULL)
 				snprintf(xstats_names[count].name,
 					sizeof(xstats_names[count].name),
 					"tx_q%u_%s", i,
 					rte_virtio_txq_stat_strings[t].name);
-				count++;
-			}
+			count++;
 		}
-		return count;
 	}
-	return nstats;
+
+	return count;
 }
 
 static int
