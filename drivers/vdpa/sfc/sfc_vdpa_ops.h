@@ -36,8 +36,6 @@ struct sfc_vdpa_vring_info {
 
 typedef struct sfc_vdpa_vq_context_s {
 	uint8_t				enable;
-	uint32_t			pidx;
-	uint32_t			cidx;
 	efx_virtio_vq_t			*vq;
 } sfc_vdpa_vq_context_t;
 
