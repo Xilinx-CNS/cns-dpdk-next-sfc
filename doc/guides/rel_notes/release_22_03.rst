@@ -55,6 +55,9 @@ New Features
      Also, make sure to start the actual text at the margin.
      =======================================================
 
+* **Updated Cisco enic driver.**
+
+  * Added rte_flow support for matching GENEVE packets.
 
 Removed Items
 -------------
