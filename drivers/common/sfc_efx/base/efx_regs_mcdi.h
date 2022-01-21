@@ -260,150 +260,150 @@
  * MC_CMD_ERR_PRIV below).
  */
 /* enum: Operation not permitted. */
-#define	MC_CMD_ERR_EPERM 0x1
+#define          MC_CMD_ERR_EPERM 0x1
 /* enum: Non-existent command target */
-#define	MC_CMD_ERR_ENOENT 0x2
+#define          MC_CMD_ERR_ENOENT 0x2
 /* enum: assert() has killed the MC */
-#define	MC_CMD_ERR_EINTR 0x4
+#define          MC_CMD_ERR_EINTR 0x4
 /* enum: I/O failure */
-#define	MC_CMD_ERR_EIO 0x5
+#define          MC_CMD_ERR_EIO 0x5
 /* enum: Already exists */
-#define	MC_CMD_ERR_EEXIST 0x6
+#define          MC_CMD_ERR_EEXIST 0x6
 /* enum: Try again */
-#define	MC_CMD_ERR_EAGAIN 0xb
+#define          MC_CMD_ERR_EAGAIN 0xb
 /* enum: Out of memory */
-#define	MC_CMD_ERR_ENOMEM 0xc
+#define          MC_CMD_ERR_ENOMEM 0xc
 /* enum: Caller does not hold required locks */
-#define	MC_CMD_ERR_EACCES 0xd
+#define          MC_CMD_ERR_EACCES 0xd
 /* enum: Resource is currently unavailable (e.g. lock contention) */
-#define	MC_CMD_ERR_EBUSY 0x10
+#define          MC_CMD_ERR_EBUSY 0x10
 /* enum: No such device */
-#define	MC_CMD_ERR_ENODEV 0x13
+#define          MC_CMD_ERR_ENODEV 0x13
 /* enum: Invalid argument to target */
-#define	MC_CMD_ERR_EINVAL 0x16
+#define          MC_CMD_ERR_EINVAL 0x16
 /* enum: No space */
-#define	MC_CMD_ERR_ENOSPC 0x1c
+#define          MC_CMD_ERR_ENOSPC 0x1c
 /* enum: Read-only */
-#define	MC_CMD_ERR_EROFS 0x1e
+#define          MC_CMD_ERR_EROFS 0x1e
 /* enum: Broken pipe */
-#define	MC_CMD_ERR_EPIPE 0x20
+#define          MC_CMD_ERR_EPIPE 0x20
 /* enum: Out of range */
-#define	MC_CMD_ERR_ERANGE 0x22
+#define          MC_CMD_ERR_ERANGE 0x22
 /* enum: Non-recursive resource is already acquired */
-#define	MC_CMD_ERR_EDEADLK 0x23
+#define          MC_CMD_ERR_EDEADLK 0x23
 /* enum: Operation not implemented */
-#define	MC_CMD_ERR_ENOSYS 0x26
+#define          MC_CMD_ERR_ENOSYS 0x26
 /* enum: Operation timed out */
-#define	MC_CMD_ERR_ETIME 0x3e
+#define          MC_CMD_ERR_ETIME 0x3e
 /* enum: Link has been severed */
-#define	MC_CMD_ERR_ENOLINK 0x43
+#define          MC_CMD_ERR_ENOLINK 0x43
 /* enum: Protocol error */
-#define	MC_CMD_ERR_EPROTO 0x47
+#define          MC_CMD_ERR_EPROTO 0x47
 /* enum: Bad message */
-#define	MC_CMD_ERR_EBADMSG 0x4a
+#define          MC_CMD_ERR_EBADMSG 0x4a
 /* enum: Operation not supported */
-#define	MC_CMD_ERR_ENOTSUP 0x5f
+#define          MC_CMD_ERR_ENOTSUP 0x5f
 /* enum: Address not available */
-#define	MC_CMD_ERR_EADDRNOTAVAIL 0x63
+#define          MC_CMD_ERR_EADDRNOTAVAIL 0x63
 /* enum: Not connected */
-#define	MC_CMD_ERR_ENOTCONN 0x6b
+#define          MC_CMD_ERR_ENOTCONN 0x6b
 /* enum: Operation already in progress */
-#define	MC_CMD_ERR_EALREADY 0x72
+#define          MC_CMD_ERR_EALREADY 0x72
 /* enum: Stale handle. The handle references a resource that no longer exists.
  */
-#define	MC_CMD_ERR_ESTALE 0x74
+#define          MC_CMD_ERR_ESTALE 0x74
 /* enum: Resource allocation failed. */
-#define	MC_CMD_ERR_ALLOC_FAIL 0x1000
+#define          MC_CMD_ERR_ALLOC_FAIL 0x1000
 /* enum: V-adaptor not found. */
-#define	MC_CMD_ERR_NO_VADAPTOR 0x1001
+#define          MC_CMD_ERR_NO_VADAPTOR 0x1001
 /* enum: EVB port not found. */
-#define	MC_CMD_ERR_NO_EVB_PORT 0x1002
+#define          MC_CMD_ERR_NO_EVB_PORT 0x1002
 /* enum: V-switch not found. */
-#define	MC_CMD_ERR_NO_VSWITCH 0x1003
+#define          MC_CMD_ERR_NO_VSWITCH 0x1003
 /* enum: Too many VLAN tags. */
-#define	MC_CMD_ERR_VLAN_LIMIT 0x1004
+#define          MC_CMD_ERR_VLAN_LIMIT 0x1004
 /* enum: Bad PCI function number. */
-#define	MC_CMD_ERR_BAD_PCI_FUNC 0x1005
+#define          MC_CMD_ERR_BAD_PCI_FUNC 0x1005
 /* enum: Invalid VLAN mode. */
-#define	MC_CMD_ERR_BAD_VLAN_MODE 0x1006
+#define          MC_CMD_ERR_BAD_VLAN_MODE 0x1006
 /* enum: Invalid v-switch type. */
-#define	MC_CMD_ERR_BAD_VSWITCH_TYPE 0x1007
+#define          MC_CMD_ERR_BAD_VSWITCH_TYPE 0x1007
 /* enum: Invalid v-port type. */
-#define	MC_CMD_ERR_BAD_VPORT_TYPE 0x1008
+#define          MC_CMD_ERR_BAD_VPORT_TYPE 0x1008
 /* enum: MAC address exists. */
-#define	MC_CMD_ERR_MAC_EXIST 0x1009
+#define          MC_CMD_ERR_MAC_EXIST 0x1009
 /* enum: Slave core not present */
-#define	MC_CMD_ERR_SLAVE_NOT_PRESENT 0x100a
+#define          MC_CMD_ERR_SLAVE_NOT_PRESENT 0x100a
 /* enum: The datapath is disabled. */
-#define	MC_CMD_ERR_DATAPATH_DISABLED 0x100b
+#define          MC_CMD_ERR_DATAPATH_DISABLED 0x100b
 /* enum: The requesting client is not a function */
-#define	MC_CMD_ERR_CLIENT_NOT_FN 0x100c
+#define          MC_CMD_ERR_CLIENT_NOT_FN 0x100c
 /* enum: The requested operation might require the command to be passed between
  * MCs, and thetransport doesn't support that. Should only ever been seen over
  * the UART.
  */
-#define	MC_CMD_ERR_TRANSPORT_NOPROXY 0x100d
+#define          MC_CMD_ERR_TRANSPORT_NOPROXY 0x100d
 /* enum: VLAN tag(s) exists */
-#define	MC_CMD_ERR_VLAN_EXIST 0x100e
+#define          MC_CMD_ERR_VLAN_EXIST 0x100e
 /* enum: No MAC address assigned to an EVB port */
-#define	MC_CMD_ERR_NO_MAC_ADDR 0x100f
+#define          MC_CMD_ERR_NO_MAC_ADDR 0x100f
 /* enum: Notifies the driver that the request has been relayed to an admin
  * function for authorization. The driver should wait for a PROXY_RESPONSE
  * event and then resend its request. This error code is followed by a 32-bit
  * handle that helps matching it with the respective PROXY_RESPONSE event.
  */
-#define	MC_CMD_ERR_PROXY_PENDING 0x1010
+#define          MC_CMD_ERR_PROXY_PENDING 0x1010
 /* enum: The request cannot be passed for authorization because another request
  * from the same function is currently being authorized. The drvier should try
  * again later.
  */
-#define	MC_CMD_ERR_PROXY_INPROGRESS 0x1011
+#define          MC_CMD_ERR_PROXY_INPROGRESS 0x1011
 /* enum: Returned by MC_CMD_PROXY_COMPLETE if the caller is not the function
  * that has enabled proxying or BLOCK_INDEX points to a function that doesn't
  * await an authorization.
  */
-#define	MC_CMD_ERR_PROXY_UNEXPECTED 0x1012
+#define          MC_CMD_ERR_PROXY_UNEXPECTED 0x1012
 /* enum: This code is currently only used internally in FW. Its meaning is that
  * an operation failed due to lack of SR-IOV privilege. Normally it is
  * translated to EPERM by send_cmd_err(), but it may also be used to trigger
  * some special mechanism for handling such case, e.g. to relay the failed
  * request to a designated admin function for authorization.
  */
-#define	MC_CMD_ERR_NO_PRIVILEGE 0x1013
+#define          MC_CMD_ERR_NO_PRIVILEGE 0x1013
 /* enum: Workaround 26807 could not be turned on/off because some functions
  * have already installed filters. See the comment at
  * MC_CMD_WORKAROUND_BUG26807. May also returned for other operations such as
  * sub-variant switching.
  */
-#define	MC_CMD_ERR_FILTERS_PRESENT 0x1014
+#define          MC_CMD_ERR_FILTERS_PRESENT 0x1014
 /* enum: The clock whose frequency you've attempted to set set doesn't exist on
  * this NIC
  */
-#define	MC_CMD_ERR_NO_CLOCK 0x1015
+#define          MC_CMD_ERR_NO_CLOCK 0x1015
 /* enum: Returned by MC_CMD_TESTASSERT if the action that should have caused an
  * assertion failed to do so.
  */
-#define	MC_CMD_ERR_UNREACHABLE 0x1016
+#define          MC_CMD_ERR_UNREACHABLE 0x1016
 /* enum: This command needs to be processed in the background but there were no
  * resources to do so. Send it again after a command has completed.
  */
-#define	MC_CMD_ERR_QUEUE_FULL 0x1017
+#define          MC_CMD_ERR_QUEUE_FULL 0x1017
 /* enum: The operation could not be completed because the PCIe link has gone
  * away. This error code is never expected to be returned over the TLP
  * transport.
  */
-#define	MC_CMD_ERR_NO_PCIE 0x1018
+#define          MC_CMD_ERR_NO_PCIE 0x1018
 /* enum: The operation could not be completed because the datapath has gone
  * away. This is distinct from MC_CMD_ERR_DATAPATH_DISABLED in that the
  * datapath absence may be temporary
  */
-#define	MC_CMD_ERR_NO_DATAPATH 0x1019
+#define          MC_CMD_ERR_NO_DATAPATH 0x1019
 /* enum: The operation could not complete because some VIs are allocated */
-#define	MC_CMD_ERR_VIS_PRESENT 0x101a
+#define          MC_CMD_ERR_VIS_PRESENT 0x101a
 /* enum: The operation could not complete because some PIO buffers are
  * allocated
  */
-#define	MC_CMD_ERR_PIOBUFS_PRESENT 0x101b
+#define          MC_CMD_ERR_PIOBUFS_PRESENT 0x101b
 
 /* MC_CMD_RESOURCE_SPECIFIER enum */
 /* enum: Any */
@@ -664,6 +664,442 @@
 #define	MAE_COUNTER_TYPE_AR 0x0
 /* enum: Conntrack counters - can be referenced in CT response. */
 #define	MAE_COUNTER_TYPE_CT 0x1
+/* enum: Outer Rule counters - can be referenced in OR response. */
+#define	MAE_COUNTER_TYPE_OR 0x2
+
+/* TABLE_ID enum: Unique IDs for tables. The 32-bit ID values have been
+ * structured with bits [31:24] reserved (0), [23:16] indicating which major
+ * block the tables belongs to (0=VNIC TX, none currently; 1=MAE; 2=VNIC RX),
+ * [15:8] a unique ID within the block, and [7:0] reserved for future
+ * variations of the same table. (All of the tables currently defined within
+ * the streaming engines are listed here, but this does not imply that they are
+ * all supported - MC_CMD_TABLE_LIST returns the list of actually supported
+ * tables.)
+ */
+/* enum: Outer_Rule_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_OUTER_RULE_TABLE 0x10000
+/* enum: Outer_Rule_No_CT_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_OUTER_RULE_NO_CT_TABLE 0x10100
+/* enum: Mgmt_Filter_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_MGMT_FILTER_TABLE 0x10200
+/* enum: Conntrack_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_CONNTRACK_TABLE 0x10300
+/* enum: Action_Rule_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_ACTION_RULE_TABLE 0x10400
+/* enum: Mgroup_Default_Action_Set_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_MGROUP_DEFAULT_ACTION_SET_TABLE 0x10500
+/* enum: Encap_Hdr_Part1_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_ENCAP_HDR_PART1_TABLE 0x10600
+/* enum: Encap_Hdr_Part2_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_ENCAP_HDR_PART2_TABLE 0x10700
+/* enum: Replace_Src_MAC_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_REPLACE_SRC_MAC_TABLE 0x10800
+/* enum: Replace_Dst_MAC_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_REPLACE_DST_MAC_TABLE 0x10900
+/* enum: Dst_Mport_VC_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_DST_MPORT_VC_TABLE 0x10a00
+/* enum: LACP_LAG_Config_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_LACP_LAG_CONFIG_TABLE 0x10b00
+/* enum: LACP_Balance_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_LACP_BALANCE_TABLE 0x10c00
+/* enum: Dst_Mport_Host_Chan_Table in the MAE - refer to SF-123102-TC. */
+#define	TABLE_ID_DST_MPORT_HOST_CHAN_TABLE 0x10d00
+/* enum: VNIC_Rx_Encap_Table in VNIC Rx - refer to SF-123102-TC. */
+#define	TABLE_ID_VNIC_RX_ENCAP_TABLE 0x20000
+/* enum: Steering_Table in VNIC Rx - refer to SF-123102-TC. */
+#define	TABLE_ID_STEERING_TABLE 0x20100
+/* enum: RSS_Context_Table in VNIC Rx - refer to SF-123102-TC. */
+#define	TABLE_ID_RSS_CONTEXT_TABLE 0x20200
+/* enum: Indirection_Table in VNIC Rx - refer to SF-123102-TC. */
+#define	TABLE_ID_INDIRECTION_TABLE 0x20300
+
+/* TABLE_COMPRESSED_VLAN enum: Compressed VLAN TPID as used by some field
+ * types; can be calculated by (((ether_type_msb >> 2) & 0x4) ^ 0x4) |
+ * (ether_type_msb & 0x3);
+ */
+#define	TABLE_COMPRESSED_VLAN_TPID_8100 0x5 /* enum */
+#define	TABLE_COMPRESSED_VLAN_TPID_88A8 0x4 /* enum */
+#define	TABLE_COMPRESSED_VLAN_TPID_9100 0x1 /* enum */
+#define	TABLE_COMPRESSED_VLAN_TPID_9200 0x2 /* enum */
+#define	TABLE_COMPRESSED_VLAN_TPID_9300 0x3 /* enum */
+
+/* TABLE_NAT_DIR enum: NAT direction. */
+#define	TABLE_NAT_DIR_SOURCE 0x0 /* enum */
+#define	TABLE_NAT_DIR_DEST 0x1 /* enum */
+
+/* TABLE_RSS_KEY_MODE enum: Defines how the value for Toeplitz hashing for RSS
+ * is constructed as a concatenation (indicated here by "++") of packet header
+ * fields.
+ */
+/* enum: IP src addr ++ IP dst addr */
+#define	TABLE_RSS_KEY_MODE_SA_DA 0x0
+/* enum: IP src addr ++ IP dst addr ++ TCP/UDP src port ++ TCP/UDP dst port */
+#define	TABLE_RSS_KEY_MODE_SA_DA_SP_DP 0x1
+/* enum: IP src addr */
+#define	TABLE_RSS_KEY_MODE_SA 0x2
+/* enum: IP dst addr */
+#define	TABLE_RSS_KEY_MODE_DA 0x3
+/* enum: IP src addr ++ TCP/UDP src port */
+#define	TABLE_RSS_KEY_MODE_SA_SP 0x4
+/* enum: IP dest addr ++ TCP dest port */
+#define	TABLE_RSS_KEY_MODE_DA_DP 0x5
+/* enum: Nothing (produces input of 0, resulting in output hash of 0) */
+#define	TABLE_RSS_KEY_MODE_NONE 0x7
+
+/* TABLE_RSS_SPREAD_MODE enum: RSS spreading mode. */
+/* enum: RSS uses Indirection_Table lookup. */
+#define	TABLE_RSS_SPREAD_MODE_INDIRECTION 0x0
+/* enum: RSS uses even spreading calculation. */
+#define	TABLE_RSS_SPREAD_MODE_EVEN 0x1
+
+/* TABLE_FIELD_ID enum: Unique IDs for fields. Related concepts have been
+ * loosely grouped together into blocks with gaps for expansion, but the values
+ * are arbitrary. Field IDs are not specific to particular tables, and in some
+ * cases this sharing means that they are not used with the exact names of the
+ * corresponding table definitions in SF-123102-TC; however, the mapping should
+ * still be clear. The intent is that a list of fields, with their associated
+ * bit widths and semantics version code, unambiguously defines the semantics
+ * of the fields in a key or response. (Again, this list includes all of the
+ * fields currently defined within the streaming engines, but only a subset may
+ * actually be used by the supported list of tables.)
+ */
+/* enum: May appear multiple times within a key or response, and indicates that
+ * the field is unused and should be set to 0 (or masked out if permitted by
+ * the MASK_VALUE for this field).
+ */
+#define	TABLE_FIELD_ID_UNUSED 0x0
+/* enum: Source m-port (a full m-port label). */
+#define	TABLE_FIELD_ID_SRC_MPORT 0x1
+/* enum: Destination m-port (a full m-port label). */
+#define	TABLE_FIELD_ID_DST_MPORT 0x2
+/* enum: Source m-group ID. */
+#define	TABLE_FIELD_ID_SRC_MGROUP_ID 0x3
+/* enum: Physical network port ID (or m-port ID; same thing, for physical
+ * network ports).
+ */
+#define	TABLE_FIELD_ID_NETWORK_PORT_ID 0x4
+/* enum: True if packet arrived via network port, false if it arrived via host.
+ */
+#define	TABLE_FIELD_ID_IS_FROM_NETWORK 0x5
+/* enum: Full virtual channel from capsule header. */
+#define	TABLE_FIELD_ID_CH_VC 0x6
+/* enum: Low bits of virtual channel from capsule header. */
+#define	TABLE_FIELD_ID_CH_VC_LOW 0x7
+/* enum: User mark value in metadata and packet prefix. */
+#define	TABLE_FIELD_ID_USER_MARK 0x8
+/* enum: User flag value in metadata and packet prefix. */
+#define	TABLE_FIELD_ID_USER_FLAG 0x9
+/* enum: Counter ID associated with a response. All-bits-1 is a null value to
+ * suppress counting.
+ */
+#define	TABLE_FIELD_ID_COUNTER_ID 0xa
+/* enum: Discriminator which may be set by plugins in some lookup keys; this
+ * allows plugins to make a reinterpretation of packet fields in these keys
+ * without clashing with the normal interpretation.
+ */
+#define	TABLE_FIELD_ID_DISCRIM 0xb
+/* enum: Destination MAC address. The mapping from bytes in a frame to the
+ * 48-bit value for this field is in network order, i.e. a MAC address of
+ * AA:BB:CC:DD:EE:FF becomes a 48-bit value of 0xAABBCCDDEEFF.
+ */
+#define	TABLE_FIELD_ID_DST_MAC 0x14
+/* enum: Source MAC address (see notes for DST_MAC). */
+#define	TABLE_FIELD_ID_SRC_MAC 0x15
+/* enum: Outer VLAN tag TPID, compressed to an enumeration. */
+#define	TABLE_FIELD_ID_OVLAN_TPID_COMPRESSED 0x16
+/* enum: Full outer VLAN tag TCI (16 bits). */
+#define	TABLE_FIELD_ID_OVLAN 0x17
+/* enum: Outer VLAN ID (least significant 12 bits of full 16-bit TCI) only. */
+#define	TABLE_FIELD_ID_OVLAN_VID 0x18
+/* enum: Inner VLAN tag TPID, compressed to an enumeration. */
+#define	TABLE_FIELD_ID_IVLAN_TPID_COMPRESSED 0x19
+/* enum: Full inner VLAN tag TCI (16 bits). */
+#define	TABLE_FIELD_ID_IVLAN 0x1a
+/* enum: Inner VLAN ID (least significant 12 bits of full 16-bit TCI) only. */
+#define	TABLE_FIELD_ID_IVLAN_VID 0x1b
+/* enum: Ethertype. */
+#define	TABLE_FIELD_ID_ETHER_TYPE 0x1c
+/* enum: Source IP address, either IPv4 or IPv6. The mapping from bytes in a
+ * frame to the 128-bit value for this field is in network order, with IPv4
+ * addresses assumed to have 12 bytes of trailing zeroes. i.e. the IPv6 address
+ * [2345::6789:ABCD] is 0x2345000000000000000000006789ABCD; the IPv4 address
+ * 192.168.1.2 is 0xC0A80102000000000000000000000000.
+ */
+#define	TABLE_FIELD_ID_SRC_IP 0x1d
+/* enum: Destination IP address (see notes for SRC_IP). */
+#define	TABLE_FIELD_ID_DST_IP 0x1e
+/* enum: IPv4 Type-of-Service or IPv6 Traffic Class field. */
+#define	TABLE_FIELD_ID_IP_TOS 0x1f
+/* enum: IP Protocol. */
+#define	TABLE_FIELD_ID_IP_PROTO 0x20
+/* enum: Layer 4 source port. */
+#define	TABLE_FIELD_ID_SRC_PORT 0x21
+/* enum: Layer 4 destination port. */
+#define	TABLE_FIELD_ID_DST_PORT 0x22
+/* enum: TCP flags. */
+#define	TABLE_FIELD_ID_TCP_FLAGS 0x23
+/* enum: Virtual Network Identifier (VXLAN) or Virtual Session ID (NVGRE). */
+#define	TABLE_FIELD_ID_VNI 0x24
+/* enum: True if packet has any tunnel encapsulation header. */
+#define	TABLE_FIELD_ID_HAS_ENCAP 0x32
+/* enum: True if encap header has an outer VLAN tag. */
+#define	TABLE_FIELD_ID_HAS_ENC_OVLAN 0x33
+/* enum: True if encap header has an inner VLAN tag. */
+#define	TABLE_FIELD_ID_HAS_ENC_IVLAN 0x34
+/* enum: True if encap header is some sort of IP. */
+#define	TABLE_FIELD_ID_HAS_ENC_IP 0x35
+/* enum: True if encap header is specifically IPv4. */
+#define	TABLE_FIELD_ID_HAS_ENC_IP4 0x36
+/* enum: True if encap header is UDP. */
+#define	TABLE_FIELD_ID_HAS_ENC_UDP 0x37
+/* enum: True if only/inner frame has an outer VLAN tag. */
+#define	TABLE_FIELD_ID_HAS_OVLAN 0x38
+/* enum: True if only/inner frame has an inner VLAN tag. */
+#define	TABLE_FIELD_ID_HAS_IVLAN 0x39
+/* enum: True if only/inner frame is some sort of IP. */
+#define	TABLE_FIELD_ID_HAS_IP 0x3a
+/* enum: True if only/inner frame has a recognised L4 IP protocol (TCP or UDP).
+ */
+#define	TABLE_FIELD_ID_HAS_L4 0x3b
+/* enum: True if only/inner frame is an IP fragment. */
+#define	TABLE_FIELD_ID_IP_FRAG 0x3c
+/* enum: True if only/inner frame is the first IP fragment (fragment offset 0).
+ */
+#define	TABLE_FIELD_ID_IP_FIRST_FRAG 0x3d
+/* enum: True if only/inner frame has an IP Time-To-Live of <= 1. (Note: the
+ * implementation calls this "ip_ttl_is_one" but does in fact match packets
+ * with TTL=0 - which we shouldn't be seeing! - as well.)
+ */
+#define	TABLE_FIELD_ID_IP_TTL_LE_ONE 0x3e
+/* enum: True if only/inner frame has any of TCP SYN, FIN or RST flags set. */
+#define	TABLE_FIELD_ID_TCP_INTERESTING_FLAGS 0x3f
+/* enum: Plugin channel selection. */
+#define	TABLE_FIELD_ID_RDP_PL_CHAN 0x50
+/* enum: Enable update of CH_ROUTE_RDP_C_PL route bit. */
+#define	TABLE_FIELD_ID_RDP_C_PL_EN 0x51
+/* enum: New value of CH_ROUTE_RDP_C_PL route bit. */
+#define	TABLE_FIELD_ID_RDP_C_PL 0x52
+/* enum: Enable update of CH_ROUTE_RDP_D_PL route bit. */
+#define	TABLE_FIELD_ID_RDP_D_PL_EN 0x53
+/* enum: New value of CH_ROUTE_RDP_D_PL route bit. */
+#define	TABLE_FIELD_ID_RDP_D_PL 0x54
+/* enum: Enable update of CH_ROUTE_RDP_OUT_HOST_CHAN route bit. */
+#define	TABLE_FIELD_ID_RDP_OUT_HOST_CHAN_EN 0x55
+/* enum: New value of CH_ROUTE_RDP_OUT_HOST_CHAN route bit. */
+#define	TABLE_FIELD_ID_RDP_OUT_HOST_CHAN 0x56
+/* enum: Recirculation ID for lookup sequences with two action rule lookups. */
+#define	TABLE_FIELD_ID_RECIRC_ID 0x64
+/* enum: Domain ID passed to conntrack and action rule lookups. */
+#define	TABLE_FIELD_ID_DOMAIN 0x65
+/* enum: Construction mode for encap_tunnel_id - see MAE_CT_VNI_MODE enum. */
+#define	TABLE_FIELD_ID_CT_VNI_MODE 0x66
+/* enum: True to inhibit conntrack lookup if TCP SYN, FIN or RST flag is set.
+ */
+#define	TABLE_FIELD_ID_CT_TCP_FLAGS_INHIBIT 0x67
+/* enum: True to do conntrack lookups for IPv4 TCP packets. */
+#define	TABLE_FIELD_ID_DO_CT_IP4_TCP 0x68
+/* enum: True to do conntrack lookups for IPv4 UDP packets. */
+#define	TABLE_FIELD_ID_DO_CT_IP4_UDP 0x69
+/* enum: True to do conntrack lookups for IPv6 TCP packets. */
+#define	TABLE_FIELD_ID_DO_CT_IP6_TCP 0x6a
+/* enum: True to do conntrack lookups for IPv6 UDP packets. */
+#define	TABLE_FIELD_ID_DO_CT_IP6_UDP 0x6b
+/* enum: Outer rule identifier. */
+#define	TABLE_FIELD_ID_OUTER_RULE_ID 0x6c
+/* enum: Encapsulation type - see MAE_MCDI_ENCAP_TYPE enum. */
+#define	TABLE_FIELD_ID_ENCAP_TYPE 0x6d
+/* enum: Encap tunnel ID for conntrack lookups from VNI, VLAN tag(s), or 0,
+ * depending on CT_VNI_MODE.
+ */
+#define	TABLE_FIELD_ID_ENCAP_TUNNEL_ID 0x78
+/* enum: A conntrack entry identifier, passed to plugins. */
+#define	TABLE_FIELD_ID_CT_ENTRY_ID 0x79
+/* enum: Either source or destination NAT replacement port. */
+#define	TABLE_FIELD_ID_NAT_PORT 0x7a
+/* enum: Either source or destination NAT replacement IPv4 address. Note that
+ * this is specifically an IPv4 address (IPv6 is not supported for NAT), with
+ * byte mapped to a 32-bit value in network order, i.e. the IPv4 address
+ * 192.168.1.2 is the value 0xC0A80102.
+ */
+#define	TABLE_FIELD_ID_NAT_IP 0x7b
+/* enum: NAT direction: 0=>source, 1=>destination. */
+#define	TABLE_FIELD_ID_NAT_DIR 0x7c
+/* enum: Conntrack mark value, passed to action rule lookup. Note that this is
+ * not related to the "user mark" in the metadata / packet prefix.
+ */
+#define	TABLE_FIELD_ID_CT_MARK 0x7d
+/* enum: Private flags for conntrack, passed to action rule lookup. */
+#define	TABLE_FIELD_ID_CT_PRIV_FLAGS 0x7e
+/* enum: True if the conntrack lookup resulted in a hit. */
+#define	TABLE_FIELD_ID_CT_HIT 0x7f
+/* enum: True to suppress delivery when source and destination m-ports match.
+ */
+#define	TABLE_FIELD_ID_SUPPRESS_SELF_DELIVERY 0x8c
+/* enum: True to perform tunnel decapsulation. */
+#define	TABLE_FIELD_ID_DO_DECAP 0x8d
+/* enum: True to copy outer frame DSCP to inner on decap. */
+#define	TABLE_FIELD_ID_DECAP_DSCP_COPY 0x8e
+/* enum: True to map outer frame ECN to inner on decap, by RFC 6040 rules. */
+#define	TABLE_FIELD_ID_DECAP_ECN_RFC6040 0x8f
+/* enum: True to replace DSCP field. */
+#define	TABLE_FIELD_ID_DO_REPLACE_DSCP 0x90
+/* enum: True to replace ECN field. */
+#define	TABLE_FIELD_ID_DO_REPLACE_ECN 0x91
+/* enum: True to decrement IP Time-To-Live. */
+#define	TABLE_FIELD_ID_DO_DECR_IP_TTL 0x92
+/* enum: True to replace source MAC address. */
+#define	TABLE_FIELD_ID_DO_SRC_MAC 0x93
+/* enum: True to replace destination MAC address. */
+#define	TABLE_FIELD_ID_DO_DST_MAC 0x94
+/* enum: Number of VLAN tags to pop. Valid values are 0, 1, or 2. */
+#define	TABLE_FIELD_ID_DO_VLAN_POP 0x95
+/* enum: Number of VLANs tags to push. Valid values are 0, 1, or 2. */
+#define	TABLE_FIELD_ID_DO_VLAN_PUSH 0x96
+/* enum: True to count this packet. */
+#define	TABLE_FIELD_ID_DO_COUNT 0x97
+/* enum: True to perform tunnel encapsulation. */
+#define	TABLE_FIELD_ID_DO_ENCAP 0x98
+/* enum: True to copy inner frame DSCP to outer on encap. */
+#define	TABLE_FIELD_ID_ENCAP_DSCP_COPY 0x99
+/* enum: True to copy inner frame ECN to outer on encap. */
+#define	TABLE_FIELD_ID_ENCAP_ECN_COPY 0x9a
+/* enum: True to deliver the packet (otherwise it is dropped). */
+#define	TABLE_FIELD_ID_DO_DELIVER 0x9b
+/* enum: True to set the user flag in the metadata. */
+#define	TABLE_FIELD_ID_DO_FLAG 0x9c
+/* enum: True to update the user mark in the metadata. */
+#define	TABLE_FIELD_ID_DO_MARK 0x9d
+/* enum: True to override the capsule virtual channel for network deliveries.
+ */
+#define	TABLE_FIELD_ID_DO_SET_NET_CHAN 0x9e
+/* enum: True to override the reported source m-port for host deliveries. */
+#define	TABLE_FIELD_ID_DO_SET_SRC_MPORT 0x9f
+/* enum: Encap header ID for DO_ENCAP, indexing Encap_Hdr_Part1/2_Table. */
+#define	TABLE_FIELD_ID_ENCAP_HDR_ID 0xaa
+/* enum: New DSCP value for DO_REPLACE_DSCP. */
+#define	TABLE_FIELD_ID_DSCP_VALUE 0xab
+/* enum: If DO_REPLACE_ECN is set, the new value for the ECN field. If
+ * DO_REPLACE_ECN is not set, ECN_CONTROL[0] and ECN_CONTROL[1] are set to
+ * request remapping of ECT0 and ECT1 ECN codepoints respectively to CE.
+ */
+#define	TABLE_FIELD_ID_ECN_CONTROL 0xac
+/* enum: Source MAC ID for DO_SRC_MAC, indexing Replace_Src_MAC_Table. */
+#define	TABLE_FIELD_ID_SRC_MAC_ID 0xad
+/* enum: Destination MAC ID for DO_DST_MAC, indexing Replace_Dst_MAC_Table. */
+#define	TABLE_FIELD_ID_DST_MAC_ID 0xae
+/* enum: Parameter for either DO_SET_NET_CHAN (only bottom 6 bits used in this
+ * case) or DO_SET_SRC_MPORT.
+ */
+#define	TABLE_FIELD_ID_REPORTED_SRC_MPORT_OR_NET_CHAN 0xaf
+/* enum: 64-byte chunk of added encapsulation header. */
+#define	TABLE_FIELD_ID_CHUNK64 0xb4
+/* enum: 32-byte chunk of added encapsulation header. */
+#define	TABLE_FIELD_ID_CHUNK32 0xb5
+/* enum: 16-byte chunk of added encapsulation header. */
+#define	TABLE_FIELD_ID_CHUNK16 0xb6
+/* enum: 8-byte chunk of added encapsulation header. */
+#define	TABLE_FIELD_ID_CHUNK8 0xb7
+/* enum: 4-byte chunk of added encapsulation header. */
+#define	TABLE_FIELD_ID_CHUNK4 0xb8
+/* enum: 2-byte chunk of added encapsulation header. */
+#define	TABLE_FIELD_ID_CHUNK2 0xb9
+/* enum: Added encapsulation header length in words. */
+#define	TABLE_FIELD_ID_HDR_LEN_W 0xba
+/* enum: Static value for layer 2/3 LACP hash of the encapsulation header. */
+#define	TABLE_FIELD_ID_ENC_LACP_HASH_L23 0xbb
+/* enum: Static value for layer 4 LACP hash of the encapsulation header. */
+#define	TABLE_FIELD_ID_ENC_LACP_HASH_L4 0xbc
+/* enum: True to use the static ENC_LACP_HASH values for the encap header
+ * instead of the calculated values for the inner frame when delivering a newly
+ * encapsulated packet to a LAG m-port.
+ */
+#define	TABLE_FIELD_ID_USE_ENC_LACP_HASHES 0xbd
+/* enum: True to trigger conntrack from first action rule lookup (AR=>CT=>AR
+ * sequence).
+ */
+#define	TABLE_FIELD_ID_DO_CT 0xc8
+/* enum: True to perform NAT using parameters from conntrack lookup response.
+ */
+#define	TABLE_FIELD_ID_DO_NAT 0xc9
+/* enum: True to trigger recirculated action rule lookup (AR=>AR sequence). */
+#define	TABLE_FIELD_ID_DO_RECIRC 0xca
+/* enum: Next action set payload ID for replay. The null value is all-1-bits.
+ */
+#define	TABLE_FIELD_ID_NEXT_ACTION_SET_PAYLOAD 0xcb
+/* enum: Next action set row ID for replay. The null value is all-1-bits. */
+#define	TABLE_FIELD_ID_NEXT_ACTION_SET_ROW 0xcc
+/* enum: Action set payload ID for additional delivery to management CPU. The
+ * null value is all-1-bits.
+ */
+#define	TABLE_FIELD_ID_MC_ACTION_SET_PAYLOAD 0xcd
+/* enum: Action set row ID for additional delivery to management CPU. The null
+ * value is all-1-bits.
+ */
+#define	TABLE_FIELD_ID_MC_ACTION_SET_ROW 0xce
+/* enum: True to include layer 4 in LACP hash on delivery to a LAG m-port. */
+#define	TABLE_FIELD_ID_LACP_INC_L4 0xdc
+/* enum: True to request that LACP is performed by a plugin. */
+#define	TABLE_FIELD_ID_LACP_PLUGIN 0xdd
+/* enum: LACP_Balance_Table base address divided by 64. */
+#define	TABLE_FIELD_ID_BAL_TBL_BASE_DIV64 0xde
+/* enum: Length of balance table region: 0=>64, 1=>128, 2=>256. */
+#define	TABLE_FIELD_ID_BAL_TBL_LEN_ID 0xdf
+/* enum: UDP port to match for UDP-based encapsulations; required to be 0 for
+ * other encapsulation types.
+ */
+#define	TABLE_FIELD_ID_UDP_PORT 0xe6
+/* enum: True to perform RSS based on outer fields rather than inner fields. */
+#define	TABLE_FIELD_ID_RSS_ON_OUTER 0xe7
+/* enum: True to perform steering table lookup on outer fields rather than
+ * inner fields.
+ */
+#define	TABLE_FIELD_ID_STEER_ON_OUTER 0xe8
+/* enum: Destination queue ID for host delivery. */
+#define	TABLE_FIELD_ID_DST_QID 0xf0
+/* enum: True to drop this packet. */
+#define	TABLE_FIELD_ID_DROP 0xf1
+/* enum: True to strip outer VLAN tag from this packet. */
+#define	TABLE_FIELD_ID_VLAN_STRIP 0xf2
+/* enum: True to override the user mark field with the supplied USER_MARK, or
+ * false to bitwise-OR the USER_MARK into it.
+ */
+#define	TABLE_FIELD_ID_MARK_OVERRIDE 0xf3
+/* enum: True to override the user flag field with the supplied USER_FLAG, or
+ * false to bitwise-OR the USER_FLAG into it.
+ */
+#define	TABLE_FIELD_ID_FLAG_OVERRIDE 0xf4
+/* enum: RSS context ID, indexing the RSS_Context_Table. */
+#define	TABLE_FIELD_ID_RSS_CTX_ID 0xfa
+/* enum: True to enable RSS. */
+#define	TABLE_FIELD_ID_RSS_EN 0xfb
+/* enum: Toeplitz hash key. */
+#define	TABLE_FIELD_ID_KEY 0xfc
+/* enum: Key mode for IPv4 TCP packets - see TABLE_RSS_KEY_MODE enum. */
+#define	TABLE_FIELD_ID_TCP_V4_KEY_MODE 0xfd
+/* enum: Key mode for IPv6 TCP packets - see TABLE_RSS_KEY_MODE enum. */
+#define	TABLE_FIELD_ID_TCP_V6_KEY_MODE 0xfe
+/* enum: Key mode for IPv4 UDP packets - see TABLE_RSS_KEY_MODE enum. */
+#define	TABLE_FIELD_ID_UDP_V4_KEY_MODE 0xff
+/* enum: Key mode for IPv6 UDP packets - see TABLE_RSS_KEY_MODE enum. */
+#define	TABLE_FIELD_ID_UDP_V6_KEY_MODE 0x100
+/* enum: Key mode for other IPv4 packets - see TABLE_RSS_KEY_MODE enum. */
+#define	TABLE_FIELD_ID_OTHER_V4_KEY_MODE 0x101
+/* enum: Key mode for other IPv6 packets - see TABLE_RSS_KEY_MODE enum. */
+#define	TABLE_FIELD_ID_OTHER_V6_KEY_MODE 0x102
+/* enum: Spreading mode - 0=>indirection; 1=>even. */
+#define	TABLE_FIELD_ID_SPREAD_MODE 0x103
+/* enum: For indirection spreading mode, the base address of a region within
+ * the Indirection_Table. For even spreading mode, the number of queues to
+ * spread across (only values 1-255 are valid for this mode).
+ */
+#define	TABLE_FIELD_ID_INDIR_TBL_BASE 0x104
+/* enum: For indirection spreading mode, identifies the length of a region
+ * within the Indirection_Table, where length = 32 << len_id. Must be set to 0
+ * for even spreading mode.
+ */
+#define	TABLE_FIELD_ID_INDIR_TBL_LEN_ID 0x105
+/* enum: An offset to be applied to the base destination queue ID. */
+#define	TABLE_FIELD_ID_INDIR_OFFSET 0x106
 
 /* MCDI_EVENT structuredef: The structure of an MCDI_EVENT on Siena/EF10/EF100
  * platforms
@@ -1076,6 +1512,12 @@
  * SF-122927-TC for details.
  */
 #define	MCDI_EVENT_CODE_DESC_PROXY_FUNC_DRIVER_ATTACH 0x26
+/* enum: Notification that the mport journal has changed since it was last read
+ * and updates can be read using the MC_CMD_MAE_MPORT_READ_JOURNAL command. The
+ * firmware may moderate the events so that an event is not sent for every
+ * change to the journal.
+ */
+#define	MCDI_EVENT_CODE_MPORT_JOURNAL_CHANGE 0x27
 /* enum: Artificial event generated by host and posted via MC for test
  * purposes.
  */
@@ -10251,6 +10693,186 @@
 #define	MC_CMD_INIT_EVQ_V3_OUT_FLAG_RXQ_FORCE_EV_MERGING_LBN 3
 #define	MC_CMD_INIT_EVQ_V3_OUT_FLAG_RXQ_FORCE_EV_MERGING_WIDTH 1
 
+/* MC_CMD_INIT_EVQ_V4_IN msgrequest: Extended request to specify per-queue PCIe
+ * TLP batching timeouts.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_LEN 564
+/* Size, in entries */
+#define	MC_CMD_INIT_EVQ_V4_IN_SIZE_OFST 0
+#define	MC_CMD_INIT_EVQ_V4_IN_SIZE_LEN 4
+/* Desired instance. Must be set to a specific instance, which is a function
+ * local queue index. The calling client must be the currently-assigned user of
+ * this VI (see MC_CMD_SET_VI_USER).
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_INSTANCE_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_IN_INSTANCE_LEN 4
+/* The initial timer value. The load value is ignored if the timer mode is DIS.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_LOAD_OFST 8
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_LOAD_LEN 4
+/* The reload value is ignored in one-shot modes */
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_RELOAD_OFST 12
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_RELOAD_LEN 4
+/* tbd */
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAGS_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAGS_LEN 4
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_INTERRUPTING_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_INTERRUPTING_LBN 0
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_INTERRUPTING_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RPTR_DOS_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RPTR_DOS_LBN 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RPTR_DOS_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_INT_ARMD_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_INT_ARMD_LBN 2
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_INT_ARMD_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_CUT_THRU_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_CUT_THRU_LBN 3
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_CUT_THRU_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RX_MERGE_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RX_MERGE_LBN 4
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RX_MERGE_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TX_MERGE_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TX_MERGE_LBN 5
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TX_MERGE_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_USE_TIMER_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_USE_TIMER_LBN 6
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_USE_TIMER_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_LBN 7
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_WIDTH 4
+/* enum: All initialisation flags specified by host. */
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_MANUAL 0x0
+/* enum: MEDFORD only. Certain initialisation flags specified by host may be
+ * over-ridden by firmware based on licenses and firmware variant in order to
+ * provide the lowest latency achievable. See
+ * MC_CMD_INIT_EVQ_V2/MC_CMD_INIT_EVQ_V2_OUT/FLAGS for list of affected flags.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_LOW_LATENCY 0x1
+/* enum: MEDFORD only. Certain initialisation flags specified by host may be
+ * over-ridden by firmware based on licenses and firmware variant in order to
+ * provide the best throughput achievable. See
+ * MC_CMD_INIT_EVQ_V2/MC_CMD_INIT_EVQ_V2_OUT/FLAGS for list of affected flags.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_THROUGHPUT 0x2
+/* enum: MEDFORD only. Certain initialisation flags may be over-ridden by
+ * firmware based on licenses and firmware variant. See
+ * MC_CMD_INIT_EVQ_V2/MC_CMD_INIT_EVQ_V2_OUT/FLAGS for list of affected flags.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TYPE_AUTO 0x3
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_EXT_WIDTH_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_EXT_WIDTH_LBN 11
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_EXT_WIDTH_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RX_TLP_BATCHING_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RX_TLP_BATCHING_LBN 12
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_RX_TLP_BATCHING_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TX_TLP_BATCHING_OFST 16
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TX_TLP_BATCHING_LBN 13
+#define	MC_CMD_INIT_EVQ_V4_IN_FLAG_TX_TLP_BATCHING_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_MODE_OFST 20
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_MODE_LEN 4
+/* enum: Disabled */
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_MODE_DIS 0x0
+/* enum: Immediate */
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_IMMED_START 0x1
+/* enum: Triggered */
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_TRIG_START 0x2
+/* enum: Hold-off */
+#define	MC_CMD_INIT_EVQ_V4_IN_TMR_INT_HLDOFF 0x3
+/* Target EVQ for wakeups if in wakeup mode. */
+#define	MC_CMD_INIT_EVQ_V4_IN_TARGET_EVQ_OFST 24
+#define	MC_CMD_INIT_EVQ_V4_IN_TARGET_EVQ_LEN 4
+/* Target interrupt if in interrupting mode (note union with target EVQ). Use
+ * MC_CMD_RESOURCE_INSTANCE_ANY unless a specific one required for test
+ * purposes.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_IRQ_NUM_OFST 24
+#define	MC_CMD_INIT_EVQ_V4_IN_IRQ_NUM_LEN 4
+/* Event Counter Mode. */
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_MODE_OFST 28
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_MODE_LEN 4
+/* enum: Disabled */
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_MODE_DIS 0x0
+/* enum: Disabled */
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_MODE_RX 0x1
+/* enum: Disabled */
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_MODE_TX 0x2
+/* enum: Disabled */
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_MODE_RXTX 0x3
+/* Event queue packet count threshold. */
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_THRSHLD_OFST 32
+#define	MC_CMD_INIT_EVQ_V4_IN_COUNT_THRSHLD_LEN 4
+/* 64-bit address of 4k of 4k-aligned host memory buffer */
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_OFST 36
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_LEN 8
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_LO_OFST 36
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_LO_LEN 4
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_LO_LBN 288
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_LO_WIDTH 32
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_HI_OFST 40
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_HI_LEN 4
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_HI_LBN 320
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_HI_WIDTH 32
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_MINNUM 1
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_MAXNUM 64
+#define	MC_CMD_INIT_EVQ_V4_IN_DMA_ADDR_MAXNUM_MCDI2 64
+/* Receive event merge timeout to configure, in nanoseconds. The valid range
+ * and granularity are device specific. Specify 0 to use the firmware's default
+ * value. This field is ignored and per-queue merging is disabled if
+ * MC_CMD_INIT_EVQ/MC_CMD_INIT_EVQ_IN/FLAG_RX_MERGE is not set.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_RX_MERGE_TIMEOUT_NS_OFST 548
+#define	MC_CMD_INIT_EVQ_V4_IN_RX_MERGE_TIMEOUT_NS_LEN 4
+/* Transmit event merge timeout to configure, in nanoseconds. The valid range
+ * and granularity are device specific. Specify 0 to use the firmware's default
+ * value. This field is ignored and per-queue merging is disabled if
+ * MC_CMD_INIT_EVQ/MC_CMD_INIT_EVQ_IN/FLAG_TX_MERGE is not set.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_TX_MERGE_TIMEOUT_NS_OFST 552
+#define	MC_CMD_INIT_EVQ_V4_IN_TX_MERGE_TIMEOUT_NS_LEN 4
+/* Receive event TLP batching timeout to configure, in nanoseconds. The valid
+ * range and granularity are device specific. Specify 0 to use the firmware's
+ * default value. This field is ignored and batching of receive events is
+ * disabled if MC_CMD_INIT_EVQ/MC_CMD_INIT_EVQ_V4_IN/FLAG_RX_TLP_BATCHING is
+ * not set.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_RX_TLP_BATCH_TIMEOUT_NS_OFST 556
+#define	MC_CMD_INIT_EVQ_V4_IN_RX_TLP_BATCH_TIMEOUT_NS_LEN 4
+/* Transmit event TLP batching timeout to configure, in nanoseconds. The valid
+ * range and granularity are device specific. Specify 0 to use the firmware's
+ * default value. This field is ignored and batching of transmit events is
+ * disabled if MC_CMD_INIT_EVQ/MC_CMD_INIT_EVQ_V4_IN/FLAG_RX_TLP_BATCHING is
+ * not set.
+ */
+#define	MC_CMD_INIT_EVQ_V4_IN_TX_TLP_BATCH_TIMEOUT_NS_OFST 560
+#define	MC_CMD_INIT_EVQ_V4_IN_TX_TLP_BATCH_TIMEOUT_NS_LEN 4
+
+/* MC_CMD_INIT_EVQ_V4_OUT msgresponse */
+#define	MC_CMD_INIT_EVQ_V4_OUT_LEN 8
+/* Only valid if INTRFLAG was true */
+#define	MC_CMD_INIT_EVQ_V4_OUT_IRQ_OFST 0
+#define	MC_CMD_INIT_EVQ_V4_OUT_IRQ_LEN 4
+/* Actual configuration applied on the card */
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAGS_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAGS_LEN 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_CUT_THRU_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_CUT_THRU_LBN 0
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_CUT_THRU_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RX_MERGE_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RX_MERGE_LBN 1
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RX_MERGE_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_TX_MERGE_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_TX_MERGE_LBN 2
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_TX_MERGE_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RXQ_FORCE_EV_MERGING_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RXQ_FORCE_EV_MERGING_LBN 3
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RXQ_FORCE_EV_MERGING_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RX_TLP_BATCHING_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RX_TLP_BATCHING_LBN 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_RX_TLP_BATCHING_WIDTH 1
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_TX_TLP_BATCHING_OFST 4
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_TX_TLP_BATCHING_LBN 5
+#define	MC_CMD_INIT_EVQ_V4_OUT_FLAG_TX_TLP_BATCHING_WIDTH 1
+
 /* QUEUE_CRC_MODE structuredef */
 #define	QUEUE_CRC_MODE_LEN 1
 #define	QUEUE_CRC_MODE_MODE_LBN 0
@@ -11629,6 +12251,9 @@
 #define	MC_CMD_FILTER_OP_IN_MATCH_FWDEF1_OFST 16
 #define	MC_CMD_FILTER_OP_IN_MATCH_FWDEF1_LBN 11
 #define	MC_CMD_FILTER_OP_IN_MATCH_FWDEF1_WIDTH 1
+#define	MC_CMD_FILTER_OP_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_OFST 16
+#define	MC_CMD_FILTER_OP_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_LBN 29
+#define	MC_CMD_FILTER_OP_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_WIDTH 1
 #define	MC_CMD_FILTER_OP_IN_MATCH_UNKNOWN_MCAST_DST_OFST 16
 #define	MC_CMD_FILTER_OP_IN_MATCH_UNKNOWN_MCAST_DST_LBN 30
 #define	MC_CMD_FILTER_OP_IN_MATCH_UNKNOWN_MCAST_DST_WIDTH 1
@@ -11833,6 +12458,9 @@
 #define	MC_CMD_FILTER_OP_EXT_IN_MATCH_IFRM_UNKNOWN_UCAST_DST_OFST 16
 #define	MC_CMD_FILTER_OP_EXT_IN_MATCH_IFRM_UNKNOWN_UCAST_DST_LBN 25
 #define	MC_CMD_FILTER_OP_EXT_IN_MATCH_IFRM_UNKNOWN_UCAST_DST_WIDTH 1
+#define	MC_CMD_FILTER_OP_EXT_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_OFST 16
+#define	MC_CMD_FILTER_OP_EXT_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_LBN 29
+#define	MC_CMD_FILTER_OP_EXT_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_WIDTH 1
 #define	MC_CMD_FILTER_OP_EXT_IN_MATCH_UNKNOWN_MCAST_DST_OFST 16
 #define	MC_CMD_FILTER_OP_EXT_IN_MATCH_UNKNOWN_MCAST_DST_LBN 30
 #define	MC_CMD_FILTER_OP_EXT_IN_MATCH_UNKNOWN_MCAST_DST_WIDTH 1
@@ -12118,6 +12746,9 @@
 #define	MC_CMD_FILTER_OP_V3_IN_MATCH_IFRM_UNKNOWN_UCAST_DST_OFST 16
 #define	MC_CMD_FILTER_OP_V3_IN_MATCH_IFRM_UNKNOWN_UCAST_DST_LBN 25
 #define	MC_CMD_FILTER_OP_V3_IN_MATCH_IFRM_UNKNOWN_UCAST_DST_WIDTH 1
+#define	MC_CMD_FILTER_OP_V3_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_OFST 16
+#define	MC_CMD_FILTER_OP_V3_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_LBN 29
+#define	MC_CMD_FILTER_OP_V3_IN_MATCH_UNKNOWN_IPV4_MCAST_DST_WIDTH 1
 #define	MC_CMD_FILTER_OP_V3_IN_MATCH_UNKNOWN_MCAST_DST_OFST 16
 #define	MC_CMD_FILTER_OP_V3_IN_MATCH_UNKNOWN_MCAST_DST_LBN 30
 #define	MC_CMD_FILTER_OP_V3_IN_MATCH_UNKNOWN_MCAST_DST_WIDTH 1
@@ -16473,6 +17104,9 @@
 #define	MC_CMD_GET_CAPABILITIES_V7_OUT_RSS_STEER_ON_OUTER_SUPPORTED_OFST 148
 #define	MC_CMD_GET_CAPABILITIES_V7_OUT_RSS_STEER_ON_OUTER_SUPPORTED_LBN 12
 #define	MC_CMD_GET_CAPABILITIES_V7_OUT_RSS_STEER_ON_OUTER_SUPPORTED_WIDTH 1
+#define	MC_CMD_GET_CAPABILITIES_V7_OUT_EVQ_TLP_BATCHING_OFST 148
+#define	MC_CMD_GET_CAPABILITIES_V7_OUT_EVQ_TLP_BATCHING_LBN 13
+#define	MC_CMD_GET_CAPABILITIES_V7_OUT_EVQ_TLP_BATCHING_WIDTH 1
 
 /* MC_CMD_GET_CAPABILITIES_V8_OUT msgresponse */
 #define	MC_CMD_GET_CAPABILITIES_V8_OUT_LEN 160
@@ -16974,6 +17608,9 @@
 #define	MC_CMD_GET_CAPABILITIES_V8_OUT_RSS_STEER_ON_OUTER_SUPPORTED_OFST 148
 #define	MC_CMD_GET_CAPABILITIES_V8_OUT_RSS_STEER_ON_OUTER_SUPPORTED_LBN 12
 #define	MC_CMD_GET_CAPABILITIES_V8_OUT_RSS_STEER_ON_OUTER_SUPPORTED_WIDTH 1
+#define	MC_CMD_GET_CAPABILITIES_V8_OUT_EVQ_TLP_BATCHING_OFST 148
+#define	MC_CMD_GET_CAPABILITIES_V8_OUT_EVQ_TLP_BATCHING_LBN 13
+#define	MC_CMD_GET_CAPABILITIES_V8_OUT_EVQ_TLP_BATCHING_WIDTH 1
 /* These bits are reserved for communicating test-specific capabilities to
  * host-side test software. All production drivers should treat this field as
  * opaque.
@@ -17489,6 +18126,9 @@
 #define	MC_CMD_GET_CAPABILITIES_V9_OUT_RSS_STEER_ON_OUTER_SUPPORTED_OFST 148
 #define	MC_CMD_GET_CAPABILITIES_V9_OUT_RSS_STEER_ON_OUTER_SUPPORTED_LBN 12
 #define	MC_CMD_GET_CAPABILITIES_V9_OUT_RSS_STEER_ON_OUTER_SUPPORTED_WIDTH 1
+#define	MC_CMD_GET_CAPABILITIES_V9_OUT_EVQ_TLP_BATCHING_OFST 148
+#define	MC_CMD_GET_CAPABILITIES_V9_OUT_EVQ_TLP_BATCHING_LBN 13
+#define	MC_CMD_GET_CAPABILITIES_V9_OUT_EVQ_TLP_BATCHING_WIDTH 1
 /* These bits are reserved for communicating test-specific capabilities to
  * host-side test software. All production drivers should treat this field as
  * opaque.
@@ -18039,6 +18679,9 @@
 #define	MC_CMD_GET_CAPABILITIES_V10_OUT_RSS_STEER_ON_OUTER_SUPPORTED_OFST 148
 #define	MC_CMD_GET_CAPABILITIES_V10_OUT_RSS_STEER_ON_OUTER_SUPPORTED_LBN 12
 #define	MC_CMD_GET_CAPABILITIES_V10_OUT_RSS_STEER_ON_OUTER_SUPPORTED_WIDTH 1
+#define	MC_CMD_GET_CAPABILITIES_V10_OUT_EVQ_TLP_BATCHING_OFST 148
+#define	MC_CMD_GET_CAPABILITIES_V10_OUT_EVQ_TLP_BATCHING_LBN 13
+#define	MC_CMD_GET_CAPABILITIES_V10_OUT_EVQ_TLP_BATCHING_WIDTH 1
 /* These bits are reserved for communicating test-specific capabilities to
  * host-side test software. All production drivers should treat this field as
  * opaque.
@@ -27813,6 +28456,50 @@
 #define	MC_CMD_CHECK_SCHEDULER_CREDITS_OUT_RESULTS_MAXNUM 14
 #define	MC_CMD_CHECK_SCHEDULER_CREDITS_OUT_RESULTS_MAXNUM_MCDI2 62
 
+
+/***********************************/
+/* MC_CMD_TXQ_STATS
+ * Query per-TXQ statistics.
+ */
+#define	MC_CMD_TXQ_STATS 0x1d5
+#define	MC_CMD_TXQ_STATS_MSGSET 0x1d5
+#undef	MC_CMD_0x1d5_PRIVILEGE_CTG
+
+#define	MC_CMD_0x1d5_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_TXQ_STATS_IN msgrequest */
+#define	MC_CMD_TXQ_STATS_IN_LEN 8
+/* Instance of TXQ to retrieve statistics for */
+#define	MC_CMD_TXQ_STATS_IN_INSTANCE_OFST 0
+#define	MC_CMD_TXQ_STATS_IN_INSTANCE_LEN 4
+/* Flags for the request */
+#define	MC_CMD_TXQ_STATS_IN_FLAGS_OFST 4
+#define	MC_CMD_TXQ_STATS_IN_FLAGS_LEN 4
+#define	MC_CMD_TXQ_STATS_IN_CLEAR_OFST 4
+#define	MC_CMD_TXQ_STATS_IN_CLEAR_LBN 0
+#define	MC_CMD_TXQ_STATS_IN_CLEAR_WIDTH 1
+
+/* MC_CMD_TXQ_STATS_OUT msgresponse */
+#define	MC_CMD_TXQ_STATS_OUT_LENMIN 0
+#define	MC_CMD_TXQ_STATS_OUT_LENMAX 248
+#define	MC_CMD_TXQ_STATS_OUT_LENMAX_MCDI2 1016
+#define	MC_CMD_TXQ_STATS_OUT_LEN(num) (0+8*(num))
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_NUM(len) (((len)-0)/8)
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_OFST 0
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_LEN 8
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_LO_OFST 0
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_LO_LEN 4
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_LO_LBN 0
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_LO_WIDTH 32
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_HI_OFST 4
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_HI_LEN 4
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_HI_LBN 32
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_HI_WIDTH 32
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_MINNUM 0
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_MAXNUM 31
+#define	MC_CMD_TXQ_STATS_OUT_STATISTICS_MAXNUM_MCDI2 127
+#define	MC_CMD_TXQ_STATS_CTPIO_MAX_FILL 0x0 /* enum */
+
 /* FUNCTION_PERSONALITY structuredef: The meanings of the personalities are
  * defined in SF-120734-TC with more information in SF-122717-TC.
  */
@@ -28071,18 +28758,26 @@
 #define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_FEATURES_HI_WIDTH 32
 /*            Enum values, see field(s): */
 /*               MC_CMD_VIRTIO_GET_FEATURES/MC_CMD_VIRTIO_GET_FEATURES_OUT/FEATURES */
-/* The initial producer index for this queue's used ring. If this queue is
- * being created to be migrated into, this should be the FINAL_PIDX value
- * returned by MC_CMD_VIRTIO_FINI_QUEUE of the queue being migrated from.
- * Otherwise, it should be zero.
+/* The initial available index for this virtqueue. If this queue is being
+ * created to be migrated into, this should be the FINAL_AVAIL_IDX value
+ * returned by MC_CMD_VIRTIO_FINI_QUEUE of the queue being migrated from (or
+ * equivalent if the original queue was on a thirdparty device). Otherwise, it
+ * should be zero.
  */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_AVAIL_IDX_OFST 56
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_AVAIL_IDX_LEN 4
+/* Alias of INITIAL_AVAIL_IDX, kept for compatibility. */
 #define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_PIDX_OFST 56
 #define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_PIDX_LEN 4
-/* The initial consumer index for this queue's available ring. If this queue is
- * being created to be migrated into, this should be the FINAL_CIDX value
- * returned by MC_CMD_VIRTIO_FINI_QUEUE of the queue being migrated from.
- * Otherwise, it should be zero.
+/* The initial used index for this virtqueue. If this queue is being created to
+ * be migrated into, this should be the FINAL_USED_IDX value returned by
+ * MC_CMD_VIRTIO_FINI_QUEUE of the queue being migrated from (or equivalent if
+ * the original queue was on a thirdparty device). Otherwise, it should be
+ * zero.
  */
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_USED_IDX_OFST 60
+#define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_USED_IDX_LEN 4
+/* Alias of INITIAL_USED_IDX, kept for compatibility. */
 #define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_CIDX_OFST 60
 #define	MC_CMD_VIRTIO_INIT_QUEUE_REQ_INITIAL_CIDX_LEN 4
 /* A MAE_MPORT_SELECTOR defining which mport this queue should be associated
@@ -28128,10 +28823,16 @@
 
 /* MC_CMD_VIRTIO_FINI_QUEUE_RESP msgresponse */
 #define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_LEN 8
-/* The producer index of the used ring when the queue was stopped. */
+/* The available index of the virtqueue when the queue was stopped. */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_AVAIL_IDX_OFST 0
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_AVAIL_IDX_LEN 4
+/* Alias of FINAL_AVAIL_IDX, kept for compatibility. */
 #define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_PIDX_OFST 0
 #define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_PIDX_LEN 4
-/* The consumer index of the available ring when the queue was stopped. */
+/* The used index of the virtqueue when the queue was stopped. */
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_USED_IDX_OFST 4
+#define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_USED_IDX_LEN 4
+/* Alias of FINAL_USED_IDX, kept for compatibility. */
 #define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_CIDX_OFST 4
 #define	MC_CMD_VIRTIO_FINI_QUEUE_RESP_FINAL_CIDX_LEN 4
 
@@ -29306,6 +30007,7 @@
 #define	MAE_ENC_FIELD_PAIRS_ENC_IP_TTL_MASK_LEN 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_IP_TTL_MASK_LBN 1096
 #define	MAE_ENC_FIELD_PAIRS_ENC_IP_TTL_MASK_WIDTH 8
+/* Deprecated in favour of ENC_FLAGS alias. */
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_OFST 138
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_LEN 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_HAS_OVLAN_OFST 138
@@ -29319,10 +30021,12 @@
 #define	MAE_ENC_FIELD_PAIRS_ENC_IP_FRAG_WIDTH 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_LBN 1104
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_WIDTH 8
+/* More generic alias for ENC_VLAN_FLAGS. */
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_OFST 138
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_LEN 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_LBN 1104
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_WIDTH 8
+/* Deprecated in favour of ENC_FLAGS_MASK alias. */
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_MASK_OFST 139
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_MASK_LEN 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_HAS_OVLAN_MASK_OFST 139
@@ -29336,6 +30040,7 @@
 #define	MAE_ENC_FIELD_PAIRS_ENC_IP_FRAG_MASK_WIDTH 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_MASK_LBN 1112
 #define	MAE_ENC_FIELD_PAIRS_ENC_VLAN_FLAGS_MASK_WIDTH 8
+/* More generic alias for ENC_FLAGS_MASK. */
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_MASK_OFST 139
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_MASK_LEN 1
 #define	MAE_ENC_FIELD_PAIRS_ENC_FLAGS_MASK_LBN 1112
@@ -29489,6 +30194,10 @@
 #define	MAE_FIELD_MASK_VALUE_PAIRS_IP_TOS_MASK_LEN 1
 #define	MAE_FIELD_MASK_VALUE_PAIRS_IP_TOS_MASK_LBN 1144
 #define	MAE_FIELD_MASK_VALUE_PAIRS_IP_TOS_MASK_WIDTH 8
+/* Due to hardware limitations, firmware may return
+ * MC_CMD_ERR_EINVAL(BAD_IP_TTL) when attempting to match on an IP_TTL value
+ * other than 1.
+ */
 #define	MAE_FIELD_MASK_VALUE_PAIRS_IP_TTL_OFST 144
 #define	MAE_FIELD_MASK_VALUE_PAIRS_IP_TTL_LEN 1
 #define	MAE_FIELD_MASK_VALUE_PAIRS_IP_TTL_LBN 1152
@@ -29812,6 +30521,10 @@
 #define	MAE_FIELD_MASK_VALUE_PAIRS_V2_IP_TOS_MASK_LEN 1
 #define	MAE_FIELD_MASK_VALUE_PAIRS_V2_IP_TOS_MASK_LBN 1144
 #define	MAE_FIELD_MASK_VALUE_PAIRS_V2_IP_TOS_MASK_WIDTH 8
+/* Due to hardware limitations, firmware may return
+ * MC_CMD_ERR_EINVAL(BAD_IP_TTL) when attempting to match on an IP_TTL value
+ * other than 1.
+ */
 #define	MAE_FIELD_MASK_VALUE_PAIRS_V2_IP_TTL_OFST 144
 #define	MAE_FIELD_MASK_VALUE_PAIRS_V2_IP_TTL_LEN 1
 #define	MAE_FIELD_MASK_VALUE_PAIRS_V2_IP_TTL_LBN 1152
@@ -30381,6 +31094,90 @@
 #define	MC_CMD_MAE_GET_CAPS_V2_OUT_CT_COUNTERS_OFST 56
 #define	MC_CMD_MAE_GET_CAPS_V2_OUT_CT_COUNTERS_LEN 4
 
+/* MC_CMD_MAE_GET_CAPS_V3_OUT msgresponse */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_LEN 64
+/* The number of field IDs that the NIC supports. Any field with a ID greater
+ * than or equal to the value returned in this field must be treated as having
+ * a support level of MAE_FIELD_UNSUPPORTED in all requests.
+ */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_MATCH_FIELD_COUNT_OFST 0
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_MATCH_FIELD_COUNT_LEN 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPES_SUPPORTED_OFST 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPES_SUPPORTED_LEN 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_VXLAN_OFST 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_VXLAN_LBN 0
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_VXLAN_WIDTH 1
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_NVGRE_OFST 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_NVGRE_LBN 1
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_NVGRE_WIDTH 1
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_GENEVE_OFST 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_GENEVE_LBN 2
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_GENEVE_WIDTH 1
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_L2GRE_OFST 4
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_L2GRE_LBN 3
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_TYPE_L2GRE_WIDTH 1
+/* Deprecated alias for AR_COUNTERS. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_COUNTERS_OFST 8
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_COUNTERS_LEN 4
+/* The total number of AR counters available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_AR_COUNTERS_OFST 8
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_AR_COUNTERS_LEN 4
+/* The total number of counters lists available to allocate. A value of zero
+ * indicates that counter lists are not supported by the NIC. (But single
+ * counters may still be.)
+ */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_COUNTER_LISTS_OFST 12
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_COUNTER_LISTS_LEN 4
+/* The total number of encap header structures available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_HEADER_LIMIT_OFST 16
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ENCAP_HEADER_LIMIT_LEN 4
+/* Reserved. Should be zero. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_RSVD_OFST 20
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_RSVD_LEN 4
+/* The total number of action sets available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_SETS_OFST 24
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_SETS_LEN 4
+/* The total number of action set lists available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_SET_LISTS_OFST 28
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_SET_LISTS_LEN 4
+/* The total number of outer rules available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_OUTER_RULES_OFST 32
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_OUTER_RULES_LEN 4
+/* The total number of action rules available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_RULES_OFST 36
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_RULES_LEN 4
+/* The number of priorities available for ACTION_RULE filters. It is invalid to
+ * install a MATCH_ACTION filter with a priority number >= ACTION_PRIOS.
+ */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_PRIOS_OFST 40
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_ACTION_PRIOS_LEN 4
+/* The number of priorities available for OUTER_RULE filters. It is invalid to
+ * install an OUTER_RULE filter with a priority number >= OUTER_PRIOS.
+ */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_OUTER_PRIOS_OFST 44
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_OUTER_PRIOS_LEN 4
+/* MAE API major version. Currently 1. If this field is not present in the
+ * response (i.e. response shorter than 384 bits), then its value is zero. If
+ * the value does not match the client's expectations, the client should raise
+ * a fatal error.
+ */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_API_VER_OFST 48
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_API_VER_LEN 4
+/* Mask of supported counter types. Each bit position corresponds to a value of
+ * the MAE_COUNTER_TYPE enum. If this field is missing (i.e. V1 response),
+ * clients must assume that only AR counters are supported (i.e.
+ * COUNTER_TYPES_SUPPORTED==0x1). See also
+ * MC_CMD_MAE_COUNTERS_STREAM_START/COUNTER_TYPES_MASK.
+ */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_COUNTER_TYPES_SUPPORTED_OFST 52
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_COUNTER_TYPES_SUPPORTED_LEN 4
+/* The total number of conntrack counters available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_CT_COUNTERS_OFST 56
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_CT_COUNTERS_LEN 4
+/* The total number of Outer Rule counters available to allocate. */
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_OR_COUNTERS_OFST 60
+#define	MC_CMD_MAE_GET_CAPS_V3_OUT_OR_COUNTERS_LEN 4
+
 
 /***********************************/
 /* MC_CMD_MAE_GET_AR_CAPS
@@ -30484,10 +31281,13 @@
 /* Generation count. Packets with generation count >= GENERATION_COUNT will
  * contain valid counter values for counter IDs allocated in this call, unless
  * the counter values are zero and zero squash is enabled. Note that there is
- * an independent GENERATION_COUNT object per counter type.
+ * an independent GENERATION_COUNT object per counter type, and that generation
+ * counts wrap from 0xffffffff to 1.
  */
 #define	MC_CMD_MAE_COUNTER_ALLOC_OUT_GENERATION_COUNT_OFST 0
 #define	MC_CMD_MAE_COUNTER_ALLOC_OUT_GENERATION_COUNT_LEN 4
+/* enum: Generation counter 0 is reserved and unused. */
+#define	MC_CMD_MAE_COUNTER_ALLOC_OUT_GENERATION_COUNT_INVALID 0x0
 /* The number of counter IDs that the NIC allocated. It is never less than 1;
  * failure to allocate a single counter will cause an error to be returned. It
  * is never greater than REQUESTED_COUNT, but may be less.
@@ -30563,7 +31363,8 @@
  * values will be written for these counters. If values for these counter IDs
  * are present, the counter ID has been reallocated. A counter ID will not be
  * reallocated within a single read cycle as this would merge increments from
- * the 'old' and 'new' counters.
+ * the 'old' and 'new' counters. GENERATION_COUNT_INVALID is reserved and
+ * unused.
  */
 #define	MC_CMD_MAE_COUNTER_FREE_OUT_GENERATION_COUNT_OFST 0
 #define	MC_CMD_MAE_COUNTER_FREE_OUT_GENERATION_COUNT_LEN 4
@@ -30682,7 +31483,8 @@
 /* Generation count for AR counters. The final set of AR counter values will be
  * written out in packets with count == GENERATION_COUNT. An empty packet with
  * count > GENERATION_COUNT indicates that no more counter values of this type
- * will be written to this stream.
+ * will be written to this stream. GENERATION_COUNT_INVALID is reserved and
+ * unused.
  */
 #define	MC_CMD_MAE_COUNTERS_STREAM_STOP_OUT_GENERATION_COUNT_OFST 0
 #define	MC_CMD_MAE_COUNTERS_STREAM_STOP_OUT_GENERATION_COUNT_LEN 4
@@ -30698,6 +31500,7 @@
  * final set of counter values will be written out in packets with count ==
  * GENERATION_COUNT. An empty packet with count > GENERATION_COUNT indicates
  * that no more counter values of this type will be written to this stream.
+ * GENERATION_COUNT_INVALID is reserved and unused.
  */
 #define	MC_CMD_MAE_COUNTERS_STREAM_STOP_V2_OUT_GENERATION_COUNT_OFST 0
 #define	MC_CMD_MAE_COUNTERS_STREAM_STOP_V2_OUT_GENERATION_COUNT_LEN 4
@@ -31283,6 +32086,7 @@
  */
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_PRIO_OFST 4
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_PRIO_LEN 4
+/* Deprecated alias for ACTION_CONTROL. */
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_LOOKUP_CONTROL_OFST 8
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_LOOKUP_CONTROL_LEN 4
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_DO_CT_OFST 8
@@ -31293,15 +32097,23 @@
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_CT_VNI_MODE_WIDTH 2
 /*             Enum values, see field(s): */
 /*                MAE_CT_VNI_MODE */
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_DO_COUNT_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_DO_COUNT_LBN 3
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_DO_COUNT_WIDTH 1
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_RECIRC_ID_OFST 8
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_RECIRC_ID_LBN 8
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_RECIRC_ID_WIDTH 8
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_CT_DOMAIN_OFST 8
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_CT_DOMAIN_LBN 16
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_CT_DOMAIN_WIDTH 16
-/* Reserved for future use. Must be set to zero. */
-#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_RSVD_OFST 12
-#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_RSVD_LEN 4
+/* This field controls the actions that are performed when a rule is hit. */
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_ACTION_CONTROL_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_ACTION_CONTROL_LEN 4
+/* ID of counter to increment when the rule is hit. Only used if the DO_COUNT
+ * flag is set. The ID must have been allocated with COUNTER_TYPE=OR.
+ */
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_COUNTER_ID_OFST 12
+#define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_COUNTER_ID_LEN 4
 /* Structure of the format MAE_ENC_FIELD_PAIRS. */
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_FIELD_MATCH_CRITERIA_OFST 16
 #define	MC_CMD_MAE_OUTER_RULE_INSERT_IN_FIELD_MATCH_CRITERIA_LEN 1
@@ -31352,6 +32164,56 @@
 #define	MC_CMD_MAE_OUTER_RULE_REMOVE_OUT_REMOVED_OR_ID_MINNUM 1
 #define	MC_CMD_MAE_OUTER_RULE_REMOVE_OUT_REMOVED_OR_ID_MAXNUM 32
 #define	MC_CMD_MAE_OUTER_RULE_REMOVE_OUT_REMOVED_OR_ID_MAXNUM_MCDI2 32
+
+
+/***********************************/
+/* MC_CMD_MAE_OUTER_RULE_UPDATE
+ * Atomically change the response of an Outer Rule.
+ */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE 0x17d
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_MSGSET 0x17d
+#undef	MC_CMD_0x17d_PRIVILEGE_CTG
+
+#define	MC_CMD_0x17d_PRIVILEGE_CTG SRIOV_CTG_MAE
+
+/* MC_CMD_MAE_OUTER_RULE_UPDATE_IN msgrequest */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_LEN 16
+/* ID of outer rule to update */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_OR_ID_OFST 0
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_OR_ID_LEN 4
+/* Packets matching the rule will be parsed with this encapsulation. */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_ENCAP_TYPE_OFST 4
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_ENCAP_TYPE_LEN 4
+/*            Enum values, see field(s): */
+/*               MAE_MCDI_ENCAP_TYPE */
+/* This field controls the actions that are performed when a rule is hit. */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_ACTION_CONTROL_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_ACTION_CONTROL_LEN 4
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_DO_CT_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_DO_CT_LBN 0
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_DO_CT_WIDTH 1
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_CT_VNI_MODE_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_CT_VNI_MODE_LBN 1
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_CT_VNI_MODE_WIDTH 2
+/*             Enum values, see field(s): */
+/*                MAE_CT_VNI_MODE */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_DO_COUNT_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_DO_COUNT_LBN 3
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_DO_COUNT_WIDTH 1
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_RECIRC_ID_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_RECIRC_ID_LBN 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_RECIRC_ID_WIDTH 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_CT_DOMAIN_OFST 8
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_CT_DOMAIN_LBN 16
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_CT_DOMAIN_WIDTH 16
+/* ID of counter to increment when the rule is hit. Only used if the DO_COUNT
+ * flag is set. The ID must have been allocated with COUNTER_TYPE=OR.
+ */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_COUNTER_ID_OFST 12
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_IN_COUNTER_ID_LEN 4
+
+/* MC_CMD_MAE_OUTER_RULE_UPDATE_OUT msgresponse */
+#define	MC_CMD_MAE_OUTER_RULE_UPDATE_OUT_LEN 0
 
 /* MAE_ACTION_RULE_RESPONSE structuredef */
 #define	MAE_ACTION_RULE_RESPONSE_LEN 16
@@ -31918,6 +32780,7 @@
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MORE_OFST 0
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MORE_LBN 0
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MORE_WIDTH 1
+/* The number of MAE_MPORT_DESC structures in MPORT_DESC_DATA. May be zero. */
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_COUNT_OFST 4
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_COUNT_LEN 4
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_SIZEOF_MPORT_DESC_OFST 8
@@ -31931,5 +32794,408 @@
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_DATA_MINNUM 0
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_DATA_MAXNUM 240
 #define	MC_CMD_MAE_MPORT_READ_JOURNAL_OUT_MPORT_DESC_DATA_MAXNUM_MCDI2 1008
+
+/* TABLE_FIELD_DESCR structuredef: An individual table field descriptor. This
+ * describes the location and properties of one N-bit field within a wider
+ * M-bit key/mask/response value.
+ */
+#define	TABLE_FIELD_DESCR_LEN 8
+/* Identifier for this field. */
+#define	TABLE_FIELD_DESCR_FIELD_ID_OFST 0
+#define	TABLE_FIELD_DESCR_FIELD_ID_LEN 2
+/*            Enum values, see field(s): */
+/*               TABLE_FIELD_ID */
+#define	TABLE_FIELD_DESCR_FIELD_ID_LBN 0
+#define	TABLE_FIELD_DESCR_FIELD_ID_WIDTH 16
+/* Lowest (least significant) bit number of the bits of this field. */
+#define	TABLE_FIELD_DESCR_LBN_OFST 2
+#define	TABLE_FIELD_DESCR_LBN_LEN 2
+#define	TABLE_FIELD_DESCR_LBN_LBN 16
+#define	TABLE_FIELD_DESCR_LBN_WIDTH 16
+/* Width of this field in bits. */
+#define	TABLE_FIELD_DESCR_WIDTH_OFST 4
+#define	TABLE_FIELD_DESCR_WIDTH_LEN 2
+#define	TABLE_FIELD_DESCR_WIDTH_LBN 32
+#define	TABLE_FIELD_DESCR_WIDTH_WIDTH 16
+/* The mask type for this field. (Note that masking is relevant to keys; fields
+ * of responses are always reported with the EXACT type.)
+ */
+#define	TABLE_FIELD_DESCR_MASK_TYPE_OFST 6
+#define	TABLE_FIELD_DESCR_MASK_TYPE_LEN 1
+/* enum: Field must never be selected in the mask. */
+#define	TABLE_FIELD_DESCR_MASK_NEVER 0x0
+/* enum: Exact match: field must always be selected in the mask. */
+#define	TABLE_FIELD_DESCR_MASK_EXACT 0x1
+/* enum: Ternary match: arbitrary mask bits are allowed. */
+#define	TABLE_FIELD_DESCR_MASK_TERNARY 0x2
+/* enum: Whole field match: mask must be all 1 bits, or all 0 bits. */
+#define	TABLE_FIELD_DESCR_MASK_WHOLE_FIELD 0x3
+/* enum: Longest prefix match: mask must be 1 bit(s) followed by 0 bit(s). */
+#define	TABLE_FIELD_DESCR_MASK_LPM 0x4
+#define	TABLE_FIELD_DESCR_MASK_TYPE_LBN 48
+#define	TABLE_FIELD_DESCR_MASK_TYPE_WIDTH 8
+/* A version code that allows field semantics to be extended. All fields
+ * currently use version 0.
+ */
+#define	TABLE_FIELD_DESCR_SCHEME_OFST 7
+#define	TABLE_FIELD_DESCR_SCHEME_LEN 1
+#define	TABLE_FIELD_DESCR_SCHEME_LBN 56
+#define	TABLE_FIELD_DESCR_SCHEME_WIDTH 8
+
+
+/***********************************/
+/* MC_CMD_TABLE_LIST
+ * Return the list of tables which may be accessed via this table API.
+ */
+#define	MC_CMD_TABLE_LIST 0x1c9
+#define	MC_CMD_TABLE_LIST_MSGSET 0x1c9
+#undef	MC_CMD_0x1c9_PRIVILEGE_CTG
+
+#define	MC_CMD_0x1c9_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_TABLE_LIST_IN msgrequest */
+#define	MC_CMD_TABLE_LIST_IN_LEN 4
+/* Index of the first item to be returned in the TABLE_ID sequence. (Set to 0
+ * for the first call; further calls are only required if the whole sequence
+ * does not fit within the maximum MCDI message size.)
+ */
+#define	MC_CMD_TABLE_LIST_IN_FIRST_TABLE_ID_INDEX_OFST 0
+#define	MC_CMD_TABLE_LIST_IN_FIRST_TABLE_ID_INDEX_LEN 4
+
+/* MC_CMD_TABLE_LIST_OUT msgresponse */
+#define	MC_CMD_TABLE_LIST_OUT_LENMIN 4
+#define	MC_CMD_TABLE_LIST_OUT_LENMAX 252
+#define	MC_CMD_TABLE_LIST_OUT_LENMAX_MCDI2 1020
+#define	MC_CMD_TABLE_LIST_OUT_LEN(num) (4+4*(num))
+#define	MC_CMD_TABLE_LIST_OUT_TABLE_ID_NUM(len) (((len)-4)/4)
+/* The total number of tables. */
+#define	MC_CMD_TABLE_LIST_OUT_N_TABLES_OFST 0
+#define	MC_CMD_TABLE_LIST_OUT_N_TABLES_LEN 4
+/* A sequence of table identifiers. If all N_TABLES items do not fit, further
+ * items can be obtained by repeating the call with a non-zero
+ * FIRST_TABLE_ID_INDEX.
+ */
+#define	MC_CMD_TABLE_LIST_OUT_TABLE_ID_OFST 4
+#define	MC_CMD_TABLE_LIST_OUT_TABLE_ID_LEN 4
+#define	MC_CMD_TABLE_LIST_OUT_TABLE_ID_MINNUM 0
+#define	MC_CMD_TABLE_LIST_OUT_TABLE_ID_MAXNUM 62
+#define	MC_CMD_TABLE_LIST_OUT_TABLE_ID_MAXNUM_MCDI2 254
+/*            Enum values, see field(s): */
+/*               TABLE_ID */
+
+
+/***********************************/
+/* MC_CMD_TABLE_DESCRIPTOR
+ * Request the table descriptor for a particular table. This describes
+ * properties of the table and the format of the key and response. May return
+ * EINVAL for unknown table ID.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR 0x1ca
+#define	MC_CMD_TABLE_DESCRIPTOR_MSGSET 0x1ca
+#undef	MC_CMD_0x1ca_PRIVILEGE_CTG
+
+#define	MC_CMD_0x1ca_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_TABLE_DESCRIPTOR_IN msgrequest */
+#define	MC_CMD_TABLE_DESCRIPTOR_IN_LEN 8
+/* Identifier for this field. */
+#define	MC_CMD_TABLE_DESCRIPTOR_IN_TABLE_ID_OFST 0
+#define	MC_CMD_TABLE_DESCRIPTOR_IN_TABLE_ID_LEN 4
+/*            Enum values, see field(s): */
+/*               TABLE_ID */
+/* Index of the first item to be returned in the FIELDS sequence. (Set to 0 for
+ * the first call; further calls are only required if the whole sequence does
+ * not fit within the maximum MCDI message size.)
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_IN_FIRST_FIELDS_INDEX_OFST 4
+#define	MC_CMD_TABLE_DESCRIPTOR_IN_FIRST_FIELDS_INDEX_LEN 4
+
+/* MC_CMD_TABLE_DESCRIPTOR_OUT msgresponse */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_LENMIN 28
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_LENMAX 252
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_LENMAX_MCDI2 1020
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_LEN(num) (20+8*(num))
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_NUM(len) (((len)-20)/8)
+/* Maximum number of entries in this table. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_MAX_ENTRIES_OFST 0
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_MAX_ENTRIES_LEN 4
+/* The type of table. (This is really just informational; the important
+ * properties of a table that affect programming can be deduced from other
+ * items in the table or field descriptor.)
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_TYPE_OFST 4
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_TYPE_LEN 2
+/* enum: Direct table (essentially just an array). Behaves like a BCAM for
+ * programming purposes, where the fact that the key is actually used as an
+ * array index is really just an implementation detail.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_TYPE_DIRECT 0x1
+/* enum: BCAM (binary CAM) table: exact match on all key fields." */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_TYPE_BCAM 0x2
+/* enum: TCAM (ternary CAM) table: matches fields with a mask. Each entry may
+ * have its own different mask.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_TYPE_TCAM 0x3
+/* enum: STCAM (semi-TCAM) table: like a TCAM but entries shared a limited
+ * number of unique masks.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_TYPE_STCAM 0x4
+/* Width of key (and corresponding mask, for TCAM or STCAM) in bits. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_KEY_WIDTH_OFST 6
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_KEY_WIDTH_LEN 2
+/* Width of response in bits. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_RESP_WIDTH_OFST 8
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_RESP_WIDTH_LEN 2
+/* The total number of fields in the key. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_N_KEY_FIELDS_OFST 10
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_N_KEY_FIELDS_LEN 2
+/* The total number of fields in the response. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_N_RESP_FIELDS_OFST 12
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_N_RESP_FIELDS_LEN 2
+/* Number of priorities for STCAM or TCAM; otherwise 0. The priority of a table
+ * entry (relevant when more than one masked entry matches) ranges from
+ * 0=highest to N_PRIORITIES-1=lowest.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_N_PRIORITIES_OFST 14
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_N_PRIORITIES_LEN 2
+/* Maximum number of masks for STCAM; otherwise 0. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_MAX_MASKS_OFST 16
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_MAX_MASKS_LEN 2
+/* Flags. */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FLAGS_OFST 18
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FLAGS_LEN 1
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_ALLOC_MASKS_OFST 18
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_ALLOC_MASKS_LBN 0
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_ALLOC_MASKS_WIDTH 1
+/* Access scheme version code, allowing the method of accessing table entries
+ * to change semantics in future. A client which does not understand the value
+ * of this field should assume that it cannot program this table. Currently
+ * always set to 0 indicating the original MC_CMD_TABLE_INSERT/UPDATE/DELETE
+ * semantics.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_SCHEME_OFST 19
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_SCHEME_LEN 1
+/* A sequence of TABLE_FIELD_DESCR structures: N_KEY_FIELDS items describing
+ * the key, followed by N_RESP_FIELDS items describing the response. If all
+ * N_KEY_FIELDS+N_RESP_FIELDS items do not fit, further items can be obtained
+ * by repeating the call with a non-zero FIRST_FIELDS_INDEX.
+ */
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_OFST 20
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_LEN 8
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_LO_OFST 20
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_LO_LEN 4
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_LO_LBN 160
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_LO_WIDTH 32
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_HI_OFST 24
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_HI_LEN 4
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_HI_LBN 192
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_HI_WIDTH 32
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_MINNUM 1
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_MAXNUM 29
+#define	MC_CMD_TABLE_DESCRIPTOR_OUT_FIELDS_MAXNUM_MCDI2 125
+
+
+/***********************************/
+/* MC_CMD_TABLE_INSERT
+ * Insert a new entry into a table. The entry must not currently exist. May
+ * return EINVAL for unknown table ID or other bad request parameters, EEXIST
+ * if the entry already exists, ENOSPC if there is no space or EPERM if the
+ * operation is not permitted. In case of an error, the additional MCDI error
+ * argument field returns the raw error code from the underlying CAM driver.
+ */
+#define	MC_CMD_TABLE_INSERT 0x1cd
+#define	MC_CMD_TABLE_INSERT_MSGSET 0x1cd
+#undef	MC_CMD_0x1cd_PRIVILEGE_CTG
+
+#define	MC_CMD_0x1cd_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_TABLE_INSERT_IN msgrequest */
+#define	MC_CMD_TABLE_INSERT_IN_LENMIN 16
+#define	MC_CMD_TABLE_INSERT_IN_LENMAX 252
+#define	MC_CMD_TABLE_INSERT_IN_LENMAX_MCDI2 1020
+#define	MC_CMD_TABLE_INSERT_IN_LEN(num) (12+4*(num))
+#define	MC_CMD_TABLE_INSERT_IN_DATA_NUM(len) (((len)-12)/4)
+/* Table identifier. */
+#define	MC_CMD_TABLE_INSERT_IN_TABLE_ID_OFST 0
+#define	MC_CMD_TABLE_INSERT_IN_TABLE_ID_LEN 4
+/*            Enum values, see field(s): */
+/*               TABLE_ID */
+/* Width in bits of supplied key data (must match table properties). */
+#define	MC_CMD_TABLE_INSERT_IN_KEY_WIDTH_OFST 4
+#define	MC_CMD_TABLE_INSERT_IN_KEY_WIDTH_LEN 2
+/* Width in bits of supplied mask data (0 for direct/BCAM tables, or for STCAM
+ * when allocated MASK_ID is used instead).
+ */
+#define	MC_CMD_TABLE_INSERT_IN_MASK_WIDTH_OFST 6
+#define	MC_CMD_TABLE_INSERT_IN_MASK_WIDTH_LEN 2
+/* Width in bits of supplied response data (for INSERT and UPDATE operations
+ * this must match the table properties; for DELETE operations, no response
+ * data is required and this must be 0).
+ */
+#define	MC_CMD_TABLE_INSERT_IN_RESP_WIDTH_OFST 8
+#define	MC_CMD_TABLE_INSERT_IN_RESP_WIDTH_LEN 2
+/* Mask ID for STCAM table - used instead of mask data if the table descriptor
+ * reports ALLOC_MASKS==1. Otherwise set to 0.
+ */
+#define	MC_CMD_TABLE_INSERT_IN_MASK_ID_OFST 6
+#define	MC_CMD_TABLE_INSERT_IN_MASK_ID_LEN 2
+/* Priority for TCAM or STCAM, in range 0..N_PRIORITIES-1, otherwise 0. */
+#define	MC_CMD_TABLE_INSERT_IN_PRIORITY_OFST 8
+#define	MC_CMD_TABLE_INSERT_IN_PRIORITY_LEN 2
+/* (32-bit alignment padding - set to 0) */
+#define	MC_CMD_TABLE_INSERT_IN_RESERVED_OFST 10
+#define	MC_CMD_TABLE_INSERT_IN_RESERVED_LEN 2
+/* Sequence of key, mask (if MASK_WIDTH > 0), and response (if RESP_WIDTH > 0)
+ * data values. Each of these items is logically treated as a single wide N-bit
+ * value, in which the individual fields have been placed within that value per
+ * the LBN and WIDTH information from the table field descriptors. The wide
+ * N-bit value is padded with 0 bits at the MSB end if necessary to make a
+ * multiple of 32 bits. The value is then packed into this command as a
+ * sequence of 32-bit words, bits [31:0] first, then bits [63:32], etc.
+ */
+#define	MC_CMD_TABLE_INSERT_IN_DATA_OFST 12
+#define	MC_CMD_TABLE_INSERT_IN_DATA_LEN 4
+#define	MC_CMD_TABLE_INSERT_IN_DATA_MINNUM 1
+#define	MC_CMD_TABLE_INSERT_IN_DATA_MAXNUM 60
+#define	MC_CMD_TABLE_INSERT_IN_DATA_MAXNUM_MCDI2 252
+
+/* MC_CMD_TABLE_INSERT_OUT msgresponse */
+#define	MC_CMD_TABLE_INSERT_OUT_LEN 0
+
+
+/***********************************/
+/* MC_CMD_TABLE_UPDATE
+ * Update an existing entry in a table with a new response value. May return
+ * EINVAL for unknown table ID or other bad request parameters, ENOENT if the
+ * entry does not already exist, or EPERM if the operation is not permitted. In
+ * case of an error, the additional MCDI error argument field returns the raw
+ * error code from the underlying CAM driver.
+ */
+#define	MC_CMD_TABLE_UPDATE 0x1ce
+#define	MC_CMD_TABLE_UPDATE_MSGSET 0x1ce
+#undef	MC_CMD_0x1ce_PRIVILEGE_CTG
+
+#define	MC_CMD_0x1ce_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_TABLE_UPDATE_IN msgrequest */
+#define	MC_CMD_TABLE_UPDATE_IN_LENMIN 16
+#define	MC_CMD_TABLE_UPDATE_IN_LENMAX 252
+#define	MC_CMD_TABLE_UPDATE_IN_LENMAX_MCDI2 1020
+#define	MC_CMD_TABLE_UPDATE_IN_LEN(num) (12+4*(num))
+#define	MC_CMD_TABLE_UPDATE_IN_DATA_NUM(len) (((len)-12)/4)
+/* Table identifier. */
+#define	MC_CMD_TABLE_UPDATE_IN_TABLE_ID_OFST 0
+#define	MC_CMD_TABLE_UPDATE_IN_TABLE_ID_LEN 4
+/*            Enum values, see field(s): */
+/*               TABLE_ID */
+/* Width in bits of supplied key data (must match table properties). */
+#define	MC_CMD_TABLE_UPDATE_IN_KEY_WIDTH_OFST 4
+#define	MC_CMD_TABLE_UPDATE_IN_KEY_WIDTH_LEN 2
+/* Width in bits of supplied mask data (0 for direct/BCAM tables, or for STCAM
+ * when allocated MASK_ID is used instead).
+ */
+#define	MC_CMD_TABLE_UPDATE_IN_MASK_WIDTH_OFST 6
+#define	MC_CMD_TABLE_UPDATE_IN_MASK_WIDTH_LEN 2
+/* Width in bits of supplied response data (for INSERT and UPDATE operations
+ * this must match the table properties; for DELETE operations, no response
+ * data is required and this must be 0).
+ */
+#define	MC_CMD_TABLE_UPDATE_IN_RESP_WIDTH_OFST 8
+#define	MC_CMD_TABLE_UPDATE_IN_RESP_WIDTH_LEN 2
+/* Mask ID for STCAM table - used instead of mask data if the table descriptor
+ * reports ALLOC_MASKS==1. Otherwise set to 0.
+ */
+#define	MC_CMD_TABLE_UPDATE_IN_MASK_ID_OFST 6
+#define	MC_CMD_TABLE_UPDATE_IN_MASK_ID_LEN 2
+/* Priority for TCAM or STCAM, in range 0..N_PRIORITIES-1, otherwise 0. */
+#define	MC_CMD_TABLE_UPDATE_IN_PRIORITY_OFST 8
+#define	MC_CMD_TABLE_UPDATE_IN_PRIORITY_LEN 2
+/* (32-bit alignment padding - set to 0) */
+#define	MC_CMD_TABLE_UPDATE_IN_RESERVED_OFST 10
+#define	MC_CMD_TABLE_UPDATE_IN_RESERVED_LEN 2
+/* Sequence of key, mask (if MASK_WIDTH > 0), and response (if RESP_WIDTH > 0)
+ * data values. Each of these items is logically treated as a single wide N-bit
+ * value, in which the individual fields have been placed within that value per
+ * the LBN and WIDTH information from the table field descriptors. The wide
+ * N-bit value is padded with 0 bits at the MSB end if necessary to make a
+ * multiple of 32 bits. The value is then packed into this command as a
+ * sequence of 32-bit words, bits [31:0] first, then bits [63:32], etc.
+ */
+#define	MC_CMD_TABLE_UPDATE_IN_DATA_OFST 12
+#define	MC_CMD_TABLE_UPDATE_IN_DATA_LEN 4
+#define	MC_CMD_TABLE_UPDATE_IN_DATA_MINNUM 1
+#define	MC_CMD_TABLE_UPDATE_IN_DATA_MAXNUM 60
+#define	MC_CMD_TABLE_UPDATE_IN_DATA_MAXNUM_MCDI2 252
+
+/* MC_CMD_TABLE_UPDATE_OUT msgresponse */
+#define	MC_CMD_TABLE_UPDATE_OUT_LEN 0
+
+
+/***********************************/
+/* MC_CMD_TABLE_DELETE
+ * Delete an existing entry in a table. May return EINVAL for unknown table ID
+ * or other bad request parameters, ENOENT if the entry does not exist, or
+ * EPERM if the operation is not permitted. In case of an error, the additional
+ * MCDI error argument field returns the raw error code from the underlying CAM
+ * driver.
+ */
+#define	MC_CMD_TABLE_DELETE 0x1cf
+#define	MC_CMD_TABLE_DELETE_MSGSET 0x1cf
+#undef	MC_CMD_0x1cf_PRIVILEGE_CTG
+
+#define	MC_CMD_0x1cf_PRIVILEGE_CTG SRIOV_CTG_GENERAL
+
+/* MC_CMD_TABLE_DELETE_IN msgrequest */
+#define	MC_CMD_TABLE_DELETE_IN_LENMIN 16
+#define	MC_CMD_TABLE_DELETE_IN_LENMAX 252
+#define	MC_CMD_TABLE_DELETE_IN_LENMAX_MCDI2 1020
+#define	MC_CMD_TABLE_DELETE_IN_LEN(num) (12+4*(num))
+#define	MC_CMD_TABLE_DELETE_IN_DATA_NUM(len) (((len)-12)/4)
+/* Table identifier. */
+#define	MC_CMD_TABLE_DELETE_IN_TABLE_ID_OFST 0
+#define	MC_CMD_TABLE_DELETE_IN_TABLE_ID_LEN 4
+/*            Enum values, see field(s): */
+/*               TABLE_ID */
+/* Width in bits of supplied key data (must match table properties). */
+#define	MC_CMD_TABLE_DELETE_IN_KEY_WIDTH_OFST 4
+#define	MC_CMD_TABLE_DELETE_IN_KEY_WIDTH_LEN 2
+/* Width in bits of supplied mask data (0 for direct/BCAM tables, or for STCAM
+ * when allocated MASK_ID is used instead).
+ */
+#define	MC_CMD_TABLE_DELETE_IN_MASK_WIDTH_OFST 6
+#define	MC_CMD_TABLE_DELETE_IN_MASK_WIDTH_LEN 2
+/* Width in bits of supplied response data (for INSERT and UPDATE operations
+ * this must match the table properties; for DELETE operations, no response
+ * data is required and this must be 0).
+ */
+#define	MC_CMD_TABLE_DELETE_IN_RESP_WIDTH_OFST 8
+#define	MC_CMD_TABLE_DELETE_IN_RESP_WIDTH_LEN 2
+/* Mask ID for STCAM table - used instead of mask data if the table descriptor
+ * reports ALLOC_MASKS==1. Otherwise set to 0.
+ */
+#define	MC_CMD_TABLE_DELETE_IN_MASK_ID_OFST 6
+#define	MC_CMD_TABLE_DELETE_IN_MASK_ID_LEN 2
+/* Priority for TCAM or STCAM, in range 0..N_PRIORITIES-1, otherwise 0. */
+#define	MC_CMD_TABLE_DELETE_IN_PRIORITY_OFST 8
+#define	MC_CMD_TABLE_DELETE_IN_PRIORITY_LEN 2
+/* (32-bit alignment padding - set to 0) */
+#define	MC_CMD_TABLE_DELETE_IN_RESERVED_OFST 10
+#define	MC_CMD_TABLE_DELETE_IN_RESERVED_LEN 2
+/* Sequence of key, mask (if MASK_WIDTH > 0), and response (if RESP_WIDTH > 0)
+ * data values. Each of these items is logically treated as a single wide N-bit
+ * value, in which the individual fields have been placed within that value per
+ * the LBN and WIDTH information from the table field descriptors. The wide
+ * N-bit value is padded with 0 bits at the MSB end if necessary to make a
+ * multiple of 32 bits. The value is then packed into this command as a
+ * sequence of 32-bit words, bits [31:0] first, then bits [63:32], etc.
+ */
+#define	MC_CMD_TABLE_DELETE_IN_DATA_OFST 12
+#define	MC_CMD_TABLE_DELETE_IN_DATA_LEN 4
+#define	MC_CMD_TABLE_DELETE_IN_DATA_MINNUM 1
+#define	MC_CMD_TABLE_DELETE_IN_DATA_MAXNUM 60
+#define	MC_CMD_TABLE_DELETE_IN_DATA_MAXNUM_MCDI2 252
+
+/* MC_CMD_TABLE_DELETE_OUT msgresponse */
+#define	MC_CMD_TABLE_DELETE_OUT_LEN 0
 
 #endif /* _SIENA_MC_DRIVER_PCOL_H */
