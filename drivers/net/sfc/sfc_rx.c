@@ -467,6 +467,13 @@ sfc_efx_rx_qsize_up_rings(uint16_t nb_rx_desc,
 			  unsigned int *evq_entries,
 			  unsigned int *rxq_max_fill_level)
 {
+	/*
+	 * Alignment does not fully express libefx requirements on queues to be
+	 * power of 2. So, generic ethdev code cannot handle it properly.
+	 * Min/max limitations are checked by ethdev.
+	 */
+	if (!rte_is_power_of_2(nb_rx_desc))
+		return EINVAL;
 	*rxq_entries = nb_rx_desc;
 	*evq_entries = nb_rx_desc;
 	*rxq_max_fill_level = EFX_RXQ_LIMIT(*rxq_entries);
