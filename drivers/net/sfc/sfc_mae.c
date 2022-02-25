@@ -2121,6 +2121,11 @@ static const struct sfc_mae_field_locator flocs_ipv4[] = {
 		RTE_SIZEOF_FIELD(struct rte_flow_item_ipv4, hdr.time_to_live),
 		offsetof(struct rte_flow_item_ipv4, hdr.time_to_live),
 	},
+	{
+		SFC_MAE_FIELD_HANDLING_DEFERRED,
+		RTE_SIZEOF_FIELD(struct rte_flow_item_ipv4, hdr.fragment_offset),
+		offsetof(struct rte_flow_item_ipv4, hdr.fragment_offset),
+	},
 };
 
 static int
