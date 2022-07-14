@@ -6,8 +6,11 @@
 #define _SFC_VDPA_OPS_H
 
 #include <rte_vdpa.h>
+#include <vdpa_driver.h>
 
 #define SFC_VDPA_MAX_QUEUE_PAIRS		8
+#define SFC_VDPA_USED_RING_LEN(size) \
+	((size) * sizeof(struct vring_used_elem) + sizeof(uint16_t) * 3)
 
 enum sfc_vdpa_context {
 	SFC_VDPA_AS_VF
@@ -35,8 +38,12 @@ struct sfc_vdpa_vring_info {
 };
 
 typedef struct sfc_vdpa_vq_context_s {
+	volatile void			*doorbell;
 	uint8_t				enable;
 	efx_virtio_vq_t			*vq;
+
+	uint64_t			sw_vq_iova;
+	uint64_t			sw_vq_size;
 } sfc_vdpa_vq_context_t;
 
 struct sfc_vdpa_ops_data {
@@ -54,6 +61,13 @@ struct sfc_vdpa_ops_data {
 
 	uint16_t			vq_count;
 	struct sfc_vdpa_vq_context_s	vq_cxt[SFC_VDPA_MAX_QUEUE_PAIRS * 2];
+
+	int				epfd;
+	uint64_t			sw_vq_iova;
+	bool				sw_fallback_mode;
+	pthread_t			sw_relay_thread_id;
+	struct vring			sw_vq[SFC_VDPA_MAX_QUEUE_PAIRS * 2];
+	int				intr_fd[SFC_VDPA_MAX_QUEUE_PAIRS * 2];
 };
 
 struct sfc_vdpa_ops_data *

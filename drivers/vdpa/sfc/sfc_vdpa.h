@@ -18,6 +18,7 @@
 
 #define SFC_VDPA_MAC_ADDR			"mac"
 #define SFC_VDPA_DEFAULT_MCDI_IOVA		0x200000000000
+#define SFC_SW_VRING_IOVA			0x300000000000
 
 /* Broadcast & Unicast MAC filters are supported */
 #define SFC_MAX_SUPPORTED_FILTERS		3
