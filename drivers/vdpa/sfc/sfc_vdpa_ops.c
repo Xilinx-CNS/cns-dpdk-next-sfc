@@ -4,10 +4,13 @@
 
 #include <pthread.h>
 #include <unistd.h>
+#include <sys/epoll.h>
 #include <sys/ioctl.h>
 
+#include <rte_eal_paging.h>
 #include <rte_errno.h>
 #include <rte_malloc.h>
+#include <rte_memory.h>
 #include <rte_vdpa.h>
 #include <rte_vfio.h>
 #include <rte_vhost.h>
@@ -33,7 +36,9 @@
  */
 #define SFC_VDPA_DEFAULT_FEATURES \
 		((1ULL << VHOST_USER_F_PROTOCOL_FEATURES) | \
-		 (1ULL << VIRTIO_NET_F_MQ))
+		 (1ULL << VIRTIO_NET_F_MQ) | \
+		 (1ULL << VHOST_F_LOG_ALL) | \
+		 (1ULL << VIRTIO_NET_F_GUEST_ANNOUNCE))
 
 #define SFC_VDPA_MSIX_IRQ_SET_BUF_LEN \
 		(sizeof(struct vfio_irq_set) + \
@@ -41,6 +46,142 @@
 
 /* It will be used for target VF when calling function is not PF */
 #define SFC_VDPA_VF_NULL		0xFFFF
+
+#define SFC_VDPA_DECODE_FD(data)	(data.u64 >> 32)
+#define SFC_VDPA_DECODE_QID(data)	(data.u32 >> 1)
+#define SFC_VDPA_DECODE_EV_TYPE(data)	(data.u32 & 1)
+
+/*
+ * Create q_num number of epoll events for kickfd interrupts
+ * and q_num/2 events for callfd interrupts. Round up the
+ * total to (q_num * 2) number of events.
+ */
+#define SFC_VDPA_SW_RELAY_EVENT_NUM(q_num)	(q_num * 2)
+
+static inline uint64_t
+sfc_vdpa_encode_ev_data(int type, uint32_t qid, int fd)
+{
+	SFC_VDPA_ASSERT(fd > UINT32_MAX || qid > UINT32_MAX / 2);
+	return type | (qid << 1) | (uint64_t)fd << 32;
+}
+
+static inline void
+sfc_vdpa_queue_relay(struct sfc_vdpa_ops_data *ops_data, uint32_t qid)
+{
+	rte_vdpa_relay_vring_used(ops_data->vid, qid, &ops_data->sw_vq[qid]);
+	rte_vhost_vring_call(ops_data->vid, qid);
+}
+
+static void*
+sfc_vdpa_sw_relay(void *data)
+{
+	uint64_t buf;
+	uint32_t qid, q_num;
+	struct epoll_event ev;
+	struct rte_vhost_vring vring;
+	int nbytes, i, ret, fd, epfd, nfds = 0;
+	struct epoll_event events[SFC_VDPA_MAX_QUEUE_PAIRS * 2];
+	struct sfc_vdpa_ops_data *ops_data = (struct sfc_vdpa_ops_data *)data;
+
+	q_num = rte_vhost_get_vring_num(ops_data->vid);
+	epfd = epoll_create(SFC_VDPA_SW_RELAY_EVENT_NUM(q_num));
+	if (epfd < 0) {
+		sfc_vdpa_log_init(ops_data->dev_handle,
+				  "failed to create epoll instance");
+		goto fail_epoll;
+	}
+	ops_data->epfd = epfd;
+
+	vring.kickfd = -1;
+	for (qid = 0; qid < q_num; qid++) {
+		ev.events = EPOLLIN | EPOLLPRI;
+		ret = rte_vhost_get_vhost_vring(ops_data->vid, qid, &vring);
+		if (ret != 0) {
+			sfc_vdpa_log_init(ops_data->dev_handle,
+					  "rte_vhost_get_vhost_vring error %s",
+					  strerror(errno));
+			goto fail_vring;
+		}
+
+		ev.data.u64 = sfc_vdpa_encode_ev_data(0, qid, vring.kickfd);
+		if (epoll_ctl(epfd, EPOLL_CTL_ADD, vring.kickfd, &ev) < 0) {
+			sfc_vdpa_log_init(ops_data->dev_handle,
+					  "epoll add error: %s",
+					  strerror(errno));
+			goto fail_epoll_add;
+		}
+	}
+
+	/*
+	 * Register intr_fd created by vDPA driver in lieu of qemu's callfd
+	 * to intercept rx queue notification. So that we can monitor rx
+	 * notifications and issue rte_vdpa_relay_vring_used()
+	 */
+	for (qid = 0; qid < q_num; qid += 2) {
+		fd = ops_data->intr_fd[qid];
+		ev.events = EPOLLIN | EPOLLPRI;
+		ev.data.u64 = sfc_vdpa_encode_ev_data(1, qid, fd);
+		if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+			sfc_vdpa_log_init(ops_data->dev_handle,
+					  "epoll add error: %s",
+					  strerror(errno));
+			goto fail_epoll_add;
+		}
+		sfc_vdpa_queue_relay(ops_data, qid);
+	}
+
+	/*
+	 * virtio driver in VM was continuously sending queue notifications
+	 * while were setting up software vrings and hence the HW misses
+	 * these doorbell notifications. Since, it is safe to send duplicate
+	 * doorbell, send another doorbell from vDPA driver.
+	 */
+	for (qid = 0; qid < q_num; qid++)
+		rte_write16(qid, ops_data->vq_cxt[qid].doorbell);
+
+	for (;;) {
+		nfds = epoll_wait(epfd, events,
+				  SFC_VDPA_SW_RELAY_EVENT_NUM(q_num), -1);
+		if (nfds < 0) {
+			if (errno == EINTR)
+				continue;
+			sfc_vdpa_log_init(ops_data->dev_handle,
+					  "epoll_wait return fail\n");
+			goto fail_epoll_wait;
+		}
+
+		for (i = 0; i < nfds; i++) {
+			fd = SFC_VDPA_DECODE_FD(events[i].data);
+			/* Ensure kickfd is not busy before proceeding */
+			for (;;) {
+				nbytes = read(fd, &buf, 8);
+				if (nbytes < 0) {
+					if (errno == EINTR ||
+					    errno == EWOULDBLOCK ||
+					    errno == EAGAIN)
+						continue;
+				}
+				break;
+			}
+
+			qid = SFC_VDPA_DECODE_QID(events[i].data);
+			if (SFC_VDPA_DECODE_EV_TYPE(events[i].data))
+				sfc_vdpa_queue_relay(ops_data, qid);
+			else
+				rte_write16(qid, ops_data->vq_cxt[qid].doorbell);
+		}
+	}
+
+	return NULL;
+
+fail_epoll:
+fail_vring:
+fail_epoll_add:
+fail_epoll_wait:
+	close(epfd);
+	ops_data->epfd = -1;
+	return NULL;
+}
 
 static int
 sfc_vdpa_get_device_features(struct sfc_vdpa_ops_data *ops_data)
@@ -99,7 +240,7 @@ error:
 static int
 sfc_vdpa_enable_vfio_intr(struct sfc_vdpa_ops_data *ops_data)
 {
-	int rc;
+	int rc, fd;
 	int *irq_fd_ptr;
 	int vfio_dev_fd;
 	uint32_t i, num_vring;
@@ -131,6 +272,17 @@ sfc_vdpa_enable_vfio_intr(struct sfc_vdpa_ops_data *ops_data)
 			return -1;
 
 		irq_fd_ptr[RTE_INTR_VEC_RXTX_OFFSET + i] = vring.callfd;
+		if (ops_data->sw_fallback_mode && !(i & 1)) {
+			fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+			if (fd < 0) {
+				sfc_vdpa_err(ops_data->dev_handle,
+					     "failed to create eventfd");
+				goto fail_eventfd;
+			}
+			ops_data->intr_fd[i] = fd;
+			irq_fd_ptr[RTE_INTR_VEC_RXTX_OFFSET + i] = fd;
+		} else
+			ops_data->intr_fd[i] = -1;
 	}
 
 	rc = ioctl(vfio_dev_fd, VFIO_DEVICE_SET_IRQS, irq_set);
@@ -138,16 +290,26 @@ sfc_vdpa_enable_vfio_intr(struct sfc_vdpa_ops_data *ops_data)
 		sfc_vdpa_err(ops_data->dev_handle,
 			     "error enabling MSI-X interrupts: %s",
 			     strerror(errno));
-		return -1;
+		goto fail_ioctl;
 	}
 
 	return 0;
+
+fail_ioctl:
+fail_eventfd:
+	for (i = 0; i < num_vring; i++) {
+		if (ops_data->intr_fd[i] != -1) {
+			close(ops_data->intr_fd[i]);
+			ops_data->intr_fd[i] = -1;
+		}
+	}
+	return -1;
 }
 
 static int
 sfc_vdpa_disable_vfio_intr(struct sfc_vdpa_ops_data *ops_data)
 {
-	int rc;
+	int rc, i;
 	int vfio_dev_fd;
 	struct vfio_irq_set irq_set;
 	void *dev;
@@ -160,6 +322,12 @@ sfc_vdpa_disable_vfio_intr(struct sfc_vdpa_ops_data *ops_data)
 	irq_set.flags = VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER;
 	irq_set.index = VFIO_PCI_MSIX_IRQ_INDEX;
 	irq_set.start = 0;
+
+	for (i = 0; i < ops_data->vq_count; i++) {
+		if (ops_data->intr_fd[i] >= 0)
+			close(ops_data->intr_fd[i]);
+		ops_data->intr_fd[i] = -1;
+	}
 
 	rc = ioctl(vfio_dev_fd, VFIO_DEVICE_SET_IRQS, &irq_set);
 	if (rc) {
@@ -223,11 +391,14 @@ sfc_vdpa_get_vring_info(struct sfc_vdpa_ops_data *ops_data,
 static int
 sfc_vdpa_virtq_start(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 {
-	int rc;
+	int rc, fd;
+	uint64_t size;
 	efx_virtio_vq_t *vq;
+	void *vring_buf, *dev;
 	struct sfc_vdpa_vring_info vring;
 	efx_virtio_vq_cfg_t vq_cfg;
 	efx_virtio_vq_dyncfg_t vq_dyncfg;
+	uint64_t sw_vq_iova = ops_data->sw_vq_iova;
 
 	vq = ops_data->vq_cxt[vq_num].vq;
 	if (vq == NULL)
@@ -238,6 +409,33 @@ sfc_vdpa_virtq_start(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 		sfc_vdpa_err(ops_data->dev_handle,
 			     "get vring info failed: %s", rte_strerror(rc));
 		goto fail_vring_info;
+	}
+
+	if (ops_data->sw_fallback_mode) {
+		size = vring_size(vring.size, rte_mem_page_size());
+		size = RTE_ALIGN_CEIL(size, rte_mem_page_size());
+		vring_buf = rte_zmalloc("vdpa", size, rte_mem_page_size());
+		vring_init(&ops_data->sw_vq[vq_num], vring.size, vring_buf,
+			   rte_mem_page_size());
+
+		dev = ops_data->dev_handle;
+		fd = sfc_vdpa_adapter_by_dev_handle(dev)->vfio_container_fd;
+		rc = rte_vfio_container_dma_map(fd,
+						(uint64_t)(uintptr_t)vring_buf,
+						sw_vq_iova, size);
+
+		/* Direct I/O for Tx queue, relay for Rx queue */
+		if (!(vq_num & 1))
+			vring.used = sw_vq_iova +
+				(char *)ops_data->sw_vq[vq_num].used -
+				(char *)ops_data->sw_vq[vq_num].desc;
+
+		ops_data->sw_vq[vq_num].used->idx = vring.last_used_idx;
+		ops_data->sw_vq[vq_num].avail->idx = vring.last_avail_idx;
+
+		ops_data->vq_cxt[vq_num].sw_vq_iova = sw_vq_iova;
+		ops_data->vq_cxt[vq_num].sw_vq_size = size;
+		ops_data->sw_vq_iova += size;
 	}
 
 	vq_cfg.evvc_target_vf = SFC_VDPA_VF_NULL;
@@ -295,9 +493,12 @@ fail_vring_info:
 static int
 sfc_vdpa_virtq_stop(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 {
-	int rc;
+	int rc, fd;
+	void *dev, *buf;
+	uint64_t size, len, iova;
 	efx_virtio_vq_dyncfg_t vq_idx;
 	efx_virtio_vq_t *vq;
+	struct rte_vhost_vring vring;
 
 	if (ops_data->vq_cxt[vq_num].enable != B_TRUE)
 		return -1;
@@ -305,6 +506,24 @@ sfc_vdpa_virtq_stop(struct sfc_vdpa_ops_data *ops_data, int vq_num)
 	vq = ops_data->vq_cxt[vq_num].vq;
 	if (vq == NULL)
 		return -1;
+
+	if (ops_data->sw_fallback_mode) {
+		dev = ops_data->dev_handle;
+		fd = sfc_vdpa_adapter_by_dev_handle(dev)->vfio_container_fd;
+		/* synchronize remaining new used entries if any */
+		if (!(vq_num & 1))
+			sfc_vdpa_queue_relay(ops_data, vq_num);
+
+		rte_vhost_get_vhost_vring(ops_data->vid, vq_num, &vring);
+		len = SFC_VDPA_USED_RING_LEN(vring.size);
+		rte_vhost_log_used_vring(ops_data->vid, vq_num, 0, len);
+
+		buf = ops_data->sw_vq[vq_num].desc;
+		size = ops_data->vq_cxt[vq_num].sw_vq_size;
+		iova = ops_data->vq_cxt[vq_num].sw_vq_iova;
+		rte_vfio_container_dma_unmap(fd, (uint64_t)(uintptr_t)buf,
+					     iova, size);
+	}
 
 	/* stop the vq */
 	rc = efx_virtio_qstop(vq, &vq_idx);
@@ -437,7 +656,11 @@ sfc_vdpa_start(struct sfc_vdpa_ops_data *ops_data)
 
 	SFC_EFX_ASSERT(ops_data->state == SFC_VDPA_STATE_CONFIGURED);
 
-	sfc_vdpa_log_init(ops_data->dev_handle, "entry");
+	if (ops_data->sw_fallback_mode) {
+		sfc_vdpa_log_init(ops_data->dev_handle,
+				  "Trying to start VDPA with SW I/O relay");
+		ops_data->sw_vq_iova = SFC_SW_VRING_IOVA;
+	}
 
 	ops_data->state = SFC_VDPA_STATE_STARTING;
 
@@ -662,6 +885,7 @@ static int
 sfc_vdpa_dev_close(int vid)
 {
 	int ret;
+	void *status;
 	struct rte_vdpa_device *vdpa_dev;
 	struct sfc_vdpa_ops_data *ops_data;
 
@@ -694,7 +918,23 @@ sfc_vdpa_dev_close(int vid)
 	}
 	ops_data->is_notify_thread_started = false;
 
+	if (ops_data->sw_fallback_mode) {
+		ret = pthread_cancel(ops_data->sw_relay_thread_id);
+		if (ret != 0)
+			sfc_vdpa_err(ops_data->dev_handle,
+				     "failed to cancel LM relay thread: %s",
+				     rte_strerror(ret));
+
+		ret = pthread_join(ops_data->sw_relay_thread_id, &status);
+		if (ret != 0)
+			sfc_vdpa_err(ops_data->dev_handle,
+				     "failed to join LM relay thread: %s",
+				     rte_strerror(ret));
+	}
+
 	sfc_vdpa_stop(ops_data);
+	ops_data->sw_fallback_mode = false;
+
 	sfc_vdpa_close(ops_data);
 
 	sfc_vdpa_adapter_unlock(ops_data->dev_handle);
@@ -761,9 +1001,49 @@ sfc_vdpa_set_vring_state(int vid, int vring, int state)
 static int
 sfc_vdpa_set_features(int vid)
 {
-	RTE_SET_USED(vid);
+	int ret;
+	uint64_t features = 0;
+	struct rte_vdpa_device *vdpa_dev;
+	struct sfc_vdpa_ops_data *ops_data;
 
-	return -1;
+	vdpa_dev = rte_vhost_get_vdpa_device(vid);
+	ops_data = sfc_vdpa_get_data_by_dev(vdpa_dev);
+	if (ops_data == NULL)
+		return -1;
+
+	rte_vhost_get_negotiated_features(vid, &features);
+
+	if (!RTE_VHOST_NEED_LOG(features))
+		return -1;
+
+	sfc_vdpa_info(ops_data->dev_handle, "live-migration triggered");
+
+	sfc_vdpa_adapter_lock(ops_data->dev_handle);
+
+	/* Stop HW Offload and unset host notifier */
+	sfc_vdpa_stop(ops_data);
+	if (rte_vhost_host_notifier_ctrl(vid, RTE_VHOST_QUEUE_ALL, false) != 0)
+		sfc_vdpa_info(ops_data->dev_handle,
+			      "vDPA (%s): Failed to clear host notifier",
+			      ops_data->vdpa_dev->device->name);
+
+	/* Restart vDPA with SW relay on RX queue */
+	ops_data->sw_fallback_mode = true;
+	sfc_vdpa_start(ops_data);
+	ret = pthread_create(&ops_data->sw_relay_thread_id, NULL,
+			     sfc_vdpa_sw_relay,	(void *)ops_data);
+	if (ret != 0)
+		sfc_vdpa_err(ops_data->dev_handle,
+			     "failed to create rx_relay thread: %s",
+			     rte_strerror(ret));
+
+	if (rte_vhost_host_notifier_ctrl(vid, RTE_VHOST_QUEUE_ALL, true) != 0)
+		sfc_vdpa_info(ops_data->dev_handle, "notifier setup failed!");
+
+	sfc_vdpa_adapter_unlock(ops_data->dev_handle);
+	sfc_vdpa_info(ops_data->dev_handle, "SW fallback setup done!");
+
+	return 0;
 }
 
 static int
@@ -861,18 +1141,25 @@ sfc_vdpa_get_notify_area(int vid, int qid, uint64_t *offset, uint64_t *size)
 	sfc_vdpa_info(dev, "vDPA ops get_notify_area :: offset : 0x%" PRIx64,
 		      *offset);
 
-	pci_dev = sfc_vdpa_adapter_by_dev_handle(dev)->pdev;
-	doorbell = (uint8_t *)pci_dev->mem_resource[reg.index].addr +
-		   bar_offset + reg.offset;
+	if (!ops_data->sw_fallback_mode) {
+		pci_dev = sfc_vdpa_adapter_by_dev_handle(dev)->pdev;
+		doorbell = (uint8_t *)pci_dev->mem_resource[reg.index].addr +
+			*offset;
+		/*
+		 * virtio-net driver in VM sends queue notifications before
+		 * vDPA has a chance to setup the queues and notification area,
+		 * and hence the HW misses these doorbell notifications.
+		 * Since, it is safe to send duplicate doorbell, send another
+		 * doorbell from vDPA driver as workaround for this timing issue
+		 */
+		rte_write16(qid, doorbell);
 
-	/*
-	 * virtio-net driver in VM sends queue notifications before
-	 * vDPA has a chance to setup the queues and notification area,
-	 * and hence the HW misses these doorbell notifications.
-	 * Since, it is safe to send duplicate doorbell, send another
-	 * doorbell from vDPA driver as workaround for this timing issue.
-	 */
-	rte_write16(qid, doorbell);
+		/*
+		 * Update doorbell address, it will come in handy during
+		 * live-migration.
+		 */
+		ops_data->vq_cxt[qid].doorbell = doorbell;
+	}
 
 	return 0;
 }
