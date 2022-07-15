@@ -63,25 +63,31 @@ int sfc_vdpa_filter_config(struct sfc_vdpa_ops_data *ops_data)
 	struct rte_ether_addr ucast_eth_addr;
 	struct sfc_vdpa_adapter *sva = ops_data->dev_handle;
 	efx_filter_spec_t *spec;
+	efx_nic_cfg_t *encp;
 
 	sfc_vdpa_log_init(sva, "entry");
 
 	nic = sva->nic;
+	encp = &(nic->en_nic_cfg);
 
 	sfc_vdpa_log_init(sva, "process kvarg");
 
 	/* skip MAC filter configuration if mac address is not provided */
 	if (rte_kvargs_count(sva->kvargs, SFC_VDPA_MAC_ADDR) == 0) {
-		sfc_vdpa_warn(sva,
-			      "MAC address is not provided, skipping MAC Filter Config");
-		return -1;
+		if (encp->enc_mac_addr == NULL) {
+			sfc_vdpa_err(sva, "MAC address is not provided");
+			return -1;
+		}
+		rte_memcpy(&ucast_eth_addr,
+			   encp->enc_mac_addr,
+			   RTE_ETHER_ADDR_LEN);
+	} else {
+		rc = rte_kvargs_process(sva->kvargs, SFC_VDPA_MAC_ADDR,
+					&sfc_vdpa_get_eth_addr,
+					&ucast_eth_addr);
+		if (rc < 0)
+			return -1;
 	}
-
-	rc = rte_kvargs_process(sva->kvargs, SFC_VDPA_MAC_ADDR,
-				&sfc_vdpa_get_eth_addr,
-				&ucast_eth_addr);
-	if (rc < 0)
-		return -1;
 
 	/* create filters on the base queue */
 	qid = SFC_VDPA_GET_VI_INDEX(0);
