@@ -150,6 +150,7 @@ INTERNAL {
 	efx_mcdi_get_proxy_handle;
 	efx_mcdi_get_timeout;
 	efx_mcdi_init;
+	efx_mcdi_dma_remap;
 	efx_mcdi_mport_alloc_alias;
 	efx_mcdi_new_epoch;
 	efx_mcdi_reboot;
