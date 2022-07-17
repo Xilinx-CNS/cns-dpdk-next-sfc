@@ -184,6 +184,145 @@ fail_epoll_wait:
 }
 
 static int
+sfc_vdpa_add_iova_in_list(struct sfc_vdpa_ops_data *ops_data,
+			  uint64_t iova, uint64_t size)
+{
+	struct	sfc_vdpa_iova_list *node;
+	struct	sfc_vdpa_iova_list *iter;
+
+	node = rte_zmalloc("sfc_vdpa", sizeof(struct sfc_vdpa_iova_list), 0);
+	if (node == NULL)
+		return -ENOMEM;
+
+	node->iova = iova;
+	node->size = size;
+
+	pthread_mutex_lock(&ops_data->iova_list_lock);
+
+	/* Store IOVA addresses in decreasing order */
+	TAILQ_FOREACH(iter, &ops_data->iova_list_head, next) {
+		if (iova == iter->iova) {
+			SFC_VDPA_ASSERT(iter->size == size);
+			rte_free(node);
+			goto exit;
+		}
+
+		if (iova > iter->iova) {
+			TAILQ_INSERT_BEFORE(iter, node, next);
+			goto exit;
+		}
+	}
+
+	TAILQ_INSERT_TAIL(&ops_data->iova_list_head, node, next);
+
+exit:
+	pthread_mutex_unlock(&ops_data->iova_list_lock);
+	return 0;
+}
+
+static void
+sfc_vdpa_free_iova_node(struct sfc_vdpa_ops_data *ops_data,
+			uint64_t iova)
+{
+	struct  sfc_vdpa_iova_list *node;
+
+	pthread_mutex_lock(&ops_data->iova_list_lock);
+	TAILQ_FOREACH(node, &ops_data->iova_list_head, next) {
+		if (node->iova == iova) {
+			TAILQ_REMOVE(&ops_data->iova_list_head, node, next);
+			rte_free(node);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&ops_data->iova_list_lock);
+}
+
+static void
+sfc_vdpa_free_iova_list(struct sfc_vdpa_ops_data *ops_data)
+{
+	struct	sfc_vdpa_iova_list *node;
+
+	pthread_mutex_lock(&ops_data->iova_list_lock);
+	TAILQ_FOREACH(node, &ops_data->iova_list_head, next) {
+		TAILQ_REMOVE(&ops_data->iova_list_head, node, next);
+		rte_free(node);
+	}
+	pthread_mutex_unlock(&ops_data->iova_list_lock);
+}
+
+static uint64_t
+sfc_vdpa_check_iova_overlap(struct sfc_vdpa_ops_data *ops_data,
+			    uint64_t iova, uint64_t size)
+{
+	struct	sfc_vdpa_iova_list *node;
+
+	pthread_mutex_lock(&ops_data->iova_list_lock);
+	TAILQ_FOREACH(node, &ops_data->iova_list_head, next) {
+		/*
+		 * IOVA addresses are stored in decreasing order in the list
+		 * so if the given IOVA is above the current addr range then
+		 * there's no overlap, else compare the start and end addr(s)
+		 * with the current node.
+		 */
+		if (iova > node->iova + node->size)
+			break;
+
+		if (iova < node->iova + node->size &&
+				iova + size > node->iova) {
+			pthread_mutex_unlock(&ops_data->iova_list_lock);
+			return true;
+		}
+	}
+
+	pthread_mutex_unlock(&ops_data->iova_list_lock);
+	return false;
+}
+
+static uint64_t
+sfc_vdpa_find_iova_remap_addr(struct sfc_vdpa_ops_data *ops_data,
+			      uint64_t size)
+{
+	uint64_t iova = UINT64_MAX;
+	uint64_t offset = SFC_VDPA_IOVA_REMAP_OFFSET;
+	struct	sfc_vdpa_iova_list *head, *next, *curr;
+
+	pthread_mutex_lock(&ops_data->iova_list_lock);
+	head = TAILQ_FIRST(&ops_data->iova_list_head);
+
+	/*
+	 * sfc_vdpa_find_iova_remap_addr should only be invoked
+	 * after checking sfc_vdpa_check_iova_overlap, and for an
+	 * empty TAILQ it will return false.
+	 */
+	SFC_VDPA_ASSERT(head != NULL);
+
+	/*
+	 * Since existing IOVA regions are stored in a decending order,
+	 * check if the new region can be accommodated above head, else
+	 * transverse the list and check if the new IOVA region can be
+	 * accommodated in the space between two existing IOVA regions.
+	 */
+	if ((head->iova + head->size) <= (UINT64_MAX - offset - size))
+		iova = head->iova + head->size + offset;
+	else {
+		TAILQ_FOREACH(curr, &ops_data->iova_list_head, next) {
+			next = TAILQ_NEXT(curr, next);
+			if (next == NULL)
+				break;
+
+			if (curr->iova - next->iova - next->size >=
+					offset + size) {
+				iova = next->iova + next->size + offset;
+				break;
+			}
+		}
+	}
+
+	pthread_mutex_unlock(&ops_data->iova_list_lock);
+	return iova;
+}
+
+static int
 sfc_vdpa_get_device_features(struct sfc_vdpa_ops_data *ops_data)
 {
 	int rc;
@@ -546,9 +685,15 @@ sfc_vdpa_configure(struct sfc_vdpa_ops_data *ops_data)
 	efx_virtio_vq_t *vq;
 	efx_nic_t *nic;
 	void *dev;
+	uint32_t idx;
+	uint64_t mcdi_iova, mcdi_buff_size;
+	struct rte_vhost_memory *vhost_mem = NULL;
+	struct rte_vhost_mem_region *mem_reg = NULL;
 
 	dev = ops_data->dev_handle;
 	nic = sfc_vdpa_adapter_by_dev_handle(dev)->nic;
+	mcdi_iova = sfc_vdpa_adapter_by_dev_handle(dev)->mcdi_iova;
+	mcdi_buff_size = sfc_vdpa_adapter_by_dev_handle(dev)->mcdi_buff_size;
 
 	SFC_EFX_ASSERT(ops_data->state == SFC_VDPA_STATE_INITIALIZED);
 
@@ -566,7 +711,38 @@ sfc_vdpa_configure(struct sfc_vdpa_ops_data *ops_data)
 		goto fail_vring_num;
 	}
 
-	rc = sfc_vdpa_dma_map(ops_data, true);
+	rc = rte_vhost_get_mem_table(ops_data->vid, &vhost_mem);
+	if (rc < 0) {
+		sfc_vdpa_err(dev, "failed to get VM memory layout");
+		goto fail_dma_map;
+	}
+
+	/* cache known IOVA(s) in a sorted list */
+	for (idx = 0; idx < vhost_mem->nregions; idx++) {
+		mem_reg = &vhost_mem->regions[idx];
+		sfc_vdpa_add_iova_in_list(ops_data,
+					  mem_reg->guest_phys_addr,
+					  mem_reg->size);
+	}
+
+	if (sfc_vdpa_check_iova_overlap(ops_data, mcdi_iova, mcdi_buff_size)) {
+		sfc_vdpa_free_iova_node(ops_data, mcdi_iova);
+
+		mcdi_iova = sfc_vdpa_find_iova_remap_addr(ops_data,
+							  mcdi_buff_size);
+		if (mcdi_iova == UINT64_MAX) {
+			sfc_vdpa_err(dev, "failed to relocate mcdi IOVA");
+			goto fail_dma_map;
+		}
+
+		sfc_vdpa_adapter_by_dev_handle(dev)->mcdi_iova = mcdi_iova;
+		efx_mcdi_dma_remap(sfc_vdpa_adapter_by_dev_handle(dev)->nic);
+	}
+
+	/* add mcdi IOVA to the list of known IOVA(s) */
+	sfc_vdpa_add_iova_in_list(ops_data, mcdi_iova, mcdi_buff_size);
+
+	rc = sfc_vdpa_dma_map_vhost_mem_table(ops_data, true);
 	if (rc) {
 		sfc_vdpa_err(dev,
 			     "DMA map failed: %s", rte_strerror(rc));
@@ -593,7 +769,7 @@ sfc_vdpa_configure(struct sfc_vdpa_ops_data *ops_data)
 	return 0;
 
 fail_vq_create:
-	sfc_vdpa_dma_map(ops_data, false);
+	sfc_vdpa_dma_map_vhost_mem_table(ops_data, false);
 
 fail_dma_map:
 fail_vring_num:
@@ -619,7 +795,7 @@ sfc_vdpa_close(struct sfc_vdpa_ops_data *ops_data)
 		efx_virtio_qdestroy(ops_data->vq_cxt[i].vq);
 	}
 
-	sfc_vdpa_dma_map(ops_data, false);
+	sfc_vdpa_dma_map_vhost_mem_table(ops_data, false);
 
 	ops_data->state = SFC_VDPA_STATE_INITIALIZED;
 }
@@ -885,9 +1061,12 @@ static int
 sfc_vdpa_dev_close(int vid)
 {
 	int ret;
+	uint32_t i;
 	void *status;
 	struct rte_vdpa_device *vdpa_dev;
 	struct sfc_vdpa_ops_data *ops_data;
+	struct rte_vhost_memory *vhost_mem = NULL;
+	struct rte_vhost_mem_region *mem_reg = NULL;
 
 	vdpa_dev = rte_vhost_get_vdpa_device(vid);
 
@@ -897,6 +1076,17 @@ sfc_vdpa_dev_close(int vid)
 			     "invalid vDPA device : %p, vid : %d",
 			     vdpa_dev, vid);
 		return -1;
+	}
+
+	/* remove known IOVA(s) in a sorted list */
+	ret = rte_vhost_get_mem_table(ops_data->vid, &vhost_mem);
+	if (ret < 0)
+		sfc_vdpa_err(ops_data->dev_handle,
+			     "failed to get VM memory layout");
+
+	for (i = 0; i < vhost_mem->nregions; i++) {
+		mem_reg = &vhost_mem->regions[i];
+		sfc_vdpa_free_iova_node(ops_data, mem_reg->guest_phys_addr);
 	}
 
 	sfc_vdpa_adapter_lock(ops_data->dev_handle);
@@ -1216,6 +1406,9 @@ sfc_vdpa_device_init(void *dev_handle, enum sfc_vdpa_context context)
 
 	ops_data->state = SFC_VDPA_STATE_INITIALIZED;
 
+	TAILQ_INIT(&ops_data->iova_list_head);
+	pthread_mutex_init(&ops_data->iova_list_lock, NULL);
+
 	return ops_data;
 
 fail_get_dev_feature:
@@ -1229,6 +1422,7 @@ fail_register_device:
 void
 sfc_vdpa_device_fini(struct sfc_vdpa_ops_data *ops_data)
 {
+	sfc_vdpa_free_iova_list(ops_data);
 	rte_vdpa_unregister_device(ops_data->vdpa_dev);
 
 	rte_free(ops_data);
