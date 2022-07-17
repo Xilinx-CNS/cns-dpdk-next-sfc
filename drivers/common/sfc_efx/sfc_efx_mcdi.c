@@ -264,6 +264,30 @@ sfc_efx_mcdi_ev_proxy_response(void *arg, uint32_t handle, efx_rc_t result)
 	mcdi->proxy_result = result;
 }
 
+static void
+sfc_efx_mcdi_dma_remap(void *arg)
+{
+	struct sfc_efx_mcdi *mcdi = (struct sfc_efx_mcdi *)arg;
+	efx_mcdi_transport_t *emtp;
+	int rc;
+
+	rte_spinlock_lock(&mcdi->lock);
+
+	emtp = &mcdi->transport;
+	rc = mcdi->ops->dma_remap(mcdi->ops_cookie, &mcdi->mem);
+	if (rc != 0)
+		goto fail_dma_alloc;
+
+	emtp->emt_dma_mem = &mcdi->mem;
+
+	rte_spinlock_unlock(&mcdi->lock);
+	return;
+
+fail_dma_alloc:
+	mcdi->state = SFC_EFX_MCDI_DEAD;
+	rte_spinlock_unlock(&mcdi->lock);
+}
+
 int
 sfc_efx_mcdi_init(struct sfc_efx_mcdi *mcdi,
 		  uint32_t logtype, const char *log_prefix, efx_nic_t *nic,
@@ -303,6 +327,7 @@ sfc_efx_mcdi_init(struct sfc_efx_mcdi *mcdi,
 	emtp->emt_exception = sfc_efx_mcdi_exception;
 	emtp->emt_logger = sfc_efx_mcdi_logger;
 	emtp->emt_ev_proxy_response = sfc_efx_mcdi_ev_proxy_response;
+	emtp->emt_remap = sfc_efx_mcdi_dma_remap;
 
 	sfc_efx_mcdi_info(mcdi, "init MCDI");
 	rc = efx_mcdi_init(mcdi->nic, emtp);
