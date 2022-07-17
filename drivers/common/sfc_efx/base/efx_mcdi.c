@@ -158,7 +158,49 @@ fail1:
 	return (rc);
 }
 
-			void
+	__checkReturn	efx_rc_t
+efx_mcdi_dma_remap(
+	__in		efx_nic_t *enp)
+{
+	const efx_mcdi_transport_t *emtp = enp->en_mcdi.em_emtp;
+	efx_mcdi_iface_t *emip = &(enp->en_mcdi.em_emip);
+	efx_mcdi_remap_state_t remap_state;
+	efsys_lock_state_t state;
+	efx_rc_t rc;
+
+	if (emtp->emt_remap == NULL) {
+		rc = EINVAL;
+		goto fail1;
+	}
+
+	EFSYS_LOCK(enp->en_eslp, state);
+	if (emip->emi_pending_req != NULL) {
+		/*
+		 * In-flight MCDI command detected so delay remapping,
+		 * check emip->emi_remap_state in efx_mcdi_request_start()
+		 * and ensure remapping is done before sending next command
+		 */
+		emip->emi_remap_state = EFX_MCDI_DMA_REMAP_STATE_PENDING;
+	}
+	remap_state = emip->emi_remap_state;
+	EFSYS_UNLOCK(enp->en_eslp, state);
+
+	/*
+	 * Don't hold the lock while applying the re-mapping because
+	 * emt_remap invokes the client driver, which can in turn invoke
+	 * the common code again and casue a deadlock
+	 */
+	if (remap_state == EFX_MCDI_DMA_REMAP_STATE_DEFAULT)
+		emtp->emt_remap(emtp->emt_context);
+
+	return 0;
+
+fail1:
+	EFSYS_PROBE1(fail1, efx_rc_t, rc);
+	return (rc);
+}
+
+	void
 efx_mcdi_fini(
 	__in		efx_nic_t *enp)
 {
@@ -255,6 +297,7 @@ efx_mcdi_request_start(
 	unsigned int xflags;
 	boolean_t new_epoch;
 	efsys_lock_state_t state;
+	efx_mcdi_remap_state_t remap_state;
 
 	EFSYS_ASSERT3U(enp->en_magic, ==, EFX_NIC_MAGIC);
 	EFSYS_ASSERT3U(enp->en_mod_flags, &, EFX_MOD_MCDI);
@@ -280,7 +323,18 @@ efx_mcdi_request_start(
 	seq = emip->emi_seq++ & EFX_MASK32(MCDI_HEADER_SEQ);
 	new_epoch = emip->emi_new_epoch;
 	max_version = emip->emi_max_version;
+	if (emip->emi_remap_state == EFX_MCDI_DMA_REMAP_STATE_PENDING)
+		emip->emi_remap_state = EFX_MCDI_DMA_REMAP_STATE_INPROGRESS;
+	remap_state = emip->emi_remap_state;
 	EFSYS_UNLOCK(enp->en_eslp, state);
+
+	if (remap_state == EFX_MCDI_DMA_REMAP_STATE_INPROGRESS) {
+		emtp->emt_remap(emtp->emt_context);
+
+		EFSYS_LOCK(enp->en_eslp, state);
+		emip->emi_remap_state = EFX_MCDI_DMA_REMAP_STATE_DEFAULT;
+		EFSYS_UNLOCK(enp->en_eslp, state);
+	}
 
 	xflags = 0;
 	if (ev_cpl)

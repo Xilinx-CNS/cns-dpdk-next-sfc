@@ -25,6 +25,12 @@ extern "C" {
  */
 #define	EFX_MCDI_STATUS_SLEEP_US	10000
 
+typedef enum efx_mcdi_remap_state_e {
+	EFX_MCDI_DMA_REMAP_STATE_DEFAULT,
+	EFX_MCDI_DMA_REMAP_STATE_PENDING,
+	EFX_MCDI_DMA_REMAP_STATE_INPROGRESS,
+} efx_mcdi_remap_state_t;
+
 struct efx_mcdi_req_s {
 	boolean_t	emr_quiet;
 	/* Inputs: Command #, input buffer and length */
@@ -54,6 +60,7 @@ typedef struct efx_mcdi_iface_s {
 	int			emi_aborted;
 	uint32_t		emi_poll_cnt;
 	uint32_t		emi_mc_reboot_status;
+	efx_mcdi_remap_state_t	emi_remap_state;
 } efx_mcdi_iface_t;
 
 LIBEFX_INTERNAL

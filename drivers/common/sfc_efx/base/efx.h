@@ -339,6 +339,7 @@ typedef struct efx_mcdi_transport_s {
 	void		(*emt_execute)(void *, efx_mcdi_req_t *);
 	void		(*emt_ev_cpl)(void *);
 	void		(*emt_exception)(void *, efx_mcdi_exception_t);
+	void		(*emt_remap)(void *);
 #if EFSYS_OPT_MCDI_LOGGING
 	void		(*emt_logger)(void *, efx_log_msg_t,
 					void *, size_t, void *, size_t);
@@ -356,6 +357,11 @@ extern	__checkReturn	efx_rc_t
 efx_mcdi_init(
 	__in		efx_nic_t *enp,
 	__in		const efx_mcdi_transport_t *mtp);
+
+LIBEFX_API
+extern	__checkReturn	efx_rc_t
+efx_mcdi_dma_remap(
+	__in		efx_nic_t *enp);
 
 LIBEFX_API
 extern	__checkReturn	efx_rc_t
