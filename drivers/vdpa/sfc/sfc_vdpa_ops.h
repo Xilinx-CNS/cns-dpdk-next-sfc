@@ -46,6 +46,15 @@ typedef struct sfc_vdpa_vq_context_s {
 	uint64_t			sw_vq_size;
 } sfc_vdpa_vq_context_t;
 
+struct sfc_vdpa_iova_list {
+	TAILQ_ENTRY(sfc_vdpa_iova_list)	next;
+	uint64_t			iova;
+	uint64_t			size;
+};
+
+TAILQ_HEAD(sfc_vdpa_iova_list_head,
+	   sfc_vdpa_iova_list);
+
 struct sfc_vdpa_ops_data {
 	void				*dev_handle;
 	int				vid;
@@ -61,6 +70,14 @@ struct sfc_vdpa_ops_data {
 
 	uint16_t			vq_count;
 	struct sfc_vdpa_vq_context_s	vq_cxt[SFC_VDPA_MAX_QUEUE_PAIRS * 2];
+
+	/*
+	 * In case multiple VF(s) have overlapping IOVA(s), it is possible
+	 * that sfc_vdpa_add_iova_in_list() is invoked concurrently.
+	 * Use a mutex to protect against it.
+	 */
+	pthread_mutex_t			iova_list_lock;
+	struct sfc_vdpa_iova_list_head	iova_list_head;
 
 	int				epfd;
 	uint64_t			sw_vq_iova;

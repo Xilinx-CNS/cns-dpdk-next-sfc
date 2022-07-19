@@ -41,6 +41,7 @@ sfc_vdpa_dma_alloc(struct sfc_vdpa_adapter *sva, const char *name,
 
 	sfc_vdpa_log_init(sva, "name=%s, len=%zu", mz_name, len);
 
+	mcdi_iova = SFC_VDPA_DEFAULT_MCDI_IOVA;
 	mz = rte_memzone_reserve_aligned(mz_name, mcdi_buff_size,
 					 numa_node,
 					 RTE_MEMZONE_IOVA_CONTIG,
@@ -51,19 +52,6 @@ sfc_vdpa_dma_alloc(struct sfc_vdpa_adapter *sva, const char *name,
 			     rte_strerror(rte_errno));
 		return -ENOMEM;
 	}
-
-	/* IOVA address for MCDI would be re-calculated if mapping
-	 * using default IOVA would fail.
-	 * TODO: Earlier there was no way to get valid IOVA range.
-	 * Recently a patch has been submitted to get the IOVA range
-	 * using ioctl. VFIO_IOMMU_GET_INFO. This patch is available
-	 * in the kernel version >= 5.4. Support to get the default
-	 * IOVA address for MCDI buffer using available IOVA range
-	 * would be added later. Meanwhile default IOVA for MCDI buffer
-	 * is kept at high mem at 2TB. In case of overlap new available
-	 * addresses would be searched and same would be used.
-	 */
-	mcdi_iova = SFC_VDPA_DEFAULT_MCDI_IOVA;
 
 	for (;;) {
 		ret = rte_vfio_container_dma_map(sva->vfio_container_fd,
@@ -84,6 +72,7 @@ sfc_vdpa_dma_alloc(struct sfc_vdpa_adapter *sva, const char *name,
 
 	esmp->esm_addr = mcdi_iova;
 	esmp->esm_base = mz->addr;
+	sva->mcdi_iova = mcdi_iova;
 	sva->mcdi_buff_size = mcdi_buff_size;
 
 	sfc_vdpa_info(sva,
@@ -91,6 +80,49 @@ sfc_vdpa_dma_alloc(struct sfc_vdpa_adapter *sva, const char *name,
 		      name, len, esmp->esm_base, esmp->esm_addr);
 
 	return 0;
+}
+
+int
+sfc_vdpa_dma_remap(struct sfc_vdpa_adapter *sva, efsys_mem_t *esmp)
+{
+	int ret;
+
+	ret = rte_vfio_container_dma_unmap(sva->vfio_container_fd,
+					   (uint64_t)esmp->esm_base,
+					   esmp->esm_addr,
+					   sva->mcdi_buff_size);
+	if (ret < 0) {
+		sfc_vdpa_err(sva,
+			     "DMA unmap failed for virt=%p iova=0x%lx, len=%zu",
+			     esmp->esm_base, esmp->esm_addr, sva->mcdi_buff_size
+			    );
+		goto error;
+	}
+
+	ret = rte_vfio_container_dma_map(sva->vfio_container_fd,
+					 (uint64_t)esmp->esm_base,
+					 sva->mcdi_iova,
+					 sva->mcdi_buff_size);
+
+	if (ret < 0) {
+		sfc_vdpa_err(sva,
+			     "DMA map failed for virt=%p iova=0x%lx, len=%zu",
+			     esmp->esm_base, esmp->esm_addr, sva->mcdi_buff_size
+			    );
+		goto error;
+	}
+
+	esmp->esm_addr = sva->mcdi_iova;
+	sfc_vdpa_info(sva,
+		      "DMA remapping for MCDI done, new IOVA: 0x%lx",
+		      esmp->esm_addr);
+
+	return 0;
+
+error:
+	sfc_vdpa_err(sva, "DMA remapping failed for MCDI : %s",
+		     rte_strerror(rte_errno));
+	return ret;
 }
 
 void
@@ -118,7 +150,8 @@ sfc_vdpa_dma_free(struct sfc_vdpa_adapter *sva, efsys_mem_t *esmp)
 }
 
 int
-sfc_vdpa_dma_map(struct sfc_vdpa_ops_data *ops_data, bool do_map)
+sfc_vdpa_dma_map_vhost_mem_table(struct sfc_vdpa_ops_data *ops_data,
+				 bool do_map)
 {
 	uint32_t i, j;
 	int rc;

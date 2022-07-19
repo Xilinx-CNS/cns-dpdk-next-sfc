@@ -18,6 +18,15 @@ sfc_vdpa_mcdi_dma_alloc(void *cookie, const char *name, size_t len,
 	return sfc_vdpa_dma_alloc(sva, name, len, esmp);
 }
 
+static sfc_efx_mcdi_dma_remap_cb sfc_vdpa_mcdi_dma_remap;
+static int
+sfc_vdpa_mcdi_dma_remap(void *cookie, efsys_mem_t *esmp)
+{
+	struct sfc_vdpa_adapter *sva = cookie;
+
+	return sfc_vdpa_dma_remap(sva, esmp);
+}
+
 static sfc_efx_mcdi_dma_free_cb sfc_vdpa_mcdi_dma_free;
 static void
 sfc_vdpa_mcdi_dma_free(void *cookie, efsys_mem_t *esmp)
@@ -43,6 +52,7 @@ sfc_vdpa_mcdi_mgmt_evq_poll(void *cookie)
 
 static const struct sfc_efx_mcdi_ops sfc_vdpa_mcdi_ops = {
 	.dma_alloc	= sfc_vdpa_mcdi_dma_alloc,
+	.dma_remap	= sfc_vdpa_mcdi_dma_remap,
 	.dma_free	= sfc_vdpa_mcdi_dma_free,
 	.sched_restart  = sfc_vdpa_mcdi_sched_restart,
 	.mgmt_evq_poll  = sfc_vdpa_mcdi_mgmt_evq_poll,

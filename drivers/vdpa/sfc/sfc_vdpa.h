@@ -20,6 +20,13 @@
 #define SFC_VDPA_DEFAULT_MCDI_IOVA		0x200000000000
 #define SFC_SW_VRING_IOVA			0x300000000000
 
+/*
+ * Ensure a gap of at least 0x1000 between the new and existing
+ * IOVA allocations. The gap is not strictly necessary and has
+ * been added just to space out the different IOVA allocations
+ */
+#define SFC_VDPA_IOVA_REMAP_OFFSET		0x1000
+
 /* Broadcast & Unicast MAC filters are supported */
 #define SFC_MAX_SUPPORTED_FILTERS		3
 
@@ -62,6 +69,7 @@ struct sfc_vdpa_adapter {
 	efsys_bar_t			mem_bar;
 
 	struct sfc_efx_mcdi		mcdi;
+	uint64_t			mcdi_iova;
 	size_t				mcdi_buff_size;
 
 	uint32_t			max_queue_count;
@@ -102,11 +110,15 @@ int
 sfc_vdpa_dma_alloc(struct sfc_vdpa_adapter *sva, const char *name,
 		   size_t len, efsys_mem_t *esmp);
 
+int
+sfc_vdpa_dma_remap(struct sfc_vdpa_adapter *sva, efsys_mem_t *esmp);
+
 void
 sfc_vdpa_dma_free(struct sfc_vdpa_adapter *sva, efsys_mem_t *esmp);
 
 int
-sfc_vdpa_dma_map(struct sfc_vdpa_ops_data *vdpa_data, bool do_map);
+sfc_vdpa_dma_map_vhost_mem_table(struct sfc_vdpa_ops_data *vdpa_data,
+				 bool do_map);
 
 int
 sfc_vdpa_filter_remove(struct sfc_vdpa_ops_data *ops_data);
