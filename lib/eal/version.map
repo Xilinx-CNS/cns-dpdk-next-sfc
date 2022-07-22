@@ -468,6 +468,8 @@ INTERNAL {
 	rte_intr_instance_dup;
 	rte_intr_instance_windows_handle_get;
 	rte_intr_instance_windows_handle_set;
+	rte_intr_irq_count_get;
+	rte_intr_irq_count_set;
 	rte_intr_max_intr_get;
 	rte_intr_max_intr_set;
 	rte_intr_nb_efd_get;

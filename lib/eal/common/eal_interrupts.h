@@ -16,6 +16,7 @@ struct rte_intr_handle {
 	};
 	uint32_t alloc_flags;	/**< flags passed at allocation */
 	enum rte_intr_handle_type type;  /**< handle type */
+	uint32_t irq_count;		/**< IRQ count provided via VFIO */
 	uint32_t max_intr;             /**< max interrupt requested */
 	uint32_t nb_efd;               /**< number of available efd(event fd) */
 	uint8_t efd_counter_size;      /**< size of efd counter, used for vdev */

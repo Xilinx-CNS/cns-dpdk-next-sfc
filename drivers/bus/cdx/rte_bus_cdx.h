@@ -81,6 +81,7 @@ struct rte_cdx_device {
 	struct rte_cdx_id id;			/**< CDX ID. */
 	struct rte_mem_resource mem_resource[CDX_MAX_RESOURCE];
 						/**< CDX Memory Resource */
+	struct rte_intr_handle *intr_handle;	/**< Interrupt handle */
 };
 
 /**
@@ -180,6 +181,30 @@ void rte_cdx_unmap_device(struct rte_cdx_device *dev);
  */
 __rte_experimental
 void rte_cdx_dump(FILE *f);
+
+/**
+ * Enables VFIO Interrupts for CDX bus devices.
+ *
+ * @param intr_handle
+ *   Pointer to the interrupt handle.
+ *
+ *  @return
+ *  0 on success, -1 on error.
+ */
+__rte_internal
+int rte_cdx_vfio_intr_enable(const struct rte_intr_handle *intr_handle);
+
+/**
+ * Disable VFIO Interrupts for CDX bus devices.
+ *
+ * @param intr_handle
+ *   Pointer to the interrupt handle.
+ *
+ *  @return
+ *  0 on success, -1 on error.
+ */
+__rte_internal
+int rte_cdx_vfio_intr_disable(const struct rte_intr_handle *intr_handle);
 
 /**
  * Register a CDX driver.

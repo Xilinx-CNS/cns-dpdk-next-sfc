@@ -508,6 +508,38 @@ rte_intr_max_intr_get(const struct rte_intr_handle *intr_handle);
 
 /**
  * @internal
+ * Set the irq count field of interrupt handle with user
+ * provided irq count value.
+ *
+ * @param intr_handle
+ *  pointer to the interrupt handle.
+ * @param irq_count
+ *  IRQ count
+ *
+ * @return
+ *  - On success, zero.
+ *  - On failure, a negative value and rte_errno is set.
+ */
+__rte_internal
+int
+rte_intr_irq_count_set(struct rte_intr_handle *intr_handle, int irq_count);
+
+/**
+ * @internal
+ * Returns the irq count field of the given interrupt handle instance.
+ *
+ * @param intr_handle
+ *  pointer to the interrupt handle.
+ *
+ * @return
+ *  - On success, ir count.
+ *  - On failure, a negative value and rte_errno is set.
+ */
+__rte_internal
+int rte_intr_irq_count_get(const struct rte_intr_handle *intr_handle);
+
+/**
+ * @internal
  * Set the number of event fd field of interrupt handle
  * with user provided available event file descriptor value.
  *

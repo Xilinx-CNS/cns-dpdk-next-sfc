@@ -10,3 +10,12 @@ EXPERIMENTAL {
 
 	local: *;
 };
+
+INTERNAL {
+	global:
+
+	rte_cdx_vfio_intr_disable;
+	rte_cdx_vfio_intr_enable;
+
+	local: *;
+};

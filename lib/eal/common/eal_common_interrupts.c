@@ -398,6 +398,27 @@ fail:
 	return -rte_errno;
 }
 
+int rte_intr_irq_count_set(struct rte_intr_handle *intr_handle,
+	int irq_count)
+{
+	CHECK_VALID_INTR_HANDLE(intr_handle);
+
+	intr_handle->irq_count = irq_count;
+
+	return 0;
+fail:
+	return -rte_errno;
+}
+
+int rte_intr_irq_count_get(const struct rte_intr_handle *intr_handle)
+{
+	CHECK_VALID_INTR_HANDLE(intr_handle);
+
+	return intr_handle->irq_count;
+fail:
+	return -rte_errno;
+}
+
 int rte_intr_vec_list_alloc(struct rte_intr_handle *intr_handle,
 	const char *name, int size)
 {
