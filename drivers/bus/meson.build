@@ -7,6 +7,7 @@ drivers = [
         'fslmc',
         'ifpga',
         'pci',
+        'cdx',
         'vdev',
         'vmbus',
 ]
