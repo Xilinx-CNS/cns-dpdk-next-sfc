@@ -560,6 +560,11 @@ M: Parav Pandit <parav@nvidia.com>
 M: Xueming Li <xuemingl@nvidia.com>
 F: drivers/bus/auxiliary/
 
+CDX bus driver
+M: Nipun Gupta <nipun.gupta@amd.com>
+M: Nikhil Agarwal <nikhil.agarwal@amd.com>
+F: drivers/bus/cdx/
+
 Intel FPGA bus
 M: Rosen Xu <rosen.xu@intel.com>
 F: drivers/bus/ifpga/
