@@ -63,6 +63,7 @@ part_number_config_arm = {
     '0xd09': {'compiler_options':  ['-mcpu=cortex-a73']},
     '0xd0a': {'compiler_options':  ['-mcpu=cortex-a75']},
     '0xd0b': {'compiler_options':  ['-mcpu=cortex-a76']},
+    '0xd42': {'compiler_options':  ['-mcpu=cortex-a78']},
     '0xd0c': {
         'march': 'armv8.2-a',
         'march_features': ['crypto'],
@@ -302,6 +303,18 @@ soc_bluefield = {
     'numa': false
 }
 
+soc_cdx = {
+    'description': 'AMD CDX',
+    'implementer': '0x41',
+    'part_number': '0xd42',
+    'flags': [
+        ['RTE_MACHINE', '"cdx"'],
+        ['RTE_MAX_LCORE', 16],
+        ['RTE_MAX_NUMA_NODES', 1]
+    ],
+    'numa': false
+}
+
 soc_centriq2400 = {
     'description': 'Qualcomm Centriq 2400',
     'implementer': '0x51',
@@ -448,6 +461,7 @@ generic:         Generic un-optimized build for armv8 aarch64 execution mode.
 generic_aarch32: Generic un-optimized build for armv8 aarch32 execution mode.
 armada:          Marvell ARMADA
 bluefield:       NVIDIA BlueField
+cdx:             AMD CDX
 centriq2400:     Qualcomm Centriq 2400
 cn9k:            Marvell OCTEON 9
 cn10k:           Marvell OCTEON 10
@@ -474,6 +488,7 @@ socs = {
     'generic_aarch32': soc_generic_aarch32,
     'armada': soc_armada,
     'bluefield': soc_bluefield,
+    'cdx': soc_cdx,
     'centriq2400': soc_centriq2400,
     'cn9k': soc_cn9k,
     'cn10k' : soc_cn10k,
