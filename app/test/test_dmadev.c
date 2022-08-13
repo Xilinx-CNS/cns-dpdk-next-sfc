@@ -177,6 +177,7 @@ do_multi_copies(int16_t dev_id, uint16_t vchan,
 static int
 test_enqueue_copies(int16_t dev_id, uint16_t vchan)
 {
+	uint16_t max_burst = rte_dma_burst_capacity(dev_id, vchan);
 	enum rte_dma_status_code status;
 	unsigned int i;
 	uint16_t id;
@@ -244,6 +245,9 @@ test_enqueue_copies(int16_t dev_id, uint16_t vchan)
 
 	} while (0);
 
+	if (max_burst < 4)
+		return 0;
+
 	/* test doing a multiple single copies */
 	do {
 		const uint16_t max_ops = 4;
@@ -285,6 +289,9 @@ test_enqueue_copies(int16_t dev_id, uint16_t vchan)
 		rte_pktmbuf_free(src);
 		rte_pktmbuf_free(dst);
 	} while (0);
+
+	if (max_burst < 32)
+		return 0;
 
 	/* test doing multiple copies */
 	return do_multi_copies(dev_id, vchan, 0, 0, 0) /* enqueue and complete 1 batch at a time */
@@ -755,7 +762,7 @@ test_dmadev_instance(int16_t dev_id)
 	struct rte_dma_stats stats;
 	struct rte_dma_info info;
 	const struct rte_dma_conf conf = { .nb_vchans = 1};
-	const struct rte_dma_vchan_conf qconf = {
+	struct rte_dma_vchan_conf qconf = {
 			.direction = RTE_DMA_DIR_MEM_TO_MEM,
 			.nb_desc = TEST_RINGSIZE,
 	};
@@ -775,6 +782,9 @@ test_dmadev_instance(int16_t dev_id)
 	if (rte_dma_configure(dev_id, &conf) != 0)
 		ERR_RETURN("Error with rte_dma_configure()\n");
 
+	if (qconf.nb_desc > info.max_desc)
+		qconf.nb_desc = info.max_desc;
+
 	if (rte_dma_vchan_setup(dev_id, vchan, &qconf) < 0)
 		ERR_RETURN("Error with queue configuration\n");
 
@@ -787,9 +797,6 @@ test_dmadev_instance(int16_t dev_id)
 
 	if (rte_dma_stats_get(dev_id, vchan, &stats) != 0)
 		ERR_RETURN("Error with rte_dma_stats_get()\n");
-
-	if (rte_dma_burst_capacity(dev_id, vchan) < 32)
-		ERR_RETURN("Error: Device does not have sufficient burst capacity to run tests");
 
 	if (stats.completed != 0 || stats.submitted != 0 || stats.errors != 0)
 		ERR_RETURN("Error device stats are not all zero: completed = %"PRIu64", "
