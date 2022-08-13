@@ -29,6 +29,182 @@ static const struct rte_cdx_id cdma_match_id_tbl[] = {
 };
 
 static int
+cdma_reset(struct rte_dma_dev *dmadev);
+
+static inline int
+cdma_submit(void *dev_private, uint16_t vchan)
+{
+	struct cdma_dev_t *cdma_dev = dev_private;
+	struct cdma_virt_queue_t *cdma_vq = &cdma_dev->vqs[vchan];
+	uint8_t *dev_addr = cdma_dev->addr;
+	rte_iova_t src, dst;
+	uint32_t length;
+
+	if (!cdma_vq->pending_job.job_valid) {
+		CDMA_DP_DEBUG("No job pending to submit on VQ: %d\n", vchan);
+		return -EINVAL;
+	}
+
+	src = cdma_vq->pending_job.src;
+	dst = cdma_vq->pending_job.dst;
+	length = cdma_vq->pending_job.length;
+
+	/* Write source and destination addresses */
+	cdma_write32(dev_addr + CDMA_SA, lower_32_bits(src));
+	cdma_write32(dev_addr + CDMA_SA_MSB, upper_32_bits(src));
+	cdma_write32(dev_addr + CDMA_DA, lower_32_bits(dst));
+	cdma_write32(dev_addr + CDMA_DA_MSB, upper_32_bits(dst));
+
+	/* Writing to len initiates the DMA */
+	cdma_write32(dev_addr + CDMA_BTT, length);
+
+	cdma_vq->pending_job.job_valid = 0;
+	cdma_vq->stats.submitted++;
+
+	return 0;
+}
+
+static int
+cdma_copy(void *dev_private, uint16_t vchan,
+	  rte_iova_t src, rte_iova_t dst,
+	  uint32_t length, uint64_t flags)
+{
+	struct cdma_dev_t *cdma_dev = dev_private;
+	struct cdma_virt_queue_t *cdma_vq = &cdma_dev->vqs[vchan];
+	uint16_t idx;
+
+	idx = (uint16_t)(cdma_vq->stats.submitted);
+
+	if (length > MAX_DMA_LEN) {
+		CDMA_ERR("Invalid length: %d. Max supported len: %d\n",
+			length, MAX_DMA_LEN);
+		return -EINVAL;
+	}
+
+	if (cdma_vq->pending_job.job_valid) {
+		CDMA_DP_DEBUG("Job already pending on the VQ: %d\n", vchan);
+		return -EBUSY;
+	}
+
+	cdma_vq->pending_job.src = src;
+	cdma_vq->pending_job.dst = dst;
+	cdma_vq->pending_job.length = length;
+	cdma_vq->pending_job.job_valid = 1;
+
+	if (flags & RTE_DMA_OP_FLAG_SUBMIT)
+		cdma_submit(dev_private, vchan);
+
+	return idx;
+}
+
+static uint16_t
+cdma_completed_status(void *dev_private, uint16_t vchan,
+		const uint16_t nb_cpls,
+		uint16_t *last_idx,
+		enum rte_dma_status_code *st)
+{
+	struct cdma_dev_t *cdma_dev = dev_private;
+	struct cdma_virt_queue_t *cdma_vq = &cdma_dev->vqs[vchan];
+	uint8_t *dev_addr = cdma_dev->addr;
+	uint32_t status, ret = 0;
+
+	RTE_SET_USED(nb_cpls);
+
+	if (cdma_vq->stats.completed == cdma_vq->stats.submitted) {
+		CDMA_DP_DEBUG("No DMA is pending");
+		goto exit;
+	}
+
+	status = cdma_read32(dev_addr + CDMA_SR);
+
+	if (IS_BIT_SET_AT_POS(status, CDMA_IDLE)) {
+		cdma_vq->stats.completed++;
+
+		if (st != NULL) {
+			*st = 0;
+			if (IS_BIT_SET_AT_POS(status, CDMA_DMA_SLV_ERR))
+				*st |= RTE_DMA_STATUS_BUS_ERROR;
+			if (IS_BIT_SET_AT_POS(status, CDMA_DMA_INT_ERR) ||
+			    IS_BIT_SET_AT_POS(status, CDMA_DMA_DEC_ERR))
+				*st |= RTE_DMA_STATUS_ERROR_UNKNOWN;
+			if (*st != 0)
+				cdma_reset(cdma_dev->dmadev);
+		}
+
+		ret = 1;
+	}
+
+exit:
+	if (last_idx != NULL)
+		*last_idx = (uint16_t)(cdma_vq->stats.completed - 1);
+
+	return ret;
+}
+
+static uint16_t
+cdma_completed(void *dev_private,
+	       uint16_t vchan, const uint16_t nb_cpls,
+	       uint16_t *last_idx, bool *has_error)
+{
+	struct cdma_dev_t *cdma_dev = dev_private;
+	struct cdma_virt_queue_t *cdma_vq = &cdma_dev->vqs[vchan];
+	uint8_t *dev_addr = cdma_dev->addr;
+	uint32_t status, ret = 0;
+
+	RTE_SET_USED(nb_cpls);
+
+	if (cdma_vq->stats.completed == cdma_vq->stats.submitted) {
+		CDMA_DP_DEBUG("No DMA is pending");
+		goto exit;
+	}
+
+	status = cdma_read32(dev_addr + CDMA_SR);
+
+	if (IS_BIT_SET_AT_POS(status, CDMA_IDLE)) {
+		cdma_vq->stats.completed++;
+
+		if (has_error != NULL) {
+			if (IS_BIT_SET_AT_POS(status, CDMA_DMA_INT_ERR) ||
+			    IS_BIT_SET_AT_POS(status, CDMA_DMA_SLV_ERR) ||
+			    IS_BIT_SET_AT_POS(status, CDMA_DMA_DEC_ERR)) {
+				*has_error = true;
+				cdma_reset(cdma_dev->dmadev);
+			} else {
+				*has_error = false;
+			}
+		}
+
+		ret = 1;
+	}
+
+exit:
+	if (last_idx != NULL)
+		*last_idx = (uint16_t)(cdma_vq->stats.completed - 1);
+
+	return ret;
+}
+
+static int
+cdma_vchan_status(const struct rte_dma_dev *dev,
+		uint16_t vchan, enum rte_dma_vchan_status *st)
+{
+	struct cdma_dev_t *cdma_dev = dev->data->dev_private;
+	uint8_t *dev_addr = cdma_dev->addr;
+	uint32_t status;
+
+	RTE_SET_USED(vchan);
+
+	status = cdma_read32(dev_addr + CDMA_SR);
+
+	if (IS_BIT_SET_AT_POS(status, CDMA_IDLE))
+		*st = RTE_DMA_VCHAN_IDLE;
+	else
+		*st = RTE_DMA_VCHAN_ACTIVE;
+
+	return 0;
+}
+
+static int
 cdma_info_get(const struct rte_dma_dev *dmadev,
 	      struct rte_dma_info *dev_info,
 	      uint32_t info_sz)
@@ -154,6 +330,7 @@ static struct rte_dma_dev_ops cdma_ops = {
 	.dev_stop         = cdma_stop,
 	.dev_close        = cdma_close,
 	.vchan_setup      = cdma_vchan_setup,
+	.vchan_status     = cdma_vchan_status,
 };
 
 static int
@@ -197,6 +374,10 @@ cdma_probe(struct rte_cdx_driver *cdx_driver,
 	dmadev->dev_ops = &cdma_ops;
 	dmadev->device = &cdx_dev->device;
 	dmadev->fp_obj->dev_private = dmadev->data->dev_private;
+	dmadev->fp_obj->copy = cdma_copy;
+	dmadev->fp_obj->submit = cdma_submit;
+	dmadev->fp_obj->completed = cdma_completed;
+	dmadev->fp_obj->completed_status = cdma_completed_status;
 	dmadev->fp_obj->burst_capacity = cdma_burst_capacity;
 
 	/* Invoke PMD device initialization function */
