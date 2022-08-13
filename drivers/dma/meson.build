@@ -2,6 +2,7 @@
 # Copyright 2021 HiSilicon Limited
 
 drivers = [
+        'cdx',
         'cnxk',
         'dpaa',
         'dpaa2',
