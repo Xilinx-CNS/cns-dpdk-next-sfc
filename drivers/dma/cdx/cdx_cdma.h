@@ -26,6 +26,10 @@
 #define lower_32_bits(x) ((uint32_t)(uint64_t)(x))
 #define upper_32_bits(x) ((uint32_t)((uint64_t)(x) >> 32))
 
+#define GITS_TRANSLATOR_ADDR		0xe2050000
+#define GITS_TRANSLATOR_OFFSET		0x40
+#define GITS_TRANSLATOR_MAP_SIZE	0x1000
+
 /** General Macro to define a particular bit position*/
 #define BIT_POS(x)			((uint64_t)1 << ((x)))
 /** Set a bit in the variable */
@@ -76,6 +80,8 @@ struct cdma_dev_t {
 	void *addr;
 	/* Length of mapped memory */
 	uint64_t len;
+	/* Number of MSI's supported on this device */
+	uint8_t num_msi;
 	/* Associated dma device */
 	struct rte_dma_dev *dmadev;
 };

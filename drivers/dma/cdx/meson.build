@@ -8,3 +8,5 @@ endif
 
 deps += ['dmadev', 'bus_cdx']
 sources = files('cdx_cdma.c')
+
+headers = files('rte_pmd_cdx_cdma.h')

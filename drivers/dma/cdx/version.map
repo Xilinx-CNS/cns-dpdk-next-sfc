@@ -1,3 +1,9 @@
 DPDK_22 {
 	local: *;
 };
+
+EXPERIMENTAL {
+	rte_dma_cdx_cdma_get_efd;
+	rte_dma_cdx_cdma_num_msi;
+	rte_dma_cdx_cdma_trigger_fake_msi;
+};

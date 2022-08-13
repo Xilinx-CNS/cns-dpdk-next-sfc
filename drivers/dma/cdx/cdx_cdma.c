@@ -15,6 +15,7 @@
 #include <rte_kvargs.h>
 #include <rte_malloc.h>
 
+#include "rte_pmd_cdx_cdma.h"
 #include "cdx_cdma.h"
 #include "cdx_cdma_logs.h"
 
@@ -27,6 +28,18 @@ static const struct rte_cdx_id cdma_match_id_tbl[] = {
 	{ RTE_CDX_DEVICE(CDMA_CDX_VENDOR_ID, CDMA_CDX_DEVICE_ID) },
 	{ .vendor_id = 0, }
 };
+
+/*
+ * Note: CDMA devices does not support MSIs by default, but they can fake
+ * up MSI's by writing (or DMA) eventID's to the GITS_TRANSLATOR (ITS
+ * doorbell). In order to do this, GITS_TRANSLATOR address needs to be mapped
+ * to IOMMU, and CDMA can trigger a DMA for source address containing the
+ * eventID and destination address with IOVA allocated for the GITS_TRANSLATOR
+ * physical address.
+ */
+/* Variable required for setup and generating fake MSI's. */
+void *p_gits_translator_page;
+uint32_t *p_event_id;
 
 static int
 cdma_reset(struct rte_dma_dev *dmadev);
@@ -204,6 +217,70 @@ cdma_vchan_status(const struct rte_dma_dev *dev,
 	return 0;
 }
 
+int
+rte_dma_cdx_cdma_num_msi(int dev_id)
+{
+	struct rte_dma_fp_object *obj = &rte_dma_fp_objs[dev_id];
+	struct cdma_dev_t *cdma_dev = obj->dev_private;
+
+	CDMA_FUNC_TRACE();
+
+	if (!rte_dma_is_valid(dev_id))
+		return -EINVAL;
+
+	return cdma_dev->num_msi;
+}
+
+int
+rte_dma_cdx_cdma_get_efd(int dev_id, int msi_id)
+{
+	struct rte_dma_fp_object *obj = &rte_dma_fp_objs[dev_id];
+	struct cdma_dev_t *cdma_dev = obj->dev_private;
+
+	CDMA_FUNC_TRACE();
+
+	if (!rte_dma_is_valid(dev_id))
+		return -EINVAL;
+
+	if (msi_id >= cdma_dev->num_msi) {
+		CDMA_ERR("Invalid IRQ No: %d\n", msi_id);
+		return -EINVAL;
+	}
+
+	return rte_intr_efds_index_get(cdma_dev->cdx_dev->intr_handle, msi_id);
+}
+
+int
+rte_dma_cdx_cdma_trigger_fake_msi(int dev_id, int msi_id)
+{
+	struct rte_dma_fp_object *obj = &rte_dma_fp_objs[dev_id];
+	struct cdma_dev_t *cdma_dev = obj->dev_private;
+	int ret;
+
+	CDMA_FUNC_TRACE();
+
+	if (!rte_dma_is_valid(dev_id))
+		return -EINVAL;
+
+	if (msi_id >= cdma_dev->num_msi) {
+		CDMA_ERR("Invalid IRQ No: %d\n", msi_id);
+		return -EINVAL;
+	}
+
+	*p_event_id = msi_id;
+
+	ret = cdma_copy(cdma_dev, 0, (rte_iova_t)(p_event_id),
+		(rte_iova_t)((uint8_t *)(p_gits_translator_page) +
+		GITS_TRANSLATOR_OFFSET),
+		sizeof(uint32_t), RTE_DMA_OP_FLAG_SUBMIT);
+	if (ret < 0) {
+		CDMA_ERR("cdma_copy failed for MSI: %d\n", msi_id);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int
 cdma_info_get(const struct rte_dma_dev *dmadev,
 	      struct rte_dma_info *dev_info,
@@ -364,22 +441,125 @@ static struct rte_dma_dev_ops cdma_ops = {
 	.stats_reset      = cdma_stats_reset,
 };
 
+static void
+unset_fake_msi(struct rte_cdx_device *cdx_dev)
+{
+	void *vaddr = p_gits_translator_page;
+
+	CDMA_FUNC_TRACE();
+
+	if (p_event_id) {
+		rte_free(p_event_id);
+		p_event_id = NULL;
+	}
+
+	if (p_gits_translator_page) {
+		cdx_dev->device.bus->dma_unmap(&cdx_dev->device, vaddr,
+			(uint64_t)vaddr, GITS_TRANSLATOR_MAP_SIZE);
+		p_gits_translator_page = NULL;
+	}
+}
+
+static void
+cdma_dev_uninit(struct rte_cdx_device *cdx_dev)
+{
+	CDMA_DEBUG("Closing CDMA device %s", cdx_dev->device.name);
+
+	/* Disable interrupts */
+	rte_cdx_vfio_intr_disable(cdx_dev->intr_handle);
+	rte_intr_efd_disable(cdx_dev->intr_handle);
+
+	unset_fake_msi(cdx_dev);
+}
+
+/*
+ * CDMA devices do not support MSI. So fake MSI is being generated
+ * We are creating eventIDs and then writing them to p_gits_translator_page
+ * to trigger an MSI.
+ */
+static int
+setup_for_fake_msi(struct rte_cdx_device *cdx_dev)
+{
+	int map_fd = -1, ret = 0;
+	void *vaddr;
+
+	CDMA_FUNC_TRACE();
+
+	/* Map GITS_TRANSLATOR (present in GIC ITS) region */
+	if (p_gits_translator_page == NULL) {
+		/* Get virtual address using devmem */
+		map_fd = open("/dev/mem", O_RDWR);
+		if (unlikely(map_fd < 0)) {
+			CDMA_ERR("Unable to open (/dev/mem)");
+			ret = map_fd;
+			goto err;
+		}
+		p_gits_translator_page = mmap(NULL, GITS_TRANSLATOR_MAP_SIZE,
+				PROT_READ | PROT_WRITE, MAP_SHARED,
+				map_fd, GITS_TRANSLATOR_ADDR);
+		if (p_gits_translator_page == MAP_FAILED) {
+			CDMA_ERR("Memory map failed");
+			ret = -EINVAL;
+			goto err;
+		}
+
+		p_event_id = rte_malloc(NULL, sizeof(uint32_t),
+			RTE_CACHE_LINE_SIZE);
+	}
+
+	/* MAP GITS translator page via VFIO */
+	vaddr = p_gits_translator_page;
+	ret = cdx_dev->device.bus->dma_map(&cdx_dev->device, vaddr,
+			(uint64_t)vaddr, GITS_TRANSLATOR_MAP_SIZE);
+	if (ret) {
+		CDMA_ERR("GITS TRANSLATOR DMA map failed");
+		goto err;
+	}
+
+	close(map_fd);
+	return 0;
+
+err:
+	if (p_event_id) {
+		rte_free(p_event_id);
+		p_event_id = NULL;
+	}
+	if (map_fd != -1)
+		close(map_fd);
+
+	return ret;
+}
+
 static int
 cdma_dev_init(struct rte_cdx_device *cdx_dev, struct rte_dma_dev *dmadev)
 {
 	struct cdma_dev_t *cdma_dev = dmadev->data->dev_private;
+	int ret = 0;
 
 	CDMA_DEBUG("Probing CDMA cdx device %s", cdx_dev->device.name);
 
 	if (cdx_dev->mem_resource[0].addr == 0) {
 		CDMA_ERR("Address not populated in cdx device");
-		return -EINVAL;
+		return ret;
 	}
 
 	cdma_dev->addr = cdx_dev->mem_resource[0].addr;
 	cdma_dev->len = cdx_dev->mem_resource[0].len;
+	cdma_dev->num_msi = rte_intr_irq_count_get(cdx_dev->intr_handle);
 	cdma_dev->cdx_dev = cdx_dev;
 	cdma_dev->dmadev = dmadev;
+
+	if (cdma_dev->num_msi >= 1) {
+		ret = setup_for_fake_msi(cdx_dev);
+		if (ret) {
+			CDMA_ERR("setup for fske MSI failed");
+			return ret;
+		}
+
+		/* Enable interrupts */
+		rte_intr_efd_enable(cdx_dev->intr_handle, cdma_dev->num_msi);
+		rte_cdx_vfio_intr_enable(cdx_dev->intr_handle);
+	}
 
 	return 0;
 }
@@ -429,6 +609,8 @@ cdma_remove(struct rte_cdx_device *cdx_dev)
 	int ret;
 
 	CDMA_FUNC_TRACE();
+
+	cdma_dev_uninit(cdx_dev);
 
 	ret = rte_dma_pmd_release(cdx_dev->device.name);
 	if (ret)
