@@ -312,6 +312,35 @@ cdma_close(struct rte_dma_dev *dmadev)
 	return 0;
 }
 
+static int
+cdma_stats_get(const struct rte_dma_dev *dmadev, uint16_t vchan,
+	       struct rte_dma_stats *rte_stats, uint32_t size)
+{
+	struct cdma_dev_t *cdma_dev = dmadev->data->dev_private;
+	struct cdma_virt_queue_t *cdma_vq = &cdma_dev->vqs[vchan];
+
+	CDMA_FUNC_TRACE();
+
+	RTE_SET_USED(size);
+
+	memcpy(rte_stats, &cdma_vq->stats, sizeof(struct rte_dma_stats));
+
+	return 0;
+}
+
+static int
+cdma_stats_reset(struct rte_dma_dev *dmadev, uint16_t vchan)
+{
+	struct cdma_dev_t *cdma_dev = dmadev->data->dev_private;
+	struct cdma_virt_queue_t *cdma_vq = &cdma_dev->vqs[vchan];
+
+	CDMA_FUNC_TRACE();
+
+	memset(&cdma_vq->stats, 0, sizeof(struct rte_dma_stats));
+
+	return 0;
+}
+
 static uint16_t
 cdma_burst_capacity(const void *dev_private, uint16_t vchan)
 {
@@ -331,6 +360,8 @@ static struct rte_dma_dev_ops cdma_ops = {
 	.dev_close        = cdma_close,
 	.vchan_setup      = cdma_vchan_setup,
 	.vchan_status     = cdma_vchan_status,
+	.stats_get        = cdma_stats_get,
+	.stats_reset      = cdma_stats_reset,
 };
 
 static int
