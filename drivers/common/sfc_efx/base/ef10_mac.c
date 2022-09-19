@@ -309,7 +309,7 @@ ef10_mac_reconfigure(
 
 	/* Do not include the Ethernet frame checksum in RX packets */
 	MCDI_IN_POPULATE_DWORD_1(req, SET_MAC_IN_FLAGS,
-				    SET_MAC_IN_FLAG_INCLUDE_FCS, 0);
+				    SET_MAC_IN_FLAG_INCLUDE_FCS, epp->ep_include_fcs ? 1 : 0);
 
 	efx_mcdi_execute_quiet(enp, &req);
 

@@ -239,6 +239,8 @@ sfc_efx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 	unsigned int done_pkts = 0;
 	boolean_t discard_next = B_FALSE;
 	struct rte_mbuf *scatter_pkt = NULL;
+	const boolean_t include_fcs =
+		((rxq->flags & SFC_EFX_RXQ_FLAG_INCLUDE_FCS) != 0);
 
 	if (unlikely((rxq->flags & SFC_EFX_RXQ_FLAG_RUNNING) == 0))
 		return 0;
@@ -313,6 +315,11 @@ sfc_efx_recv_pkts(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts)
 		sfc_efx_rx_set_rss_hash(rxq, desc_flags, m);
 
 		m->data_off += prefix_size;
+
+		if (include_fcs) {
+			if (rte_pktmbuf_trim(m, RTE_ETHER_CRC_LEN) != 0)
+				goto discard;
+		}
 
 		*rx_pkts++ = m;
 		done_pkts++;
@@ -507,6 +514,8 @@ sfc_efx_rx_qcreate(uint16_t port_id, uint16_t queue_id,
 	rxq->evq = sfc_rxq_by_dp_rxq(&rxq->dp)->evq;
 	if (info->flags & SFC_RXQ_FLAG_RSS_HASH)
 		rxq->flags |= SFC_EFX_RXQ_FLAG_RSS_HASH;
+	if (info->flags & SFC_RXQ_FLAG_INCLUDE_FCS)
+		rxq->flags |= SFC_EFX_RXQ_FLAG_INCLUDE_FCS;
 	rxq->ptr_mask = info->rxq_entries - 1;
 	rxq->batch_max = info->batch_max;
 	rxq->prefix_size = info->prefix_size;
@@ -654,6 +663,7 @@ struct sfc_dp_rx sfc_efx_rx = {
 	},
 	.features		= SFC_DP_RX_FEAT_INTR,
 	.dev_offload_capa	= RTE_ETH_RX_OFFLOAD_CHECKSUM |
+				  RTE_ETH_RX_OFFLOAD_KEEP_CRC |
 				  RTE_ETH_RX_OFFLOAD_RSS_HASH,
 	.queue_offload_capa	= RTE_ETH_RX_OFFLOAD_SCATTER,
 	.qsize_up_rings		= sfc_efx_rx_qsize_up_rings,
@@ -936,6 +946,9 @@ sfc_rx_get_offload_mask(struct sfc_adapter *sa)
 	uint64_t no_caps = 0;
 
 	if (encp->enc_tunnel_encapsulations_supported == 0)
+		no_caps |= RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM;
+
+	if (encp->enc_rx_include_fcs_supported == 0)
 		no_caps |= RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM;
 
 	return ~no_caps;
@@ -1252,6 +1265,8 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 	info.mem_bar = sa->mem_bar.esb_base;
 	info.vi_window_shift = encp->enc_vi_window_shift;
 	info.fcw_offset = sa->fcw_offset;
+	if (rx_conf->offloads & RTE_ETH_RX_OFFLOAD_KEEP_CRC)
+		info.flags |= SFC_RXQ_FLAG_INCLUDE_FCS;
 
 	info.nic_dma_info = &sas->nic_dma_info;
 

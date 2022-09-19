@@ -72,6 +72,7 @@ struct sfc_port {
 	unsigned int			flow_ctrl;
 	boolean_t			flow_ctrl_autoneg;
 	size_t				pdu;
+	boolean_t			include_fcs;
 
 	/*
 	 * Flow API isolated mode overrides promisc and allmulti settings;

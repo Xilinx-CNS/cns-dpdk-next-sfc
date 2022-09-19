@@ -311,6 +311,12 @@ efx_nic_check_pcie_link_speed(
 	__in		uint32_t pcie_link_gen,
 	__out		efx_pcie_link_performance_t *resultp);
 
+typedef enum efx_port_usage_e {
+	EFX_PORT_USAGE_UNKNOWN = 0,
+	EFX_PORT_USAGE_EXCLUSIVE,	/* Port only used by this PF */
+	EFX_PORT_USAGE_SHARED,		/* Port shared with other PFs */
+} efx_port_usage_t;
+
 #if EFSYS_OPT_MCDI
 
 #if EFSYS_OPT_RIVERHEAD || EFX_OPTS_EF10()
@@ -726,6 +732,10 @@ efx_mac_fcntl_get(
 	__out		unsigned int *fcntl_wantedp,
 	__out		unsigned int *fcntl_linkp);
 
+extern	__checkReturn	efx_rc_t
+efx_mac_include_fcs_set(
+	__in efx_nic_t *enp,
+	__in boolean_t enabled);
 
 #if EFSYS_OPT_MAC_STATS
 
@@ -1607,6 +1617,7 @@ typedef struct efx_nic_cfg_s {
 	/* Datapath firmware vport reconfigure support */
 	boolean_t		enc_vport_reconfigure_supported;
 	boolean_t		enc_rx_disable_scatter_supported;
+	boolean_t		enc_rx_include_fcs_supported;
 	/* Maximum number of Rx scatter segments supported by HW */
 	uint32_t		enc_rx_scatter_max;
 	boolean_t		enc_allow_set_mac_with_installed_filters;
@@ -1662,6 +1673,8 @@ typedef struct efx_nic_cfg_s {
 	uint32_t		enc_filter_action_mark_max;
 	/* Port assigned to this PCI function */
 	uint32_t		enc_assigned_port;
+	/* Physical ports shared by PFs */
+	efx_port_usage_t        enc_port_usage;
 	/* NIC DMA mapping type */
 	efx_nic_dma_mapping_t	enc_dma_mapping;
 } efx_nic_cfg_t;
