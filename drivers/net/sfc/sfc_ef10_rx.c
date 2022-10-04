@@ -826,7 +826,8 @@ struct sfc_dp_rx sfc_ef10_rx = {
 	.dev_offload_capa	= RTE_ETH_RX_OFFLOAD_CHECKSUM |
 				  RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM |
 				  RTE_ETH_RX_OFFLOAD_RSS_HASH,
-	.queue_offload_capa	= RTE_ETH_RX_OFFLOAD_SCATTER,
+	.queue_offload_capa	= RTE_ETH_RX_OFFLOAD_SCATTER |
+				  RTE_ETH_RX_OFFLOAD_KEEP_CRC,
 	.get_dev_info		= sfc_ef10_rx_get_dev_info,
 	.qsize_up_rings		= sfc_ef10_rx_qsize_up_rings,
 	.qcreate		= sfc_ef10_rx_qcreate,
