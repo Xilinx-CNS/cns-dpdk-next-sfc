@@ -248,6 +248,26 @@ sfc_dev_start(struct rte_eth_dev *dev)
 	return -rc;
 }
 
+static void
+sfc_dev_get_rte_link(struct rte_eth_dev *dev, int wait_to_complete,
+		     struct rte_eth_link *link)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+
+	if (sa->state != SFC_ETHDEV_STARTED) {
+		sfc_port_link_mode_to_info(EFX_LINK_UNKNOWN, link);
+	} else if (wait_to_complete) {
+		efx_link_mode_t link_mode;
+
+		if (efx_port_poll(sa->nic, &link_mode) != 0)
+			link_mode = EFX_LINK_UNKNOWN;
+		sfc_port_link_mode_to_info(link_mode, link);
+	} else {
+		sfc_ev_mgmt_qpoll(sa);
+		rte_eth_linkstatus_get(dev, link);
+	}
+}
+
 static int
 sfc_dev_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 {
@@ -257,19 +277,7 @@ sfc_dev_link_update(struct rte_eth_dev *dev, int wait_to_complete)
 
 	sfc_log_init(sa, "entry");
 
-	if (sa->state != SFC_ETHDEV_STARTED) {
-		sfc_port_link_mode_to_info(EFX_LINK_UNKNOWN, &current_link);
-	} else if (wait_to_complete) {
-		efx_link_mode_t link_mode;
-
-		if (efx_port_poll(sa->nic, &link_mode) != 0)
-			link_mode = EFX_LINK_UNKNOWN;
-		sfc_port_link_mode_to_info(link_mode, &current_link);
-
-	} else {
-		sfc_ev_mgmt_qpoll(sa);
-		rte_eth_linkstatus_get(dev, &current_link);
-	}
+	sfc_dev_get_rte_link(dev, wait_to_complete, &current_link);
 
 	ret = rte_eth_linkstatus_set(dev, &current_link);
 	if (ret == 0)
@@ -2333,6 +2341,250 @@ sfc_rx_metadata_negotiate(struct rte_eth_dev *dev, uint64_t *features)
 	return 0;
 }
 
+static unsigned int
+sfc_fec_get_capa_speed_to_fec(uint32_t caps,
+			      struct rte_eth_fec_capa *speed_fec_capa)
+{
+	int num = 0;
+
+	if (caps & (1u << EFX_PHY_CAP_10000FDX)) {
+		if (speed_fec_capa) {
+			speed_fec_capa[num].speed = RTE_ETH_SPEED_NUM_10G;
+			speed_fec_capa[num].capa =
+				RTE_ETH_FEC_MODE_CAPA_MASK(NOFEC) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(AUTO) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(BASER);
+		}
+		num++;
+	}
+	if (caps & (1u << EFX_PHY_CAP_25000FDX)) {
+		if (speed_fec_capa) {
+			speed_fec_capa[num].speed = RTE_ETH_SPEED_NUM_25G;
+			speed_fec_capa[num].capa =
+				RTE_ETH_FEC_MODE_CAPA_MASK(NOFEC) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(AUTO) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(BASER) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(RS);
+		}
+		num++;
+	}
+	if (caps & (1u << EFX_PHY_CAP_40000FDX)) {
+		if (speed_fec_capa) {
+			speed_fec_capa[num].speed = RTE_ETH_SPEED_NUM_40G;
+			speed_fec_capa[num].capa =
+				RTE_ETH_FEC_MODE_CAPA_MASK(NOFEC) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(AUTO) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(BASER);
+		}
+		num++;
+	}
+	if (caps & (1u << EFX_PHY_CAP_50000FDX)) {
+		if (speed_fec_capa) {
+			speed_fec_capa[num].speed = RTE_ETH_SPEED_NUM_50G;
+			speed_fec_capa[num].capa =
+				RTE_ETH_FEC_MODE_CAPA_MASK(NOFEC) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(AUTO) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(BASER) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(RS);
+		}
+		num++;
+	}
+	if (caps & (1u << EFX_PHY_CAP_100000FDX)) {
+		if (speed_fec_capa) {
+			speed_fec_capa[num].speed = RTE_ETH_SPEED_NUM_100G;
+			speed_fec_capa[num].capa =
+				RTE_ETH_FEC_MODE_CAPA_MASK(NOFEC) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(AUTO) |
+				RTE_ETH_FEC_MODE_CAPA_MASK(RS);
+		}
+		num++;
+	}
+
+	return num;
+}
+
+static int
+sfc_fec_get_capability(struct rte_eth_dev *dev,
+		       struct rte_eth_fec_capa *speed_fec_capa,
+		       unsigned int num)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	uint32_t caps = sa->port.phy_adv_cap_mask;
+	unsigned int num_entries;
+
+	num_entries = sfc_fec_get_capa_speed_to_fec(caps, NULL);
+	if (!speed_fec_capa || num < num_entries)
+		return num_entries;
+
+	return sfc_fec_get_capa_speed_to_fec(caps, speed_fec_capa);
+}
+
+static uint32_t
+sfc_efx_caps_to_fec(uint32_t caps, bool is_25g)
+{
+	bool rs = caps & EFX_PHY_CAP_FEC_BIT(RS_FEC);
+	bool rs_req = caps & EFX_PHY_CAP_FEC_BIT(RS_FEC_REQUESTED);
+	bool baser;
+	bool baser_req;
+	uint32_t fec_capa = 0;
+
+	if (is_25g) {
+		baser = caps & EFX_PHY_CAP_FEC_BIT(25G_BASER_FEC);
+		baser_req = caps & EFX_PHY_CAP_FEC_BIT(25G_BASER_FEC_REQUESTED);
+	} else {
+		baser = caps & EFX_PHY_CAP_FEC_BIT(BASER_FEC);
+		baser_req = caps & EFX_PHY_CAP_FEC_BIT(BASER_FEC_REQUESTED);
+	}
+
+	if (!baser && !rs)
+		return RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_NOFEC);
+
+	if (rs_req)
+		fec_capa |= RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_RS);
+
+	if (baser_req)
+		fec_capa |= RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_BASER);
+
+	if (baser != baser_req || rs != rs_req)
+		fec_capa |= RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_AUTO);
+
+	return fec_capa;
+}
+
+static int
+sfc_fec_get(struct rte_eth_dev *dev, uint32_t *fec_capa)
+{
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	struct rte_eth_link current_link;
+	efx_phy_fec_type_t active_fec;
+	bool is_25g = false;
+	int rc = 0;
+
+	sfc_adapter_lock(sa);
+
+	sfc_dev_get_rte_link(dev, 1, &current_link);
+
+	if (current_link.link_status == RTE_ETH_LINK_DOWN) {
+		uint32_t speed = current_link.link_speed;
+
+		is_25g = (speed == RTE_ETH_SPEED_NUM_25G ||
+			   speed == RTE_ETH_SPEED_NUM_50G);
+
+		*fec_capa = sfc_efx_caps_to_fec(sa->port.cfg_fec, is_25g);
+
+		goto out;
+	}
+
+	rc = efx_phy_fec_type_get(sa->nic, &active_fec);
+	if (rc != 0)
+		goto out;
+
+	switch (active_fec) {
+	case EFX_PHY_FEC_NONE:
+		*fec_capa = RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_NOFEC);
+		break;
+	case EFX_PHY_FEC_BASER:
+		*fec_capa = RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_BASER);
+		break;
+	case EFX_PHY_FEC_RS:
+		*fec_capa = RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_RS);
+		break;
+	default:
+		break;
+	}
+
+out:
+	sfc_adapter_unlock(sa);
+
+	return rc;
+}
+
+/*
+ * The semantics of the RTE FEC mode bitmask are not well defined,
+ * particularly the meaning of combinations of bits. Which means we get to
+ * define our own semantics, as follows:
+ * OFF overrides any other bits, and means "disable all FEC" (with the
+ * exception of 25G KR4/CR4, where it is not possible to reject it if AN
+ * partner requests it).
+ * AUTO on its own means use cable requirements and link partner autoneg with
+ * fw-default preferences for the cable type.
+ * AUTO and either RS or BASER means use the specified FEC type if cable and
+ * link partner support it, otherwise autoneg/fw-default.
+ * RS or BASER alone means use the specified FEC type if cable and link partner
+ * support it and either requests it, otherwise no FEC.
+ * Both RS and BASER (whether AUTO or not) means use FEC if cable and link
+ * partner support it, preferring RS to BASER.
+ */
+static uint32_t
+sfc_fec_capa_to_efx(uint32_t supported_caps, uint32_t fec_capa)
+{
+	uint32_t ret = 0;
+
+	if (fec_capa & RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_AUTO)) {
+		ret |= (EFX_PHY_CAP_FEC_BIT(BASER_FEC) |
+			 EFX_PHY_CAP_FEC_BIT(25G_BASER_FEC) |
+			 EFX_PHY_CAP_FEC_BIT(RS_FEC)) & supported_caps;
+	}
+	if ((fec_capa & RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_RS)) &&
+		supported_caps & EFX_PHY_CAP_FEC_BIT(RS_FEC)) {
+		ret |= EFX_PHY_CAP_FEC_BIT(RS_FEC) |
+			EFX_PHY_CAP_FEC_BIT(RS_FEC_REQUESTED);
+	}
+	if (fec_capa & RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_BASER)) {
+		if (supported_caps & EFX_PHY_CAP_FEC_BIT(BASER_FEC)) {
+			ret |= EFX_PHY_CAP_FEC_BIT(BASER_FEC) |
+				EFX_PHY_CAP_FEC_BIT(BASER_FEC_REQUESTED);
+		}
+		if (supported_caps & EFX_PHY_CAP_FEC_BIT(25G_BASER_FEC)) {
+			ret |= EFX_PHY_CAP_FEC_BIT(25G_BASER_FEC) |
+				EFX_PHY_CAP_FEC_BIT(25G_BASER_FEC_REQUESTED);
+		}
+	}
+
+	return (ret);
+}
+
+static int
+sfc_fec_set(struct rte_eth_dev *dev, uint32_t fec_capa)
+{
+	int rc = 0;
+	struct sfc_adapter *sa = sfc_adapter_by_eth_dev(dev);
+	uint32_t updated_caps;
+	uint32_t supported_caps;
+	uint32_t efx_fec_caps;
+	uint32_t old_fec;
+
+	sfc_adapter_lock(sa);
+
+	efx_phy_adv_cap_get(sa->nic, EFX_PHY_CAP_PERM, &supported_caps);
+
+	efx_fec_caps = sfc_fec_capa_to_efx(supported_caps, fec_capa);
+	if (efx_fec_caps == 0 &&
+	    fec_capa != RTE_ETH_FEC_MODE_TO_CAPA(RTE_ETH_FEC_NOFEC)) {
+		rc = ENOTSUP;
+		goto out;
+	}
+
+	old_fec = sa->port.cfg_fec;
+	sa->port.cfg_fec = efx_fec_caps;
+
+	if (sa->state == SFC_ETHDEV_STARTED) {
+		efx_phy_adv_cap_get(sa->nic, EFX_PHY_CAP_CURRENT,
+				      &updated_caps);
+		updated_caps = updated_caps & ~EFX_PHY_CAP_FEC_MASK;
+		updated_caps |= efx_fec_caps;
+
+		rc = efx_phy_adv_cap_set(sa->nic, updated_caps);
+		if (rc != 0)
+			sa->port.cfg_fec = old_fec;
+	}
+
+out:
+	sfc_adapter_unlock(sa);
+
+	return rc;
+}
+
 static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.dev_configure			= sfc_dev_configure,
 	.dev_start			= sfc_dev_start,
@@ -2382,6 +2634,9 @@ static const struct eth_dev_ops sfc_eth_dev_ops = {
 	.pool_ops_supported		= sfc_pool_ops_supported,
 	.representor_info_get		= sfc_representor_info_get,
 	.rx_metadata_negotiate		= sfc_rx_metadata_negotiate,
+	.fec_get_capability		= sfc_fec_get_capability,
+	.fec_get			= sfc_fec_get,
+	.fec_set			= sfc_fec_set,
 };
 
 struct sfc_ethdev_init_data {
