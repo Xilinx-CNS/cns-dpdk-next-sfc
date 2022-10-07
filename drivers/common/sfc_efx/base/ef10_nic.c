@@ -1316,6 +1316,12 @@ ef10_get_datapath_caps(
 	else
 		encp->enc_init_evq_extended_width_supported = B_FALSE;
 
+	/* Check if firmware supports VLAN stripping. */
+	if (CAP_FLAGS1(req, RX_VLAN_STRIPPING))
+		encp->enc_rx_vlan_stripping = B_TRUE;
+	else
+		encp->enc_rx_vlan_stripping = B_FALSE;
+
 	/*
 	 * Check if the NO_CONT_EV mode for RX events is supported.
 	 */
