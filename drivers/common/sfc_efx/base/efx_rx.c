@@ -925,6 +925,7 @@ efx_rx_qcreate_internal(
 	erp->er_index = index;
 	erp->er_mask = ndescs - 1;
 	erp->er_esmp = esmp;
+	erp->er_flags = 0;
 
 	if ((rc = erxop->erxo_qcreate(enp, index, label, type, type_data, esmp,
 	    ndescs, id, flags, eep, erp)) != 0)
@@ -943,11 +944,27 @@ efx_rx_qcreate_internal(
 		}
 	}
 
+	if (flags & EFX_RXQ_FLAG_VLAN_STRIP) {
+		const efx_rx_prefix_layout_t *erplp = &erp->er_prefix_layout;
+		const efx_rx_prefix_field_info_t *vlan_tci_field;
+
+		vlan_tci_field =
+		    &erplp->erpl_fields[EFX_RX_PREFIX_FIELD_VLAN_STRIP_TCI];
+		if (vlan_tci_field->erpfi_width_bits == 0) {
+			rc = ENOTSUP;
+			goto fail6;
+		}
+
+		erp->er_flags |= EFX_RXQ_FLAG_VLAN_STRIP;
+	}
+
 	enp->en_rx_qcount++;
 	*erpp = erp;
 
 	return (0);
 
+fail6:
+	EFSYS_PROBE(fail6);
 fail5:
 	EFSYS_PROBE(fail5);
 

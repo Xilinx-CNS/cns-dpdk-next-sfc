@@ -3115,6 +3115,10 @@ typedef enum efx_rxq_type_e {
  * Request user flag field in the Rx prefix of a queue.
  */
 #define	EFX_RXQ_FLAG_USER_FLAG		0x20
+/*
+ * Request vlan tci field in the Rx prefix of a queue.
+ */
+#define	EFX_RXQ_FLAG_VLAN_STRIP		0x40
 
 LIBEFX_API
 extern	__checkReturn	efx_rc_t
@@ -3469,6 +3473,11 @@ efx_tx_qdestroy(
 #define	EFX_FILTER_FLAG_ACTION_FLAG	0x20
 /* Set match mark on the received packet */
 #define	EFX_FILTER_FLAG_ACTION_MARK	0x40
+/*
+ * Request that the first tag in the outer L2 header be stripped
+ * and TCI be indicated in Rx prefix.
+ */
+#define	EFX_FILTER_FLAG_VLAN_STRIP	0x80
 
 typedef uint8_t efx_filter_flags_t;
 

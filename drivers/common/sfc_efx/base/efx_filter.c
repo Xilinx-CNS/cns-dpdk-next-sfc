@@ -322,7 +322,8 @@ efx_filter_spec_init_rx(
 	EFSYS_ASSERT3P(spec, !=, NULL);
 	EFSYS_ASSERT3P(erp, !=, NULL);
 	EFSYS_ASSERT((flags & ~(EFX_FILTER_FLAG_RX_RSS |
-				EFX_FILTER_FLAG_RX_SCATTER)) == 0);
+				EFX_FILTER_FLAG_RX_SCATTER |
+				EFX_FILTER_FLAG_VLAN_STRIP)) == 0);
 
 	memset(spec, 0, sizeof (*spec));
 	spec->efs_priority = priority;
