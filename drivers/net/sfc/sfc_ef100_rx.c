@@ -68,6 +68,7 @@ struct sfc_ef100_rxq {
 #define SFC_EF100_RXQ_INGRESS_MPORT	0x80
 #define SFC_EF100_RXQ_USER_FLAG		0x100
 #define SFC_EF100_RXQ_NIC_DMA_MAP	0x200
+#define SFC_EF100_RXQ_VLAN_STRIP	0x400
 	unsigned int			ptr_mask;
 	unsigned int			evq_phase_bit_shift;
 	unsigned int			ready_pkts;
@@ -392,6 +393,7 @@ static const efx_rx_prefix_layout_t sfc_ef100_rx_prefix_layout = {
 		SFC_EF100_RX_PREFIX_FIELD(RSS_HASH, B_FALSE),
 		SFC_EF100_RX_PREFIX_FIELD(USER_FLAG, B_FALSE),
 		SFC_EF100_RX_PREFIX_FIELD(USER_MARK, B_FALSE),
+		SFC_EF100_RX_PREFIX_FIELD(VLAN_STRIP_TCI, B_FALSE),
 
 #undef	SFC_EF100_RX_PREFIX_FIELD
 	}
@@ -470,6 +472,17 @@ sfc_ef100_rx_prefix_to_offloads(const struct sfc_ef100_rxq *rxq,
 			typeof(&((efx_mport_id_t *)0)->id)) =
 				EFX_XWORD_FIELD(rx_prefix[0],
 						ESF_GZ_RX_PREFIX_INGRESS_MPORT);
+	}
+
+	if (rxq->flags & SFC_EF100_RXQ_VLAN_STRIP) {
+		uint32_t vlan_stripped;
+		vlan_stripped = EFX_XWORD_FIELD(rx_prefix[0], ESF_GZ_RX_PREFIX_VLAN_STRIPPED);
+
+		if (vlan_stripped != 0) {
+			ol_flags |= RTE_MBUF_F_RX_VLAN | RTE_MBUF_F_RX_VLAN_STRIPPED;
+			m->vlan_tci = EFX_XWORD_FIELD(rx_prefix[0],
+							ESF_GZ_RX_PREFIX_VLAN_STRIP_TCI);
+		}
 	}
 
 	m->ol_flags = ol_flags;
@@ -882,6 +895,12 @@ sfc_ef100_rx_qstart(struct sfc_dp_rxq *dp_rxq, unsigned int evq_read_ptr,
 	else
 		rxq->flags &= ~SFC_EF100_RXQ_INGRESS_MPORT;
 
+	if ((unsup_rx_prefix_fields &
+	     (1U << EFX_RX_PREFIX_FIELD_VLAN_STRIP_TCI)) == 0)
+		rxq->flags |= SFC_EF100_RXQ_VLAN_STRIP;
+	else
+		rxq->flags &= ~SFC_EF100_RXQ_VLAN_STRIP;
+
 	rxq->prefix_size = pinfo->erpl_length;
 	rxq->rearm_data = sfc_ef100_mk_mbuf_rearm_data(rxq->dp.dpq.port_id,
 						       rxq->prefix_size);
@@ -994,7 +1013,7 @@ struct sfc_dp_rx sfc_ef100_rx = {
 				  SFC_DP_RX_FEAT_FLOW_MARK |
 				  SFC_DP_RX_FEAT_INTR |
 				  SFC_DP_RX_FEAT_STATS,
-	.dev_offload_capa	= 0,
+	.dev_offload_capa	= RTE_ETH_RX_OFFLOAD_VLAN_STRIP,
 	.queue_offload_capa	= RTE_ETH_RX_OFFLOAD_CHECKSUM |
 				  RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM |
 				  RTE_ETH_RX_OFFLOAD_OUTER_UDP_CKSUM |
