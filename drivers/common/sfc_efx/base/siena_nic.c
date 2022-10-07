@@ -190,6 +190,7 @@ siena_board_cfg(
 	encp->enc_rx_include_fcs_supported = B_FALSE;
 	encp->enc_rx_es_super_buffer_supported = B_FALSE;
 	encp->enc_fw_subvariant_no_tx_csum_supported = B_FALSE;
+	encp->enc_rx_vlan_stripping = B_FALSE;
 
 	/* Siena supports two 10G ports, and 8 lanes of PCIe Gen2 */
 	encp->enc_required_pcie_bandwidth_mbps = 2 * 10000;

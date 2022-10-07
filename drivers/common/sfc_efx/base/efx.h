@@ -1650,6 +1650,7 @@ typedef struct efx_nic_cfg_s {
 	boolean_t		enc_pm_and_rxdp_counters;
 	boolean_t		enc_mac_stats_40g_tx_size_bins;
 	uint32_t		enc_tunnel_encapsulations_supported;
+	boolean_t		enc_rx_vlan_stripping;
 	/*
 	 * NIC global maximum for unique UDP tunnel ports shared by all
 	 * functions.
