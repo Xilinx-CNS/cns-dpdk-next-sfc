@@ -1046,6 +1046,7 @@ struct efx_rxq_s {
 	efsys_mem_t			*er_esmp;
 	efx_evq_rxq_state_t		*er_ev_qstate;
 	efx_rx_prefix_layout_t		er_prefix_layout;
+	uint16_t			er_flags;
 };
 
 #define	EFX_RXQ_MAGIC	0x15022005

@@ -338,6 +338,11 @@ efx_mcdi_filter_op_add(
 		    FILTER_OP_V3_IN_MATCH_SET_FLAG, 1);
 	}
 
+	if (spec->efs_flags & EFX_FILTER_FLAG_VLAN_STRIP) {
+		MCDI_IN_SET_DWORD_FIELD(req, FILTER_OP_V3_IN_MATCH_ACTION_FLAGS,
+			FILTER_OP_V3_IN_MATCH_STRIP_VLAN, 1);
+	}
+
 	efx_mcdi_execute(enp, &req);
 
 	if (req.emr_rc != 0) {
@@ -851,6 +856,16 @@ ef10_filter_add_internal(
 	EFSYS_ASSERT(spec->efs_overridden_spec == NULL);
 
 	hash = ef10_filter_hash(spec);
+
+	/*
+	 * VLAN stripping is offload at the device level, and it should be
+	 * applied to all filters if it has been applied at least once before.
+	 * Knowledge of device level vlan strip offload being enabled comes from
+	 * the default RxQ flags, albeit the flag may be set on any queue.
+	 * But only default RxQ affects this 'eft_strip_vlan' decision.
+	 */
+	if (eftp->eft_strip_vlan)
+		spec->efs_flags |= EFX_FILTER_FLAG_VLAN_STRIP;
 
 	/*
 	 * FIXME: Add support for inserting filters of different priorities
@@ -2010,6 +2025,9 @@ ef10_filter_reconfigure(
 	else
 		filter_flags = 0;
 
+	if (table->eft_strip_vlan)
+		filter_flags |= EFX_FILTER_FLAG_VLAN_STRIP;
+
 	/* Mark old filters which may need to be removed */
 	ef10_filter_mark_old_filters(enp);
 
@@ -2142,6 +2160,8 @@ ef10_filter_default_rxq_set(
 	EFSYS_ASSERT(using_rss == B_FALSE);
 	table->eft_using_rss = B_FALSE;
 #endif
+	if (erp->er_flags & EFX_RXQ_FLAG_VLAN_STRIP)
+		table->eft_strip_vlan = B_TRUE;
 	table->eft_default_rxq = erp;
 }
 
@@ -2153,6 +2173,7 @@ ef10_filter_default_rxq_clear(
 
 	table->eft_default_rxq = NULL;
 	table->eft_using_rss = B_FALSE;
+	table->eft_strip_vlan = B_FALSE;
 }
 
 
