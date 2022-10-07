@@ -80,6 +80,8 @@ SFC EFX PMD has support for:
 
 - Port representors (see :ref: switch_representation)
 
+- VLAN stripping (if running firmware variant supports it)
+
 
 Non-supported Features
 ----------------------
@@ -91,8 +93,6 @@ The features not yet supported include:
 - Header split on receive
 
 - VLAN filtering
-
-- VLAN stripping
 
 - LRO
 

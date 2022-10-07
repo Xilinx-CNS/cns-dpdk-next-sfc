@@ -942,6 +942,9 @@ sfc_rx_get_offload_mask(struct sfc_adapter *sa)
 	if (encp->enc_rx_include_fcs_supported == 0)
 		no_caps |= RTE_ETH_RX_OFFLOAD_KEEP_CRC;
 
+	if (encp->enc_rx_vlan_stripping == 0)
+		no_caps |= RTE_ETH_RX_OFFLOAD_VLAN_STRIP;
+
 	return ~no_caps;
 }
 
@@ -1189,6 +1192,16 @@ sfc_rx_qinit(struct sfc_adapter *sa, sfc_sw_index_t sw_index,
 
 	if (offloads & RTE_ETH_RX_OFFLOAD_RSS_HASH)
 		rxq_info->type_flags |= EFX_RXQ_FLAG_RSS_HASH;
+
+
+	if (sa->eth_dev->data->dev_conf.rxmode.offloads &
+	    RTE_ETH_RX_OFFLOAD_VLAN_STRIP) {
+		rxq_info->type_flags |= EFX_RXQ_FLAG_VLAN_STRIP;
+	} else if (rx_conf->offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP) {
+		sfc_err(sa, "VLAN stripping must be configured during device configure");
+		rc = EINVAL;
+		goto fail_bad_conf;
+	}
 
 	if ((sa->negotiated_rx_metadata & RTE_ETH_RX_METADATA_USER_FLAG) != 0)
 		rxq_info->type_flags |= EFX_RXQ_FLAG_USER_FLAG;
@@ -1690,6 +1703,12 @@ sfc_rx_check_mode(struct sfc_adapter *sa, struct rte_eth_rxmode *rxmode)
 	    (~rxmode->offloads & RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM)) {
 		sfc_warn(sa, "Rx outer IPv4 checksum offload cannot be disabled - always on");
 		rxmode->offloads |= RTE_ETH_RX_OFFLOAD_OUTER_IPV4_CKSUM;
+	}
+
+	if ((rxmode->offloads & RTE_ETH_RX_OFFLOAD_VLAN_STRIP) &&
+	    (~offloads_supported & RTE_ETH_RX_OFFLOAD_VLAN_STRIP)) {
+		sfc_err(sa, "VLAN stripping offload is requested but not supported");
+		rc = ENOTSUP;
 	}
 
 	return rc;
