@@ -1110,6 +1110,8 @@ fs_dev_merge_info(struct rte_eth_dev_info *info,
 
 	info->hash_key_size = RTE_MIN(info->hash_key_size,
 				      sinfo->hash_key_size);
+
+	info->default_rxconf.rx_drop_en |= sinfo->default_rxconf.rx_drop_en;
 }
 
 /**
