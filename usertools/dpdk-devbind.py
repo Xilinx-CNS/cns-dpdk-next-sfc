@@ -110,6 +110,9 @@ def module_is_loaded(module):
     if module == 'vfio_pci':
         module = 'vfio-pci'
 
+    if module == 'sfc_ef100':
+        module = 'sfc'
+
     if loaded_modules:
         return module in loaded_modules
 
