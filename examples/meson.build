@@ -11,6 +11,7 @@ all_examples = [
         'bbdev_app',
         'bond',
         'cdma_demo',
+        'cdx_test',
         'cmdline',
         'distributor',
         'dma',
