@@ -2806,6 +2806,10 @@ const struct rte_flow_ops sfc_flow_ops = {
 	.pick_transfer_proxy = sfc_flow_pick_transfer_proxy,
 };
 
+const struct rte_flow_ops sfc_repr_flow_ops = {
+	.pick_transfer_proxy = sfc_flow_pick_transfer_proxy,
+};
+
 void
 sfc_flow_init(struct sfc_adapter *sa)
 {

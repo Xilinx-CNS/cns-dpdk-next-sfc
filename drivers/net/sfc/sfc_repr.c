@@ -18,6 +18,7 @@
 
 #include "sfc_log.h"
 #include "sfc_debug.h"
+#include "sfc_flow.h"
 #include "sfc_repr.h"
 #include "sfc_ethdev_state.h"
 #include "sfc_repr_proxy_api.h"
@@ -889,6 +890,14 @@ sfc_repr_stats_get(struct rte_eth_dev *dev, struct rte_eth_stats *stats)
 	return 0;
 }
 
+static int
+sfc_repr_dev_flow_ops_get(struct rte_eth_dev *dev __rte_unused,
+			  const struct rte_flow_ops **ops)
+{
+	*ops = &sfc_repr_flow_ops;
+	return 0;
+}
+
 static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.dev_configure			= sfc_repr_dev_configure,
 	.dev_start			= sfc_repr_dev_start,
@@ -902,6 +911,7 @@ static const struct eth_dev_ops sfc_repr_dev_ops = {
 	.rx_queue_release		= sfc_repr_rx_queue_release,
 	.tx_queue_setup			= sfc_repr_tx_queue_setup,
 	.tx_queue_release		= sfc_repr_tx_queue_release,
+	.flow_ops_get			= sfc_repr_dev_flow_ops_get,
 };
 
 

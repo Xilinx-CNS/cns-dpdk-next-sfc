@@ -107,6 +107,8 @@ TAILQ_HEAD(sfc_flow_list, rte_flow);
 
 extern const struct rte_flow_ops sfc_flow_ops;
 
+extern const struct rte_flow_ops sfc_repr_flow_ops;
+
 enum sfc_flow_item_layers {
 	SFC_FLOW_ITEM_ANY_LAYER,
 	SFC_FLOW_ITEM_START_LAYER,
