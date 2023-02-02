@@ -55,6 +55,11 @@ New Features
      Also, make sure to start the actual text at the margin.
      =======================================================
 
+* **Added rte_flow support for matching IPv6 routing extension header fields.**
+
+  Added ``ipv6_routing_ext`` items in rte_flow to match IPv6 routing extension
+  header.
+
 * **Updated AMD axgbe driver.**
 
   * Added multi-process support.
@@ -115,6 +120,10 @@ API Changes
    This section is a comment. Do not overwrite or remove it.
    Also, make sure to start the actual text at the margin.
    =======================================================
+
+* net: added a new structure:
+
+    - IPv6 routing extension header ``rte_ipv6_routing_ext``.
 
 
 ABI Changes

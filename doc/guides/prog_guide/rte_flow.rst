@@ -1544,6 +1544,15 @@ Matches Color Marker set by a Meter.
 
 - ``color``: Metering color marker.
 
+Item: ``IPV6_ROUTING_EXT``
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Matches IPv6 routing extension header.
+
+- ``next_hdr``: Next layer header type.
+- ``type``: IPv6 routing extension header type.
+- ``segments_left``: How many IPv6 destination addresses carries on.
+
 Actions
 ~~~~~~~
 
