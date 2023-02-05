@@ -37,6 +37,28 @@ struct rte_icmp_hdr {
 #define RTE_IP_ICMP_ECHO_REPLY   0
 #define RTE_IP_ICMP_ECHO_REQUEST 8
 
+/**
+ * ICMP base header
+ */
+struct rte_icmp_base_hdr {
+	uint8_t type;
+	uint8_t code;
+	rte_be16_t checksum;
+} __rte_packed;
+
+/**
+ * ICMP echo header
+ */
+struct rte_icmp_echo_hdr {
+	struct rte_icmp_base_hdr base;
+	rte_be16_t identifier;
+	rte_be16_t sequence;
+} __rte_packed;
+
+/* ICMP6 packet types */
+#define RTE_ICMP6_ECHO_REQUEST 128
+#define RTE_ICMP6_ECHO_REPLY   129
+
 #ifdef __cplusplus
 }
 #endif
