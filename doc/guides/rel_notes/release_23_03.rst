@@ -74,6 +74,10 @@ New Features
   * Added support for meter options.
   * Added support for rte_flow meter action.
 
+* **Updated Mellanox mlx5 driver.**
+
+  * Added support for matching on ICMPv6 ID and sequence fields.
+
 * **Updated Wangxun ngbe driver.**
 
   * Added chip overheat detection support.
