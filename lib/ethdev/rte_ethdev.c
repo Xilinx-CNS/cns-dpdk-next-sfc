@@ -27,11 +27,12 @@
 #include <rte_ether.h>
 #include <rte_telemetry.h>
 
-#include "rte_ethdev_trace.h"
 #include "rte_ethdev.h"
+#include "rte_ethdev_trace_fp.h"
 #include "ethdev_driver.h"
 #include "ethdev_profile.h"
 #include "ethdev_private.h"
+#include "ethdev_trace.h"
 #include "sff_telemetry.h"
 
 struct rte_eth_dev rte_eth_devices[RTE_MAX_ETHPORTS];
@@ -259,6 +260,9 @@ rte_eth_iterator_init(struct rte_dev_iterator *iter, const char *devargs_str)
 end:
 	iter->cls = rte_class_find_by_name("eth");
 	rte_devargs_reset(&devargs);
+
+	rte_eth_trace_iterator_init(devargs_str);
+
 	return 0;
 
 error:
@@ -297,8 +301,13 @@ rte_eth_iterator_next(struct rte_dev_iterator *iter)
 		/* A device is matching bus part, need to check ethdev part. */
 		iter->class_device = iter->cls->dev_iterate(
 				iter->class_device, iter->cls_str, iter);
-		if (iter->class_device != NULL)
-			return eth_dev_to_id(iter->class_device); /* match */
+		if (iter->class_device != NULL) {
+			uint16_t id = eth_dev_to_id(iter->class_device);
+
+			rte_eth_trace_iterator_next(iter, id);
+
+			return id; /* match */
+		}
 	} while (iter->bus != NULL); /* need to try next rte_device */
 
 	/* No more ethdev port to iterate. */
@@ -316,6 +325,9 @@ rte_eth_iterator_cleanup(struct rte_dev_iterator *iter)
 
 	if (iter->bus_str == NULL)
 		return; /* nothing to free in pure class filter */
+
+	rte_eth_trace_iterator_cleanup(iter);
+
 	free(RTE_CAST_FIELD(iter, bus_str, char *)); /* workaround const */
 	free(RTE_CAST_FIELD(iter, cls_str, char *)); /* workaround const */
 	memset(iter, 0, sizeof(*iter));
@@ -330,6 +342,8 @@ rte_eth_find_next(uint16_t port_id)
 
 	if (port_id >= RTE_MAX_ETHPORTS)
 		return RTE_MAX_ETHPORTS;
+
+	rte_eth_trace_find_next(port_id);
 
 	return port_id;
 }
@@ -351,15 +365,23 @@ rte_eth_find_next_of(uint16_t port_id, const struct rte_device *parent)
 			rte_eth_devices[port_id].device != parent)
 		port_id = rte_eth_find_next(port_id + 1);
 
+	rte_eth_trace_find_next_of(port_id, parent);
+
 	return port_id;
 }
 
 uint16_t
 rte_eth_find_next_sibling(uint16_t port_id, uint16_t ref_port_id)
 {
+	uint16_t ret;
+
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(ref_port_id, RTE_MAX_ETHPORTS);
-	return rte_eth_find_next_of(port_id,
+	ret = rte_eth_find_next_of(port_id,
 			rte_eth_devices[ref_port_id].device);
+
+	rte_eth_trace_find_next_sibling(port_id, ref_port_id, ret);
+
+	return ret;
 }
 
 static bool
@@ -371,11 +393,17 @@ eth_dev_is_allocated(const struct rte_eth_dev *ethdev)
 int
 rte_eth_dev_is_valid_port(uint16_t port_id)
 {
+	int is_valid;
+
 	if (port_id >= RTE_MAX_ETHPORTS ||
 	    (rte_eth_devices[port_id].state == RTE_ETH_DEV_UNUSED))
-		return 0;
+		is_valid = 0;
 	else
-		return 1;
+		is_valid = 1;
+
+	rte_ethdev_trace_is_valid_port(port_id, is_valid);
+
+	return is_valid;
 }
 
 static int
@@ -395,6 +423,8 @@ rte_eth_find_next_owned_by(uint16_t port_id, const uint64_t owner_id)
 			rte_eth_devices[port_id].data->owner.id != owner_id)
 		port_id = rte_eth_find_next(port_id + 1);
 
+	rte_eth_trace_find_next_owned_by(port_id, owner_id);
+
 	return port_id;
 }
 
@@ -413,6 +443,9 @@ rte_eth_dev_owner_new(uint64_t *owner_id)
 	*owner_id = eth_dev_shared_data->next_owner_id++;
 
 	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+
+	rte_ethdev_trace_owner_new(*owner_id);
+
 	return 0;
 }
 
@@ -476,6 +509,9 @@ rte_eth_dev_owner_set(const uint16_t port_id,
 	ret = eth_dev_owner_set(port_id, RTE_ETH_DEV_NO_OWNER, owner);
 
 	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+
+	rte_ethdev_trace_owner_set(port_id, owner, ret);
+
 	return ret;
 }
 
@@ -493,6 +529,9 @@ rte_eth_dev_owner_unset(const uint16_t port_id, const uint64_t owner_id)
 	ret = eth_dev_owner_set(port_id, owner_id, &new_owner);
 
 	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
+
+	rte_ethdev_trace_owner_unset(port_id, owner_id, ret);
+
 	return ret;
 }
 
@@ -526,6 +565,8 @@ rte_eth_dev_owner_delete(const uint64_t owner_id)
 
 	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
 
+	rte_ethdev_trace_owner_delete(owner_id, ret);
+
 	return ret;
 }
 
@@ -555,6 +596,8 @@ rte_eth_dev_owner_get(const uint16_t port_id, struct rte_eth_dev_owner *owner)
 	rte_memcpy(owner, &ethdev->data->owner, sizeof(*owner));
 	rte_spinlock_unlock(&eth_dev_shared_data->ownership_lock);
 
+	rte_ethdev_trace_owner_get(port_id, owner);
+
 	return 0;
 }
 
@@ -570,14 +613,23 @@ rte_eth_dev_socket_id(uint16_t port_id)
 		if (socket_id == SOCKET_ID_ANY)
 			rte_errno = 0;
 	}
+
+	rte_ethdev_trace_socket_id(port_id, socket_id);
+
 	return socket_id;
 }
 
 void *
 rte_eth_dev_get_sec_ctx(uint16_t port_id)
 {
+	void *ctx;
+
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, NULL);
-	return rte_eth_devices[port_id].security_ctx;
+	ctx = rte_eth_devices[port_id].security_ctx;
+
+	rte_ethdev_trace_get_sec_ctx(port_id, ctx);
+
+	return ctx;
 }
 
 uint16_t
@@ -591,6 +643,8 @@ rte_eth_dev_count_avail(void)
 	RTE_ETH_FOREACH_DEV(p)
 		count++;
 
+	rte_ethdev_trace_count_avail(count);
+
 	return count;
 }
 
@@ -601,6 +655,8 @@ rte_eth_dev_count_total(void)
 
 	RTE_ETH_FOREACH_VALID_DEV(port)
 		count++;
+
+	rte_ethdev_trace_count_total(count);
 
 	return count;
 }
@@ -622,6 +678,9 @@ rte_eth_dev_get_name_by_port(uint16_t port_id, char *name)
 	 * because it might be overwritten by VDEV PMD */
 	tmp = eth_dev_shared_data->data[port_id].name;
 	strcpy(name, tmp);
+
+	rte_ethdev_trace_get_name_by_port(port_id, name);
+
 	return 0;
 }
 
@@ -644,6 +703,9 @@ rte_eth_dev_get_port_by_name(const char *name, uint16_t *port_id)
 	RTE_ETH_FOREACH_VALID_DEV(pid)
 		if (!strcmp(name, eth_dev_shared_data->data[pid].name)) {
 			*port_id = pid;
+
+			rte_ethdev_trace_get_port_by_name(name, *port_id);
+
 			return 0;
 		}
 
@@ -745,7 +807,11 @@ rte_eth_dev_rx_queue_start(uint16_t port_id, uint16_t rx_queue_id)
 		return 0;
 	}
 
-	return eth_err(port_id, dev->dev_ops->rx_queue_start(dev, rx_queue_id));
+	ret = eth_err(port_id, dev->dev_ops->rx_queue_start(dev, rx_queue_id));
+
+	rte_ethdev_trace_rx_queue_start(port_id, rx_queue_id, ret);
+
+	return ret;
 }
 
 int
@@ -778,7 +844,11 @@ rte_eth_dev_rx_queue_stop(uint16_t port_id, uint16_t rx_queue_id)
 		return 0;
 	}
 
-	return eth_err(port_id, dev->dev_ops->rx_queue_stop(dev, rx_queue_id));
+	ret = eth_err(port_id, dev->dev_ops->rx_queue_stop(dev, rx_queue_id));
+
+	rte_ethdev_trace_rx_queue_stop(port_id, rx_queue_id, ret);
+
+	return ret;
 }
 
 int
@@ -818,7 +888,11 @@ rte_eth_dev_tx_queue_start(uint16_t port_id, uint16_t tx_queue_id)
 		return 0;
 	}
 
-	return eth_err(port_id, dev->dev_ops->tx_queue_start(dev, tx_queue_id));
+	ret = eth_err(port_id, dev->dev_ops->tx_queue_start(dev, tx_queue_id));
+
+	rte_ethdev_trace_tx_queue_start(port_id, tx_queue_id, ret);
+
+	return ret;
 }
 
 int
@@ -851,42 +925,65 @@ rte_eth_dev_tx_queue_stop(uint16_t port_id, uint16_t tx_queue_id)
 		return 0;
 	}
 
-	return eth_err(port_id, dev->dev_ops->tx_queue_stop(dev, tx_queue_id));
+	ret = eth_err(port_id, dev->dev_ops->tx_queue_stop(dev, tx_queue_id));
+
+	rte_ethdev_trace_tx_queue_stop(port_id, tx_queue_id, ret);
+
+	return ret;
 }
 
 uint32_t
 rte_eth_speed_bitflag(uint32_t speed, int duplex)
 {
+	uint32_t ret;
+
 	switch (speed) {
 	case RTE_ETH_SPEED_NUM_10M:
-		return duplex ? RTE_ETH_LINK_SPEED_10M : RTE_ETH_LINK_SPEED_10M_HD;
+		ret = duplex ? RTE_ETH_LINK_SPEED_10M : RTE_ETH_LINK_SPEED_10M_HD;
+		break;
 	case RTE_ETH_SPEED_NUM_100M:
-		return duplex ? RTE_ETH_LINK_SPEED_100M : RTE_ETH_LINK_SPEED_100M_HD;
+		ret = duplex ? RTE_ETH_LINK_SPEED_100M : RTE_ETH_LINK_SPEED_100M_HD;
+		break;
 	case RTE_ETH_SPEED_NUM_1G:
-		return RTE_ETH_LINK_SPEED_1G;
+		ret = RTE_ETH_LINK_SPEED_1G;
+		break;
 	case RTE_ETH_SPEED_NUM_2_5G:
-		return RTE_ETH_LINK_SPEED_2_5G;
+		ret = RTE_ETH_LINK_SPEED_2_5G;
+		break;
 	case RTE_ETH_SPEED_NUM_5G:
-		return RTE_ETH_LINK_SPEED_5G;
+		ret = RTE_ETH_LINK_SPEED_5G;
+		break;
 	case RTE_ETH_SPEED_NUM_10G:
-		return RTE_ETH_LINK_SPEED_10G;
+		ret = RTE_ETH_LINK_SPEED_10G;
+		break;
 	case RTE_ETH_SPEED_NUM_20G:
-		return RTE_ETH_LINK_SPEED_20G;
+		ret = RTE_ETH_LINK_SPEED_20G;
+		break;
 	case RTE_ETH_SPEED_NUM_25G:
-		return RTE_ETH_LINK_SPEED_25G;
+		ret = RTE_ETH_LINK_SPEED_25G;
+		break;
 	case RTE_ETH_SPEED_NUM_40G:
-		return RTE_ETH_LINK_SPEED_40G;
+		ret = RTE_ETH_LINK_SPEED_40G;
+		break;
 	case RTE_ETH_SPEED_NUM_50G:
-		return RTE_ETH_LINK_SPEED_50G;
+		ret = RTE_ETH_LINK_SPEED_50G;
+		break;
 	case RTE_ETH_SPEED_NUM_56G:
-		return RTE_ETH_LINK_SPEED_56G;
+		ret = RTE_ETH_LINK_SPEED_56G;
+		break;
 	case RTE_ETH_SPEED_NUM_100G:
-		return RTE_ETH_LINK_SPEED_100G;
+		ret = RTE_ETH_LINK_SPEED_100G;
+		break;
 	case RTE_ETH_SPEED_NUM_200G:
-		return RTE_ETH_LINK_SPEED_200G;
+		ret = RTE_ETH_LINK_SPEED_200G;
+		break;
 	default:
-		return 0;
+		ret = 0;
 	}
+
+	rte_eth_trace_speed_bitflag(speed, duplex, ret);
+
+	return ret;
 }
 
 const char *
@@ -901,6 +998,8 @@ rte_eth_dev_rx_offload_name(uint64_t offload)
 			break;
 		}
 	}
+
+	rte_ethdev_trace_rx_offload_name(offload, name);
 
 	return name;
 }
@@ -918,6 +1017,8 @@ rte_eth_dev_tx_offload_name(uint64_t offload)
 		}
 	}
 
+	rte_ethdev_trace_tx_offload_name(offload, name);
+
 	return name;
 }
 
@@ -933,6 +1034,8 @@ rte_eth_dev_capability_name(uint64_t capability)
 			break;
 		}
 	}
+
+	rte_ethdev_trace_capability_name(capability, name);
 
 	return name;
 }
@@ -1554,26 +1657,36 @@ int
 rte_eth_dev_set_link_up(uint16_t port_id)
 {
 	struct rte_eth_dev *dev;
+	int ret;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
 
 	if (*dev->dev_ops->dev_set_link_up == NULL)
 		return -ENOTSUP;
-	return eth_err(port_id, (*dev->dev_ops->dev_set_link_up)(dev));
+	ret = eth_err(port_id, (*dev->dev_ops->dev_set_link_up)(dev));
+
+	rte_ethdev_trace_set_link_up(port_id, ret);
+
+	return ret;
 }
 
 int
 rte_eth_dev_set_link_down(uint16_t port_id)
 {
 	struct rte_eth_dev *dev;
+	int ret;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
 
 	if (*dev->dev_ops->dev_set_link_down == NULL)
 		return -ENOTSUP;
-	return eth_err(port_id, (*dev->dev_ops->dev_set_link_down)(dev));
+	ret = eth_err(port_id, (*dev->dev_ops->dev_set_link_down)(dev));
+
+	rte_ethdev_trace_set_link_down(port_id, ret);
+
+	return ret;
 }
 
 int
@@ -1628,9 +1741,11 @@ rte_eth_dev_reset(uint16_t port_id)
 			"Failed to stop device (port %u) before reset: %s - ignore\n",
 			port_id, rte_strerror(-ret));
 	}
-	ret = dev->dev_ops->dev_reset(dev);
+	ret = eth_err(port_id, dev->dev_ops->dev_reset(dev));
 
-	return eth_err(port_id, ret);
+	rte_ethdev_trace_reset(port_id, ret);
+
+	return ret;
 }
 
 int
@@ -1652,6 +1767,8 @@ rte_eth_dev_is_removed(uint16_t port_id)
 	if (ret != 0)
 		/* Device is physically removed. */
 		dev->state = RTE_ETH_DEV_REMOVED;
+
+	rte_ethdev_trace_is_removed(port_id, ret);
 
 	return ret;
 }
@@ -2151,7 +2268,12 @@ rte_eth_rx_hairpin_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 	if (ret == 0)
 		dev->data->rx_queue_state[rx_queue_id] =
 			RTE_ETH_QUEUE_STATE_HAIRPIN;
-	return eth_err(port_id, ret);
+	ret = eth_err(port_id, ret);
+
+	rte_eth_trace_rx_hairpin_queue_setup(port_id, rx_queue_id, nb_rx_desc,
+					     conf, ret);
+
+	return ret;
 }
 
 int
@@ -2340,7 +2462,12 @@ rte_eth_tx_hairpin_queue_setup(uint16_t port_id, uint16_t tx_queue_id,
 	if (ret == 0)
 		dev->data->tx_queue_state[tx_queue_id] =
 			RTE_ETH_QUEUE_STATE_HAIRPIN;
-	return eth_err(port_id, ret);
+	ret = eth_err(port_id, ret);
+
+	rte_eth_trace_tx_hairpin_queue_setup(port_id, tx_queue_id, nb_tx_desc,
+					     conf, ret);
+
+	return ret;
 }
 
 int
@@ -2364,6 +2491,8 @@ rte_eth_hairpin_bind(uint16_t tx_port, uint16_t rx_port)
 		RTE_ETHDEV_LOG(ERR, "Failed to bind hairpin Tx %d"
 			       " to Rx %d (%d - all ports)\n",
 			       tx_port, rx_port, RTE_MAX_ETHPORTS);
+
+	rte_eth_trace_hairpin_bind(tx_port, rx_port, ret);
 
 	return ret;
 }
@@ -2389,6 +2518,8 @@ rte_eth_hairpin_unbind(uint16_t tx_port, uint16_t rx_port)
 		RTE_ETHDEV_LOG(ERR, "Failed to unbind hairpin Tx %d"
 			       " from Rx %d (%d - all ports)\n",
 			       tx_port, rx_port, RTE_MAX_ETHPORTS);
+
+	rte_eth_trace_hairpin_unbind(tx_port, rx_port, ret);
 
 	return ret;
 }
@@ -2426,6 +2557,9 @@ rte_eth_hairpin_get_peer_ports(uint16_t port_id, uint16_t *peer_ports,
 		RTE_ETHDEV_LOG(ERR, "Failed to get %d hairpin peer %s ports\n",
 			       port_id, direction ? "Rx" : "Tx");
 
+	rte_eth_trace_hairpin_get_peer_ports(port_id, peer_ports, len,
+					     direction, ret);
+
 	return ret;
 }
 
@@ -2434,6 +2568,8 @@ rte_eth_tx_buffer_drop_callback(struct rte_mbuf **pkts, uint16_t unsent,
 		void *userdata __rte_unused)
 {
 	rte_pktmbuf_free_bulk(pkts, unsent);
+
+	rte_eth_trace_tx_buffer_drop_callback((void **)pkts, unsent);
 }
 
 void
@@ -2444,6 +2580,8 @@ rte_eth_tx_buffer_count_callback(struct rte_mbuf **pkts, uint16_t unsent,
 
 	rte_pktmbuf_free_bulk(pkts, unsent);
 	*count += unsent;
+
+	rte_eth_trace_tx_buffer_count_callback((void **)pkts, unsent, *count);
 }
 
 int
@@ -2458,6 +2596,9 @@ rte_eth_tx_buffer_set_err_callback(struct rte_eth_dev_tx_buffer *buffer,
 
 	buffer->error_callback = cbfn;
 	buffer->error_userdata = userdata;
+
+	rte_eth_trace_tx_buffer_set_err_callback(buffer);
+
 	return 0;
 }
 
@@ -2477,6 +2618,8 @@ rte_eth_tx_buffer_init(struct rte_eth_dev_tx_buffer *buffer, uint16_t size)
 			buffer, rte_eth_tx_buffer_drop_callback, NULL);
 	}
 
+	rte_eth_trace_tx_buffer_init(buffer, size, ret);
+
 	return ret;
 }
 
@@ -2495,7 +2638,11 @@ rte_eth_tx_done_cleanup(uint16_t port_id, uint16_t queue_id, uint32_t free_cnt)
 	/* Call driver to free pending mbufs. */
 	ret = (*dev->dev_ops->tx_done_cleanup)(dev->data->tx_queues[queue_id],
 					       free_cnt);
-	return eth_err(port_id, ret);
+	ret = eth_err(port_id, ret);
+
+	rte_eth_trace_tx_done_cleanup(port_id, queue_id, free_cnt, ret);
+
+	return ret;
 }
 
 int
@@ -2516,7 +2663,12 @@ rte_eth_promiscuous_enable(uint16_t port_id)
 	diag = (*dev->dev_ops->promiscuous_enable)(dev);
 	dev->data->promiscuous = (diag == 0) ? 1 : 0;
 
-	return eth_err(port_id, diag);
+	diag = eth_err(port_id, diag);
+
+	rte_eth_trace_promiscuous_enable(port_id, dev->data->promiscuous,
+					 diag);
+
+	return diag;
 }
 
 int
@@ -2539,7 +2691,12 @@ rte_eth_promiscuous_disable(uint16_t port_id)
 	if (diag != 0)
 		dev->data->promiscuous = 1;
 
-	return eth_err(port_id, diag);
+	diag = eth_err(port_id, diag);
+
+	rte_eth_trace_promiscuous_disable(port_id, dev->data->promiscuous,
+					  diag);
+
+	return diag;
 }
 
 int
@@ -2549,6 +2706,8 @@ rte_eth_promiscuous_get(uint16_t port_id)
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
+
+	rte_eth_trace_promiscuous_get(port_id, dev->data->promiscuous);
 
 	return dev->data->promiscuous;
 }
@@ -2570,7 +2729,12 @@ rte_eth_allmulticast_enable(uint16_t port_id)
 	diag = (*dev->dev_ops->allmulticast_enable)(dev);
 	dev->data->all_multicast = (diag == 0) ? 1 : 0;
 
-	return eth_err(port_id, diag);
+	diag = eth_err(port_id, diag);
+
+	rte_eth_trace_allmulticast_enable(port_id, dev->data->all_multicast,
+					  diag);
+
+	return diag;
 }
 
 int
@@ -2592,7 +2756,12 @@ rte_eth_allmulticast_disable(uint16_t port_id)
 	if (diag != 0)
 		dev->data->all_multicast = 1;
 
-	return eth_err(port_id, diag);
+	diag = eth_err(port_id, diag);
+
+	rte_eth_trace_allmulticast_disable(port_id, dev->data->all_multicast,
+					   diag);
+
+	return diag;
 }
 
 int
@@ -2602,6 +2771,8 @@ rte_eth_allmulticast_get(uint16_t port_id)
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
+
+	rte_eth_trace_allmulticast_get(port_id, dev->data->all_multicast);
 
 	return dev->data->all_multicast;
 }
@@ -2629,6 +2800,8 @@ rte_eth_link_get(uint16_t port_id, struct rte_eth_link *eth_link)
 		*eth_link = dev->data->dev_link;
 	}
 
+	rte_eth_trace_link_get(port_id, eth_link);
+
 	return 0;
 }
 
@@ -2655,35 +2828,76 @@ rte_eth_link_get_nowait(uint16_t port_id, struct rte_eth_link *eth_link)
 		*eth_link = dev->data->dev_link;
 	}
 
+	rte_eth_trace_link_get_nowait(port_id, eth_link);
+
 	return 0;
 }
 
 const char *
 rte_eth_link_speed_to_str(uint32_t link_speed)
 {
+	const char *ret;
+
 	switch (link_speed) {
-	case RTE_ETH_SPEED_NUM_NONE: return "None";
-	case RTE_ETH_SPEED_NUM_10M:  return "10 Mbps";
-	case RTE_ETH_SPEED_NUM_100M: return "100 Mbps";
-	case RTE_ETH_SPEED_NUM_1G:   return "1 Gbps";
-	case RTE_ETH_SPEED_NUM_2_5G: return "2.5 Gbps";
-	case RTE_ETH_SPEED_NUM_5G:   return "5 Gbps";
-	case RTE_ETH_SPEED_NUM_10G:  return "10 Gbps";
-	case RTE_ETH_SPEED_NUM_20G:  return "20 Gbps";
-	case RTE_ETH_SPEED_NUM_25G:  return "25 Gbps";
-	case RTE_ETH_SPEED_NUM_40G:  return "40 Gbps";
-	case RTE_ETH_SPEED_NUM_50G:  return "50 Gbps";
-	case RTE_ETH_SPEED_NUM_56G:  return "56 Gbps";
-	case RTE_ETH_SPEED_NUM_100G: return "100 Gbps";
-	case RTE_ETH_SPEED_NUM_200G: return "200 Gbps";
-	case RTE_ETH_SPEED_NUM_UNKNOWN: return "Unknown";
-	default: return "Invalid";
+	case RTE_ETH_SPEED_NUM_NONE:
+		ret = "None";
+		break;
+	case RTE_ETH_SPEED_NUM_10M:
+		ret = "10 Mbps";
+		break;
+	case RTE_ETH_SPEED_NUM_100M:
+		ret = "100 Mbps";
+		break;
+	case RTE_ETH_SPEED_NUM_1G:
+		ret = "1 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_2_5G:
+		ret = "2.5 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_5G:
+		ret = "5 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_10G:
+		ret = "10 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_20G:
+		ret = "20 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_25G:
+		ret = "25 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_40G:
+		ret = "40 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_50G:
+		ret = "50 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_56G:
+		ret = "56 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_100G:
+		ret = "100 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_200G:
+		ret = "200 Gbps";
+		break;
+	case RTE_ETH_SPEED_NUM_UNKNOWN:
+		ret = "Unknown";
+		break;
+	default:
+		ret = "Invalid";
 	}
+
+	rte_eth_trace_link_speed_to_str(link_speed, ret);
+
+	return ret;
 }
 
 int
 rte_eth_link_to_str(char *str, size_t len, const struct rte_eth_link *eth_link)
 {
+	int ret;
+
 	if (str == NULL) {
 		RTE_ETHDEV_LOG(ERR, "Cannot convert link to NULL string\n");
 		return -EINVAL;
@@ -2701,20 +2915,25 @@ rte_eth_link_to_str(char *str, size_t len, const struct rte_eth_link *eth_link)
 	}
 
 	if (eth_link->link_status == RTE_ETH_LINK_DOWN)
-		return snprintf(str, len, "Link down");
+		ret = snprintf(str, len, "Link down");
 	else
-		return snprintf(str, len, "Link up at %s %s %s",
+		ret = snprintf(str, len, "Link up at %s %s %s",
 			rte_eth_link_speed_to_str(eth_link->link_speed),
 			(eth_link->link_duplex == RTE_ETH_LINK_FULL_DUPLEX) ?
 			"FDX" : "HDX",
 			(eth_link->link_autoneg == RTE_ETH_LINK_AUTONEG) ?
 			"Autoneg" : "Fixed");
+
+	rte_eth_trace_link_to_str(len, eth_link, str, ret);
+
+	return ret;
 }
 
 int
 rte_eth_stats_get(uint16_t port_id, struct rte_eth_stats *stats)
 {
 	struct rte_eth_dev *dev;
+	int ret;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
@@ -2730,7 +2949,11 @@ rte_eth_stats_get(uint16_t port_id, struct rte_eth_stats *stats)
 	if (*dev->dev_ops->stats_get == NULL)
 		return -ENOTSUP;
 	stats->rx_nombuf = dev->data->rx_mbuf_alloc_failed;
-	return eth_err(port_id, (*dev->dev_ops->stats_get)(dev, stats));
+	ret = eth_err(port_id, (*dev->dev_ops->stats_get)(dev, stats));
+
+	rte_eth_trace_stats_get(port_id, stats, ret);
+
+	return ret;
 }
 
 int
@@ -2749,6 +2972,8 @@ rte_eth_stats_reset(uint16_t port_id)
 		return eth_err(port_id, ret);
 
 	dev->data->rx_mbuf_alloc_failed = 0;
+
+	rte_eth_trace_stats_reset(port_id);
 
 	return 0;
 }
@@ -2833,6 +3058,10 @@ rte_eth_xstats_get_id_by_name(uint16_t port_id, const char *xstat_name,
 	for (idx_xstat = 0; idx_xstat < cnt_xstats; idx_xstat++) {
 		if (!strcmp(xstats_names[idx_xstat].name, xstat_name)) {
 			*id = idx_xstat;
+
+			rte_eth_trace_xstats_get_id_by_name(port_id,
+							    xstat_name, *id);
+
 			return 0;
 		};
 	}
@@ -2986,6 +3215,9 @@ rte_eth_xstats_get_names_by_id(uint16_t port_id,
 			return -1;
 		}
 		xstats_names[i] = xstats_names_copy[ids[i]];
+
+		rte_eth_trace_xstats_get_names_by_id(port_id, &xstats_names[i],
+						     ids[i]);
 	}
 
 	free(xstats_names_copy);
@@ -3001,6 +3233,7 @@ rte_eth_xstats_get_names(uint16_t port_id,
 	int cnt_used_entries;
 	int cnt_expected_entries;
 	int cnt_driver_entries;
+	int i;
 
 	cnt_expected_entries = eth_dev_get_xstats_count(port_id);
 	if (xstats_names == NULL || cnt_expected_entries < 0 ||
@@ -3024,6 +3257,10 @@ rte_eth_xstats_get_names(uint16_t port_id,
 			return eth_err(port_id, cnt_driver_entries);
 		cnt_used_entries += cnt_driver_entries;
 	}
+
+	for (i = 0; i < cnt_used_entries; i++)
+		rte_eth_trace_xstats_get_names(port_id, i, xstats_names[i],
+					       size, cnt_used_entries);
 
 	return cnt_used_entries;
 }
@@ -3174,6 +3411,9 @@ rte_eth_xstats_get_by_id(uint16_t port_id, const uint64_t *ids,
 		}
 		values[i] = xstats[ids[i]].value;
 	}
+
+	rte_eth_trace_xstats_get_by_id(port_id, ids, values, size);
+
 	return size;
 }
 
@@ -3221,6 +3461,9 @@ rte_eth_xstats_get(uint16_t port_id, struct rte_eth_xstat *xstats,
 	for ( ; i < count + xcount; i++)
 		xstats[i].id += count;
 
+	for (i = 0; i < n; i++)
+		rte_eth_trace_xstats_get(port_id, xstats[i]);
+
 	return count + xcount;
 }
 
@@ -3234,8 +3477,13 @@ rte_eth_xstats_reset(uint16_t port_id)
 	dev = &rte_eth_devices[port_id];
 
 	/* implemented by the driver */
-	if (dev->dev_ops->xstats_reset != NULL)
-		return eth_err(port_id, (*dev->dev_ops->xstats_reset)(dev));
+	if (dev->dev_ops->xstats_reset != NULL) {
+		int ret = eth_err(port_id, (*dev->dev_ops->xstats_reset)(dev));
+
+		rte_eth_trace_xstats_reset(port_id, ret);
+
+		return ret;
+	}
 
 	/* fallback to default */
 	return rte_eth_stats_reset(port_id);
@@ -3268,24 +3516,39 @@ int
 rte_eth_dev_set_tx_queue_stats_mapping(uint16_t port_id, uint16_t tx_queue_id,
 		uint8_t stat_idx)
 {
-	return eth_err(port_id, eth_dev_set_queue_stats_mapping(port_id,
+	int ret;
+
+	ret = eth_err(port_id, eth_dev_set_queue_stats_mapping(port_id,
 						tx_queue_id,
 						stat_idx, STAT_QMAP_TX));
+
+	rte_ethdev_trace_set_tx_queue_stats_mapping(port_id, tx_queue_id,
+						    stat_idx, ret);
+
+	return ret;
 }
 
 int
 rte_eth_dev_set_rx_queue_stats_mapping(uint16_t port_id, uint16_t rx_queue_id,
 		uint8_t stat_idx)
 {
-	return eth_err(port_id, eth_dev_set_queue_stats_mapping(port_id,
+	int ret;
+
+	ret = eth_err(port_id, eth_dev_set_queue_stats_mapping(port_id,
 						rx_queue_id,
 						stat_idx, STAT_QMAP_RX));
+
+	rte_ethdev_trace_set_rx_queue_stats_mapping(port_id, rx_queue_id,
+						    stat_idx, ret);
+
+	return ret;
 }
 
 int
 rte_eth_dev_fw_version_get(uint16_t port_id, char *fw_version, size_t fw_size)
 {
 	struct rte_eth_dev *dev;
+	int ret;
 
 	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
 	dev = &rte_eth_devices[port_id];
@@ -3299,8 +3562,12 @@ rte_eth_dev_fw_version_get(uint16_t port_id, char *fw_version, size_t fw_size)
 
 	if (*dev->dev_ops->fw_version_get == NULL)
 		return -ENOTSUP;
-	return eth_err(port_id, (*dev->dev_ops->fw_version_get)(dev,
+	ret = eth_err(port_id, (*dev->dev_ops->fw_version_get)(dev,
 							fw_version, fw_size));
+
+	rte_ethdev_trace_fw_version_get(port_id, fw_version, fw_size, ret);
+
+	return ret;
 }
 
 int
