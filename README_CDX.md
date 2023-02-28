@@ -42,13 +42,17 @@ bus are bound to vfio-cdx linux driver.
 
 Test runs on each CDX device detected on the DPDK CDX bus.
 
+> **NOTE:** CDMA demo application uses CDMA devices which are simulated in
+QEMU enviromentment only. Hence this application will provide expected
+results only in QEMU enviroment.
+
 ## CDX test
 
 CDX test is a basic application which first unplugs and then plugs the CDX
 devices, and then reads the memory addresses for all the memory regions
 on all the available CDX devices.
 
-## Executing DPDK applications on QEMU
+## Executing DPDK applications
 
 > **NOTE:** Steps in following sections should be run as root user.
 ~~~
@@ -87,7 +91,7 @@ echo "vfio-cdx" >  /sys/bus/cdx/devices/cdx-00\:01/driver_override
 echo "cdx-00:01" > /sys/bus/cdx/drivers_probe
 ~~~
 
-## Running CDMA Demo application
+## Running CDMA Demo application on QEMU
 
 scp the *dpdk-cdma_demo* to qemu. Use the port specified in "hostfwd"
 options while launching QEMU.
@@ -158,13 +162,20 @@ CDMA_DEMO: =================================================
 
 ## Running dpdk-cdx_test
 
-scp the *dpdk-cdx_test* to qemu. Use the port specified in "hostfwd"
-options while launching QEMU.
+scp the *dpdk-cdx_test* and *csi_exerciser_init.sh*.
+Use the port specified in "hostfwd" options while launching QEMU.
 
 ~~~
 scp -P <port> <dpdk>/arm64-build/examples/dpdk-cdx_test petalinux@localhost:~
+scp -P <port> <dpdk>/arm64-build/examples/csi_exerciser_init.sh petalinux@localhost:~
 ~~~
 
+> **NOTE:** To run dpdk-cdx_test on VNX board with CSI excersizer, CSI 
+excersizer needs to be initialized first using following command
+
+~~~
+./csi_exerciser_init.sh
+~~~
 Launch the *dpdk-cdx_test* using following command
 
 ~~~
