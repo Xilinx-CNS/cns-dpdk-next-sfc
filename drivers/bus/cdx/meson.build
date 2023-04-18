@@ -6,7 +6,7 @@ if not is_linux
     reason = 'only supported on Linux'
 endif
 
-headers = files('rte_bus_cdx.h')
+driver_sdk_headers = files('bus_cdx_driver.h')
 sources = files(
         'cdx.c',
         'cdx_vfio.c',

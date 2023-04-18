@@ -8,7 +8,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include <rte_bus_cdx.h>
+#include <bus_cdx_driver.h>
 #include <rte_eal.h>
 #include <rte_dmadev.h>
 #include <rte_dmadev_pmd.h>

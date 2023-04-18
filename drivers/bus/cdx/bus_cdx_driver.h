@@ -2,38 +2,24 @@
  * Copyright (C) 2022-2023, Advanced Micro Devices, Inc.
  */
 
-#ifndef _RTE_BUS_CDX_H_
-#define _RTE_BUS_CDX_H_
+#ifndef BUS_CDX_DRIVER_H
+#define BUS_CDX_DRIVER_H
 
 /**
  * @file
  *
- * CDX device & driver interface
- *
- * @warning
- * @b EXPERIMENTAL:
- * All functions in this file may be changed or removed without prior notice.
- *
- * CDX is a Hardware Architecture designed for AMD FPGA and HNIC devices.
- * These devices are provided as CDX devices for the user. This driver
- * provides user interface for devices on the CDX bus.
- *
+ * AMD CDX bus interface
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
-#include <errno.h>
-#include <stdint.h>
 #include <inttypes.h>
 
 #include <bus_driver.h>
 #include <dev_driver.h>
-#include <rte_debug.h>
 #include <rte_interrupts.h>
 #include <rte_dev.h>
 #include <rte_bus.h>
@@ -147,7 +133,7 @@ struct rte_cdx_bus {
  * @return
  *   sysfs path for CDX devices.
  */
-__rte_experimental
+__rte_internal
 const char *rte_cdx_get_sysfs_path(void);
 
 /**
@@ -161,7 +147,7 @@ const char *rte_cdx_get_sysfs_path(void);
  *   0 on success, negative on error and positive if no driver
  *   is found for the device.
  */
-__rte_experimental
+__rte_internal
 int rte_cdx_map_device(struct rte_cdx_device *dev);
 
 /**
@@ -171,17 +157,18 @@ int rte_cdx_map_device(struct rte_cdx_device *dev);
  *   A pointer to a rte_cdx_device structure describing the device
  *   to use
  */
-__rte_experimental
+__rte_internal
 void rte_cdx_unmap_device(struct rte_cdx_device *dev);
 
 /**
- * Dump the content of the CDX bus.
+ * Register a CDX driver.
  *
- * @param f
- *   A pointer to a file for output
+ * @param driver
+ *   A pointer to a rte_cdx_driver structure describing the driver
+ *   to be registered.
  */
-__rte_experimental
-void rte_cdx_dump(FILE *f);
+__rte_internal
+void rte_cdx_register(struct rte_cdx_driver *driver);
 
 /**
  * Enables VFIO Interrupts for CDX bus devices.
@@ -208,16 +195,6 @@ __rte_internal
 int rte_cdx_vfio_intr_disable(const struct rte_intr_handle *intr_handle);
 
 /**
- * Register a CDX driver.
- *
- * @param driver
- *   A pointer to a rte_cdx_driver structure describing the driver
- *   to be registered.
- */
-__rte_experimental
-void rte_cdx_register(struct rte_cdx_driver *driver);
-
-/**
  * Helper for CDX device registration from driver (eth, crypto, raw) instance
  */
 #define RTE_PMD_REGISTER_CDX(nm, cdx_drv) \
@@ -235,11 +212,11 @@ void rte_cdx_register(struct rte_cdx_driver *driver);
  *   A pointer to a rte_cdx_driver structure describing the driver
  *   to be unregistered.
  */
-__rte_experimental
+__rte_internal
 void rte_cdx_unregister(struct rte_cdx_driver *driver);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _RTE_BUS_CDX_H_ */
+#endif /* BUS_CDX_DRIVER_H */

@@ -7,33 +7,23 @@
  * CDX probing using Linux VFIO.
  *
  * This code tries to determine if the CDX device is bound to VFIO driver,
- * and initialize it (map BARs, set up interrupts) if that's the case.
+ * and initialize it (map MMIO regions, set up interrupts) if that's the case.
  *
  */
 
-#include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <sys/eventfd.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <stdbool.h>
-
-#include <rte_log.h>
-#include <rte_bus_cdx.h>
 #include <rte_eal_paging.h>
 #include <rte_malloc.h>
 #include <rte_vfio.h>
-#include <rte_eal.h>
-#include <rte_bus.h>
-#include <rte_spinlock.h>
-#include <rte_tailq.h>
 
-#include "eal_filesystem.h"
-
-#include "cdx.h"
+#include "bus_cdx_driver.h"
 #include "cdx_logs.h"
-
+#include "private.h"
 /**
  * A structure describing a CDX mapping.
  */
@@ -60,7 +50,7 @@ struct mapped_cdx_resource {
 /** mapped cdx device list */
 TAILQ_HEAD(mapped_cdx_res_list, mapped_cdx_resource);
 
-/* irq set buffer length for MSI interrupts */
+/* IRQ set buffer length for MSI interrupts */
 #define MSI_IRQ_SET_BUF_LEN (sizeof(struct vfio_irq_set) + \
 			      sizeof(int) * (RTE_MAX_RXTX_INTR_VEC_ID + 1))
 
@@ -92,10 +82,6 @@ cdx_vfio_find_and_unmap_resource(struct mapped_cdx_res_list *vfio_res_list,
 
 	maps = vfio_res->maps;
 	for (i = 0; i < vfio_res->nb_maps; i++) {
-		/*
-		 * We do not need to be aware of MSI-X table BAR mappings as
-		 * when mapping. Just using current maps array is enough
-		 */
 		if (maps[i].addr) {
 			CDX_BUS_DEBUG("Calling cdx_unmap_resource for %s at %p",
 				dev_name, maps[i].addr);
@@ -257,7 +243,7 @@ cdx_vfio_setup_interrupts(struct rte_cdx_device *dev, int vfio_dev_fd,
 }
 
 static int
-cdx_rte_vfio_setup_device(struct rte_cdx_device *dev, int vfio_dev_fd,
+cdx_vfio_setup_device(struct rte_cdx_device *dev, int vfio_dev_fd,
 		int num_irqs)
 {
 	if (cdx_vfio_setup_interrupts(dev, vfio_dev_fd, num_irqs) != 0) {
@@ -367,6 +353,27 @@ again:
 }
 
 static int
+find_max_end_va(const struct rte_memseg_list *msl, void *arg)
+{
+	size_t sz = msl->len;
+	void *end_va = RTE_PTR_ADD(msl->base_va, sz);
+	void **max_va = arg;
+
+	if (*max_va < end_va)
+		*max_va = end_va;
+	return 0;
+}
+
+static void *
+cdx_find_max_end_va(void)
+{
+	void *va = NULL;
+
+	rte_memseg_list_walk(find_max_end_va, &va);
+	return va;
+}
+
+static int
 cdx_vfio_map_resource_primary(struct rte_cdx_device *dev)
 {
 	struct vfio_device_info device_info = { .argsz = sizeof(device_info) };
@@ -447,7 +454,7 @@ cdx_vfio_map_resource_primary(struct rte_cdx_device *dev)
 		free(reg);
 	}
 
-	if (cdx_rte_vfio_setup_device(dev, vfio_dev_fd, device_info.num_irqs) < 0) {
+	if (cdx_vfio_setup_device(dev, vfio_dev_fd, device_info.num_irqs) < 0) {
 		CDX_BUS_ERR("%s setup device failed", dev_name);
 		goto err_vfio_res;
 	}

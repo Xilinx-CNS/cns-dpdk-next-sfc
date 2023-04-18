@@ -2,18 +2,18 @@
  * Copyright (C) 2022-2023, Advanced Micro Devices, Inc.
  */
 
-#ifndef _CDX_LOGS_H_
-#define _CDX_LOGS_H_
+#ifndef CDX_LOGS_H
+#define CDX_LOGS_H
 
 extern int cdx_logtype_bus;
 
 #define CDX_BUS_LOG(level, fmt, args...) \
-	rte_log(RTE_LOG_ ## level, cdx_logtype_bus, "fslmc: " fmt "\n", \
+	rte_log(RTE_LOG_ ## level, cdx_logtype_bus, "cdx: " fmt "\n", \
 		##args)
 
 /* Debug logs are with Function names */
 #define CDX_BUS_DEBUG(fmt, args...) \
-	rte_log(RTE_LOG_DEBUG, cdx_logtype_bus, "fslmc: %s(): " fmt "\n", \
+	rte_log(RTE_LOG_DEBUG, cdx_logtype_bus, "cdx: %s(): " fmt "\n", \
 		__func__, ##args)
 
 #define CDX_BUS_INFO(fmt, args...) \
@@ -34,4 +34,4 @@ extern int cdx_logtype_bus;
 #define CDX_BUS_DP_WARN(fmt, args...) \
 	CDX_BUS_DP_LOG(WARNING, fmt, ## args)
 
-#endif /* _CDX_LOGS_H_ */
+#endif /* CDX_LOGS_H */

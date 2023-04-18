@@ -18,7 +18,6 @@
 #include <rte_dmadev_pmd.h>
 #include <rte_eal.h>
 #include <rte_malloc.h>
-#include <rte_bus_cdx.h>
 #include <rte_pmd_cdx_cdma.h>
 
 #define RTE_LOGTYPE_CDMA_DEMO RTE_LOGTYPE_USER1
@@ -163,12 +162,6 @@ main(int argc, char **argv)
 	ret = cdma_parse_args(argc, argv);
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, "Invalid CDMA demo arguments\n");
-
-	RTE_LOG(INFO, CDMA_DEMO, "=================================================\n");
-	RTE_LOG(INFO, CDMA_DEMO, "Dumping CDX devices\n");
-	RTE_LOG(INFO, CDMA_DEMO, "-------------------\n");
-	rte_cdx_dump(stdout);
-	RTE_LOG(INFO, CDMA_DEMO, "=================================================\n");
 
 	src = rte_malloc(NULL, DMA_SIZE, RTE_CACHE_LINE_SIZE);
 	if (!src) {

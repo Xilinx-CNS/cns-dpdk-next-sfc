@@ -13,13 +13,13 @@
  * the FPGA program manager and the APUs. The RPU provides memory-mapped
  * interface (RPU if) which is used to communicate with APUs.
  *
- * The diagram below shows an overview of the CDX architecture:
+ * The diagram below shows an overview of the AMD CDX architecture:
  *
  *          +--------------------------------------+
  *          |   DPDK                               |
  *          |                    DPDK CDX drivers  |
  *          |                             |        |
- *          |                      DPDK CDX bus    |
+ *          |                    DPDK AMD CDX bus  |
  *          |                             |        |
  *          +-----------------------------|--------+
  *                                        |
@@ -28,7 +28,7 @@
  *          |                             |        |
  *          |                     VFIO CDX driver  |
  *          |     Linux OS                |        |
- *          |                      Linux CDX bus   |
+ *          |                    Linux AMD CDX bus |
  *          |                             |        |
  *          +-----------------------------|--------+
  *                                        |
@@ -63,21 +63,18 @@
 #include <string.h>
 #include <dirent.h>
 
-#include <rte_log.h>
-#include <rte_bus.h>
-#include <rte_bus_cdx.h>
 #include <rte_eal_paging.h>
 #include <rte_errno.h>
 #include <rte_devargs.h>
 #include <rte_kvargs.h>
 #include <rte_malloc.h>
-#include <rte_memcpy.h>
 #include <rte_vfio.h>
 
 #include <eal_filesystem.h>
 
-#include "cdx.h"
+#include "bus_cdx_driver.h"
 #include "cdx_logs.h"
+#include "private.h"
 
 #define SYSFS_CDX_DEVICES "/sys/bus/cdx/devices"
 #define CDX_BUS_NAME	cdx
@@ -142,27 +139,6 @@ int rte_cdx_map_device(struct rte_cdx_device *dev)
 void rte_cdx_unmap_device(struct rte_cdx_device *dev)
 {
 	cdx_vfio_unmap_resource(dev);
-}
-
-static int
-find_max_end_va(const struct rte_memseg_list *msl, void *arg)
-{
-	size_t sz = msl->len;
-	void *end_va = RTE_PTR_ADD(msl->base_va, sz);
-	void **max_va = arg;
-
-	if (*max_va < end_va)
-		*max_va = end_va;
-	return 0;
-}
-
-void *
-cdx_find_max_end_va(void)
-{
-	void *va = NULL;
-
-	rte_memseg_list_walk(find_max_end_va, &va);
-	return va;
 }
 
 static struct rte_devargs *
@@ -328,7 +304,7 @@ rte_cdx_get_sysfs_path(void)
 
 /* map a particular resource from a file */
 void *
-cdx_map_resource(void *requested_addr, int fd, off_t offset, size_t size,
+cdx_map_resource(void *requested_addr, int fd, uint64_t offset, size_t size,
 		int additional_flags)
 {
 	void *mapaddr;
@@ -338,9 +314,8 @@ cdx_map_resource(void *requested_addr, int fd, off_t offset, size_t size,
 		RTE_PROT_READ | RTE_PROT_WRITE,
 		RTE_MAP_SHARED | additional_flags, fd, offset);
 	if (mapaddr == NULL) {
-		CDX_BUS_ERR("%s(): cannot map resource(%d, %p, 0x%zx, 0x%llx): %s (%p)",
-			__func__, fd, requested_addr, size,
-			(unsigned long long)offset,
+		CDX_BUS_ERR("%s(): cannot map resource(%d, %p, 0x%zx, 0x%"PRIx64"): %s (%p)",
+			__func__, fd, requested_addr, size, offset,
 			rte_strerror(rte_errno), mapaddr);
 	}
 	CDX_BUS_DEBUG("CDX MMIO memory mapped at %p", mapaddr);
@@ -496,34 +471,6 @@ cdx_probe(void)
 	}
 
 	return (probed && probed == failed) ? -1 : 0;
-}
-
-/* dump one device */
-static int
-cdx_dump_one_device(FILE *f, struct rte_cdx_device *dev)
-{
-	int i;
-
-	fprintf(f, "cdx device %s\n", dev->device.name);
-
-	for (i = 0; i != sizeof(dev->mem_resource) /
-		sizeof(dev->mem_resource[0]); i++) {
-		if (dev->mem_resource[i].len)
-			fprintf(f, "   Resource[%d]: %p %16.16"PRIx64"\n",
-				i, dev->mem_resource[i].addr,
-				dev->mem_resource[i].len);
-	}
-	return 0;
-}
-
-/* dump devices on the bus */
-void
-rte_cdx_dump(FILE *f)
-{
-	struct rte_cdx_device *dev = NULL;
-
-	FOREACH_DEVICE_ON_CDXBUS(dev)
-		cdx_dump_one_device(f, dev);
 }
 
 static int
