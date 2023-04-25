@@ -11,6 +11,7 @@ drivers = [
         'dpaa2_cmdif',
         'ifpga',
         'ntb',
+        'cdx_exerciser',
         'skeleton',
 ]
 std_deps = ['rawdev']

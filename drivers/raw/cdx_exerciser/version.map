@@ -1,0 +1,8 @@
+DPDK_23 {
+	local: *;
+};
+
+EXPERIMENTAL {
+	rte_raw_cdx_exerciser_test_msg_store;
+	rte_raw_cdx_exerciser_test_msg_load;
+};

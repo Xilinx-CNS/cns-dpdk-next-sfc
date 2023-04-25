@@ -12,5 +12,4 @@ allow_experimental_apis = true
 sources = files(
         'main.c',
 )
-
-includes += include_directories('../../drivers/bus/cdx/')
+deps += ['rawdev', 'raw_cdx_exerciser']

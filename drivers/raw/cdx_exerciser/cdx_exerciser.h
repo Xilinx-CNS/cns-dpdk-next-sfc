@@ -1,0 +1,105 @@
+/* SPDX-License-Identifier: BSD-3-Clause
+ * Copyright (C) 2023, Advanced Micro Devices, Inc.
+ */
+
+#include <stdbool.h>
+
+extern int cdx_exerciser_logtype;
+
+#define CDX_EXERCISER_LOG(level, fmt, args...) \
+		rte_log(RTE_LOG_ ## level, cdx_exerciser_logtype, "%s(): " fmt "\n", \
+				__func__, ##args)
+
+#define NUM_WORDS_TO_PRINT		0x10
+
+
+#define DMA_SIZE 256
+#define BUF_SIZE 32
+
+#define CSI_OFFSET 0x300000
+#define CDM_OFFSET 0x400000
+/*CSI Exerciser*/
+#define CSI_NPR_DEST_ID 0x0
+#define CSI_CMPL_DEST_ID 0x4
+#define CSI_PR_DEST_ID 0x8
+#define CSI_NPR_CREDIT 0xC
+#define CSI_CMPL_CREDIT 0x10
+#define CSI_PR_CREDIT 0x14
+#define CSI_CTRL 0x28
+#define CSI_CMPL_DEST_FIFO_ID_SOURCE1 0x2C
+#define CSI_CMPL_DEST_FIFO_ID_SOURCE2 0x30
+#define CSI_INPUT_SOURCE1 0x34
+#define CSI_INPUT_SOURCE2 0x38
+#define CSI_INIT_CREDITS_SOURCE2 0x44
+
+#define CSI_UPORT_DST_ID_BASE 0x8
+#define CSI_CTRL_RESET_COUNTERS 0x300
+#define CSI_CTRL_LOAD_CREDITS 0x38
+#define CSI_CTRL_INITIATE_CMPL 0x2
+#define CSI_CTRL_CLEAR 0x0
+#define CSI_UPORT_CMPL_DEST_FIFO_ID 0x0
+#define CSI_UPORT_CMPL_CREDITS 0x118
+#define CSI_EXER_INPUT_SOURCE_PCIE0 0x4
+#define CSI_EXER_INPUT_SOURCE_PSX 0xC
+
+/*CDM Exerciser*/
+/*CSR*/
+#define CDM_GLOBAL_START 0xFC
+#define CDM_SOFT_RSTN 0xF8
+#define CDM_MSGST_HOST_START_ADDR_0_DST2 0x100
+#define CDM_MSGST_HOST_START_ADDR_1_DST2 0x104
+#define CDM_MSGLD_HOST_START_ADDR_0_DST2 0x110
+#define CDM_MSGLD_HOST_START_ADDR_1_DST2 0x114
+#define CDM_MSGLD_HOST_END_ADDR_0_DST2 0x118
+#define CDM_MSGLD_HOST_END_ADDR_1_DST2 0x11C
+#define CDM_MSGST_HOST_END_ADDR_0_DST2 0x108
+#define CDM_MSGST_HOST_END_ADDR_1_DST2 0x10C
+#define CDM_HOST_CTRL_REG_DST2 0x120
+#define CDM_MSGLD_CTRL_REG 0x4
+#define CDM_MSGLD_RSP_STAT 0xC
+#define CDM_MSGST_CTRL_REG 0x0
+
+/*MSGST_CMD_RAM*/
+#define MSGST_CTRL0 0x8000
+#define MSGST_CTRL1 0x8004
+#define MSGST_CTRL2 0x8008
+#define MSGST_CTRL3 0x800C
+#define MSGST_CTRL4 0x8010
+#define MSGST_CTRL5 0x8014
+
+/*MSGLD_CMD_RAM*/
+#define MSGLD_CTRL0 0x18000
+#define MSGLD_CTRL1 0x18004
+#define MSGLD_CTRL2 0x18008
+#define MSGLD_CTRL3 0x1800C
+#define MSGLD_CTRL4 0x18010
+
+/*CDM helper macros*/
+#define CSI_DST_SHIFT 0x16
+#define CSI_DST 0xC
+#define MSG_ST_FUNC_ID_SHIFT 12
+#define MSG_LD_FUNC_ID_SHIFT 14
+#define CLIENT_ID_SHIFT 0xF
+#define DATA_WIDTH_SHIFT 0xD
+#define MSG_ST_SEED_SHIFT 0x14
+#define MSG_ST_SEED_VALUE 0x0
+#define PATTERN_SHIFT 0x1C
+#define MSG_STORE_START 0x4
+#define MSG_LOAD_STATUS 0x3
+#define MSG_LD_LENGTH 0x1
+#define MSG_LD_LENGTH_SHIFT 0
+#define MSG_LD_DATA_WIDTH 0x1
+#define MSG_LD_DATA_WIDTH_SHIFT 11
+#define MSG_LD_CLIENT_ID 1
+#define MSG_LD_CLIENT_ID_SHIFT 6
+#define MSG_LD_RC_ID 0xA
+#define MSG_LD_RC_ID_SHIFT 0
+#define MSG_LD_DST 0xC
+#define MSG_LD_DST_SHIFT 12
+#define MSG_LD_TYPE_OF_PATTERN 0x1
+#define MSG_LD_TYPE_OF_PATTERN_SHIFT 23
+#define MSG_LD_RSP_COOKIE 0x600
+#define MSG_LD_PKT_COUNTERS_SHIFT 1
+#define MSG_LD_NUM_REQUESTS_SHIFT 2
+#define MSG_LD_START_SHIFT 1
+#define WC_LINE_CACHE_SIZE 16
