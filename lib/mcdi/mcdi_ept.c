@@ -17,7 +17,7 @@
 #include <glob.h>
 #include <string.h>
 
-#include "mcdi_lib.h"
+#include "mcdi_ept.h"
 
 #define CDX_BUS_EPT_NAME		"mcdi_ipc"
 #define CDX_DEV_EPT_NAME		"cdx_dev:%02x:%02x.0"
@@ -35,7 +35,6 @@
 	({						\
 	int _rc;					\
 	_rc = ARGS_SNPRINTF(_buf, _bufsize, _fmt);	\
-	assert(_rc < _bufsize);				\
 	_rc;						\
 	})
 
@@ -52,7 +51,7 @@ static int sysfs_read(const char *fn, char *buf, int maxlen)
 }
 
 __attribute__((format(printf, 2, 3)))
-static int sysfs_read_int(int *result, const char *fmt, ...)
+static int sysfs_read_int(unsigned int *result, const char *fmt, ...)
 {
 	char fn[PATH_BUF_MAX];
 	char buf[32];
@@ -154,9 +153,9 @@ static char *sysfs_get_path_by_dev(const char *dev)
 static char *dev_get_rpmsg_path_by_dst(const char *cdx_bus, uint32_t dst)
 {
 	const char *pattern = "/dev/rpmsg[0-9]*";
-	int dev_dst;
+	unsigned int dev_dst;
 	glob_t gl;
-	int i;
+	unsigned int i;
 	char *found = NULL;
 	char *path;
 
@@ -179,7 +178,7 @@ static char *get_dev_path(int busnum, int devnum)
 	char *cdx_bus;
 	char *cdx_dev;
 	char *rpmsg_dev = NULL;
-	int dst_addr;
+	unsigned int dst_addr;
 
 	if (!(cdx_bus = sysfs_get_cdx_bus_path())) {
 		fprintf(stderr, "CDX bus not found\n");
@@ -218,7 +217,6 @@ int mcdi_create_device_ep(uint16_t bus_id, uint16_t dev_id)
 
 	if (!dev_path)
 		return -ENODEV;
-
 	fd = open(dev_path, O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "unable to open device %s\n", dev_path);

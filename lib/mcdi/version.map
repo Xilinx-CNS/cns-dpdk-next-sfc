@@ -1,0 +1,9 @@
+DPDK_23 {
+	global:
+
+	mcdi_create_device_ep;
+	mcdi_destroy_device_ep;
+
+	local: *;
+};
+
