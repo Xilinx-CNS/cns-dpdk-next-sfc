@@ -9,10 +9,10 @@ applications on the platforms supporting CDX bus and devices.
 
 ## Compiling DPDK for CDX devices
 
-Application will cross compile for AARCH64. Ubuntu gcc-aarch64-linux-gnu
+Applications will cross compile for AARCH64. Ubuntu gcc-aarch64-linux-gnu
 toolchain needs to be installed.
 
-Please refer to meson version and ninja dependency from the DPDK documentation:
+Please refer to following DPDK documentation for meson and ninja version dependencies:
 https://doc.dpdk.org/guides/prog_guide/build-sdk-meson.html#getting-the-tools
 
 ~~~
@@ -23,7 +23,7 @@ ninja -C arm64-build
 
 After compilation, dpdk-cdma_demo dpdk-cdx_test applications would respectively
 be available at:
-arm64-build/examples/dpdk-cdma_demo &
+arm64-build/examples/dpdk-cdma_demo and
 arm64-build/examples/dpdk-cdx_test
 
 > **NOTE:** User can compile applications other than CDMA demo/CDX test as well.
@@ -49,8 +49,18 @@ results only in QEMU enviroment.
 ## CDX test
 
 CDX test is a basic application which first unplugs and then plugs the CDX
-devices, and then reads the memory addresses for all the memory regions
-on all the available CDX devices.
+devices, reads the memory addresses for all the memory regions
+on all the available CDX devices and tests Msg store , Msg load functionality.
+
+> **NOTE:** CDX test application uses example CDM exeriser for Msg store and Msg load test,
+hence this application will not provide expected results on QEMU platform.
+
+## MCDI test app
+
+MCDI test app is a example application which demonstrates using MCDI commands from user space application.
+This application uses APIs provided by MCDI library.
+
+Please refer to MCDI library documentation [MCDI Library](./lib/mcdi/README.md) for more details.
 
 ## Executing DPDK applications
 
@@ -92,7 +102,6 @@ echo "cdx-00:01" > /sys/bus/cdx/drivers_probe
 ~~~
 
 ## Running CDMA Demo application on QEMU
-
 scp the *dpdk-cdma_demo* to qemu. Use the port specified in "hostfwd"
 options while launching QEMU.
 
@@ -162,203 +171,72 @@ CDMA_DEMO: =================================================
 
 ## Running dpdk-cdx_test
 
-scp the *dpdk-cdx_test* and *csi_exerciser_init.sh*.
-Use the port specified in "hostfwd" options while launching QEMU.
+scp the *dpdk-cdx_test*.
 
 ~~~
-scp -P <port> <dpdk>/arm64-build/examples/dpdk-cdx_test petalinux@localhost:~
-scp -P <port> <dpdk>/arm64-build/examples/csi_exerciser_init.sh petalinux@localhost:~
+scp <dpdk>/arm64-build/examples/dpdk-cdx_test <user>@<board IP>:~
 ~~~
 
-> **NOTE:** To run dpdk-cdx_test on VNX board with CSI excersizer, CSI 
-excersizer needs to be initialized first using following command
-
-~~~
-./csi_exerciser_init.sh
-~~~
 Launch the *dpdk-cdx_test* using following command
 
 ~~~
 ./dpdk-cdx_test
 ~~~
 
-The application first dumps the existing CDX devices and then test unplug and
-plug of CDX devices. It also reads and dumps the MMIO registers of all the
-regions of the detected CDX devices.
+The application first test unplug and plug of CDX devices.It reads and dumps
+the MMIO registers of all the regions of the detected CDX devices.It also tests
+Msg store and Msg load using CDM exerciser.
 
 Following are the expected logs in case of successful execution of
 the application.
 
 ~~~
-root@xilinx-versal-net-virt-20222:~# ./dpdk-cdx_test
-EAL: Detected CPU lcores: 8
+./dpdk-cdx_test
+EAL: Detected CPU lcores: 16
 EAL: Detected NUMA nodes: 1
 EAL: Detected static linkage of DPDK
 EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
 EAL: Selected IOVA mode 'VA'
 EAL: VFIO support initialized
 EAL: Using IOMMU type 1 (Type 1)
+cdx_exerciser_probe(): Probing cdx-00:00 device
+cdx_exerciser_probe(): Probing cdx-00:01 device
 TELEMETRY: No legacy callbacks, legacy socket not created
-PMD: rte_cdx_get_sysfs_path: /sys/bus/cdx/devices
-
-CDX devices:
-================================
-cdx device cdx-00:01
-   Resource[0]: 0x1100800000 0000000000001000
-cdx device cdx-00:00
-   Resource[0]: 0x1100801000 0000000000001000
-   Resource[1]: 0x1100802000 0000000000200000
-Removing device: cdx-00:01
-EAL: Releasing CDX mapped resource for cdx-00:01
-Probing device with identifier: cdx:cdx-00:01
 Removing device: cdx-00:00
-EAL: Releasing CDX mapped resource for cdx-00:00
+cdx_exerciser_remove(): Closing CDX test device cdx-00:00
 Probing device with identifier: cdx:cdx-00:00
+cdx_exerciser_probe(): Probing cdx-00:00 device
+Resource 0 (total len: 2097152)
+ 0:     00000000 00000000 00000000 00000000
+ 10:    00000000 00000000 00000000 00000000
+ 20:    00000000 00000000 00000000 00000000
+ 30:    00000000 00000000 00000000 00000000
+Resource 1 (total len: 67108864)
+ 0:     01234567 89abcdef 89abcdef 00000000
+ 10:    1111face facebabe 00000000 00000000
+ 20:    00000000 00000000 00000000 00000000
+ 30:    00000000 00000000 00000000 00000000
+Self test passed for device cdx-00:00
+Msg store test passed for device cdx-00:00
+Msg load test passed for device cdx-00:00
 
-CDX device: cdx-00:01
-================================
-Resource 0 (total len: 4096)
---------------------------------
- 0:	00000000 00001002 00000000 00000000
- 10:	00000000 00000000 003f63c4 00000001
- 20:	9e6dd044 0000ffff 00000000 00000000
- 30:	fc1f1e00 00005652 00000011 00000000
- 40:	0000001e 00000000 00000000 00000000
- 50:	806652b8 00007f09 fbe78e70 00005652
- 60:	00089ca8 00000000 00000000 ffffffff
- 70:	00000000 00000000 00000000 00000000
- 80:	00000000 00000000 00000000 00000000
- 90:	00000000 00000000 00000000 00000000
-Resource 1 (total len: 2097152)
---------------------------------
- 0:	00000000 00000000 00000000 00000000
- 10:	00000000 00000000 00000000 00000000
- 20:	00000000 00000000 00000000 00000000
- 30:	00000000 00000000 00000000 00000000
- 40:	00000000 00000000 00000000 00000000
- 50:	00000000 00000000 00000000 00000000
- 60:	00000000 00000000 00000000 00000000
- 70:	00000000 00000000 00000000 00000000
- 80:	00000000 00000000 00000000 00000000
- 90:	00000000 00000000 00000000 00000000
-
-CDX device: cdx-00:00
-================================
-Resource 0 (total len: 4096)
---------------------------------
- 0:	00000000 00001002 00000000 00000000
- 10:	00000000 00000000 003f63c4 00000001
- 20:	9e6dd044 0000ffff 00000000 00000000
- 30:	fc1f0710 00005652 00000011 00000000
- 40:	0000001e 00000000 00000000 00000000
- 50:	806643e8 00007f09 fbe78e70 00005652
- 60:	00089d29 00000000 00000000 ffffffff
- 70:	00000000 00000000 00000000 00000000
- 80:	00000000 00000000 00000000 00000000
- 90:	00000000 00000000 00000000 00000000
-Resource 1 (total len: 2097152)
---------------------------------
- 0:	00000000 00000000 00000000 00000000
- 10:	00000000 00000000 00000000 00000000
- 20:	00000000 00000000 00000000 00000000
- 30:	00000000 00000000 00000000 00000000
- 40:	00000000 00000000 00000000 00000000
- 50:	00000000 00000000 00000000 00000000
- 60:	00000000 00000000 00000000 00000000
- 70:	00000000 00000000 00000000 00000000
- 80:	00000000 00000000 00000000 00000000
- 90:	00000000 00000000 00000000 00000000
-~~~
-
-## Running dpdk-test with dmadev_autotest
-
-dpdk-test is a DPDK provided test application which can be used
-to test the DMA using the CDX CDMA devices
-
-scp the *dpdk-test* to qemu. Use the port specified in "hostfwd"
-options while launching QEMU.
-
-~~~
-scp -P <port> <dpdk>/arm64-build/app/test/dpdk-test petalinux@localhost:~
-~~~
-
-Launch the *dpdk-test* using following command
-
-~~~
-./dpdk-test
-~~~
-
-The application tests DMA copy for all CDX devices detected in DPDK.
-
-~~~
-./dpdk-test
-RTE>>dmadev_autotest
-RTE>>quit
-~~~
-
-Following are the expected logs in case of successful execution of
-the application.
-
-~~~
-root@xilinx-versal-net-20222:~# ./dpdk-test
-EAL: Detected CPU lcores: 8
-EAL: Detected NUMA nodes: 1
-EAL: Detected static linkage of DPDK
-EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
-EAL: Selected IOVA mode 'VA'
-EAL: VFIO support initialized
-EAL: Using IOMMU type 1 (Type 1)
-[101177.305387] Reset of the CDX device (cdx-00:01) successful
-cdma: Probing CDMA cdx device cdx-00:01
-[101177.364605] Reset of the CDX device (cdx-00:00) successful
-cdma: Probing CDMA cdx device cdx-00:00
-TELEMETRY: No legacy callbacks, legacy socket not created
-APP: HPET is not enabled, using TSC as default timer
-RTE>>dmadev_autotest
-skeldma_probe(): Create dma_skeleton dmadev with lcore-id -1
-
-### Test dmadev infrastructure using skeleton driver
-test_dma_get_dev_id_by_name Passed
-test_dma_is_valid_dev Passed
-test_dma_count Passed
-test_dma_info_get Passed
-test_dma_configure Passed
-test_dma_vchan_setup Passed
-test_dma_start_stop Passed
-test_dma_stats Passed
-test_dma_dump Passed
-test_dma_completed Passed
-test_dma_completed_status Passed
-Total tests   : 11
-Passed        : 11
-Failed        : 0
-
-### Test dmadev instance 0 [cdx-00:01]
-DMA Dev 0: Running copy Tests
-Ops submitted: 640	Ops completed: 640	Errors: 0
-DMA Dev 0: insufficient burst capacity (64 required), skipping tests
-DMA Dev 0: device does not report errors, skipping error handling tests
-DMA Dev 0: No device fill support, skipping fill tests
-
-### Test dmadev instance 1 [cdx-00:00]
-DMA Dev 1: Running copy Tests
-Ops submitted: 640	Ops completed: 640	Errors: 0
-DMA Dev 1: insufficient burst capacity (64 required), skipping tests
-DMA Dev 1: device does not report errors, skipping error handling tests
-DMA Dev 1: No device fill support, skipping fill tests
-
-### Test dmadev instance 2 [dma_skeleton]
-DMA Dev 2: Running copy Tests
-Ops submitted: 85120	Ops completed: 85120	Errors: 0
-DMA Dev 2: Running burst capacity Tests
-Ops submitted: 65536	Ops completed: 65536	Errors: 0
-DMA Dev 2: device does not report errors, skipping error handling tests
-DMA Dev 2: No device fill support, skipping fill tests
-Test OK
-RTE>>quit
-[101623.376522] Reset of the CDX device (cdx-00:00) successful
-[101623.399842] Reset of the CDX device (cdx-00:01) successful
-~~~
+Removing device: cdx-00:01
+cdx_exerciser_remove(): Closing CDX test device cdx-00:01
+Probing device with identifier: cdx:cdx-00:01
+cdx_exerciser_probe(): Probing cdx-00:01 device
+Resource 0 (total len: 2097152)
+ 0:     00000000 00000000 00000000 00000000
+ 10:    00000000 00000000 00000000 00000000
+ 20:    00000000 00000000 00000000 00000000
+ 30:    00000000 00000000 00000000 00000000
+Resource 1 (total len: 67108864)
+ 0:     01234567 89abcdef 89abcdef 00000000
+ 10:    1111face facebabe 00000000 00000000
+ 20:    00000000 00000000 00000000 00000000
+ 30:    00000000 00000000 00000000 00000000
+Self test passed for device cdx-00:01
+Msg store test passed for device cdx-00:01
+Msg load test passed for device cdx-00:01
 
 ## Unbinding CDX devices from VFIO
 
