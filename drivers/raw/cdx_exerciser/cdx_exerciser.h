@@ -66,6 +66,8 @@ extern int cdx_exerciser_logtype;
 #define MSGST_CTRL3 0x800C
 #define MSGST_CTRL4 0x8010
 #define MSGST_CTRL5 0x8014
+#define MSGST_CTRL6 0x8018
+#define MSGST_CTRL7 0x801C
 
 /*MSGLD_CMD_RAM*/
 #define MSGLD_CTRL0 0x18000
@@ -103,3 +105,5 @@ extern int cdx_exerciser_logtype;
 #define MSG_LD_NUM_REQUESTS_SHIFT 2
 #define MSG_LD_START_SHIFT 1
 #define WC_LINE_CACHE_SIZE 16
+#define MSI_DATA_LENGTH 0x2
+#define TYPE_OF_ADDRESS_SHIFT 28

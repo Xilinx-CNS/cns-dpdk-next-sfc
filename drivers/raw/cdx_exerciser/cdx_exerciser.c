@@ -38,6 +38,18 @@ static void write32_csi(volatile uint32_t *addr, uint32_t offset, int value)
 		*(addr + ((CSI_OFFSET + offset) / 4)) = value;
 }
 
+static void decode_device_id(struct rte_cdx_device *cdx_dev, uint32_t *id)
+{
+	char *token, buf[BUF_SIZE];
+
+	/*Decode device ID*/
+	strcpy(buf, cdx_dev->device.name);
+	/*Ignore first token as it is bus ID*/
+	token = strtok(buf, ":");
+	token = strtok(NULL, ":");
+	*id = token ? strtoul(token, NULL, 0) : 0;
+}
+
 static int init_csi_exerciser(struct rte_cdx_device *cdx_dev)
 {
 	volatile uint32_t *addr;
@@ -113,7 +125,6 @@ int rte_raw_cdx_exerciser_test_msg_store(int dev_id)
 	int i;
 	struct rte_rawdev *dev;
 	struct rte_cdx_device *cdx_dev;
-	char *token, buf[BUF_SIZE];
 
 	if (!rte_rawdev_pmd_is_valid_dev(dev_id))
 		return -ENODEV;
@@ -130,12 +141,7 @@ int rte_raw_cdx_exerciser_test_msg_store(int dev_id)
 		return -EINVAL;
 	}
 
-	/*Decode device ID*/
-	strcpy(buf, cdx_dev->device.name);
-	/*Ignore first token as it is bus ID*/
-	token = strtok(buf, ":");
-	token = strtok(NULL, ":");
-	func_id = token ? strtoul(token, NULL, 0) : 0;
+	decode_device_id(cdx_dev, &func_id);
 
 	addr = cdx_dev->mem_resource[1].addr;
 	dst = rte_zmalloc(NULL, DMA_SIZE, RTE_CACHE_LINE_SIZE);
@@ -189,7 +195,6 @@ int rte_raw_cdx_exerciser_test_msg_load(int dev_id)
 	int i;
 	struct rte_rawdev *dev;
 	struct rte_cdx_device *cdx_dev;
-	char *token, buf[BUF_SIZE];
 
 	if (!rte_rawdev_pmd_is_valid_dev(dev_id))
 		return -ENODEV;
@@ -208,13 +213,7 @@ int rte_raw_cdx_exerciser_test_msg_load(int dev_id)
 
 	addr = cdx_dev->mem_resource[1].addr;
 
-	/*Decode device ID*/
-	strcpy(buf, cdx_dev->device.name);
-	/*Ignore first token as it is bus ID*/
-	token = strtok(buf, ":");
-	token = strtok(NULL, ":");
-	func_id = token ? strtoul(token, NULL, 0) : 0;
-
+	decode_device_id(cdx_dev, &func_id);
 	dst = rte_zmalloc(NULL, DMA_SIZE, RTE_CACHE_LINE_SIZE);
 	if (!dst) {
 		CDX_EXERCISER_LOG(ERR, "Dst memory allocation failed, device %s", cdx_dev->device.name);
@@ -298,11 +297,114 @@ static const struct rte_rawdev_ops cdx_exerciser_ops = {
 	.dev_selftest = cdx_exerciser_selftest,
 };
 
+int
+rte_raw_cdx_exerciser_num_msi(int dev_id)
+{
+	struct rte_rawdev *dev;
+	struct rte_cdx_device *cdx_dev;
+
+	if (!rte_rawdev_pmd_is_valid_dev(dev_id))
+		return -ENODEV;
+
+	dev = &rte_rawdevs[dev_id];
+	cdx_dev = RTE_DEV_TO_CDX_DEV(dev->device);
+	if (!cdx_dev) {
+		CDX_EXERCISER_LOG(ERR, "Invalid CDX device, raw device index %d", dev_id);
+		return -EINVAL;
+	}
+
+	return rte_intr_nb_intr_get(cdx_dev->intr_handle);
+}
+
+int
+rte_raw_cdx_exerciser_get_efd(int dev_id, int msi_id)
+{
+	struct rte_rawdev *dev;
+	struct rte_cdx_device *cdx_dev;
+
+	if (!rte_rawdev_pmd_is_valid_dev(dev_id))
+		return -ENODEV;
+
+	dev = &rte_rawdevs[dev_id];
+	cdx_dev = RTE_DEV_TO_CDX_DEV(dev->device);
+	if (!cdx_dev) {
+		CDX_EXERCISER_LOG(ERR, "Invalid CDX device, raw device index %d", dev_id);
+		return -EINVAL;
+	}
+
+	if (msi_id >= rte_intr_nb_intr_get(cdx_dev->intr_handle)) {
+		CDX_EXERCISER_LOG(ERR, "Invalid IRQ No: %d for device %s\n", msi_id, cdx_dev->device.name);
+		return -EINVAL;
+	}
+
+	return rte_intr_efds_index_get(cdx_dev->intr_handle, msi_id);
+}
+
+int
+rte_raw_cdx_exerciser_trigger_msi(int dev_id, int msi_id, uint64_t msi_addr, uint32_t msi_data)
+{
+	struct rte_rawdev *dev;
+	struct rte_cdx_device *cdx_dev;
+	volatile uint32_t *addr;
+	uint32_t addr_type, pattern_type, func_id;
+
+	if (!rte_rawdev_pmd_is_valid_dev(dev_id))
+		return -ENODEV;
+
+	dev = &rte_rawdevs[dev_id];
+	cdx_dev = RTE_DEV_TO_CDX_DEV(dev->device);
+	if (!cdx_dev) {
+		CDX_EXERCISER_LOG(ERR, "Invalid CDX device, raw device index %d", dev_id);
+		return -EINVAL;
+	}
+
+	if (msi_id >= rte_intr_nb_intr_get(cdx_dev->intr_handle)) {
+		CDX_EXERCISER_LOG(ERR, "Invalid IRQ No: %d for device %s\n", msi_id, cdx_dev->device.name);
+		return -EINVAL;
+	}
+
+	if (!cdx_dev->mem_resource[1].len) {
+		CDX_EXERCISER_LOG(ERR, "Invalid resource address, device %s", cdx_dev->device.name);
+		return -EINVAL;
+	}
+
+	addr = cdx_dev->mem_resource[1].addr;
+
+	decode_device_id(cdx_dev, &func_id);
+	write32_cdm(addr, CDM_GLOBAL_START, 0x0);
+	write32_cdm(addr, CDM_SOFT_RSTN, 0x1);
+	write32_cdm(addr, CDM_HOST_CTRL_REG_DST2, 0x0);
+	/*Write MSI address as start address*/
+	write32_cdm(addr, CDM_MSGST_HOST_START_ADDR_0_DST2, (msi_addr & 0xFFFFFFFF));
+	write32_cdm(addr, CDM_MSGST_HOST_START_ADDR_1_DST2, (msi_addr >> 32));
+	write32_cdm(addr, CDM_HOST_CTRL_REG_DST2, 0x1);
+	/*Initialize CMD RAM*/
+	/*Set length as 16 bit which is the width of data and update function ID*/
+	write32_cdm(addr, MSGST_CTRL0, (func_id << MSG_ST_FUNC_ID_SHIFT) | MSI_DATA_LENGTH);
+	write32_cdm(addr, MSGST_CTRL1, (CSI_DST << CSI_DST_SHIFT) | (1 << WC_LINE_CACHE_SIZE));
+	addr_type = 0;//0-generated , 1-from command
+	write32_cdm(addr, MSGST_CTRL2,
+		    (1 << CLIENT_ID_SHIFT) | (1 << DATA_WIDTH_SHIFT) | (addr_type << TYPE_OF_ADDRESS_SHIFT));
+	/* Write event ID as data so that same is written into the GIC translator register.
+	 * Write pattern as zero so that event ID written in MSGST_CTRL7 will be written into GIC translator register.
+	 */
+	pattern_type = 0;
+	write32_cdm(addr, MSGST_CTRL3, (pattern_type << PATTERN_SHIFT));
+	/*Set event ID as MSI data*/
+	write32_cdm(addr, MSGST_CTRL7, msi_data);
+	write32_cdm(addr, CDM_MSGST_CTRL_REG, MSG_STORE_START);
+	/*Start the msg store engine*/
+	write32_cdm(addr, CDM_GLOBAL_START, 0x1);
+
+	return 0;
+}
+
 static int
 cdx_exerciser_probe(struct rte_cdx_driver *cdx_driver,
 		   struct rte_cdx_device *cdx_dev)
 {
 	struct rte_rawdev *rawdev;
+	int num_msi;
 
 	CDX_EXERCISER_LOG(INFO, "Probing %s device", cdx_dev->device.name);
 
@@ -325,6 +427,12 @@ cdx_exerciser_probe(struct rte_cdx_driver *cdx_driver,
 				          cdx_dev->device.name);
 			return -EINVAL;
 	}
+	num_msi = rte_intr_nb_intr_get(cdx_dev->intr_handle);
+	if (num_msi >= 1) {
+		/* Enable interrupts */
+		rte_intr_efd_enable(cdx_dev->intr_handle, num_msi);
+		rte_cdx_vfio_intr_enable(cdx_dev->intr_handle);
+	}
 
 	return 0;
 }
@@ -344,13 +452,16 @@ cdx_exerciser_remove(struct rte_cdx_device *cdx_dev)
 		return ret;
 	}
 
+	/* Disable interrupts */
+	rte_cdx_vfio_intr_disable(cdx_dev->intr_handle);
+	rte_intr_efd_disable(cdx_dev->intr_handle);
+
 	ret = rte_rawdev_pmd_release(rawdev);
 	if (ret)
 		CDX_EXERCISER_LOG(ERR, "Failed to destroy cdx rawdev for device %s",
 			          cdx_dev->device.name);
 
 	return 0;
-
 }
 
 static struct rte_cdx_driver cdx_exerciser_drv = {

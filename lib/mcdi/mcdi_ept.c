@@ -223,7 +223,6 @@ int mcdi_create_device_ep(uint16_t bus_id, uint16_t dev_id)
 		ret = fd;
 		goto out;
 	}
-	fprintf(stderr,"Opened an fd on rpmsg device %s\n", dev_path);
 	ret = fd;
 
 out:

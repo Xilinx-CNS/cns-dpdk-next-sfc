@@ -5,4 +5,7 @@ DPDK_23 {
 EXPERIMENTAL {
 	rte_raw_cdx_exerciser_test_msg_store;
 	rte_raw_cdx_exerciser_test_msg_load;
+	rte_raw_cdx_exerciser_num_msi;
+	rte_raw_cdx_exerciser_get_efd;
+	rte_raw_cdx_exerciser_trigger_msi;
 };
