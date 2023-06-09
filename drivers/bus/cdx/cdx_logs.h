@@ -11,7 +11,7 @@ extern int cdx_logtype_bus;
 	rte_log(RTE_LOG_ ## level, cdx_logtype_bus, "cdx: " fmt "\n", \
 		##args)
 
-/* Debug logs are with Function names */
+/* Debug logs with Function names */
 #define CDX_BUS_DEBUG(fmt, args...) \
 	rte_log(RTE_LOG_DEBUG, cdx_logtype_bus, "cdx: %s(): " fmt "\n", \
 		__func__, ##args)

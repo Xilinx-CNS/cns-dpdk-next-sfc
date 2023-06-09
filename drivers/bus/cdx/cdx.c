@@ -60,6 +60,11 @@
  * applications.
  */
 
+/**
+ * @file
+ * CDX probing using Linux sysfs.
+ */
+
 #include <string.h>
 #include <dirent.h>
 
@@ -76,9 +81,17 @@
 #include "cdx_logs.h"
 #include "private.h"
 
-#define SYSFS_CDX_DEVICES "/sys/bus/cdx/devices"
 #define CDX_BUS_NAME	cdx
 #define CDX_DEV_PREFIX	"cdx-"
+
+/* CDX Bus iterators */
+#define FOREACH_DEVICE_ON_CDXBUS(p)	\
+		RTE_TAILQ_FOREACH(p, &rte_cdx_bus.device_list, next)
+
+#define FOREACH_DRIVER_ON_CDXBUS(p)	\
+		RTE_TAILQ_FOREACH(p, &rte_cdx_bus.driver_list, next)
+
+struct rte_cdx_bus rte_cdx_bus;
 
 enum cdx_params {
 	RTE_CDX_PARAM_NAME,
@@ -88,11 +101,6 @@ static const char * const cdx_params_keys[] = {
 	[RTE_CDX_PARAM_NAME] = "name",
 	NULL,
 };
-
-/**
- * @file
- * CDX probing using Linux sysfs.
- */
 
 /* Add a device to CDX bus */
 static void
@@ -185,22 +193,15 @@ cdx_scan_one(const char *dirname, const char *dev_name)
 	struct rte_cdx_device *dev = NULL;
 	char driver[PATH_MAX];
 	unsigned long tmp;
-	char *name = NULL;
 	int ret;
 
 	dev = calloc(1, sizeof(*dev));
 	if (!dev)
 		return -ENOMEM;
 
-	name = calloc(1, RTE_DEV_NAME_MAX_LEN);
-	if (!name) {
-		ret = -ENOMEM;
-		goto err;
-	}
-
 	dev->device.bus = &rte_cdx_bus.bus;
-	memcpy(name, dev_name, RTE_DEV_NAME_MAX_LEN);
-	dev->device.name = name;
+	memcpy(dev->name, dev_name, RTE_DEV_NAME_MAX_LEN);
+	dev->device.name = dev->name;
 
 	/* parse driver */
 	snprintf(filename, sizeof(filename), "%s/driver", dirname);
@@ -215,7 +216,7 @@ cdx_scan_one(const char *dirname, const char *dev_name)
 	dev->intr_handle =
 		rte_intr_instance_alloc(RTE_INTR_INSTANCE_F_PRIVATE);
 	if (dev->intr_handle == NULL) {
-		CDX_BUS_ERR("Failed to create interrupt instance for %s\n",
+		CDX_BUS_ERR("Failed to create interrupt instance for %s",
 			dev->device.name);
 		return -ENOMEM;
 	}
@@ -250,10 +251,7 @@ cdx_scan_one(const char *dirname, const char *dev_name)
 	return 0;
 
 err:
-	if (name)
-		free(name);
-	if (dev)
-		free(dev);
+	free(dev);
 	return ret;
 }
 
@@ -268,7 +266,7 @@ cdx_scan(void)
 	DIR *dir;
 	char dirname[PATH_MAX];
 
-	dir = opendir(rte_cdx_get_sysfs_path());
+	dir = opendir(RTE_CDX_BUS_DEVICES_PATH);
 	if (dir == NULL) {
 		CDX_BUS_ERR("%s(): opendir failed: %s", __func__,
 			strerror(errno));
@@ -283,7 +281,7 @@ cdx_scan(void)
 			continue;
 
 		snprintf(dirname, sizeof(dirname), "%s/%s",
-				rte_cdx_get_sysfs_path(), e->d_name);
+				RTE_CDX_BUS_DEVICES_PATH, e->d_name);
 
 		if (cdx_scan_one(dirname, e->d_name) < 0)
 			goto error;
@@ -294,12 +292,6 @@ cdx_scan(void)
 error:
 	closedir(dir);
 	return -1;
-}
-
-const char *
-rte_cdx_get_sysfs_path(void)
-{
-	return SYSFS_CDX_DEVICES;
 }
 
 /* map a particular resource from a file */
@@ -340,7 +332,7 @@ cdx_unmap_resource(void *requested_addr, size_t size)
 /*
  * Match the CDX Driver and Device using device id and vendor id.
  */
-static int
+static bool
 cdx_match(const struct rte_cdx_driver *cdx_drv,
 		const struct rte_cdx_device *cdx_dev)
 {
@@ -370,12 +362,9 @@ static int
 cdx_probe_one_driver(struct rte_cdx_driver *dr,
 		struct rte_cdx_device *dev)
 {
-	const char *dev_name = dev->device.name;
+	const char *dev_name = dev->name;
 	bool already_probed;
 	int ret;
-
-	if ((dr == NULL) || (dev == NULL))
-		return -EINVAL;
 
 	/* The device is not blocked; Check if driver supports it */
 	if (!cdx_match(dr, dev))
@@ -384,7 +373,7 @@ cdx_probe_one_driver(struct rte_cdx_driver *dr,
 
 	already_probed = rte_dev_is_probed(&dev->device);
 	if (already_probed) {
-		CDX_BUS_INFO("Device %s is already probed", dev->device.name);
+		CDX_BUS_INFO("Device %s is already probed", dev_name);
 		return -EEXIST;
 	}
 
@@ -429,9 +418,6 @@ cdx_probe_all_drivers(struct rte_cdx_device *dev)
 	struct rte_cdx_driver *dr = NULL;
 	int rc = 0;
 
-	if (dev == NULL)
-		return -EINVAL;
-
 	FOREACH_DRIVER_ON_CDXBUS(dr) {
 		rc = cdx_probe_one_driver(dr, dev);
 		if (rc < 0)
@@ -463,7 +449,7 @@ cdx_probe(void)
 		ret = cdx_probe_all_drivers(dev);
 		if (ret < 0) {
 			CDX_BUS_ERR("Requested device %s cannot be used",
-				dev->device.name);
+				dev->name);
 			rte_errno = errno;
 			failed++;
 			ret = 0;
@@ -592,12 +578,7 @@ cdx_unplug(struct rte_device *dev)
 static int
 cdx_dma_map(struct rte_device *dev, void *addr, uint64_t iova, size_t len)
 {
-	struct rte_cdx_device *cdx_dev = RTE_DEV_TO_CDX_DEV(dev);
-
-	if (!cdx_dev) {
-		rte_errno = EINVAL;
-		return -1;
-	}
+	RTE_SET_USED(dev);
 
 	return rte_vfio_container_dma_map(RTE_VFIO_DEFAULT_CONTAINER_FD,
 					  (uintptr_t)addr, iova, len);
@@ -606,12 +587,7 @@ cdx_dma_map(struct rte_device *dev, void *addr, uint64_t iova, size_t len)
 static int
 cdx_dma_unmap(struct rte_device *dev, void *addr, uint64_t iova, size_t len)
 {
-	struct rte_cdx_device *cdx_dev = RTE_DEV_TO_CDX_DEV(dev);
-
-	if (!cdx_dev) {
-		rte_errno = EINVAL;
-		return -1;
-	}
+	RTE_SET_USED(dev);
 
 	return rte_vfio_container_dma_unmap(RTE_VFIO_DEFAULT_CONTAINER_FD,
 					    (uintptr_t)addr, iova, len);

@@ -24,6 +24,7 @@
 #include "bus_cdx_driver.h"
 #include "cdx_logs.h"
 #include "private.h"
+
 /**
  * A structure describing a CDX mapping.
  */
@@ -44,7 +45,7 @@ struct mapped_cdx_resource {
 	char name[RTE_DEV_NAME_MAX_LEN];      /**< CDX device name */
 	char path[PATH_MAX];
 	int nb_maps;
-	struct cdx_map maps[CDX_MAX_RESOURCE];
+	struct cdx_map maps[RTE_CDX_MAX_RESOURCE];
 };
 
 /** mapped cdx device list */
@@ -113,7 +114,7 @@ cdx_vfio_unmap_resource_primary(struct rte_cdx_device *dev)
 	if (vfio_dev_fd < 0)
 		return -1;
 
-	ret = rte_vfio_release_device(rte_cdx_get_sysfs_path(), dev->device.name,
+	ret = rte_vfio_release_device(RTE_CDX_BUS_DEVICES_PATH, dev->device.name,
 				      vfio_dev_fd);
 	if (ret < 0) {
 		CDX_BUS_ERR("Cannot release VFIO device");
@@ -147,7 +148,7 @@ cdx_vfio_unmap_resource_secondary(struct rte_cdx_device *dev)
 	if (vfio_dev_fd < 0)
 		return -1;
 
-	ret = rte_vfio_release_device(rte_cdx_get_sysfs_path(), dev->device.name,
+	ret = rte_vfio_release_device(RTE_CDX_BUS_DEVICES_PATH, dev->device.name,
 				      vfio_dev_fd);
 	if (ret < 0) {
 		CDX_BUS_ERR("Cannot release VFIO device");
@@ -207,14 +208,8 @@ cdx_vfio_setup_interrupts(struct rte_cdx_device *dev, int vfio_dev_fd,
 		if ((irq.flags & VFIO_IRQ_INFO_EVENTFD) == 0)
 			continue;
 
-		if (rte_intr_irq_count_set(dev->intr_handle, irq.count))
-			return -1;
-
-		/* Reallocate the efds and elist fields of intr_handle based
-		 * on CDX device MSI size.
-		 */
-		if ((uint32_t)rte_intr_nb_intr_get(dev->intr_handle) < irq.count &&
-				rte_intr_event_list_update(dev->intr_handle, irq.count))
+		/* Set nb_intr to the total number of interrupts */
+		if (rte_intr_event_list_update(dev->intr_handle, irq.count))
 			return -1;
 
 		/* set up an eventfd for interrupts */
@@ -389,7 +384,7 @@ cdx_vfio_map_resource_primary(struct rte_cdx_device *dev)
 	if (rte_intr_fd_set(dev->intr_handle, -1))
 		return -1;
 
-	ret = rte_vfio_setup_device(rte_cdx_get_sysfs_path(), dev_name,
+	ret = rte_vfio_setup_device(RTE_CDX_BUS_DEVICES_PATH, dev_name,
 				    &vfio_dev_fd, &device_info);
 	if (ret)
 		return ret;
@@ -466,8 +461,7 @@ err_vfio_res:
 	cdx_vfio_find_and_unmap_resource(vfio_res_list, dev);
 	rte_free(vfio_res);
 err_vfio_dev_fd:
-	rte_vfio_release_device(rte_cdx_get_sysfs_path(),
-				dev_name, vfio_dev_fd);
+	rte_vfio_release_device(RTE_CDX_BUS_DEVICES_PATH, dev_name, vfio_dev_fd);
 	return -1;
 }
 
@@ -500,7 +494,7 @@ cdx_vfio_map_resource_secondary(struct rte_cdx_device *dev)
 		return -1;
 	}
 
-	ret = rte_vfio_setup_device(rte_cdx_get_sysfs_path(), dev_name,
+	ret = rte_vfio_setup_device(RTE_CDX_BUS_DEVICES_PATH, dev_name,
 					&vfio_dev_fd, &device_info);
 	if (ret)
 		return ret;
@@ -526,8 +520,7 @@ cdx_vfio_map_resource_secondary(struct rte_cdx_device *dev)
 
 	return 0;
 err_vfio_dev_fd:
-	rte_vfio_release_device(rte_cdx_get_sysfs_path(),
-				cdx_addr, vfio_dev_fd);
+	rte_vfio_release_device(RTE_CDX_BUS_DEVICES_PATH, cdx_addr, vfio_dev_fd);
 	return -1;
 }
 
@@ -553,7 +546,7 @@ rte_cdx_vfio_intr_enable(const struct rte_intr_handle *intr_handle)
 	int ret;
 
 	irq_set = (struct vfio_irq_set *) irq_set_buf;
-	irq_set->count = rte_intr_irq_count_get(intr_handle);
+	irq_set->count = rte_intr_nb_intr_get(intr_handle);
 	irq_set->argsz = sizeof(struct vfio_irq_set) +
 			 (sizeof(int) * irq_set->count);
 

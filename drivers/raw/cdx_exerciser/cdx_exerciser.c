@@ -82,7 +82,7 @@ static int test_usr_port_mmio(struct rte_cdx_device *cdx_dev)
 		return -EINVAL;
 	}
 
-	for (i = 0; i < CDX_MAX_RESOURCE; i++) {
+	for (i = 0; i < RTE_CDX_MAX_RESOURCE; i++) {
 		if (!cdx_dev->mem_resource[i].len)
 				continue;
 		fprintf(stderr, "Resource %d (total len: %ld)\n", i,
