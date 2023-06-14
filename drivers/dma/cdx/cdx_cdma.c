@@ -545,7 +545,7 @@ cdma_dev_init(struct rte_cdx_device *cdx_dev, struct rte_dma_dev *dmadev)
 
 	cdma_dev->addr = cdx_dev->mem_resource[0].addr;
 	cdma_dev->len = cdx_dev->mem_resource[0].len;
-	cdma_dev->num_msi = rte_intr_irq_count_get(cdx_dev->intr_handle);
+	cdma_dev->num_msi = rte_intr_nb_intr_get(cdx_dev->intr_handle);
 	cdma_dev->cdx_dev = cdx_dev;
 	cdma_dev->dmadev = dmadev;
 
