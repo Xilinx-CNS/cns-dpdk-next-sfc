@@ -37,6 +37,9 @@ struct rte_cdx_bus;
 static const char DRV_EXP_TAG(name, cdx_tbl_export)[] __rte_used = \
 RTE_STR(table)
 
+/** Device needs resource mapping */
+#define RTE_CDX_DRV_NEED_MAPPING 0x0001
+
 /**
  * A structure describing an ID for a CDX driver. Each driver provides a
  * table of these IDs for each device that it supports.
@@ -106,29 +109,6 @@ struct rte_cdx_driver {
 	const struct rte_cdx_id *id_table;	/**< ID table, NULL terminated. */
 	uint32_t drv_flags;			/**< Flags RTE_CDX_DRV_*. */
 };
-
-/**
- * Map the CDX device resources in user space virtual memory address.
- *
- * @param dev
- *   A pointer to a rte_cdx_device structure describing the device
- *   to use.
- *
- * @return
- *   0 on success, <0 on error.
- */
-__rte_internal
-int rte_cdx_map_device(struct rte_cdx_device *dev);
-
-/**
- * Unmap this device.
- *
- * @param dev
- *   A pointer to a rte_cdx_device structure describing the device
- *   to use.
- */
-__rte_internal
-void rte_cdx_unmap_device(struct rte_cdx_device *dev);
 
 /**
  * Register a CDX driver.

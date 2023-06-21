@@ -622,7 +622,8 @@ cdma_remove(struct rte_cdx_device *cdx_dev)
 static struct rte_cdx_driver cdma_drv = {
 	.id_table = cdma_match_id_tbl,
 	.probe = cdma_probe,
-	.remove = cdma_remove
+	.remove = cdma_remove,
+	.drv_flags = RTE_CDX_DRV_NEED_MAPPING
 };
 
 RTE_PMD_REGISTER_CDX(cdma_driver, cdma_drv);

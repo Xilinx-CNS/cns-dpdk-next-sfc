@@ -467,7 +467,8 @@ cdx_exerciser_remove(struct rte_cdx_device *cdx_dev)
 static struct rte_cdx_driver cdx_exerciser_drv = {
 		.id_table = cdx_exerciser_match_id_tbl,
 		.probe = cdx_exerciser_probe,
-		.remove = cdx_exerciser_remove
+		.remove = cdx_exerciser_remove,
+		.drv_flags = RTE_CDX_DRV_NEED_MAPPING
 };
 
 RTE_PMD_REGISTER_CDX(cdx_exerciser_driver, cdx_exerciser_drv);
