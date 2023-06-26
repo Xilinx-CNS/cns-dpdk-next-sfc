@@ -17,16 +17,16 @@ https://doc.dpdk.org/guides/prog_guide/build-sdk-meson.html#getting-the-tools
 
 ~~~
 cd <dpdk>/
-meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_test
+meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_test,mcdi/mcdi_init
 ninja -C arm64-build
 ~~~
 
-After compilation, dpdk-cdma_demo dpdk-cdx_test applications would respectively
+After compilation, dpdk-cdma_demo dpdk-cdx_test dpdk-mcdi_init applications would respectively
 be available at:
-arm64-build/examples/dpdk-cdma_demo and
-arm64-build/examples/dpdk-cdx_test
+arm64-build/examples/dpdk-cdma_demo, arm64-build/examples/dpdk-cdx_test and
+arm64-build/examples/dpdk-mcdi_init
 
-> **NOTE:** User can compile applications other than CDMA demo/CDX test as well.
+> **NOTE:** User can compile applications other than above applications as well.
 Please refer to DPDK documentation (http://doc.dpdk.org/guides/linux_gsg/)
 
 ## CDMA demo
@@ -60,7 +60,9 @@ hence this application will not provide expected results on QEMU platform.
 MCDI test app is a example application which demonstrates using MCDI commands from user space application.
 This application uses APIs provided by MCDI library.
 
-Please refer to MCDI library documentation [MCDI Library](./lib/mcdi/README.md) for more details.
+Refer to MCDI test application documentation [MCDI test app](./examples/mcdi/README.md) for more details
+about MCDI test app.
+Please refer to MCDI library documentation [MCDI Library](./lib/mcdi/README.md) for more details about MCDI library.
 
 ## Executing DPDK applications
 
@@ -143,55 +145,40 @@ EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
 EAL: Selected IOVA mode 'VA'
 EAL: VFIO support initialized
 EAL: Using IOMMU type 1 (Type 1)
-[99603.944426] Reset of the CDX device (cdx-00:01) successful
 cdma: Probing CDMA cdx device cdx-00:01
-[99603.977480] Reset of the CDX device (cdx-00:00) successful
 cdma: Probing CDMA cdx device cdx-00:00
 TELEMETRY: No legacy callbacks, legacy socket not created
 CDMA_DEMO: =================================================
-CDMA_DEMO: Dumping CDX devices
-CDMA_DEMO: -------------------
-cdx device cdx-00:01
-   Resource[0]: 0x1100800000 0000000000001000
-   Resource[1]: 0x1100801000 0000000000200000
-cdx device cdx-00:00
-   Resource[0]: 0x1100a01000 0000000000001000
-   Resource[1]: 0x1100a02000 0000000000200000
-CDMA_DEMO: =================================================
-CDMA_DEMO: =================================================
 CDMA_DEMO: CDMA DMA TEST PASSED for devid: 0
-CDMA_DEMO: CDMA MSI TEST PASSED for devid 0 with 4 MSI
+CDMA_DEMO: CDMA MSI TEST PASSED for devid 0 with 1 MSI
 CDMA_DEMO: CDMA DMA TEST PASSED for devid: 1
-CDMA_DEMO: CDMA MSI TEST PASSED for devid 1 with 4 MSI
+CDMA_DEMO: CDMA MSI TEST PASSED for devid 1 with 1 MSI
 CDMA_DEMO: ----CDMA TEST PASSED----
 CDMA_DEMO: =================================================
-[99604.223462] Reset of the CDX device (cdx-00:00) successful
-[99604.242506] Reset of the CDX device (cdx-00:01) successful
 ~~~
 
 ## Running dpdk-cdx_test
 
-scp the *dpdk-cdx_test*.
+scp the dpdk-cdx_test application to the board.
 
 ~~~
 scp <dpdk>/arm64-build/examples/dpdk-cdx_test <user>@<board IP>:~
 ~~~
 
 Launch the *dpdk-cdx_test* using following command
-
 ~~~
-./dpdk-cdx_test
+./dpdk-cdx_test -c 1 -n 1
 ~~~
 
-The application first test unplug and plug of CDX devices.It reads and dumps
-the MMIO registers of all the regions of the detected CDX devices.It also tests
-Msg store and Msg load using CDM exerciser.
+The application first test unplug and plug of CDX devices. It reads and dumps
+the MMIO registers of all the regions of the detected CDX devices. It also tests
+Msg store, Msg load using CDM exerciser.
 
 Following are the expected logs in case of successful execution of
 the application.
 
 ~~~
-./dpdk-cdx_test
+./dpdk-cdx_test -c 1 -n 1
 EAL: Detected CPU lcores: 16
 EAL: Detected NUMA nodes: 1
 EAL: Detected static linkage of DPDK
@@ -237,6 +224,40 @@ Resource 1 (total len: 67108864)
 Self test passed for device cdx-00:01
 Msg store test passed for device cdx-00:01
 Msg load test passed for device cdx-00:01
+~~~
+
+## Running dpdk-cdx_test with MSI test
+
+scp the dpdk-cdx_test, dpdk-mcdi_init applications to the board.
+
+~~~
+scp <dpdk>/arm64-build/examples/dpdk-cdx_test <user>@<board IP>:~
+scp <dpdk>/arm64-build/examples/dpdk-mcdi_init <user>@<board IP>:~
+~~~
+
+Before running dpdk-cdx_test application, run the initialization application dpdk-mcdi_init
+to create end point devices for all the available cdx devices using following command.
+
+~~~
+./dpdk-mcdi_init 1
+~~~
+
+Following are the expected logs in case of successful execution of initialization application.
+
+~~~
+./dpdk-mcdi_init 1
+Created endpoint for dst address 1025, cdx device 00:00
+Created endpoint for dst address 1026, cdx device 00:01
+Created endpoint for dst address 1027, cdx device 00:02
+Created endpoint for dst address 1028, cdx device 00:03
+~~~
+
+The end point character device creation can be confirmed by new /dev/rpmsg* files.
+
+Launch the *dpdk-cdx_test* application with -m option to perform MSI testing as well.
+~~~
+./dpdk-cdx_test -c 1 -n 1 -- -m
+~~~
 
 ## Unbinding CDX devices from VFIO
 
