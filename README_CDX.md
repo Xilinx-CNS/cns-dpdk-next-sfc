@@ -270,6 +270,34 @@ echo "cdx-00:01" > /sys/bus/cdx/drivers/vfio-cdx/unbind
 echo > /sys/bus/cdx/devices/cdx-00\:01/driver_override
 ~~~
 
+## Building yocto rootfs with DPDK
+Please refer to [Building yocto](https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/18841862/Install+and+Build+with+Xilinx+Yocto) to build rootfs from yocto.
+Modify DPDK repository in meta-xilinx/meta-dpdk/recipes-extended/dpdk/dpdk_22.11.0.bb file to update the DPDK
+source repo from which the packages,applications needs to be installed into rootfs.
+
+Additionally below steps shall be performed to include DPDK packages, applications into rootfs.
+
+1. Update “COMMON_INSTALL” variable in sources/meta-petalinux/recipes-core/images/petalinux-image-common.inc file
+to include dpdk, dpdk-examples, dpdk-tools packages.
+
+~~~
+COMMON_INSTALL = " \
+    .
+    .
+    .
+    dpdk \
+    dpdk-examples \
+    dpdk-tools \
+    "
+
+~~~
+
+2. Use machine name as *versal-net-generic* to build rootfs for versal net.
+
+~~~
+MACHINE=versal-net-generic bitbake petalinux-image-minimal
+~~~
+
 > **_NOTE:_**  DPDK EAL argument --log-level=cdx,8 would enable further
 logging for DPDK CDX bus and --log-level=cdma,8 would enable logging
 for DPDK CDMA driver.
