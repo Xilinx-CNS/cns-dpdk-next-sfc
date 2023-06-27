@@ -12,6 +12,7 @@ all_examples = [
         'bond',
         'cdma_demo',
         'cdx_exerciser_test',
+        'cdx_test',
         'cmdline',
         'distributor',
         'dma',

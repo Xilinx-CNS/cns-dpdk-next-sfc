@@ -17,13 +17,14 @@ https://doc.dpdk.org/guides/prog_guide/build-sdk-meson.html#getting-the-tools
 
 ~~~
 cd <dpdk>/
-meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_exerciser_test,mcdi/mcdi_init
+meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_exerciser_test,cdx_test,mcdi/mcdi_init
 ninja -C arm64-build
 ~~~
 
-After compilation, dpdk-cdma_demo dpdk-cdx_exerciser_test dpdk-mcdi_init applications would respectively
+After compilation, dpdk-cdma_demo dpdk-cdx_exerciser_test dpdk-cdx_test dpdk-mcdi_init applications would respectively
 be available at:
-arm64-build/examples/dpdk-cdma_demo, arm64-build/examples/dpdk-cdx_exerciser_test and
+arm64-build/examples/dpdk-cdma_demo, arm64-build/examples/dpdk-cdx_exerciser_test,
+arm64-build/examples/dpdk-cdx_test and
 arm64-build/examples/dpdk-mcdi_init
 
 > **NOTE:** User can compile applications other than above applications as well.
@@ -54,6 +55,12 @@ on all the available CDX devices and tests Msg store , Msg load functionality.
 
 > **NOTE:** CDX exerciser test application uses example CDM exeriser for Msg store and Msg load test,
 hence this application will not provide expected results on QEMU platform.
+
+## CDX test
+
+CDX test is a basic application which first unplugs and then plugs the CDX
+devices, and then reads the memory addresses for all the memory regions
+on all the available CDX devices.
 
 ## MCDI test app
 
@@ -257,6 +264,72 @@ The end point character device creation can be confirmed by new /dev/rpmsg* file
 Launch the *dpdk-cdx_exerciser_test* application with -m option to perform MSI testing as well.
 ~~~
 ./dpdk-cdx_exerciser_test -c 1 -n 1 -- -m
+~~~
+
+## Running dpdk-cdx_test
+scp the *dpdk-cdx_test* and *csi_exerciser_init.sh* to the board.
+
+~~~
+scp <dpdk>/arm64-build/examples/dpdk-cdx_test <user>@<board IP>:~
+scp <dpdk>/examples/cdx_test/csi_exerciser_init.sh <user>@<board IP>:~
+~~~
+
+To run dpdk-cdx_test on VNX board with CSI excersizer, CSI
+excersizer needs to be initialized first using following command
+
+~~~
+./csi_exerciser_init.sh
+~~~
+Launch the *dpdk-cdx_test* using following command
+
+~~~
+./dpdk-cdx_test
+~~~
+The application test unplug and plug of CDX devices.
+It also reads and dumps the MMIO registers of all the
+regions of the detected CDX devices.
+Following are the expected logs in case of successful execution of
+the application.
+
+~~~
+# ./dpdk-cdx_test
+EAL: Detected CPU lcores: 16
+EAL: Detected NUMA nodes: 1
+EAL: Detected static linkage of DPDK
+EAL: Multi-process socket /var/run/dpdk/rte/mp_socket
+EAL: Selected IOVA mode 'VA'
+EAL: VFIO support initialized
+EAL: Using IOMMU type 1 (Type 1)
+TELEMETRY: No legacy callbacks, legacy socket not created
+Removing device: cdx-00:00
+Probing device with identifier: cdx:cdx-00:00
+
+CDX device: cdx-00:00
+================================
+Resource 0 (total len: 2097152)
+--------------------------------
+ 0:	00000000 00000000 00000000 00000000
+ 10:	00000000 00000000 00000000 00000000
+ 20:	00000000 00000000 00000000 00000000
+ 30:	00000000 00000000 00000000 00000000
+ 40:	00000000 00000000 00000000 00000000
+ 50:	00000000 00000000 00000000 00000000
+ 60:	00000000 00000000 00000000 00000000
+ 70:	00000000 00000000 00000000 00000000
+ 80:	00000000 00000000 00000000 00000000
+ 90:	00000000 00000000 00000000 00000000
+Resource 1 (total len: 67108864)
+--------------------------------
+ 0:	01234567 89abcdef 89abcdef 00000000
+ 10:	1111face facebabe 00000000 00000000
+ 20:	00000000 00000000 00000000 00000000
+ 30:	00000000 00000000 00000000 00000000
+ 40:	00000000 00000000 00000000 00000000
+ 50:	00000000 00000000 00000000 00000000
+ 60:	00000000 00000000 00000000 00000000
+ 70:	00000000 00000000 00000000 00000000
+ 80:	00000000 00000000 00000000 00000000
+ 90:	00000000 00000000 00000000 00000000
 ~~~
 
 ## Unbinding CDX devices from VFIO
