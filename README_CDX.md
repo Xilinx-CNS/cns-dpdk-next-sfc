@@ -17,13 +17,13 @@ https://doc.dpdk.org/guides/prog_guide/build-sdk-meson.html#getting-the-tools
 
 ~~~
 cd <dpdk>/
-meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_test,mcdi/mcdi_init
+meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_exerciser_test,mcdi/mcdi_init
 ninja -C arm64-build
 ~~~
 
-After compilation, dpdk-cdma_demo dpdk-cdx_test dpdk-mcdi_init applications would respectively
+After compilation, dpdk-cdma_demo dpdk-cdx_exerciser_test dpdk-mcdi_init applications would respectively
 be available at:
-arm64-build/examples/dpdk-cdma_demo, arm64-build/examples/dpdk-cdx_test and
+arm64-build/examples/dpdk-cdma_demo, arm64-build/examples/dpdk-cdx_exerciser_test and
 arm64-build/examples/dpdk-mcdi_init
 
 > **NOTE:** User can compile applications other than above applications as well.
@@ -46,13 +46,13 @@ Test runs on each CDX device detected on the DPDK CDX bus.
 QEMU enviromentment only. Hence this application will provide expected
 results only in QEMU enviroment.
 
-## CDX test
+## CDX Exerciser test
 
-CDX test is a basic application which first unplugs and then plugs the CDX
+CDX exerciser test is a basic application which first unplugs and then plugs the CDX
 devices, reads the memory addresses for all the memory regions
 on all the available CDX devices and tests Msg store , Msg load functionality.
 
-> **NOTE:** CDX test application uses example CDM exeriser for Msg store and Msg load test,
+> **NOTE:** CDX exerciser test application uses example CDM exeriser for Msg store and Msg load test,
 hence this application will not provide expected results on QEMU platform.
 
 ## MCDI test app
@@ -157,17 +157,17 @@ CDMA_DEMO: ----CDMA TEST PASSED----
 CDMA_DEMO: =================================================
 ~~~
 
-## Running dpdk-cdx_test
+## Running dpdk-cdx_exerciser_test
 
-scp the dpdk-cdx_test application to the board.
+scp the dpdk-cdx_exerciser_test application to the board.
 
 ~~~
-scp <dpdk>/arm64-build/examples/dpdk-cdx_test <user>@<board IP>:~
+scp <dpdk>/arm64-build/examples/dpdk-cdx_exerciser_test <user>@<board IP>:~
 ~~~
 
-Launch the *dpdk-cdx_test* using following command
+Launch the *dpdk-cdx_exerciser_test* using following command
 ~~~
-./dpdk-cdx_test -c 1 -n 1
+./dpdk-cdx_exerciser_test -c 1 -n 1
 ~~~
 
 The application first test unplug and plug of CDX devices. It reads and dumps
@@ -178,7 +178,7 @@ Following are the expected logs in case of successful execution of
 the application.
 
 ~~~
-./dpdk-cdx_test -c 1 -n 1
+./dpdk-cdx_exerciser_test -c 1 -n 1
 EAL: Detected CPU lcores: 16
 EAL: Detected NUMA nodes: 1
 EAL: Detected static linkage of DPDK
@@ -226,16 +226,16 @@ Msg store test passed for device cdx-00:01
 Msg load test passed for device cdx-00:01
 ~~~
 
-## Running dpdk-cdx_test with MSI test
+## Running dpdk-cdx_exerciser_test with MSI test
 
-scp the dpdk-cdx_test, dpdk-mcdi_init applications to the board.
+scp the dpdk-cdx_exerciser_test, dpdk-mcdi_init applications to the board.
 
 ~~~
-scp <dpdk>/arm64-build/examples/dpdk-cdx_test <user>@<board IP>:~
+scp <dpdk>/arm64-build/examples/dpdk-cdx_exerciser_test <user>@<board IP>:~
 scp <dpdk>/arm64-build/examples/dpdk-mcdi_init <user>@<board IP>:~
 ~~~
 
-Before running dpdk-cdx_test application, run the initialization application dpdk-mcdi_init
+Before running dpdk-cdx_exerciser_test application, run the initialization application dpdk-mcdi_init
 to create end point devices for all the available cdx devices using following command.
 
 ~~~
@@ -254,9 +254,9 @@ Created endpoint for dst address 1028, cdx device 00:03
 
 The end point character device creation can be confirmed by new /dev/rpmsg* files.
 
-Launch the *dpdk-cdx_test* application with -m option to perform MSI testing as well.
+Launch the *dpdk-cdx_exerciser_test* application with -m option to perform MSI testing as well.
 ~~~
-./dpdk-cdx_test -c 1 -n 1 -- -m
+./dpdk-cdx_exerciser_test -c 1 -n 1 -- -m
 ~~~
 
 ## Unbinding CDX devices from VFIO
