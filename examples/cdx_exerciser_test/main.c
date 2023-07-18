@@ -21,9 +21,6 @@
 #define MAX_IDENTIFIER_SIZE	128
 #define BUF_SIZE		1024
 
-extern int get_msi_data(char *dev_name, uint32_t msi_vector,
-		 uint64_t *msi_addr, uint32_t *msi_data);
-
 struct intr_args_t {
 	volatile int eventfd;
 	volatile int sync;
@@ -116,7 +113,6 @@ main(int argc, char** argv)
 	int msi_id, num_msi;
 	pthread_t tid;
 	uint64_t msi_addr;
-	uint32_t msi_data;
 
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
@@ -193,14 +189,11 @@ main(int argc, char** argv)
 			}
 			num_msi = rte_raw_cdx_exerciser_num_msi(raw_dev_id);
 			for (msi_id = 0; msi_id < num_msi; msi_id++) {
-				ret = get_msi_data(raw_dev->name, msi_id, &msi_addr, &msi_data);
-				if (ret < 0) {
-					/*With the absence of EFTEST FW, this can fail. So assigning fixed MSI IOVA
-					 * base address knowing that MSI IOVA address is
-					 * fixed in SMMU driver(#define MSI_IOVA_BASE 0x8000000)
-					 */
-					msi_addr = 0x8000040;
-				}
+				/* MSI address and data should be get from NMC firmware.
+				 * Setting it to hardcoded value for testing purpose.
+				 */
+				
+				msi_addr = 0x8000040;
 				intr_args->eventfd = rte_raw_cdx_exerciser_get_efd(raw_dev_id, msi_id);
 				intr_args->sync = 0;
 				intr_args->success = 0;

@@ -11,6 +11,5 @@
 allow_experimental_apis = true
 sources = files(
         'main.c',
-        'eftest_mcdi.c',
 )
-deps += ['rawdev', 'raw_cdx_exerciser', 'mcdi']
+deps += ['rawdev', 'raw_cdx_exerciser']

@@ -63,7 +63,6 @@ libraries = [
         'flow_classify', # flow_classify lib depends on pkt framework table lib
         'graph',
         'node',
-        'mcdi',
 ]
 
 optional_libs = [

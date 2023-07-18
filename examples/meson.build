@@ -37,8 +37,6 @@ all_examples = [
         'l3fwd-graph',
         'l3fwd-power',
         'link_status_interrupt',
-        'mcdi/mcdi_test',
-        'mcdi/mcdi_init',
         'multi_process/client_server_mp/mp_client',
         'multi_process/client_server_mp/mp_server',
         'multi_process/hotplug_mp',
