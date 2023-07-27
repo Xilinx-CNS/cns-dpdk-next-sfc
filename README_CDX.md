@@ -17,15 +17,14 @@ https://doc.dpdk.org/guides/prog_guide/build-sdk-meson.html#getting-the-tools
 
 ~~~
 cd <dpdk>/
-meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_exerciser_test,cdx_test,mcdi/mcdi_init
+meson arm64-build --cross-file config/arm/arm64_cdx_linux_gcc -Dexamples=cdma_demo,cdx_exerciser_test,cdx_test
 ninja -C arm64-build
 ~~~
 
-After compilation, dpdk-cdma_demo dpdk-cdx_exerciser_test dpdk-cdx_test dpdk-mcdi_init applications would respectively
+After compilation, dpdk-cdma_demo dpdk-cdx_exerciser_test dpdk-cdx_test applications would respectively
 be available at:
 arm64-build/examples/dpdk-cdma_demo, arm64-build/examples/dpdk-cdx_exerciser_test,
-arm64-build/examples/dpdk-cdx_test and
-arm64-build/examples/dpdk-mcdi_init
+and arm64-build/examples/dpdk-cdx_test
 
 > **NOTE:** User can compile applications other than above applications as well.
 Please refer to DPDK documentation (http://doc.dpdk.org/guides/linux_gsg/)
@@ -61,15 +60,6 @@ hence this application will not provide expected results on QEMU platform.
 CDX test is a basic application which first unplugs and then plugs the CDX
 devices, and then reads the memory addresses for all the memory regions
 on all the available CDX devices.
-
-## MCDI test app
-
-MCDI test app is a example application which demonstrates using MCDI commands from user space application.
-This application uses APIs provided by MCDI library.
-
-Refer to MCDI test application documentation [MCDI test app](./examples/mcdi/README.md) for more details
-about MCDI test app.
-Please refer to MCDI library documentation [MCDI Library](./lib/mcdi/README.md) for more details about MCDI library.
 
 ## Executing DPDK applications
 
@@ -235,31 +225,11 @@ Msg load test passed for device cdx-00:01
 
 ## Running dpdk-cdx_exerciser_test with MSI test
 
-scp the dpdk-cdx_exerciser_test, dpdk-mcdi_init applications to the board.
+scp the dpdk-cdx_exerciser_test applications to the board.
 
 ~~~
 scp <dpdk>/arm64-build/examples/dpdk-cdx_exerciser_test <user>@<board IP>:~
-scp <dpdk>/arm64-build/examples/dpdk-mcdi_init <user>@<board IP>:~
 ~~~
-
-Before running dpdk-cdx_exerciser_test application, run the initialization application dpdk-mcdi_init
-to create end point devices for all the available cdx devices using following command.
-
-~~~
-./dpdk-mcdi_init 1
-~~~
-
-Following are the expected logs in case of successful execution of initialization application.
-
-~~~
-./dpdk-mcdi_init 1
-Created endpoint for dst address 1025, cdx device 00:00
-Created endpoint for dst address 1026, cdx device 00:01
-Created endpoint for dst address 1027, cdx device 00:02
-Created endpoint for dst address 1028, cdx device 00:03
-~~~
-
-The end point character device creation can be confirmed by new /dev/rpmsg* files.
 
 Launch the *dpdk-cdx_exerciser_test* application with -m option to perform MSI testing as well.
 ~~~
