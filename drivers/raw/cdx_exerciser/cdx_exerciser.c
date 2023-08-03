@@ -428,9 +428,10 @@ cdx_exerciser_probe(struct rte_cdx_driver *cdx_driver,
 				          cdx_dev->device.name);
 			return -EINVAL;
 	}
-	num_msi = rte_intr_nb_intr_get(cdx_dev->intr_handle);
-	if (num_msi >= 1) {
+
+	if (rte_intr_type_get(cdx_dev->intr_handle) == RTE_INTR_HANDLE_VFIO_MSIX) {
 		/* Enable interrupts */
+		num_msi = rte_intr_nb_intr_get(cdx_dev->intr_handle);
 		rte_intr_efd_enable(cdx_dev->intr_handle, num_msi);
 		rte_cdx_vfio_intr_enable(cdx_dev->intr_handle);
 	}
@@ -454,8 +455,10 @@ cdx_exerciser_remove(struct rte_cdx_device *cdx_dev)
 	}
 
 	/* Disable interrupts */
-	rte_cdx_vfio_intr_disable(cdx_dev->intr_handle);
-	rte_intr_efd_disable(cdx_dev->intr_handle);
+	if (rte_intr_type_get(cdx_dev->intr_handle) == RTE_INTR_HANDLE_VFIO_MSIX) {
+		rte_cdx_vfio_intr_disable(cdx_dev->intr_handle);
+		rte_intr_efd_disable(cdx_dev->intr_handle);
+	}
 
 	ret = rte_rawdev_pmd_release(rawdev);
 	if (ret)
