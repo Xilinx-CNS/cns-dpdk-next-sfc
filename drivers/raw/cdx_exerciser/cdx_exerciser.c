@@ -71,6 +71,7 @@ static int init_csi_exerciser(struct rte_cdx_device *cdx_dev)
 	// Set destination FIFO ID
 	write32_csi(addr, CSI_CMPL_DEST_FIFO_ID_SOURCE1, CSI_UPORT_CMPL_DEST_FIFO_ID);
 	write32_csi(addr, CSI_CMPL_DEST_FIFO_ID_SOURCE2, CSI_UPORT_CMPL_DEST_FIFO_ID);
+	write32_csi(addr, CSI_BUF_ID_SOURCE2, CSI_UPORT_CMPL_DEST_FIFO_ID);
 	write32_csi(addr, CSI_INPUT_SOURCE1, CSI_EXER_INPUT_SOURCE_PCIE0);
 	write32_csi(addr, CSI_INPUT_SOURCE2, CSI_EXER_INPUT_SOURCE_PSX);
 	//Reset counters, encode & req_gen logic

@@ -25,6 +25,7 @@ extern int cdx_exerciser_logtype;
 #define CSI_NPR_CREDIT 0xC
 #define CSI_CMPL_CREDIT 0x10
 #define CSI_PR_CREDIT 0x14
+#define CSI_BUF_ID_SOURCE2 0x1C
 #define CSI_CTRL 0x28
 #define CSI_CMPL_DEST_FIFO_ID_SOURCE1 0x2C
 #define CSI_CMPL_DEST_FIFO_ID_SOURCE2 0x30
