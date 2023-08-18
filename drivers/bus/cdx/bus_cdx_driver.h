@@ -16,6 +16,7 @@ extern "C" {
 
 #include <stdlib.h>
 #include <inttypes.h>
+#include <linux/types.h>
 
 #include <bus_driver.h>
 #include <dev_driver.h>
@@ -156,6 +157,30 @@ __rte_internal
 int rte_cdx_vfio_intr_disable(const struct rte_intr_handle *intr_handle);
 
 /**
+ * Enable Bus Mastering for CDX bus devices.
+ *
+ * @param dev
+ *   Pointer to the cdx device.
+ *
+ *  @return
+ *  0 on success, -1 on error.
+ */
+__rte_internal
+int rte_cdx_vfio_bm_enable(struct rte_cdx_device *dev);
+
+/**
+ * Disable Bus Mastering for CDX bus devices.
+ *
+ * @param dev
+ *   Pointer to the cdx device.
+ *
+ *  @return
+ *  0 on success, -1 on error.
+ */
+__rte_internal
+int rte_cdx_vfio_bm_disable(struct rte_cdx_device *dev);
+
+/**
  * Unregister a CDX driver.
  *
  * @param driver
@@ -165,6 +190,29 @@ int rte_cdx_vfio_intr_disable(const struct rte_intr_handle *intr_handle);
 __rte_internal
 void rte_cdx_unregister(struct rte_cdx_driver *driver);
 
+#ifndef VFIO_DEVICE_FEATURE
+struct vfio_device_feature {
+        __u32   argsz;
+        __u32   flags;
+#define VFIO_DEVICE_FEATURE_MASK        (0xffff) /* 16-bit feature index */
+#define VFIO_DEVICE_FEATURE_GET         (1 << 16) /* Get feature into data[] */
+#define VFIO_DEVICE_FEATURE_SET         (1 << 17) /* Set feature from data[] */
+#define VFIO_DEVICE_FEATURE_PROBE       (1 << 18) /* Probe feature support */
+        __u8    data[];
+};
+
+#define VFIO_DEVICE_FEATURE             _IO(VFIO_TYPE, VFIO_BASE + 17)
+#endif
+
+#ifndef VFIO_DEVICE_FEATURE_BUS_MASTER
+struct vfio_device_feature_bus_master {
+        __u32 op;
+#define  VFIO_DEVICE_FEATURE_CLEAR_MASTER       0       /* Clear Bus Master */
+#define  VFIO_DEVICE_FEATURE_SET_MASTER         1       /* Set Bus Master */
+};
+
+#define VFIO_DEVICE_FEATURE_BUS_MASTER  10
+#endif
 #ifdef __cplusplus
 }
 #endif
