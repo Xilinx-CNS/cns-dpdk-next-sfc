@@ -405,7 +405,7 @@ cdx_exerciser_probe(struct rte_cdx_driver *cdx_driver,
 		   struct rte_cdx_device *cdx_dev)
 {
 	struct rte_rawdev *rawdev;
-	int num_msi;
+	int num_msi, ret = 0;
 
 	CDX_EXERCISER_LOG(INFO, "Probing %s device", cdx_dev->device.name);
 
@@ -427,6 +427,15 @@ cdx_exerciser_probe(struct rte_cdx_driver *cdx_driver,
 			CDX_EXERCISER_LOG(ERR, "Failed to destroy cdx rawdev for device %s",
 				          cdx_dev->device.name);
 			return -EINVAL;
+	}
+
+	/* Enable Bus Master support for DMA*/
+	ret = rte_cdx_vfio_bm_enable(cdx_dev);
+	if (ret) {
+		CDX_EXERCISER_LOG(ERR, "Bus master enable failed for device %s",
+				  cdx_dev->device.name);
+		rte_rawdev_pmd_release(rawdev);
+		return ret;
 	}
 
 	if (rte_intr_type_get(cdx_dev->intr_handle) == RTE_INTR_HANDLE_VFIO_MSIX) {
@@ -459,6 +468,12 @@ cdx_exerciser_remove(struct rte_cdx_device *cdx_dev)
 		rte_cdx_vfio_intr_disable(cdx_dev->intr_handle);
 		rte_intr_efd_disable(cdx_dev->intr_handle);
 	}
+
+	/* Disable Bus Master */
+	ret = rte_cdx_vfio_bm_disable(cdx_dev);
+	if (ret)
+		CDX_EXERCISER_LOG(ERR, "Bus master disable failed for device %s",
+				  cdx_dev->device.name);
 
 	ret = rte_rawdev_pmd_release(rawdev);
 	if (ret)
